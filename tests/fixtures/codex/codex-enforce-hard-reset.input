@@ -1,0 +1,1 @@
+{"command":"git reset --hard HEAD~5","env":{"HORUS_ENFORCE":"1"},"cwd":"/test","branch":"feature/cleanup"}

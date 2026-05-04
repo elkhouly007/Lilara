@@ -83,8 +83,11 @@ case "$cmd" in
 
   # ── upgrade ──────────────────────────────────────────────────────────────
   upgrade)
-    exec bash "${scripts}/upgrade.sh" "$@"
+    bash "${scripts}/upgrade.sh" "$@"
+    # Auto-migrate legacy 4-part learned-allow keys after upgrading
+    bash "${scripts}/migrate-policy-store.sh" --apply
     ;;
+
 
   # ── setup ────────────────────────────────────────────────────────────────
   setup)
