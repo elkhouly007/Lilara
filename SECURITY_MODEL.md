@@ -82,6 +82,16 @@ The prompt injection patterns in `dangerous-patterns.json` scan the command stri
 
 ---
 
+## Egress Sanitization Scope
+
+**PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode, openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or payload, `payloadClass` is upgraded to C (critical) and the hard floor in `decide()` fires. This applies across all six harnesses.
+
+**PostToolUse (Claude Code only):** `claude/hooks/output-sanitizer.js` scans tool output for the same 23-pattern set after each tool call, warning when a credential appears in a tool response. This hook is a Claude Code PreToolUse/PostToolUse informational warning only — it cannot block (PostToolUse hooks are informational).
+
+**PostToolUse parity for OpenCode, OpenClaw, and EXPERIMENTAL harnesses:** Not implemented. `opencode/WIRING_PLAN.md` documents that PostToolUse extension is deferred pending contributor verification of upstream support. OpenClaw PostToolUse event model is also unverified. The three EXPERIMENTAL harnesses (codex, clawcode, antegravity) have no PostToolUse hook at all. Operators who need egress sanitization for these harnesses must rely on the PreToolUse secret-scan floor only.
+
+---
+
 ## Fail-Closed Behavior Under HORUS_ENFORCE=1
 
 Under `HORUS_ENFORCE=1`, if `runtime.decide()` throws (e.g., corrupt `session-context.json`, partial deploy, or missing state file), the gate fails closed when any non-trivial safety signal is present: a dangerous-pattern hit at any severity (medium, high, or critical), a secret-bearing payload, or a high-sensitivity path. This trades availability for safety: a corrupt policy file under enforce can transiently block legitimate work, but the alternative — silently allowing tool calls when enforcement is requested — is worse. The existing `session-context.js` auto-backup-and-reset on parse error (lines 71-79) mitigates the availability cost. See `runtime/pretool-gate.js:182-200`.

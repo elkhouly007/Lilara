@@ -126,6 +126,12 @@ jobs:
       - name: Check Claw Code adapter
         run: bash scripts/check-clawcode-adapter.sh
 
+      - name: Check Codex adapter
+        run: bash scripts/check-codex-adapter.sh
+
+      - name: Check antegravity adapter
+        run: bash scripts/check-antegravity-adapter.sh
+
       - name: Check zero deps (runtime/)
         run: bash scripts/check-zero-deps.sh
 
@@ -148,6 +154,15 @@ jobs:
 
       - name: Kill-switch (all 13 hooks)
         run: bash scripts/check-kill-switch.sh
+
+      - name: Decide-on-every-call (C1 regression guard)
+        run: HORUS_STATE_DIR=$(mktemp -d) bash scripts/check-decide-on-every-call.sh
+
+      - name: Session isolation (trajectory partitioning)
+        run: HORUS_STATE_DIR=$(mktemp -d) bash scripts/check-session-isolation.sh
+
+      - name: Decision quality gate (FP/FN bounds)
+        run: bash scripts/eval-decision-quality.sh
 
       - name: Restore bench baseline
         uses: actions/cache@v4
