@@ -53,7 +53,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 # 6. Run runtime and structural checks, including install and apply-status verification:
 ./scripts/horus-cli.sh check
 
-# 7. Run all 183 fixture-based tests:
+# 7. Run all 216 fixture-based tests:
 ./scripts/horus-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
@@ -100,7 +100,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 66 files
+### Scripts (`scripts/`) — 69 files
 
 | Script | Purpose |
 |--------|---------|
@@ -113,7 +113,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `audit-local.sh` | Grep-based risk scanner for scripts and hooks |
 | `audit-examples.sh` | Scan prose and GOOD code blocks for dangerous patterns |
 | `verify-hooks-integrity.sh` | SHA-256 baseline check for all hook files |
-| `run-fixtures.sh` | 183-fixture automated test runner |
+| `run-fixtures.sh` | 216-fixture automated test runner |
 | `eval-decision-quality.sh` | Measure `runtime.decide()` FP/FN rates against a labeled corpus; exits 1 if thresholds exceeded |
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |

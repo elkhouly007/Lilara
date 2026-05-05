@@ -23,8 +23,8 @@ source_version="$(cat "$source_version_file" | tr -d '[:space:]')"
 if [ "${1:-}" = "--check-changelog" ]; then
   changelog="$root/CHANGELOG.md"
   [ -f "$changelog" ] || { printf 'ERROR: CHANGELOG.md not found\n' >&2; exit 2; }
-  # Extract version from first "## [X.Y.Z]" line
-  changelog_version="$(grep -m1 '^## \[' "$changelog" | sed 's/^## \[\([^]]*\)\].*/\1/')"
+  # Extract version from first "## [X.Y.Z]" line (skip [Unreleased])
+  changelog_version="$(grep -m1 '^## \[[0-9]' "$changelog" | sed 's/^## \[\([^]]*\)\].*/\1/')"
   if [ "$source_version" = "$changelog_version" ]; then
     printf 'VERSION (%s) matches CHANGELOG top header — ok\n' "$source_version"
     exit 0

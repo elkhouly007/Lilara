@@ -6,6 +6,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `scripts/check-codex-adapter.sh`, `scripts/check-antegravity-adapter.sh` — CI adapter verification scripts for the two remaining EXPERIMENTAL harnesses
+- `scripts/migrate-policy-store.sh` — one-shot migration from legacy 4-part to 5-part learned-allow keys; invoked automatically by `horus-cli.sh upgrade`
+- 30 new fixture test cases (216 fixture pairs total) across `tests/fixtures/codex/`, `tests/fixtures/clawcode/`, `tests/fixtures/antegravity/`
+- `WIRING_PLAN.md`, `COMPATIBILITY_STRATEGY.md`, `APPLY_CHECKLIST.md` for codex, clawcode, antegravity
+- `check-cross-harness-equivalence.sh` extended to all 6 harnesses (was 3)
+- Egress Sanitization Scope section in `SECURITY_MODEL.md`
+
+---
+
 ## [3.0.0] — 2026-04-27
 
 > **Breaking:** All `ECC_*` environment variables renamed to `HORUS_*`. Config file `ecc.config.json` → `horus.config.json`. Contract file `ecc.contract.json` → `horus.contract.json`. State dir `~/.openclaw/agent-runtime-guard` → `~/.horus`. CLI `ecc-cli.sh` → `horus-cli.sh`. ContractId prefix `arg-` → `hap-`. See `scripts/horus-rebrand.sh` for the migration script.
@@ -77,7 +89,9 @@ Fixture count after Phase 1: **183 fixture-based tests** (179 → 183; +4 compan
 
 ---
 
-### Added
+### Pre-release hardening: cross-harness parity + output sanitization
+
+#### Added
 - `claude/hooks/output-sanitizer.js`: PostToolUse hook scans tool output for 23 secret patterns. Warns when a credential is echoed by a tool; cannot block (PostToolUse is informational). Extends the same `runtime/secret-scan.js` patterns used by the PreToolUse spine.
 - `runtime/pretool-gate.js`: Cross-harness secret-scan parity — `scanSecrets()` is now called for every harness (claude, opencode, openclaw), not just via the Claude-specific `secret-warning.js` hook. Secrets upgrade `payloadClass` to C, triggering the hard floor in `decide()` identically across all harnesses.
 - `tests/fixtures/cross-harness/ch-secret-api-key.input`: New fixture verifying `sk-proj-*` bearer token detection via the cross-harness path.
@@ -86,11 +100,11 @@ Fixture count after Phase 1: **183 fixture-based tests** (179 → 183; +4 compan
 - `tests/fixtures/dangerous-command-gate/dcg-enforce-rm-no-preserve-root.{input,expected_exit,expected_stderr}`: Enforce-mode fixture for `rm --no-preserve-root -rf /` — confirms critical-risk command blocks (exit 2).
 - `tests/fixtures/kill-switch/ks-output-sanitizer.input`: Kill-switch fixture for output-sanitizer (exit 0, passthrough informational hook).
 
-### Fixed
+#### Fixed
 - `tests/fixtures/opencode/opencode-enforce-hard-reset` and `oc-enforce-hard-reset`: Wrong expected_exit (was 2, corrected to 0). `git reset --hard` scores medium risk (5) → route → enforcementAction=warn → exit 0 in enforce mode.
 - `tests/fixtures/opencode/opencode-enforce-npx-y` and `oc-enforce-npx-y`: Wrong expected_exit (was 2, corrected to 0). `npx -y` scores medium risk (5) → route → exit 0 in enforce mode.
 
-### Changed
+#### Changed
 - `runtime/risk-score.js`: Protected-branch matching now uses `globMatch()` from `runtime/glob-match.js` instead of `.includes()`. Glob patterns like `release/*` in `branches.protected` now correctly match `release/1.2` and similar branch names.
 - `scripts/check-counts.sh`: `EXPECTED_HOOKS` 12 → 13; `EXPECTED_FIXTURES` 175 → 179.
 - `scripts/check-kill-switch.sh`: Added output-sanitizer.js as a passthrough hook (exit 0); count updated 12 → 13.
@@ -301,10 +315,10 @@ Contract scaffolding behind `HORUS_CONTRACT_ENABLED=0`. Runtime ignores contract
 - `runtime/glob-match.js`: zero-dep glob matcher supporting `**`, `*`, `?`, `[abc]`, `!` negation, `${projectRoot}` substitution, Windows case-folding. No minimatch dependency.
 - `runtime/canonical-json.js`: deterministic JSON stringify (keys sorted recursively) for contract hashing. Zero external deps.
 - `runtime/arg-extractor.js`: minimal argv splitter (single/double quotes, backslash escapes, heredocs → opaque `<<HEREDOC`). Used for scope matching.
-- `runtime/config-validator.js`: typed-field walker validating horus.config.json and horus.contract.json against JSON schemas. No ajv/zod dependency.
+- `runtime/config-validator.js`: typed-field walker validating horus.config.json and horus.contract.json against JSON schemas. No ajv/zod dependency. Closes W9 (config has no schema; misconfiguration is silent).
 - `runtime/decision-key.js`: finer-grained decision key with `pathBucket` (project-relative path prefix) and `branchBucket` (protected/feature/other). Closes W10 (decisionKey too coarse). Preserves legacy key for backward-compat.
 - `runtime/contract.js`: contract lifecycle — `load()`, `verify()`, `accept()`, `generate()`, `scopeMatch()`, `harnessInScope()`. Hash is SHA-256 of canonical JSON excluding `contractHash` field itself. Self-accept guard: refuses when harness session env vars are detected.
-- `schemas/horus.config.schema.json`: JSON schema for horus.config.json.
+- `schemas/horus.config.schema.json`: JSON schema for horus.config.json (W9).
 - `schemas/horus.contract.schema.json`: JSON schema for horus.contract.json. Version 1. Payload class C cannot be set to `off` (floor complement).
 - `horus.contract.json.example`: example contract document with inline comments.
 - `scripts/check-contract.sh`: ≥50 assertions covering canonical-json, glob-match, arg-extractor, config-validator, decision-key, and contract module (generate, hash, scopeMatch, harnessInScope, tamper detection, revision downgrade rejection).

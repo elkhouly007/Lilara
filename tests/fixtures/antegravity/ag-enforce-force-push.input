@@ -1,0 +1,1 @@
+{"command":"git push --force origin main","env":{"HORUS_ENFORCE":"1"},"cwd":"/test"}

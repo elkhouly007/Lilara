@@ -1,0 +1,1 @@
+{"command":"rm -rf /data/old","env":{"HORUS_ENFORCE":"1"},"cwd":"/test"}

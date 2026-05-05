@@ -34,14 +34,16 @@ for harness in 'Codex' 'Claw Code' 'antegravity'; do
 done
 pass 'Planned harnesses present in matrix'
 
-# Each planned harness must have a stub directory with README.md containing NOT YET SUPPORTED
+# Each planned harness must have a stub directory with README.md containing either
+# NOT YET SUPPORTED (legacy wording) or EXPERIMENTAL (promoted wording).
 for dir in codex clawcode antegravity; do
   stub_readme="$root/$dir/README.md"
   [ -f "$stub_readme" ] || fail "stub README missing: $dir/README.md"
-  grep -Fq 'NOT YET SUPPORTED' "$stub_readme" || fail "$dir/README.md missing NOT YET SUPPORTED marker"
+  grep -qE 'NOT YET SUPPORTED|EXPERIMENTAL' "$stub_readme" || \
+    fail "$dir/README.md missing NOT YET SUPPORTED or EXPERIMENTAL marker"
   [ -f "$root/$dir/COMPATIBILITY_NOTES.md" ] || fail "stub COMPATIBILITY_NOTES missing: $dir/COMPATIBILITY_NOTES.md"
 done
-pass 'planned harness stub directories and NOT YET SUPPORTED markers present'
+pass 'planned harness stub directories and status markers present'
 
 # setup-wizard.sh must NOT silently fall back for unknown tools
 # It should contain codex|clawcode|antegravity rejection case (or exit 1 path)

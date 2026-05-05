@@ -291,7 +291,8 @@ This script is itself a Phase 1 deliverable.
 ┌────────────────────────────────────────────────────────────────┐
 │  ARG Host Adapter (per-harness shim, 15-25 LOC)               │
 │  e.g., claude/hooks/dangerous-command-gate.js                  │
-│  → calls createAdapter({ harness:"claude" })  (hook-utils.js)  │
+│  → calls createAdapter({ harness:"claude", ... })              │
+│    └─ wraps runPreToolGate() from runtime/pretool-gate.js      │
 └────────────────────────┬───────────────────────────────────────┘
                          │
                          ▼
@@ -299,7 +300,7 @@ This script is itself a Phase 1 deliverable.
 │  ARG Runtime Core (23 JS files / 3,454 LOC / zero-dep)        │
 │                                                                │
 │  pretool-gate.js                                               │
-│    └─ decision-engine.js [15-rung precedence matrix]           │
+│    └─ decision-engine.js [15-step precedence matrix]           │
 │         ├─ contract.js          [load/verify/scopeMatch]       │
 │         ├─ risk-score.js        [12 pattern classes, 0-10]     │
 │         ├─ policy-store.js      [learned-allows, auto-allows]  │
@@ -311,8 +312,8 @@ This script is itself a Phase 1 deliverable.
 │         ├─ promotion-guidance.js[6-stage lifecycle]            │
 │         └─ decision-journal.js  [JSONL audit log, 5MB rotation]│
 │                                                                │
-│  contract.js ←── arg.contract.json (per-project)              │
-│  policy-store.js ←── learned-policy.json (~/.arg/…)           │
+│  contract.js ←── horus.contract.json (per-project)             │
+│  policy-store.js ←── learned-policy.json (~/.horus/…)           │
 │  state-paths.js ←── single source of truth for all paths      │
 └────────────────────────┬───────────────────────────────────────┘
                          │ writes to
@@ -331,7 +332,7 @@ This script is itself a Phase 1 deliverable.
 ```
 Host fires PreToolUse → Adapter shim (15 LOC) → pretool-gate.js
   → secret-scan.js          [W5: cross-harness secret check]
-  → decision-engine.js      [15 rungs]:
+  → decision-engine.js      [15 steps]:
       Step 1:  kill-switch check (HORUS_KILL_SWITCH / ARG_KILL_SWITCH)
       Step 2:  context discovery (git branch, project stack)
       Step 3:  contract load + hash verify (strict mode)
@@ -362,7 +363,7 @@ Modules are **policy documents** (JSON + markdown) that describe capability cate
 - `modules/{mcp,wrapper,plugin,browser,notification,daemon}-pack/` — per-capability-class policies
 - Each module has: class (local/external/read-only/write-gated/supervised), default policy, allowed use, approval boundary
 
-Modules feed into `arg.config.json` capability selection and inform the Smart Capability Selector (Phase 5).
+Modules feed into `horus.config.json` capability selection and inform the Smart Capability Selector (Phase 5).
 
 ---
 
@@ -444,8 +445,8 @@ The contract is already built (`runtime/contract.js`, 496 LOC, schema v2). This 
 - Contract v3 schema: add `mode` field (guided/autonomous/hybrid), `learningTier1` settings
 - Update `runtime/contract.js` to load and enforce mode
 - Update decision-engine to respect mode (guided: always review; autonomous: enforce-only; hybrid: silent for in-contract, review for out-of-contract)
-- Update `arg-cli.sh contract init/amend` UX to present mode choice
-- Mode persistence: stored in `arg.contract.json` (per-project)
+- Update `horus-cli.sh contract init/amend` UX to present mode choice
+- Mode persistence: stored in `horus.contract.json` (per-project)
 - Section 20 (Security Contract UX) fully implemented
 
 ---
@@ -474,8 +475,8 @@ The genuine second brain. Zero currently exists; this is greenfield.
 - Profile templates: developer / architect / devops / security
 - Stack detection: reuse `runtime/context-discovery.js` stack markers
 - Progressive unlocking: capability suggestions at session-start based on session history
-- Searchable catalog: `scripts/arg-search.sh <query>` across all agents/skills/rules
-- Integration: `arg-cli.sh select` (interactive onboarding wizard)
+- Searchable catalog: `scripts/horus-search.sh <query>` across all agents/skills/rules
+- Integration: `horus-cli.sh select` (interactive onboarding wizard)
 
 ---
 
@@ -486,7 +487,7 @@ The genuine second brain. Zero currently exists; this is greenfield.
 - `runtime/evolution-observer.js` — Tier-1 silent learning
 - `runtime/evolution-proposer.js` — Tier-2 proposal generation
 - `scripts/evolution-review.sh` — CLI proposal review/approval flow
-- Upstream registry: `~/.arg/upstream-registry.json` — repos to monitor
+- Upstream registry: `~/.horus/upstream-registry.json` — repos to monitor
 - `scripts/check-upstream.sh` — diff monitoring + relevance scoring
 - Guards: evolution cannot modify `runtime/` files or lower security floors
 
@@ -514,9 +515,9 @@ Enable external teams to build and share capability packs.
 
 **Deliverables:**
 - Pack format spec (JSON schema for a pack: agents + skills + rules + hooks + metadata)
-- `scripts/arg-pack-install.sh` — install a pack from a local dir or git URL
-- `scripts/arg-pack-validate.sh` — schema + security validation before install
-- Local registry: `~/.arg/pack-registry.json`
+- `scripts/horus-pack-install.sh` — install a pack from a local dir or git URL
+- `scripts/horus-pack-validate.sh` — schema + security validation before install
+- Local registry: `~/.horus/pack-registry.json`
 - Security sandbox: packs cannot modify `runtime/` or security contracts
 
 ---
@@ -525,10 +526,10 @@ Enable external teams to build and share capability packs.
 **Complexity: M · Depends on Phase 4 (memory data sources)**
 
 **Deliverables:**
-- `scripts/arg-history.sh` — decision history viewer (searchable by date/risk/action)
-- `scripts/arg-memory-browser.sh` — memory state viewer
-- `scripts/arg-capability-usage.sh` — capability heatmap (which agents/skills actually used)
-- `scripts/arg-posture.sh` — security posture summary (contract status, risk trends)
+- `scripts/horus-history.sh` — decision history viewer (searchable by date/risk/action)
+- `scripts/horus-memory-browser.sh` — memory state viewer
+- `scripts/horus-capability-usage.sh` — capability heatmap (which agents/skills actually used)
+- `scripts/horus-posture.sh` — security posture summary (contract status, risk trends)
 - All outputs: CLI-first; optional Obsidian export; no mandatory web server
 
 ---
@@ -575,7 +576,7 @@ Full matrix with capability-level detail: **[TO BE EXPANDED IN PASS 2]**
 
 > **[TO BE EXPANDED IN PASS 2]**
 
-Brief: local JSON database (`~/.arg/upstream-registry.json`) of repos to monitor for new capabilities, stored outside the project repo. Includes: source URL, category, last-checked date, last-seen-commit, adoption history (what we took, skipped, and why). Checked via `scripts/check-upstream.sh` on demand or via Phase 6 evolution engine.
+Brief: local JSON database (`~/.horus/upstream-registry.json`) of repos to monitor for new capabilities, stored outside the project repo. Includes: source URL, category, last-checked date, last-seen-commit, adoption history (what we took, skipped, and why). Checked via `scripts/check-upstream.sh` on demand or via Phase 6 evolution engine.
 
 ---
 
@@ -598,7 +599,7 @@ Brief (locked decisions):
 **Hard limits (both tiers):**
 - Cannot lower security floors
 - Cannot modify `runtime/` files
-- Cannot modify `arg.contract.json` without user approval
+- Cannot modify `horus.contract.json` without user approval
 - All proposals are reversible
 
 ---
@@ -611,7 +612,7 @@ Brief:
 - Profile-based activation (developer/architect/devops/security roles)
 - Project stack detection via `context-discovery.js` (already detects node/python/golang/rust/java/kotlin)
 - Progressive unlocking: start minimal, suggest capabilities as user hits use cases
-- Searchable catalog via `arg-search.sh`
+- Searchable catalog via `horus-search.sh`
 - Dependency-aware: skills that require other skills declare dependencies
 - Host-aware: only show capabilities the current host supports
 
@@ -621,7 +622,7 @@ Brief:
 
 > **[TO BE EXPANDED IN PASS 2]** — detailed design after Phase 8 planning.
 
-Brief: Pack format is a directory with a `pack.json` manifest (name, version, components: agents/skills/rules/hooks, dependencies, security-policy: what the pack can and cannot do). Install via `arg-pack-install.sh`. Validate via schema + security allowlist before any execution. Packs cannot modify core runtime.
+Brief: Pack format is a directory with a `pack.json` manifest (name, version, components: agents/skills/rules/hooks, dependencies, security-policy: what the pack can and cannot do). Install via `horus-pack-install.sh`. Validate via schema + security allowlist before any execution. Packs cannot modify core runtime.
 
 ---
 
@@ -730,7 +731,7 @@ ARG's unique value: the **only** add-on with a real runtime decision engine, cro
 
 ### The Three Modes
 
-Users choose once per project how they want ARG to operate. Choice persists in `arg.contract.json` (v3 schema `mode` field).
+Users choose once per project how they want ARG to operate. Choice persists in `horus.contract.json` (v3 schema `mode` field).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -790,8 +791,8 @@ Users choose once per project how they want ARG to operate. Choice persists in `
 | **Install wizard** | Step-by-step with explanations | One-command fast path | Guided for contract setup; autonomous after |
 
 ### Mode Switching
-- User can switch mode at any time via `arg-cli.sh mode set guided|autonomous|hybrid`
-- Mode change is written to `arg.contract.json` + logged to decision journal
+- User can switch mode at any time via `horus-cli.sh mode set guided|autonomous|hybrid`
+- Mode change is written to `horus.contract.json` + logged to decision journal
 - Mode is per-project (different projects can have different modes)
 
 ### Two-Tier Learning Integration
@@ -837,17 +838,17 @@ The current system asks "is this OK?" on every risky action. This is wrong. User
 │  deploys to AWS. I propose to: allow npm install, block         │
 │  production deployments without review, require review for      │
 │  force-push to any branch."                                     │
-│  → outputs: arg.contract.json.draft                             │
+│  → outputs: horus.contract.json.draft                             │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  STEP 3: PRESENT (one user interaction)                         │
-│  arg-cli.sh contract init                                       │
+│  horus-cli.sh contract init                                       │
 │  → Shows proposed contract in human-readable format             │
 │  → Explains each scope decision with reasoning                  │
-│  → User adjusts (optional): arg-cli.sh contract amend          │
-│  → User approves: arg-cli.sh contract accept                    │
+│  → User adjusts (optional): horus-cli.sh contract amend          │
+│  → User approves: horus-cli.sh contract accept                    │
 │  → ONE-TIME interaction: this is the ONLY time the user         │
 │    deals with security configuration                            │
 └────────────────────────────┬────────────────────────────────────┘
@@ -861,13 +862,13 @@ The current system asks "is this OK?" on every risky action. This is wrong. User
 │  explanation (not a question — the user already decided).       │
 │  The explanation says: "This is blocked because your contract   │
 │  disallows force-push to protected branches. You agreed this    │
-│  on [date]. To change this: arg-cli.sh contract amend."         │
+│  on [date]. To change this: horus-cli.sh contract amend."         │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ### Current Implementation vs. Target
 
-The contract flow is **already built** in `runtime/contract.js` (496 LOC) and `schemas/arg.contract.schema.json` (v2). The CLI commands `init/accept/verify/show/amend` exist in `scripts/arg-cli.sh` (after rebrand). What Phase 3 adds:
+The contract flow is **already built** in `runtime/contract.js` (496 LOC) and `schemas/horus.contract.schema.json` (v2). The CLI commands `init/accept/verify/show/amend` exist in `scripts/horus-cli.sh` (after rebrand). What Phase 3 adds:
 
 | Currently exists | Phase 3 adds |
 |---|---|
@@ -884,7 +885,7 @@ Amendments are triggered by:
 - NOT triggered by: routine operations, capability additions, preference changes
 
 ```
-arg-cli.sh contract amend
+horus-cli.sh contract amend
   → ARG explains: "You've added a production deployment pipeline.
     Proposing to add a deployment scope. Here's what would change:
     [diff of old vs new contract]"

@@ -15,9 +15,9 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Session start hook | `claude/hooks/session-start.js` | optional local hook (SessionStart) | Loads instinct store, shows pending review count. |
 | Session end hook | `claude/hooks/session-end.js` | optional local hook (Stop) | Captures session metadata to instinct store for future sessions. |
 | Strategic compact hook | `claude/hooks/strategic-compact.js` | optional local hook (PostToolUse) | Suggests /compact when context window may be filling. |
+| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner (delegates to `runtime/secret-scan.js`) |
 | Memory load hook | `claude/hooks/memory-load.js` | optional local hook (SessionStart) | Loads project memory context at session start. |
 | PR notifier hook | `claude/hooks/pr-notifier.js` | optional local hook (PostToolUse) | Notifies after PR-related actions. |
-| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | Scans tool output for secrets before they propagate into context. Warns to stderr (PostToolUse cannot block). Uses the same 23-pattern set as `secret-warning.js`. |
 | Hook utilities | `claude/hooks/hook-utils.js` | shared library | readStdin (5 MB cap), commandFrom, collectText, hookLog, rateLimitCheck, classifyCommandPayload, classifyPathSensitivity (advisory, feeds risk-score), readSessionRisk. Used by all hooks. |
 | Instinct utilities | `claude/hooks/instinct-utils.js` | shared library | Instinct store read/write/prune/TTL management for session-start and session-end hooks. |
 | Dangerous patterns config | `claude/hooks/dangerous-patterns.json` | config | 21 extensible patterns with severity (critical/high/medium) for dangerous-command-gate. |
@@ -95,16 +95,16 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Promotion guidance | `runtime/promotion-guidance.js` | Lifecycle-aware guidance (new → approaching → eligible → promoted/dismissed) with concrete CLI hints. |
 | Project policy | `runtime/project-policy.js` | Loads per-project `horus.config.json` for trust posture, protected branches, sensitive path patterns, and project scope. |
 | Context discovery | `runtime/context-discovery.js` | Auto-detects project root, git branch, primary stack, and config presence from filesystem. |
-| Contract | `runtime/contract.js` | Full contract lifecycle: `load`, `verify` (hash tamper check), `accept`, `generate`, `scopeMatch`, `harnessInScope`, `newContractId`. Enforced at Steps 2–5–11 of the decision engine. |
-| Pre-tool gate | `runtime/pretool-gate.js` | Single enforcement spine called by all host adapters. Reads HORUS_ENFORCE, delegates to decision engine, exits 0 (allow/warn) or 2 (block). |
-| State paths | `runtime/state-paths.js` | Single source of truth for runtime storage locations. `stateDir()` → `HORUS_STATE_DIR` override or `~/.horus`. Also exports `hookStateDir()` and `instinctDir()`. |
-| Config validator | `runtime/config-validator.js` | JSON schema validator for `horus.config.json` and `horus.contract.json`. Validates types, required fields, enum values, and pattern constraints. |
-| Decision key | `runtime/decision-key.js` | `fineKey(command)` → SHA-256 hash (full command string, precise match). `legacyKey(command)` → coarse class (backward-compatible). Policy store uses `fineKey`. |
-| Secret scan | `runtime/secret-scan.js` | Cross-harness secret scanner with 23 built-in patterns. Called by `pretool-gate.js` before the decision step so all adapters get secret scanning. |
-| Glob match | `runtime/glob-match.js` | Zero-dependency glob pattern matcher. Powers scope matching (`readAllow`, `writeAllow`, path glob rules). Supports `**`, `*`, `?`. |
-| Arg extractor | `runtime/arg-extractor.js` | Minimal argv splitter for scope matching. Extracts positional paths and flags from shell command strings. |
-| Canonical JSON | `runtime/canonical-json.js` | Deterministic JSON stringify for contract hashing. Keys sorted recursively; used by `contract.js` to produce stable SHA-256 hashes. |
-| Telemetry | `runtime/telemetry.js` | Lightweight append-only internal event log at `<stateDir>/telemetry.jsonl`. Records corruption and state-migration events only — never payload content, commands, or secrets. Disabled via `HORUS_TELEMETRY=0`. |
+| `state-paths.js`      | `runtime/state-paths.js`      | Single source of truth for storage paths; honors `HORUS_STATE_DIR` override. |
+| `canonical-json.js`   | `runtime/canonical-json.js`   | Deterministic JSON stringify (keys sorted) for contract hashing. |
+| `glob-match.js`       | `runtime/glob-match.js`       | Zero-dep glob matcher (`**`, `*`, `?`, `[abc]`, `!` negation, `${projectRoot}`). |
+| `arg-extractor.js`    | `runtime/arg-extractor.js`    | Argv splitter; handles quoted args, escapes, heredocs (fail-closed on `<<HEREDOC`). |
+| `decision-key.js`     | `runtime/decision-key.js`     | Builds `fineKey` (5-part) and `legacyKey` (4-part back-compat); classifies commands. |
+| `config-validator.js` | `runtime/config-validator.js` | Typed-field walker; validates `horus.config.json` and `horus.contract.json`. |
+| `contract.js`         | `runtime/contract.js`         | Contract lifecycle: load, verify, accept, generate, scope-match. |
+| `secret-scan.js`      | `runtime/secret-scan.js`      | Cross-harness secret pattern scanner (shared by pre- and post-tool hooks). |
+| `telemetry.js`        | `runtime/telemetry.js`        | Structured event sink to `telemetry.jsonl`; never blocks. |
+| `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. |
 
 All runtime modules write only to `HORUS_STATE_DIR` (or `~/.horus/`). No network access. No package manager invocations. State files are created with mode 0700 directories and 0600 files.
 

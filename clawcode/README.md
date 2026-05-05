@@ -1,19 +1,29 @@
-# Claw Code Harness — NOT YET SUPPORTED
+# Claw Code Harness — EXPERIMENTAL
 
-> **NOT YET SUPPORTED** for production use. A best-effort `hooks/adapter.js` exists using the broadest input-shape fallback chain, but the Claw Code hook API is not publicly documented and the adapter is unverified. No wiring plan, no policy maps, no wizard path. Test your actual Claw Code hook payload against the adapter before relying on it.
+> **EXPERIMENTAL — best-effort adapter, not promoted to production.** A `hooks/adapter.js` ships using the broadest input-shape fallback chain. The Claw Code hook API is not publicly documented and the adapter is unverified against real Claw Code hook payloads. Test your actual Claw Code hook payload against the adapter before relying on it. See [ROADMAP.md](../ROADMAP.md) under "Codex / ClawCode / Antegravity adapter verification" for promotion criteria.
 
-## What This Would Be
+## What This Is
 
-Claw Code is a code-agent harness. Agent Runtime Guard would support Claw Code by providing the same hook integration, payload classification, and runtime decision layers it provides for Claude Code, OpenCode, and OpenClaw.
+`hooks/adapter.js` delegates to `claude/hooks/hook-utils.js → createAdapter()`, which calls `runtime/pretool-gate.js` — the same single enforcement spine used by the Claude Code, OpenCode, and OpenClaw adapters. The adapter handles the most common input shapes (object with `tool_name`/`tool_input`, flat string, array argv) via a fallback chain.
+
+CI: `scripts/check-clawcode-adapter.sh` runs 13 checks across 6 input shapes and is wired into `.github/workflows/check.yml`.
 
 ## What Is Planned
 
-When this integration lands, it would deliver:
+When this integration is promoted, it would deliver:
 - A `WIRING_PLAN.md` documenting how Agent Runtime Guard hooks map to Claw Code's hook event model
 - A `CLAWCODE_POLICY_MAP.md` documenting which runtime policies apply and how
 - A `CLAWCODE_APPLY_CHECKLIST.md` for verifying the integration is active
 - Setup wizard support via `--tool clawcode`
 - Per-tool apply-status rows showing actual wiring state
+- Promotion from EXPERIMENTAL to Supported
+
+## Promotion Criteria
+
+This harness is promoted from EXPERIMENTAL to Supported when:
+1. A contributor verifies the actual Claw Code hook payload format and confirms the adapter handles it correctly
+2. `WIRING_PLAN.md` documents the confirmed wiring path
+3. `scripts/check-clawcode-adapter.sh` passes against representative real payloads
 
 ## Known Unknowns
 

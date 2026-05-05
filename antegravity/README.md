@@ -1,19 +1,29 @@
-# antegravity Harness — NOT YET SUPPORTED
+# antegravity Harness — EXPERIMENTAL
 
-> **NOT YET SUPPORTED** for production use. A best-effort `hooks/adapter.js` exists using the broadest input-shape fallback chain, but the antegravity hook API is not publicly documented and the adapter is unverified. No wiring plan, no policy maps, no wizard path. Test your actual antegravity hook payload against the adapter before relying on it.
+> **EXPERIMENTAL — best-effort adapter, not promoted to production.** A `hooks/adapter.js` ships using the broadest input-shape fallback chain. The antegravity hook API is not publicly documented and the adapter is unverified against real antegravity hook payloads. Test your actual antegravity hook payload against the adapter before relying on it. See [ROADMAP.md](../ROADMAP.md) under "Codex / ClawCode / Antegravity adapter verification" for promotion criteria.
 
-## What This Would Be
+## What This Is
 
-antegravity is a code-agent harness. Agent Runtime Guard would support antegravity by providing the same hook integration, payload classification, and runtime decision layers it provides for Claude Code, OpenCode, and OpenClaw.
+`hooks/adapter.js` delegates to `claude/hooks/hook-utils.js → createAdapter()`, which calls `runtime/pretool-gate.js` — the same single enforcement spine used by the Claude Code, OpenCode, and OpenClaw adapters. The adapter handles the most common input shapes (object with `tool_name`/`tool_input`, flat string, array argv) via a fallback chain.
+
+CI: A dedicated `scripts/check-antegravity-adapter.sh` is planned (Batch B2).
 
 ## What Is Planned
 
-When this integration lands, it would deliver:
+When this integration is promoted, it would deliver:
 - A `WIRING_PLAN.md` documenting how Agent Runtime Guard hooks map to antegravity's hook event model
 - An `ANTEGRAVITY_POLICY_MAP.md` documenting which runtime policies apply and how
 - An `ANTEGRAVITY_APPLY_CHECKLIST.md` for verifying the integration is active
 - Setup wizard support via `--tool antegravity`
 - Per-tool apply-status rows showing actual wiring state
+- Promotion from EXPERIMENTAL to Supported
+
+## Promotion Criteria
+
+This harness is promoted from EXPERIMENTAL to Supported when:
+1. A contributor verifies the actual antegravity hook payload format and confirms the adapter handles it correctly
+2. `WIRING_PLAN.md` documents the confirmed wiring path
+3. `scripts/check-antegravity-adapter.sh` passes against representative real payloads
 
 ## Known Unknowns
 

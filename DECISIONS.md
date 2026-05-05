@@ -87,3 +87,34 @@ Promotion lifecycle data is useful only if operators can inspect it quickly. The
 ## D22: ARG Is An Operating Layer, Not Just A Guard
 
 ECC — the upfront-contract model — is the foundation, not the whole destination. The project's longer-term direction is an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how; learns reviewed local defaults from operator-approved patterns; routes intent to the right skill, agent, rule, or check; and improves over time. Security floors remain non-negotiable and engine-baked. The framing shift matters because it shapes which capabilities get built: operational intelligence, context-aware routing, and amplification of what agents can do well are first-class goals alongside enforcement.
+
+## D23: Trademark Check For "Horus Agentic Power" Is Required Before Public Launch
+
+**Status: OPEN — manual action required by Khouly.**
+
+Before any public announcement, press release, or marketplace listing under the brand "Horus Agentic Power" / "HAP" / "horus-cli" / "horusagentic", a trademark clearance search must be conducted. This is a pre-launch blocker, not a post-launch best-effort item.
+
+**Scope of check:**
+- USPTO TESS for "Horus", "Horus Agentic", "Horus Agentic Power" in classes 42 (software services) and 9 (software products)
+- EUIPO for the same terms
+- WIPO Madrid Protocol for international coverage
+- Domain availability: `horusagentic.dev`, `horusagentic.com`, `horusai.dev`
+
+**Owner:** Khouly (project owner)
+**Blocker for:** any public v3.x launch, marketplace listing, or press mention
+
+Record the outcome here (cleared / conflict found / adjusted brand) when complete.
+
+## D24: MASTER_PLAN.md Pass-2 Stubs — Fill Sections 7 And 8 Before Phase 3 Work Begins
+
+**Status: OPEN — decision needed by owner before Phase 3 implementation starts.**
+
+MASTER_PLAN.md is Pass-1 complete. Sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) are explicitly stubbed. These two sections are the minimum required before Phase 3 (Three-Mode UX) work begins, because:
+
+- Section 7 (Component Inventory) maps current runtime modules to their MASTER_PLAN roles, surfacing any modules that are referenced in Phase 3 but not yet built
+- Section 8 (Host Compatibility Matrix) determines which harnesses get Phase 3 contract v3 support and which stay EXPERIMENTAL
+
+**Recommended action:** author Sections 7 and 8 in a dedicated MASTER_PLAN Pass-2 session before the Phase 3 planning phase begins. Sections 9–13 and 18 can be deferred to Pass-3.
+
+**Owner:** Khouly (or an Explore agent spawned to fill the sections)
+**Blocker for:** Phase 3 planning (/gsd-plan-phase or equivalent)
