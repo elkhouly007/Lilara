@@ -291,7 +291,8 @@ This script is itself a Phase 1 deliverable.
 ┌────────────────────────────────────────────────────────────────┐
 │  ARG Host Adapter (per-harness shim, 15-25 LOC)               │
 │  e.g., claude/hooks/dangerous-command-gate.js                  │
-│  → calls createAdapter({ harness:"claude" })  (hook-utils.js)  │
+│  → calls createAdapter({ harness:"claude", ... })              │
+│    └─ wraps runPreToolGate() from runtime/pretool-gate.js      │
 └────────────────────────┬───────────────────────────────────────┘
                          │
                          ▼
@@ -299,7 +300,7 @@ This script is itself a Phase 1 deliverable.
 │  ARG Runtime Core (23 JS files / 3,454 LOC / zero-dep)        │
 │                                                                │
 │  pretool-gate.js                                               │
-│    └─ decision-engine.js [15-rung precedence matrix]           │
+│    └─ decision-engine.js [15-step precedence matrix]           │
 │         ├─ contract.js          [load/verify/scopeMatch]       │
 │         ├─ risk-score.js        [12 pattern classes, 0-10]     │
 │         ├─ policy-store.js      [learned-allows, auto-allows]  │
@@ -331,7 +332,7 @@ This script is itself a Phase 1 deliverable.
 ```
 Host fires PreToolUse → Adapter shim (15 LOC) → pretool-gate.js
   → secret-scan.js          [W5: cross-harness secret check]
-  → decision-engine.js      [15 rungs]:
+  → decision-engine.js      [15 steps]:
       Step 1:  kill-switch check (HORUS_KILL_SWITCH / ARG_KILL_SWITCH)
       Step 2:  context discovery (git branch, project stack)
       Step 3:  contract load + hash verify (strict mode)

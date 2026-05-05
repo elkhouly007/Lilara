@@ -12,7 +12,7 @@ Local-only Node.js scripts. All hooks follow the same safety contract:
 | No network calls | Zero outbound connections |
 | No content access | Never read prompt text, file contents, or API responses |
 | Silent fail | `catch(() => process.exit(0))` — hooks never crash the harness |
-| Local writes only | Only under `~/.horus/` (instincts, session counter, hook log) |
+| Local writes only | Only `~/.horus/` (instincts, session counter, telemetry) |
 
 ---
 
@@ -32,16 +32,16 @@ Local-only Node.js scripts. All hooks follow the same safety contract:
 ### PreToolUse Hooks
 | Hook | Matcher | What it does |
 |------|---------|-------------|
-| `dangerous-command-gate.js` | Bash only | Main enforcement spine — scores risk, checks contract and learned policy, blocks or warns on 21 dangerous shell patterns. Exits 2 (block) in `HORUS_ENFORCE=1`. |
-| `secret-warning.js` | all tools | Scans prompt JSON for 23 secret patterns (API keys, tokens, JWTs). Warns to stderr; exits 2 in `HORUS_ENFORCE=1`. |
-| `git-push-reminder.js` | Bash only | Warns before `git push`; blocks `--force` pushes in `HORUS_ENFORCE=1`. |
-| `build-reminder.js` | Bash only | Reminds to check build/test output before continuing. Non-blocking. |
+| `secret-warning.js` | all tools | Warns if prompt contains common secret patterns (sk-, ghp_, AKIA...). Non-blocking. |
+| `dangerous-command-gate.js` | Bash only | Hard-blocks destructive commands (rm -rf /, dd, mkfs, fork bombs) per `dangerous-patterns.json`. Exit 2 with reason. |
+| `git-push-reminder.js` | Bash only | Warns before `git push`. Non-blocking. |
+| `build-reminder.js` | Bash only | Reminds to check output after build/test commands. Non-blocking. |
 
 ### PostToolUse Hooks
 | Hook | Matcher | What it does |
 |------|---------|-------------|
-| `output-sanitizer.js` | all tools | Scans tool output for secrets using the same 23-pattern set as `secret-warning.js`. Warns to stderr (PostToolUse cannot block). |
 | `strategic-compact.js` | all tools | Tracks call count in `~/.horus/session-counter.json`. Suggests `/compact` at 50, 100, and every 25 after. Also fires after Agent/WebFetch/WebSearch. |
+| `output-sanitizer.js` | all tools | Scans tool output for secrets (delegates to `runtime/secret-scan.js`). Cannot block; emits stderr warning for cross-harness consistency. |
 | `pr-notifier.js` | Bash only | Detects GitHub PR URL in output after `gh pr create`. Prints URL + review commands. |
 | `quality-gate.js` | Edit / Write | Reads `file_path` metadata, suggests typecheck/lint command for `.ts`, `.py`, `.go`, `.rs`, `.java/.kt` files. |
 
@@ -94,13 +94,11 @@ Copy this block into `~/.claude/settings.json` (replace `/ABS_PATH/` with the fu
   "PreToolUse": [
     { "hooks": [{ "type": "command", "command": "node /ABS_PATH/secret-warning.js" }] },
     { "matcher": "tool_name == \"Bash\"", "hooks": [
-      { "type": "command", "command": "node /ABS_PATH/dangerous-command-gate.js" },
       { "type": "command", "command": "node /ABS_PATH/git-push-reminder.js" },
       { "type": "command", "command": "node /ABS_PATH/build-reminder.js" }
     ]}
   ],
   "PostToolUse": [
-    { "hooks": [{ "type": "command", "command": "node /ABS_PATH/output-sanitizer.js" }] },
     { "hooks": [{ "type": "command", "command": "node /ABS_PATH/strategic-compact.js" }] },
     { "matcher": "tool_name == \"Bash\"", "hooks": [
       { "type": "command", "command": "node /ABS_PATH/pr-notifier.js" }
@@ -128,17 +126,12 @@ Copy this block into `~/.claude/settings.json` (replace `/ABS_PATH/` with the fu
 
 ```bash
 # All hooks should pass syntax check
-node --check dangerous-command-gate.js
-node --check secret-warning.js
-node --check git-push-reminder.js
-node --check build-reminder.js
-node --check output-sanitizer.js
-node --check strategic-compact.js
-node --check pr-notifier.js
-node --check quality-gate.js
 node --check session-start.js
 node --check session-end.js
 node --check memory-load.js
+node --check strategic-compact.js
+node --check pr-notifier.js
+node --check quality-gate.js
 
 # Smoke test: session-end should echo input and write a summary to stderr
 echo '{"event_type":"Stop","tool_name":"Bash"}' | node session-end.js
