@@ -14,7 +14,7 @@ Agent Runtime Guard currently includes:
 - **82 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
 - **22 skills** for ARG debug, policy tuning, capability auditing, code analysis, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
-- executable fixture coverage with **213/213 passing**;
+- executable fixture coverage with **216/216 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
 
 ## Verification Snapshot
@@ -25,7 +25,7 @@ Current verified state:
 - `audit-examples.sh` — passing
 - `check-registries.sh` — passing
 - `check-scenarios.sh` — passing
-- `run-fixtures.sh` — passing (213/213)
+- `run-fixtures.sh` — passing (216/216)
 - `test-payload-protection.sh` — passing
 - `check-integration-smoke.sh` — passing
 - `smoke-test.sh` — passing
@@ -87,7 +87,7 @@ All content in Agent Runtime Guard is original — written specifically for the 
 
 The correct current description is:
 
-> **Agent Runtime Guard is a purpose-built, all-original agentic policy and amplification framework with a verified runtime decisioning layer, comprehensive rule coverage across 12 languages, and 213 passing integration fixtures.**
+> **Agent Runtime Guard is a purpose-built, all-original agentic policy and amplification framework with a verified runtime decisioning layer, comprehensive rule coverage across 12 languages, and 216 passing integration fixtures.**
 
 ## v1.0.x Runtime Sprint Highlights
 

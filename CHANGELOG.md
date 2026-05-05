@@ -11,7 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 - `scripts/check-codex-adapter.sh`, `scripts/check-antegravity-adapter.sh` — CI adapter verification scripts for the two remaining EXPERIMENTAL harnesses
 - `scripts/migrate-policy-store.sh` — one-shot migration from legacy 4-part to 5-part learned-allow keys; invoked automatically by `horus-cli.sh upgrade`
-- 30 new fixture test cases (213 fixture pairs total) across `tests/fixtures/codex/`, `tests/fixtures/clawcode/`, `tests/fixtures/antegravity/`
+- 30 new fixture test cases (216 fixture pairs total) across `tests/fixtures/codex/`, `tests/fixtures/clawcode/`, `tests/fixtures/antegravity/`
 - `WIRING_PLAN.md`, `COMPATIBILITY_STRATEGY.md`, `APPLY_CHECKLIST.md` for codex, clawcode, antegravity
 - `check-cross-harness-equivalence.sh` extended to all 6 harnesses (was 3)
 - Egress Sanitization Scope section in `SECURITY_MODEL.md`
