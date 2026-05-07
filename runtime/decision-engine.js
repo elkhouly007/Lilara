@@ -332,6 +332,7 @@ function decide(input = {}) {
     ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
     ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
+    redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 
   recordDecision({

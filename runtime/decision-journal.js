@@ -5,7 +5,8 @@ const fs   = require("fs");
 const os   = require("os");
 const path = require("path");
 const zlib = require("zlib");
-const { stateDir } = require("./state-paths");
+const { stateDir }    = require("./state-paths");
+const { getPatterns } = require("./secret-scan");
 
 // Maximum size before rotation. Override with HORUS_JOURNAL_MAX_MB (integer MB).
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -77,6 +78,17 @@ function rotateIfNeeded(logFile) {
   } catch { /* rotation failure must never crash callers */ }
 }
 
+// Redact a free-text string using the shared 23-pattern secret set.
+// Each match is replaced with [REDACTED:class-C]. Applied before truncation
+// so a secret that spans the 256-char boundary is still caught.
+function redactText(text) {
+  let s = String(text || "");
+  for (const { pattern } of getPatterns()) {
+    s = s.replace(pattern, "[REDACTED:class-C]");
+  }
+  return s;
+}
+
 function append(entry) {
   if (process.env.HORUS_DECISION_JOURNAL === "0") return false;
   if (process.env.HORUS_READONLY_CONTRACT === "1") return false;
@@ -87,6 +99,8 @@ function append(entry) {
   ensureBaseDir();
   const { logFile } = journalPaths();
   rotateIfNeeded(logFile);
+  const shouldRedact = Boolean(entry.redact);
+  const clean = shouldRedact ? redactText : (t) => String(t || "");
   const record = {
     ts: new Date().toISOString(),
     kind: String(entry.kind || "decision"),
@@ -96,8 +110,9 @@ function append(entry) {
     reasonCodes: Array.isArray(entry.reasonCodes) ? entry.reasonCodes.slice(0, 12) : [],
     tool: String(entry.tool || ""),
     branch: String(entry.branch || ""),
-    targetPath: String(entry.targetPath || "").slice(0, 256),
-    notes: String(entry.notes || "").slice(0, 256),
+    targetPath: clean(String(entry.targetPath || "")).slice(0, 256),
+    notes: clean(String(entry.notes || "")).slice(0, 256),
+    ...(shouldRedact ? { redactInJournal: true } : {}),
   };
   fs.appendFileSync(logFile, JSON.stringify(record) + "\n", { mode: 0o600 });
   return true;

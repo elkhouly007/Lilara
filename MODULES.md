@@ -102,7 +102,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | `decision-key.js`     | `runtime/decision-key.js`     | Builds `fineKey` (5-part) and `legacyKey` (4-part back-compat); classifies commands. |
 | `config-validator.js` | `runtime/config-validator.js` | Typed-field walker; validates `horus.config.json` and `horus.contract.json`. |
 | `contract.js`         | `runtime/contract.js`         | Contract lifecycle: load, verify, accept, generate, scope-match. |
-| `secret-scan.js`      | `runtime/secret-scan.js`      | Cross-harness secret pattern scanner (shared by pre- and post-tool hooks). |
+| `secret-scan.js`      | `runtime/secret-scan.js`      | Cross-harness secret pattern scanner (shared by pre- and post-tool hooks). Exports `scanSecrets()` and `getPatterns()` (returns full 23-pattern set for use by journal redaction). |
 | `telemetry.js`        | `runtime/telemetry.js`        | Structured event sink to `telemetry.jsonl`; never blocks. |
 | `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. |
 
