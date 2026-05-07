@@ -107,14 +107,45 @@ Record the outcome here (cleared / conflict found / adjusted brand) when complet
 
 ## D24: MASTER_PLAN.md Pass-2 Stubs — Fill Sections 7 And 8 Before Phase 3 Work Begins
 
-**Status: OPEN — decision needed by owner before Phase 3 implementation starts.**
+**Status: CLOSED — resolved 2026-05-07 via Wave-1 item E1 (branch `feat/e1-master-plan-7-8`).**
 
-MASTER_PLAN.md is Pass-1 complete. Sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) are explicitly stubbed. These two sections are the minimum required before Phase 3 (Three-Mode UX) work begins, because:
+MASTER_PLAN.md §7 (Component Inventory) and §8 (Host Compatibility Matrix) are now authored and substantive. Phase 3 (Three-Mode UX) planning is unblocked. Sections 9–13 and 18 remain deferred to Pass-3.
 
-- Section 7 (Component Inventory) maps current runtime modules to their MASTER_PLAN roles, surfacing any modules that are referenced in Phase 3 but not yet built
-- Section 8 (Host Compatibility Matrix) determines which harnesses get Phase 3 contract v3 support and which stay EXPERIMENTAL
+## D25: F3 Risk-Score Threshold — ARCHITECTURE.md Table Reads "score === 10", Code Uses ">= 8"
 
-**Recommended action:** author Sections 7 and 8 in a dedicated MASTER_PLAN Pass-2 session before the Phase 3 planning phase begins. Sections 9–13 and 18 can be deferred to Pass-3.
+**Status: OPEN — doc-only fix, out of scope for Wave 1.**
 
-**Owner:** Khouly (or an Explore agent spawned to fill the sections)
-**Blocker for:** Phase 3 planning (/gsd-plan-phase or equivalent)
+The ARCHITECTURE.md precedence-matrix table labels F3 as `critical-risk (score === 10)`. The implementation in `runtime/risk-score.js:149` is `if (value >= 8) level = "critical"`. The threshold is `>= 8`, not `=== 10`. Fix is one word in the table row — no behavior change, no fixture impact.
+
+**Owner:** Khouly (or any Wave-2 doc cleanup pass)
+**Blocker for:** nothing.
+
+## D26: F4/F6/F7 — Documented as Floors in ARCHITECTURE.md, Not Implemented in Code
+
+**Status: OPEN — decide whether to implement or relabel after Wave 1.**
+
+Three items in the ARCHITECTURE.md ladder table are marked `Floor-bound? = yes` but are not code floors in the current engine:
+
+- **F4 (secret-class-C payload):** `pretool-gate.js` upgrades `payloadClass` to C on a secret hit; `risk-score.js` adds +4 to the score. It is a risk modifier — can drive F3 if combined with other patterns — but there is no `buildEarlyBlock` or action lock for payloadClass=C alone. A medium-scoring class-C payload is demotable by contract-allow.
+- **F6 (scope-violation):** When `scopeMatch` returns false, `contractAllow` stays false and the baseline risk-score action stands. No escalation floor fires on scope mismatch.
+- **F7 (novel-command-class):** Ungated command classes bypass the F5 strict-mode gate but receive no escalation floor of their own.
+
+Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code floors, or (b) relabel them in the table as "aspirational / not yet implemented."
+
+**Owner:** Khouly (or dedicated Wave-2 item)
+**Blocker for:** nothing — no active security regression; aspirational architecture gap only.
+
+---
+
+## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
+
+**Status: RESOLVED by documentation. No code change needed.**
+
+On 2026-05-08, `bench-runtime-decision.sh` produced two consecutive p99 readings of ~102ms and ~104ms against the 85ms cap (1.5× of 56.831ms baseline), causing the gate to fail. The same failure occurred on clean master with no A-series changes applied. A systematic 5-run diagnostic the same night showed p99 values of 53.8, 54.8, 66.9, 55.3, 53.8ms on master — all within the 1.5× cap — confirming the earlier failures were transient Windows machine-load spikes (likely background indexing or antivirus scan).
+
+**A5 bench (5 runs immediately after master):** 54.3, 53.9, 54.0, 53.5, 54.8ms — tightly clustered, zero regression vs master. The A5 change (`hook-utils.js`) does not touch `decision-engine.js:decide()` — the bench hot path — so A5 cannot regress the bench.
+
+**Resolution:** The scoped-baseline approach (each run compares against the previous run's p99) already self-corrects for persistent load shifts. For isolated spikes, re-running the bench gate is sufficient. No baseline recapture or bench-tool change required.
+
+**Recommended action:** if bench fails in CI on any single run, re-run once before treating it as a hard stop. A second consecutive failure is a real regression. Document this in `SECURITY_MODEL.md` or bench runner header as a known Win32 behaviour.
+**Priority:** low — monitoring only.
