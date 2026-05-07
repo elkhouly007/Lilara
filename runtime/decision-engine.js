@@ -213,6 +213,21 @@ function decide(input = {}) {
     source = "learned-allow";
   }
 
+  // F10 (A2): taint floor — command overlaps with recently-read external content.
+  // Fires at rung 8.5 (after protected-branch, before session-risk). Forces
+  // require-review so the operator can confirm the command was not injected.
+  // Best-effort: if taint module unavailable, skip silently.
+  let taintResult = null;
+  try {
+    const { correlateCommand } = require("./taint");
+    taintResult = correlateCommand(input.command || "");
+    if (taintResult.tainted && action !== "block") {
+      action = "require-review";
+      source = "taint-floor";
+      floorFired = floorFired || "taint-floor";
+    }
+  } catch { /* taint is best-effort — never block a decision on taint errors */ }
+
   // B3: session-risk >= 3 — true floor. Escalate unconditionally before contract-allow can demote.
   if (enriched.sessionRisk >= 3 && action !== "block" && action !== "escalate") {
     action = "escalate";
@@ -332,6 +347,7 @@ function decide(input = {}) {
     ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
     ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
+    ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 
