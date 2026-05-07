@@ -134,3 +134,18 @@ Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code
 
 **Owner:** Khouly (or dedicated Wave-2 item)
 **Blocker for:** nothing — no active security regression; aspirational architecture gap only.
+
+---
+
+## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
+
+**Status: RESOLVED by documentation. No code change needed.**
+
+On 2026-05-08, `bench-runtime-decision.sh` produced two consecutive p99 readings of ~102ms and ~104ms against the 85ms cap (1.5× of 56.831ms baseline), causing the gate to fail. The same failure occurred on clean master with no A-series changes applied. A systematic 5-run diagnostic the same night showed p99 values of 53.8, 54.8, 66.9, 55.3, 53.8ms on master — all within the 1.5× cap — confirming the earlier failures were transient Windows machine-load spikes (likely background indexing or antivirus scan).
+
+**A5 bench (5 runs immediately after master):** 54.3, 53.9, 54.0, 53.5, 54.8ms — tightly clustered, zero regression vs master. The A5 change (`hook-utils.js`) does not touch `decision-engine.js:decide()` — the bench hot path — so A5 cannot regress the bench.
+
+**Resolution:** The scoped-baseline approach (each run compares against the previous run's p99) already self-corrects for persistent load shifts. For isolated spikes, re-running the bench gate is sufficient. No baseline recapture or bench-tool change required.
+
+**Recommended action:** if bench fails in CI on any single run, re-run once before treating it as a hard stop. A second consecutive failure is a real regression. Document this in `SECURITY_MODEL.md` or bench runner header as a known Win32 behaviour.
+**Priority:** low — monitoring only.
