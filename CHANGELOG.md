@@ -9,6 +9,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **A4 — Journal redaction implemented** (`runtime/decision-journal.js`): when `contract.scopes.secrets.redactInJournal=true`, `append()` applies the full 23-pattern secret set (via `runtime/secret-scan.js:getPatterns()`) to `targetPath` and `notes` before writing JSONL; redaction applied before the 256-char slice so secrets straddling the boundary are caught; records carry `redactInJournal:true` metadata when active. `runtime/secret-scan.js` gains `getPatterns()` export. `runtime/decision-engine.js` wires `redact: Boolean(contract?.scopes?.secrets?.redactInJournal)` into its `append()` call. Bench p99 delta: sub-measurement-noise on win32-slowfs-v24 (56.831 ms vs 56.831 ms baseline). Acceptance: `run-fixtures.sh` jredact:redact-on / jredact:redact-off inline tests (191 invocations total).
 - `scripts/check-codex-adapter.sh`, `scripts/check-antegravity-adapter.sh` — CI adapter verification scripts for the two remaining EXPERIMENTAL harnesses
 - `scripts/migrate-policy-store.sh` — one-shot migration from legacy 4-part to 5-part learned-allow keys; invoked automatically by `horus-cli.sh upgrade`
 - 30 new fixture test cases (216 fixture pairs total) across `tests/fixtures/codex/`, `tests/fixtures/clawcode/`, `tests/fixtures/antegravity/`

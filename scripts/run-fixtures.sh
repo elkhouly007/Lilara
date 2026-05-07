@@ -407,6 +407,67 @@ run_toolallow_test "npx-no-y"          "npx create-react-app myapp"     "non-gat
 
 rm -f "$_toolallow_contract"
 
+# ── inline: journal-redaction unit tests (A4) ────────────────────────────────
+printf '\nJournal-redaction tests (A4)...\n'
+
+# A known secret string that matches the OpenAI-key pattern in secret-patterns.json.
+_jredact_secret="sk-testfakekey0000000000000000001"
+
+_run_jredact() {
+  local name="$1" redact_flag="$2" secret_should_be_absent="$3"
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local actual_exit=0
+  # Call append() directly — tests the redaction mechanism in isolation.
+  node -e "
+const { append } = require('./runtime/decision-journal');
+process.env.HORUS_STATE_DIR = process.argv[1];
+append({
+  kind: 'runtime-decision', action: 'allow', riskLevel: 'low', riskScore: 1,
+  reasonCodes: [], tool: 'Bash', branch: 'main', targetPath: '/workspace',
+  notes: 'risk-engine | token=' + process.argv[3],
+  redact: process.argv[2] === 'true',
+});
+" -- "$tmpstate" "$redact_flag" "$_jredact_secret" 2>/dev/null || actual_exit=$?
+
+  if [ "$actual_exit" -ne 0 ]; then
+    fail "jredact:$name" "node exited $actual_exit"
+    rm -rf "$tmpstate"; return
+  fi
+
+  local journal="$tmpstate/decision-journal.jsonl"
+  local test_ok=1
+
+  if [ "$secret_should_be_absent" = "true" ]; then
+    if grep -qF "$_jredact_secret" "$journal" 2>/dev/null; then
+      fail "jredact:$name" "raw secret present in journal (should be redacted)"
+      test_ok=0
+    fi
+    if ! grep -qF "REDACTED:class-C" "$journal" 2>/dev/null; then
+      fail "jredact:$name" "[REDACTED:class-C] marker absent from journal"
+      test_ok=0
+    fi
+    if ! grep -qF '"redactInJournal":true' "$journal" 2>/dev/null; then
+      fail "jredact:$name" "redactInJournal:true metadata absent from journal entry"
+      test_ok=0
+    fi
+  else
+    if ! grep -qF "$_jredact_secret" "$journal" 2>/dev/null; then
+      fail "jredact:$name" "raw secret absent from journal (should be unredacted)"
+      test_ok=0
+    fi
+    if grep -qF '"redactInJournal"' "$journal" 2>/dev/null; then
+      fail "jredact:$name" "redactInJournal metadata present but should be absent"
+      test_ok=0
+    fi
+  fi
+
+  rm -rf "$tmpstate"
+  [ "$test_ok" -eq 1 ] && ok "jredact:$name"
+}
+
+_run_jredact "redact-on"  "true"  "true"
+_run_jredact "redact-off" "false" "false"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

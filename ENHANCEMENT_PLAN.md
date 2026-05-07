@@ -97,7 +97,7 @@ Five tracks. Each item gives Problem, Solution, Files, Acceptance, Risk-if-dropp
 
 **A4. Decision-journal redaction — actually implement it** (closes Q1)
 
-- **Problem.** `redactInJournal: true` in contract reads as a working safety setting but isn't enforced. Secrets land in `~/.horus/decision-journal.jsonl`.
+- **Problem.** `redactInJournal` is referenced in the contract surface but is not implemented in `decision-journal.js`. The flag at `contract.scopes.secrets.redactInJournal` is declared in the schema and set to `true` in generated contracts, but `append()` writes every field verbatim — secrets land in `~/.horus/decision-journal.jsonl` regardless of the contract setting.
 - **Solution.** Move redaction into `decision-journal.js:append()`. Use the existing 23-pattern set from `secret-scan.js` plus a configurable additional pattern list from contract. Redact in-place before writing JSONL; replace with `[REDACTED:<class>]`. Original-bytes never reach the journal. Add `redactInJournal` to per-event metadata so post-hoc audit can confirm the policy applied.
 - **Files.** EXTEND `runtime/decision-journal.js`, `runtime/secret-scan.js` (export pattern set as a function). NEW fixture: a decide() call carrying a class-C secret, asserting JSONL output is redacted under `redactInJournal: true` and unredacted under `false`.
 - **Acceptance.** (1) Fixture passes. (2) `eval-decision-quality.sh` corpus: zero raw secrets in journal under default config. (3) Decision p99 cost of redaction under 0.5 ms.

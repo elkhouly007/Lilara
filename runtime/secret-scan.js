@@ -49,4 +49,15 @@ function scanSecrets(text) {
   return null;
 }
 
-module.exports = { scanSecrets };
+/**
+ * Return the loaded pattern array (same set used by scanSecrets).
+ * Callers that need to apply patterns to arbitrary text (e.g. journal redaction)
+ * use this to avoid re-loading or duplicating the pattern list.
+ *
+ * @returns {{ name: string, pattern: RegExp }[]}
+ */
+function getPatterns() {
+  return loadPatterns();
+}
+
+module.exports = { scanSecrets, getPatterns };
