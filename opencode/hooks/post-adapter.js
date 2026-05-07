@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-// output-sanitizer.js — Claude PostToolUse hook for secret scanning + taint recording.
+// post-adapter.js — OpenCode PostToolUse adapter for Agent Runtime Guard.
 //
-// Scans tool output and model responses for secrets before they propagate
-// into context. PostToolUse hooks cannot block; this emits a warning to
-// stderr so the operator sees it in the session log.
+// OpenCode uses Claude Code's hook format: same as claude/hooks/output-sanitizer.js.
+// PostToolUse payload shape: { tool_use_id, tool_name, output, ... }
 //
-// Also records external-source tool output (WebFetch, mcp, curl, Browser)
-// into the provenance window so the F10 taint floor in decision-engine.js
-// can detect commands injected via external content (A2/A3).
+// Does two things on every PostToolUse event:
+//   1. Secret scan: warns if tool output contains a credential pattern.
+//   2. Taint record: annotates external-source outputs (WebFetch, mcp, curl)
+//      into the provenance window for the F10 taint floor.
 //
-// Delegates scanning to runtime/secret-scan.js (same 23-pattern set used
-// by the PreToolUse spine) so pre- and post-tool coverage is consistent.
+// PostToolUse hooks cannot block; all output goes to stderr as warnings.
+// HORUS_KILL_SWITCH=1 disables all processing (pass-through).
 
 "use strict";
 
-const { readStdin, collectText, hookLog, rateLimitCheck } = require("./hook-utils");
+const { readStdin, collectText, hookLog, rateLimitCheck } = require("../../claude/hooks/hook-utils");
 const { scanSecrets } = require("../../runtime/secret-scan");
 const { recordExternalRead } = require("../../runtime/taint");
 
@@ -39,15 +39,13 @@ readStdin()
       return;
     }
 
-    if (!rateLimitCheck("output-sanitizer")) {
+    if (!rateLimitCheck("opencode-post-adapter")) {
       process.stdout.write(raw);
       return;
     }
 
     try {
       const input = JSON.parse(raw || "{}");
-      // PostToolUse payload shape: { tool_use_id, tool_name, output, ... }
-      // Scan the output field preferentially; fall back to full recursive collect.
       const toolName   = String(input.tool_name || input.tool || "");
       const outputText = String(input.output || input.tool_output || input.content || "");
       const text = outputText || collectText(input);
@@ -57,10 +55,10 @@ readStdin()
       if (hit) {
         process.stderr.write(`[Agent Runtime Guard] Possible ${hit.name} detected in tool output.\n`);
         process.stderr.write("[Agent Runtime Guard] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
-        try { hookLog("output-sanitizer", "WARN", hit.name); } catch { /* log I/O is non-fatal */ }
+        try { hookLog("opencode-post-adapter", "WARN", hit.name); } catch { /* log I/O is non-fatal */ }
       }
 
-      // 2. Taint record for external-source tools (A3: completes Claude-harness wiring)
+      // 2. Taint record for external-source tools
       if (EXTERNAL_TOOLS.has(toolName) && text) {
         try { recordExternalRead(text, sourceLabel(toolName)); } catch { /* provenance is best-effort */ }
       }

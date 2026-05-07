@@ -15,7 +15,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Session start hook | `claude/hooks/session-start.js` | optional local hook (SessionStart) | Loads instinct store, shows pending review count. |
 | Session end hook | `claude/hooks/session-end.js` | optional local hook (Stop) | Captures session metadata to instinct store for future sessions. |
 | Strategic compact hook | `claude/hooks/strategic-compact.js` | optional local hook (PostToolUse) | Suggests /compact when context window may be filling. |
-| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner (delegates to `runtime/secret-scan.js`) |
+| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner + taint recorder. Scans output via `runtime/secret-scan.js`; records external-source tool output (WebFetch, mcp, curl, Browser) to provenance window via `runtime/taint.js`. (A3: taint recording added.) |
 | Memory load hook | `claude/hooks/memory-load.js` | optional local hook (SessionStart) | Loads project memory context at session start. |
 | PR notifier hook | `claude/hooks/pr-notifier.js` | optional local hook (PostToolUse) | Notifies after PR-related actions. |
 | Hook utilities | `claude/hooks/hook-utils.js` | shared library | readStdin (5 MB cap), commandFrom, collectText, hookLog, rateLimitCheck, classifyCommandPayload, classifyPathSensitivity (advisory, feeds risk-score), readSessionRisk. Used by all hooks. |
@@ -110,6 +110,21 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. |
 
 All runtime modules write only to `HORUS_STATE_DIR` (or `~/.horus/`). No network access. No package manager invocations. State files are created with mode 0700 directories and 0600 files.
+
+## PostToolUse Adapters (A3 — cross-harness parity)
+
+Each harness has a PostToolUse hook that: (1) scans tool output for secrets via `runtime/secret-scan.js`, (2) records external-source outputs into the provenance window via `runtime/taint.js` so the F10 taint floor can detect injected commands.
+
+| Harness | Path | Notes |
+|---------|------|-------|
+| Claude | `claude/hooks/output-sanitizer.js` | Canonical implementation (A3 adds taint recording) |
+| OpenCode | `opencode/hooks/post-adapter.js` | Claude Code fork — same PostToolUse hook format |
+| OpenClaw | `openclaw/hooks/post-adapter.js` | Claude Code-compatible shape; event model likely verified |
+| Codex | `codex/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
+| Clawcode | `clawcode/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
+| Antegravity | `antegravity/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
+
+`scripts/check-post-adapter-parity.sh` CI gate enforces that all 6 files require both secret-scan and taint modules and call both `scanSecrets()` and `recordExternalRead()`.
 
 ## Upstream Adoption Model
 
