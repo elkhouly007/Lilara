@@ -206,6 +206,61 @@ The Codex `post-adapter.js` includes `"fetch"` in its `EXTERNAL_TOOLS` set; the 
 
 ---
 
+## D27: secret-scan.js Encapsulation — getPatterns() vs redact(text)
+
+**Status: OPEN — low-priority follow-up, not blocking Wave 1.**
+
+`runtime/secret-scan.js` exposes `getPatterns()` as a raw pattern array. Callers (currently `decision-journal.js`) iterate the array and apply `pattern.replace()` themselves. This leaks the redaction mechanic into the caller.
+
+**Better interface:** export `redact(text, extraPatterns?)` from `secret-scan.js` and let `decision-journal.js` call that. This becomes important when contract-custom patterns land (caller would not need to merge arrays).
+
+**Recommended action:** fold into a future `secret-scan` improvement pass. Do not reopen A4.
+**Priority:** low — no correctness impact today.
+
+---
+
+## D28: decision-journal.js Redaction Policy Comment
+
+**Status: OPEN — trivial one-liner, low-priority.**
+
+`runtime/decision-journal.js:append()` redacts `targetPath` and `notes` but not `tool`, `branch`, `kind`, or `action`. These structured/enum-like fields are defensible exclusions (they don't carry user-controlled free text), but the code does not say so.
+
+**Recommended action:** add a one-line comment in `decision-journal.js` next to the `const record = {` block explaining which fields are redacted and why others are not.
+**Priority:** low — doc-only.
+
+---
+
+## D29: Journal Redaction Provenance Label — [REDACTED:class-C] vs [REDACTED:<name>]
+
+**Status: OPEN — forensics improvement, low-priority.**
+
+The replacement label `[REDACTED:class-C]` is hardcoded in `decision-journal.js:redactText()`. This loses pattern provenance: a forensic reviewer cannot tell whether the redacted value was an AWS key, a Slack token, or a generic secret.
+
+**Better label:** `[REDACTED:<pattern_name>]` (e.g. `[REDACTED:AWS-access-key]`). Requires iterating matches and replacing per-pattern rather than in a single loop. Small performance overhead; large forensic gain.
+
+**Recommended action:** fold into the D27 encapsulation cleanup (if `secret-scan.js` exports `redact()`, it can return metadata too).
+**Priority:** low — no security regression in current form.
+
+---
+
+## D30: Fixture Pattern For One-Off Output-Inspection Tests
+
+**Status: OPEN — decide before A1 starts (or immediately after A5 lands).**
+
+A4's `jredact:redact-on` / `jredact:redact-off` tests live inline in `scripts/run-fixtures.sh` rather than in `tests/fixtures/<category>/`. A5's concurrent-invocation harness uses `tests/fixtures/rate-limit/`. These are two different patterns for tests that inspect runtime output rather than hook stdin/stdout.
+
+**Decision needed:** should output-inspection tests live in `tests/fixtures/runtime/`, `tests/inline/`, or inline in `run-fixtures.sh`? Decide once and apply consistently across A1/A2/A3.
+
+**Options:**
+1. `tests/fixtures/runtime/` — co-located with other fixture categories; discovery is easy; no `.input` files so check-counts is unaffected.
+2. `tests/inline/` — separate directory signals "not stdin/stdout pair tests"; cleaner conceptual boundary.
+3. Inline in `run-fixtures.sh` — no new directories; harder to navigate as count grows.
+
+**Recommended action:** pick one pattern, port the A4 jredact tests to match, then A1/A2/A3 follow the same pattern.
+**Priority:** medium — compounding debt if each item invents its own pattern.
+
+---
+
 ## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
 
 **Status: RESOLVED by documentation. No code change needed.**
