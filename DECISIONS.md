@@ -110,3 +110,27 @@ Record the outcome here (cleared / conflict found / adjusted brand) when complet
 **Status: CLOSED — resolved 2026-05-07 via Wave-1 item E1 (branch `feat/e1-master-plan-7-8`).**
 
 MASTER_PLAN.md §7 (Component Inventory) and §8 (Host Compatibility Matrix) are now authored and substantive. Phase 3 (Three-Mode UX) planning is unblocked. Sections 9–13 and 18 remain deferred to Pass-3.
+
+## D25: F3 Risk-Score Threshold — ARCHITECTURE.md Table Reads "score === 10", Code Uses ">= 8"
+
+**Status: OPEN — doc-only fix, out of scope for Wave 1.**
+
+The ARCHITECTURE.md precedence-matrix table labels F3 as `critical-risk (score === 10)`. The implementation in `runtime/risk-score.js:149` is `if (value >= 8) level = "critical"`. The threshold is `>= 8`, not `=== 10`. Fix is one word in the table row — no behavior change, no fixture impact.
+
+**Owner:** Khouly (or any Wave-2 doc cleanup pass)
+**Blocker for:** nothing.
+
+## D26: F4/F6/F7 — Documented as Floors in ARCHITECTURE.md, Not Implemented in Code
+
+**Status: OPEN — decide whether to implement or relabel after Wave 1.**
+
+Three items in the ARCHITECTURE.md ladder table are marked `Floor-bound? = yes` but are not code floors in the current engine:
+
+- **F4 (secret-class-C payload):** `pretool-gate.js` upgrades `payloadClass` to C on a secret hit; `risk-score.js` adds +4 to the score. It is a risk modifier — can drive F3 if combined with other patterns — but there is no `buildEarlyBlock` or action lock for payloadClass=C alone. A medium-scoring class-C payload is demotable by contract-allow.
+- **F6 (scope-violation):** When `scopeMatch` returns false, `contractAllow` stays false and the baseline risk-score action stands. No escalation floor fires on scope mismatch.
+- **F7 (novel-command-class):** Ungated command classes bypass the F5 strict-mode gate but receive no escalation floor of their own.
+
+Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code floors, or (b) relabel them in the table as "aspirational / not yet implemented."
+
+**Owner:** Khouly (or dedicated Wave-2 item)
+**Blocker for:** nothing — no active security regression; aspirational architecture gap only.
