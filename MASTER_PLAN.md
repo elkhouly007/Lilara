@@ -536,39 +536,109 @@ Enable external teams to build and share capability packs.
 
 ## 7. Component Inventory
 
-> **[TO BE EXPANDED IN PASS 2]**
+### 7.1 Summary (verified at v3.0.0 / commit f6f2baf)
 
-| Component type | Current (verified) | Target (Phase 9) | Notes |
+| Component | Current count | Target (Phase 9) | Notes |
 |---|---|---|---|
-| Runtime JS files | 23 / 3,454 LOC | ~32 | New: memory-store, task-handoff, capability-selector, evolution-observer, evolution-proposer |
-| Hook files (claude/) | 13 / 1,316 LOC | 14–15 | Session continuity hooks |
-| Host adapter shims | 5 (16-24 LOC each) | 6 | Codex shim → production |
-| Agents | 49 | ~80 | Phase 7 gap fill |
-| Rules | 80 | ~100 | Language coverage + methodology |
-| Skills | 22 | ~60 | Major expansion |
-| Modules | 55 | ~65 | Extension pack modules |
-| Scripts | 63 | ~80 | New: rebrand, evolution, observability, pack tools |
-| Fixtures | 180+ | 250+ | Cross-harness + memory + evolution tests |
+| Runtime JS modules | 23 | ~32 | `runtime/*.js`; zero-dependency (Node builtins only) |
+| Claude hook files | 13 | 14–15 | `claude/hooks/*.js`; gate-class + informational + utility |
+| Harness adapters | 5 | 6 | OpenCode, OpenClaw, Codex, ClawCode, Antegravity; Codex/ClawCode/Antegravity best-effort |
+| CI scripts | 68 | ~80 | `scripts/*.sh`; 7 gating, remainder utility |
+| Agents | 49 | ~80 | `.claude/agents/*.md` |
+| Rules | 82 | ~100 | `.claude/rules/*.md` |
+| Skills | 22 | ~60 | `.claude/skills/*.md` |
+| Fixtures | 216 | 250+ | `tests/fixtures/**/*.input` pairs across 13 categories |
 
-Detailed per-type justification: **[TO BE EXPANDED IN PASS 2]**
+### 7.2 Runtime Modules (`runtime/*.js`) — 23 files
+
+All 23 files import only Node built-ins (`node:fs`, `node:path`, `node:crypto`, `node:os`, `node:zlib`) and local `./` requires. Third-party `require()` is CI-blocked by `scripts/check-zero-deps.sh`.
+
+| Module | Role |
+|---|---|
+| `index.js` | Flat re-export namespace; hooks `require("../../../runtime")` for all symbols |
+| `decision-engine.js` | Entry point; 15-step precedence matrix; returns structured `decide()` result |
+| `risk-score.js` | 12 pattern classes; score bounded 0–10; deterministic, no I/O |
+| `decision-key.js` | `fineKey` (5-part, project-scoped) + `legacyKey` (4-part, removed in v2.0.1) |
+| `intent-classifier.js` | 8-intent classifier: explore / build / deploy / modify / configure / cleanup / debug / unknown |
+| `route-resolver.js` | Maps intent → routing lane (direct / verification / review); per-project override |
+| `policy-store.js` | Learned-allow, auto-allow-once, approval counts; atomic tmp+rename writes |
+| `session-context.js` | Per-session risk accumulation; session-id partitioning; atomic writes |
+| `decision-journal.js` | JSONL append-only log; 5 MB rotation; 3-generation retention |
+| `project-policy.js` | Reads `horus.config.json`; falls back to defaults; validates via `config-validator.js` |
+| `context-discovery.js` | Git branch + project-root markers; git calls time-bounded at 1500 ms |
+| `promotion-guidance.js` | 6-stage promotion lifecycle: new → approaching → eligible → promoted → dismissed → ineligible |
+| `workflow-router.js` | Recommends CI / PR / review workflow from action + risk |
+| `action-planner.js` | Builds step-by-step action plan for the decided action |
+| `pretool-gate.js` | Single enforcement spine called by all harness adapters; implements stdin echo + exit logic |
+| `secret-scan.js` | 23-pattern secret scanner; cross-harness; upgrades `payloadClass` to C on hit |
+| `contract.js` | Contract lifecycle: load, verify, accept, generate, `scopeMatch`; v1 + v2 schema |
+| `glob-match.js` | Zero-dep glob matcher: `**/*`, `?`, `[abc]`, `!` negation, `${projectRoot}` variable |
+| `arg-extractor.js` | Argv splitter; handles quoted args, escapes, heredocs → `<<HEREDOC` (fail-closed) |
+| `canonical-json.js` | Deterministic JSON stringify (keys sorted recursively) for contract hashing |
+| `config-validator.js` | Typed-field walker; validates `horus.config.json` and `horus.contract.json` |
+| `state-paths.js` | Single source of truth for all `~/.horus` storage paths; `HORUS_STATE_DIR` override |
+| `telemetry.js` | Structured telemetry events appended to `telemetry.jsonl`; never blocks decisions |
+
+### 7.3 Claude Hooks (`claude/hooks/*.js`) — 13 files
+
+| File | Event | Class | Role |
+|---|---|---|---|
+| `dangerous-command-gate.js` | PreToolUse | Gate | Main enforcement gate; delegates to `pretool-gate.js` |
+| `secret-warning.js` | PreToolUse | Gate | Warns on secret patterns in payload; blocks under enforce mode |
+| `git-push-reminder.js` | PreToolUse | Gate | Intercepts `git push`; prompts branch / force-push review |
+| `build-reminder.js` | PreToolUse | Gate | Intercepts build commands; validates CI context |
+| `output-sanitizer.js` | PostToolUse | Informational | Scans tool output for 23-pattern credential set; warns on hit |
+| `pr-notifier.js` | PostToolUse | Informational | Emits notification on PR-related tool outcomes |
+| `quality-gate.js` | PostToolUse | Informational | Quality checks on completed tool actions |
+| `strategic-compact.js` | PostToolUse | Informational | Strategic compaction pass after tool use |
+| `session-start.js` | SessionStart | Informational | Writes session ID; loads session context |
+| `session-end.js` | SessionStop | Informational | Clears session state; emits session-end telemetry |
+| `memory-load.js` | SessionStart | Informational | Loads project memory context at session open |
+| `hook-utils.js` | — | Utility | `createAdapter()` factory; shared stdin-parse + exit logic for all adapters |
+| `instinct-utils.js` | — | Utility | Shared pattern-matching utilities used by gate hooks |
+
+Gate-class hooks exit 2 to block when `HORUS_ENFORCE=1`; informational hooks always exit 0.
+
+### 7.4 Harness Adapters
+
+One thin adapter (~20–70 LOC) per non-Claude harness. Each calls `createAdapter()` from `runtime/pretool-gate.js` with harness-specific stdin parsing.
+
+| Harness | Adapter path | Status | PreToolUse | PostToolUse |
+|---|---|---|---|---|
+| Claude Code | `claude/hooks/dangerous-command-gate.js` | Supported | Full (gate + pretool-gate spine) | Full (`output-sanitizer.js`) |
+| OpenCode | `opencode/hooks/adapter.js` | Supported | Full (verified CC-fork shape) | Not wired (deferred — see ROADMAP.md) |
+| OpenClaw | `openclaw/hooks/adapter.js` | Supported | Full (verified `{ tool, cmd, cwd }` shape) | Not wired |
+| Codex | `codex/hooks/adapter.js` | Best-effort (API unverified) | Broad fallback chain | Not wired |
+| ClawCode | `clawcode/hooks/adapter.js` | Best-effort (API unverified) | Broad fallback chain | Not wired |
+| Antegravity | `antegravity/hooks/adapter.js` | Best-effort (API unverified) | Broad fallback chain | Not wired |
+
+All 6 adapters pass the kill-switch fixture suite (`HORUS_KILL_SWITCH=1` → exit 2).
 
 ---
 
 ## 8. Host Compatibility Matrix
 
-> **[TO BE EXPANDED IN PASS 2]** — written after Phase 2 delivers the host capability API spec.
+Verified at v3.0.0 / commit f6f2baf. Legend: **COVERED** = implemented + fixture-tested; **DOCUMENTED LIMITATION** = gap formally acknowledged with deferral note; **COVERED (best-effort)** = adapter ships but hook payload format unverified against real harness; **NOT YET** = not implemented (roadmap item identified).
 
-Skeleton:
-
-| Feature | Claude Code | OpenClaw | OpenCode | ClawCode | Antegravity | Codex |
+| Capability | Claude Code | OpenClaw | OpenCode | ClawCode | Antegravity | Codex |
 |---|---|---|---|---|---|---|
-| PreToolUse hook | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| SessionStart hook | ✅ | ✅ | ✅ | ? | ? | ? |
-| Secret scanning | ✅ | ✅ | ✅ | ? | ? | ? |
-| Security contract | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ |
-| Memory layer (Phase 4) | planned | planned | planned | planned | planned | planned |
+| PreToolUse hook | COVERED | COVERED | COVERED | COVERED (best-effort) | COVERED (best-effort) | COVERED (best-effort) |
+| PostToolUse hook | COVERED | DOCUMENTED LIMITATION | DOCUMENTED LIMITATION | NOT YET | NOT YET | NOT YET |
+| Contract v1 enforcement | COVERED | COVERED | COVERED | COVERED (best-effort) | COVERED (best-effort) | COVERED (best-effort) |
+| Contract v2 enforcement | COVERED | COVERED | COVERED | COVERED (best-effort) | COVERED (best-effort) | COVERED (best-effort) |
+| Kill-switch (HORUS_KILL_SWITCH=1) | COVERED | COVERED | COVERED | COVERED | COVERED | COVERED |
+| Secret scanning (pre-tool) | COVERED | COVERED | COVERED | COVERED (best-effort) | COVERED (best-effort) | COVERED (best-effort) |
+| Post-tool output sanitization | COVERED | DOCUMENTED LIMITATION | DOCUMENTED LIMITATION | NOT YET | NOT YET | NOT YET |
+| Journal redaction (redactInJournal) | NOT YET (A4 planned) | NOT YET | NOT YET | NOT YET | NOT YET | NOT YET |
+| Cross-tool taint tracking | NOT YET (A2 planned) | NOT YET | NOT YET | NOT YET | NOT YET | NOT YET |
 
-Full matrix with capability-level detail: **[TO BE EXPANDED IN PASS 2]**
+**Notes:**
+
+- Kill-switch coverage for all 6 harnesses is verified by the fixture corpus (`HORUS_KILL_SWITCH=1` → exit 2); `scripts/run-fixtures.sh` passes 216 pairs including kill-switch categories.
+- PostToolUse DOCUMENTED LIMITATION for OpenClaw and OpenCode: OpenClaw has no confirmed upstream PostToolUse support; OpenCode is a Claude Code fork that likely supports the event model but `opencode/WIRING_PLAN.md` documents PreToolUse only. Both deferred pending contributor confirmation.
+- Journal redaction (`redactInJournal` contract flag) is declared in the contract surface but not yet implemented in `runtime/decision-journal.js`. Wave-1 item A4 will implement redaction using the 23-pattern set from `runtime/secret-scan.js`.
+- Cross-tool taint tracking (provenance correlator + injection floor at risk ≥ 8.5) is planned by Wave-1 items A2 (Claude-harness) and A3 (5 remaining harnesses).
+- Harness API verification status for Codex, ClawCode, and Antegravity: promoted from NOT YET to Supported once a contributor confirms actual hook payload shapes. See ROADMAP.md "Codex / ClawCode / Antegravity adapter verification".
 
 ---
 

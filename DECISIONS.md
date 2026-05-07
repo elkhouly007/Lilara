@@ -107,14 +107,6 @@ Record the outcome here (cleared / conflict found / adjusted brand) when complet
 
 ## D24: MASTER_PLAN.md Pass-2 Stubs — Fill Sections 7 And 8 Before Phase 3 Work Begins
 
-**Status: OPEN — decision needed by owner before Phase 3 implementation starts.**
+**Status: CLOSED — resolved 2026-05-07 via Wave-1 item E1 (branch `feat/e1-master-plan-7-8`).**
 
-MASTER_PLAN.md is Pass-1 complete. Sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) are explicitly stubbed. These two sections are the minimum required before Phase 3 (Three-Mode UX) work begins, because:
-
-- Section 7 (Component Inventory) maps current runtime modules to their MASTER_PLAN roles, surfacing any modules that are referenced in Phase 3 but not yet built
-- Section 8 (Host Compatibility Matrix) determines which harnesses get Phase 3 contract v3 support and which stay EXPERIMENTAL
-
-**Recommended action:** author Sections 7 and 8 in a dedicated MASTER_PLAN Pass-2 session before the Phase 3 planning phase begins. Sections 9–13 and 18 can be deferred to Pass-3.
-
-**Owner:** Khouly (or an Explore agent spawned to fill the sections)
-**Blocker for:** Phase 3 planning (/gsd-plan-phase or equivalent)
+MASTER_PLAN.md §7 (Component Inventory) and §8 (Host Compatibility Matrix) are now authored and substantive. Phase 3 (Three-Mode UX) planning is unblocked. Sections 9–13 and 18 remain deferred to Pass-3.

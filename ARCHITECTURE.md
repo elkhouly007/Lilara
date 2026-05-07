@@ -65,7 +65,7 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 ```
 
 **Demotion rules:**
-- Floors (steps 1–9) always win. No rung below can change a floor-set action.
+- Floor-bound steps always win; F1/F3/F8/F9 are hardened as `decision-engine.js` code floors; F2/F4/F5/F6/F7 achieve the same result via strict pre-gate checks in `pretool-gate.js`. No rung below a floor can change its action.
 - `contract-allow` demotes baseline only. Never demotes a floor.
 - `learned-allow` and `auto-allow-once` cannot demote anything a contract-allow would not have.
 - Trajectory nudge is a promoter only. Exempt for `contract-allow` and `learned-allow` sources.

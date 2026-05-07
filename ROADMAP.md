@@ -117,6 +117,8 @@ Best-effort adapters shipped in v2.1.0 (`codex/hooks/adapter.js`, etc.) using a 
 
 ~~**Telemetry aggregation**~~ — CLOSED. `horus-cli.sh telemetry report` prints event summary by type with count and lastSeen. `telemetry clear` removes the local log.
 
+~~**Phase 3 entry condition (D24)**~~ — CLEARED 2026-05-07. `MASTER_PLAN.md` §7 (Component Inventory) and §8 (Host Compatibility Matrix) are authored and substantive; Phase 3 (Three-Mode UX) planning is unblocked. See `DECISIONS.md` D24.
+
 ---
 
 ## Closed — Archived
