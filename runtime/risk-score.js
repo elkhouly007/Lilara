@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 
-const { globMatch } = require("./glob-match");
+const { globMatch }  = require("./glob-match");
+const { tokenize }   = require("./shell-ast");
 
 function normalize(input = {}) {
   return {
@@ -128,6 +129,32 @@ function score(input = {}) {
   } else if (pathSensitivity === "medium") {
     value += 1;
     reasons.push("path-sensitivity-medium");
+  }
+
+  // ── Shell-AST bypass detection ───────────────────────────────────────────
+  // Catches bypass patterns that pure-regex matchers miss (base64-pipe, IFS,
+  // eval+sub, variable-as-command, network process substitution).
+  // Added after all regex checks so it only fires on genuine gaps.
+  const ast = tokenize(ctx.command);
+  if (ast.hasBase64Pipe) {
+    value += 7;
+    reasons.push("base64-pipe-exec");
+  }
+  if (ast.hasIfsBypass) {
+    value += 7;
+    reasons.push("shell-ast-ifs-bypass");
+  }
+  if (ast.hasEvalDynamic) {
+    value += 7;
+    reasons.push("eval-dynamic-exec");
+  }
+  if (ast.hasVariableAsCommand) {
+    value += 5;
+    reasons.push("shell-ast-variable-cmd");
+  }
+  if (ast.hasNetworkProcessSub) {
+    value += 5;
+    reasons.push("shell-ast-network-proc-sub");
   }
 
   if (ctx.repeatedApprovals >= 3 && value > 0) {
