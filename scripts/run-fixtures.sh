@@ -1372,6 +1372,66 @@ process.stdout.write(String(getSkillPolicy(c, 'unlisted-skill')));
 }
 _skill_skill_allow_default
 
+# ── inline: scopes.budget + scopes.session unit tests (B2 Phase 2, commit 2) ─
+printf '\nBudget/session policy (B2) tests...\n'
+
+_budget_destructive_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  printf '{"destructiveOps":5,"externalBytes":0,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bd.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getCounters } = require('./runtime/session-budget');
+const c = getCounters({ sessionId: 'test-session-bd' });
+process.stdout.write(String(c.destructiveOps));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "5" ]; then ok "budget:destructive-block";
+  else fail "budget:destructive-block" "expected destructiveOps=5, got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_budget_destructive_block
+
+_budget_bytes_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  printf '{"destructiveOps":0,"externalBytes":1048576,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bb.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getCounters } = require('./runtime/session-budget');
+const c = getCounters({ sessionId: 'test-session-bb' });
+process.stdout.write(String(c.externalBytes));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "1048576" ]; then ok "budget:bytes-block";
+  else fail "budget:bytes-block" "expected externalBytes=1048576, got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_budget_bytes_block
+
+_session_over_duration_require_review() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  local old_time; old_time=$(node -e 'process.stdout.write(String(Date.now() - 7200000))')
+  printf '{"destructiveOps":0,"externalBytes":0,"startTime":%s}' "$old_time" > "$tmpstate/session-budget/test-session-od.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSessionConstraints } = require('./runtime/contract');
+const { getCounters }           = require('./runtime/session-budget');
+const c    = { scopes: { session: { maxDurationMin: 1 } } };
+const cfg  = getSessionConstraints(c);
+const cnts = getCounters({ sessionId: 'test-session-od' });
+const ageMin = (Date.now() - cnts.startTime) / 60000;
+const over = cfg && Number.isFinite(cfg.maxDurationMin) && ageMin > cfg.maxDurationMin;
+process.stdout.write(over ? 'over' : 'ok');
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "over" ]; then ok "session:over-duration-require-review";
+  else fail "session:over-duration-require-review" "expected 'over', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_session_over_duration_require_review
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

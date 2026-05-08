@@ -169,6 +169,27 @@
             }
           }
         },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "v3: Session-level constraints. maxDurationMin: when exceeded, forces decision to require-review.",
+          "properties": {
+            "maxDurationMin": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Limit on agent session duration in minutes. When exceeded, decision is forced to require-review with source=session-over-duration; sessionDurationWarning annotation also attached. Operator pattern: 'after N minutes, stop and ask me.'"
+            }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "v3: Hard caps on session-scoped quantities. Exceeding either limit blocks via F14 budget-exceeded floor.",
+          "properties": {
+            "maxDestructiveOps":  { "type": "integer", "minimum": 0 },
+            "maxExternalBytes":   { "type": "integer", "minimum": 0 }
+          }
+        },
         "tools": {
           "description": "v2: Per-tool command and path allowlists. Provides finer-grained control than the top-level shell scope.",
           "type": "object",
