@@ -167,6 +167,45 @@ Cross-harness tool-name mapping is needed for OpenCode/OpenClaw/Codex/Clawcode/A
 
 ---
 
+## D38: Post-Adapter Factory Refactor — DRY Violation Across 5 Adapters
+
+**Status: OPEN — Wave-2 cleanup pass.**
+
+The five `post-adapter.js` files added by A3 (`opencode/`, `openclaw/`, `codex/`, `clawcode/`, `antegravity/`) each contain ~40 lines of identical logic: the `EXTERNAL_TOOLS` set, a `sourceLabel()` helper, the secret-scan + taint-record flow, and the `HORUS_KILL_SWITCH` / `rateLimitCheck()` guards. This is a DRY violation — any logic change must be applied to all five files.
+
+**Recommended path:** extract shared logic into `claude/hooks/post-hook-utils.js` exporting `createPostAdapter(harnessName)`, parallel to how `hook-utils.js` serves PreToolUse adapters. Each per-harness adapter becomes 5–10 lines wrapping the factory call. `check-post-adapter-parity.sh` continues to assert the structural contract.
+
+**Owner:** Wave-2 cleanup pass.
+**Blocker for:** nothing — current adapters are correct; this is a maintainability concern only.
+
+---
+
+## D39: EXTERNAL_TOOLS Canonicalization — Codex "fetch" Divergence
+
+**Status: OPEN — Wave-2 cleanup pass (or paired with D38).**
+
+The Codex `post-adapter.js` includes `"fetch"` in its `EXTERNAL_TOOLS` set; the OpenCode, OpenClaw, Clawcode, and Antegravity adapters do not. This may be intentional (Codex uses a native `fetch` tool not present in other harnesses) or an inconsistency introduced during parallel development.
+
+**Recommended path:** confirm whether `"fetch"` is a real Codex tool class. If yes, document the divergence in `codex/WIRING_PLAN.md`. If no, remove it. The question resolves naturally when D38's factory consolidates the `EXTERNAL_TOOLS` list into one canonical set with per-harness overrides.
+
+**Owner:** Wave-2 cleanup pass.
+**Blocker for:** nothing — over-including a tool class in EXTERNAL_TOOLS is conservative (records more provenance, not less). No security regression.
+
+---
+
+## D40: Post-Adapter Behavioral Parity Fixtures
+
+**Status: OPEN — Wave-2 testing pass (lower priority than D38/D39).**
+
+`scripts/check-post-adapter-parity.sh` is structural — it verifies that each adapter imports `scanSecrets` and `recordExternalRead` and calls them at the right call sites. It does not run the adapters against live inputs.
+
+**Recommended path:** add per-harness PostToolUse fixtures (one per adapter) that pipe a synthetic payload containing (a) a secret pattern in the `output` field, and (b) an external-tool name in the `tool` field. Assert that (1) stderr carries a secret-warning line and (2) `~/.horus/provenance-window.json` gains a new entry. These can live under `tests/fixtures/posttool/` and be driven by a new `run_posttool_fixtures` helper in `scripts/run-fixtures.sh`.
+
+**Owner:** Wave-2 testing pass.
+**Blocker for:** nothing — the structural check is sufficient for correctness; behavioral fixtures add regression depth.
+
+---
+
 ## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
 
 **Status: RESOLVED by documentation. No code change needed.**
