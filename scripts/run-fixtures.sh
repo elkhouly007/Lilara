@@ -468,6 +468,9 @@ append({
 _run_jredact "redact-on"  "true"  "true"
 _run_jredact "redact-off" "false" "false"
 
+# ── Shell-AST bypass detection fixtures (A1) ──────────────────────────────────
+run_hook_fixtures "claude/hooks/dangerous-command-gate.js" "tests/fixtures/shell-ast" "shell-ast"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
