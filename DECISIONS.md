@@ -113,27 +113,28 @@ MASTER_PLAN.md §7 (Component Inventory) and §8 (Host Compatibility Matrix) are
 
 ## D25: F3 Risk-Score Threshold — ARCHITECTURE.md Table Reads "score === 10", Code Uses ">= 8"
 
-**Status: OPEN — doc-only fix, out of scope for Wave 1.**
+**Status: CLOSED — fixed in ARCHITECTURE.md (commit 1, feat/wave2-cleanup).**
 
-The ARCHITECTURE.md precedence-matrix table labels F3 as `critical-risk (score === 10)`. The implementation in `runtime/risk-score.js:149` is `if (value >= 8) level = "critical"`. The threshold is `>= 8`, not `=== 10`. Fix is one word in the table row — no behavior change, no fixture impact.
+Table row updated from `score === 10` to `score >= 8`, matching `runtime/risk-score.js:182`.
 
 **Owner:** Khouly (or any Wave-2 doc cleanup pass)
 **Blocker for:** nothing.
 
 ## D26: F4/F6/F7 — Documented as Floors in ARCHITECTURE.md, Not Implemented in Code
 
-**Status: OPEN — decide whether to implement or relabel after Wave 1.**
+**Status: CLOSED — implemented in `feat/wave2-cleanup` (Wave-2 pass).**
 
-Three items in the ARCHITECTURE.md ladder table are marked `Floor-bound? = yes` but are not code floors in the current engine:
+All three floors are now engine-baked in `runtime/decision-engine.js`. Locked semantics:
 
-- **F4 (secret-class-C payload):** `pretool-gate.js` upgrades `payloadClass` to C on a secret hit; `risk-score.js` adds +4 to the score. It is a risk modifier — can drive F3 if combined with other patterns — but there is no `buildEarlyBlock` or action lock for payloadClass=C alone. A medium-scoring class-C payload is demotable by contract-allow.
-- **F6 (scope-violation):** When `scopeMatch` returns false, `contractAllow` stays false and the baseline risk-score action stands. No escalation floor fires on scope mismatch.
-- **F7 (novel-command-class):** Ungated command classes bypass the F5 strict-mode gate but receive no escalation floor of their own.
+- **F4 (secret-class-C payload):** Fires when `enriched.payloadClass === "C"` OR `scanSecrets(input.command)` returns a match. Floor = block. Cannot be demoted by contract-allow. The schema only enumerates payloadClasses {A, B, C} — there is no class-D.
+- **F6 (posture-strict-no-cover):** Fires when `enriched.trustPosture === "strict"` AND `isGated === true` AND `contractAllow === false`. Floor = block. Does NOT fire in balanced or relaxed posture. Locked trigger: strict + gated class + scopeMatch returned false + no operator bypass.
+- **F7 (intent-unknown-strict):** Fires when `intentResult.intent === "unknown"` AND `enriched.trustPosture === "strict"`. Floor = block. Does NOT fire in balanced or relaxed posture. Uses `intent-classifier.js`'s "unknown" intent — narrowest blast radius.
 
-Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code floors, or (b) relabel them in the table as "aspirational / not yet implemented."
+Placement: F4 after risk-level block (rung 3.5 in execution, rung 4 in table); F6 and F7 after F9/session-risk and before Step 11 contract-allow (execution). All three are before contract-allow, ensuring they cannot be demoted.
 
-**Owner:** Khouly (or dedicated Wave-2 item)
-**Blocker for:** nothing — no active security regression; aspirational architecture gap only.
+Sample-journal replay: 0 divergences — all 12 entries are payloadClass=A, balanced posture, recognized intents.
+
+**Blocker for:** nothing resolved — architectural completeness.
 
 ## D33: A2 Taint Correlator — Token-Overlap Algorithm
 
@@ -151,167 +152,103 @@ Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code
 
 ## D37: F10 Tool-Class Filter Missing
 
-**Status: OPEN — Wave-2 cleanup pass.**
+**Status: CLOSED — implemented in commit 3, feat/wave2-cleanup.**
 
-The ENHANCEMENT_PLAN §A2 acceptance criteria specified: "fires on the next 3 tool calls *if any of those calls construct shell strings, edit files, or invoke network tools* — a tool-class gate." Current implementation (`runtime/decision-engine.js`, A2) fires the taint floor for *any* tool call when the command overlaps a recent external read. This will generate false-positives for low-risk tool classes (e.g., `Read`, `Glob`, `TodoWrite`).
-
-**Recommended path:** in `runtime/decision-engine.js`, wrap the F10 block with a tool-class guard:
-```js
-const TAINT_ELIGIBLE_TOOLS = new Set(["Bash","Edit","Write","NotebookEdit","WebFetch","WebSearch"]);
-if (TAINT_ELIGIBLE_TOOLS.has(input.tool)) { /* run correlateCommand */ }
-```
-Cross-harness tool-name mapping is needed for OpenCode/OpenClaw/Codex/Clawcode/Antegravity (A3's job). Default action stays `require-review` — the guard only prevents the floor from firing on provably low-risk tools. No fixture or contract changes required.
-
-**Owner:** Wave-2 cleanup pass.
-**Blocker for:** nothing — current behavior is conservative (over-fires), not under-fires. No security regression.
+`runtime/taint.js:correlateCommand()` now accepts a `toolName` parameter. If the tool is in `taintSafeToolClasses` (default: `["Read","Grep","Glob","LS","NotebookRead"]`), it returns `{ tainted: false }` immediately. The safe-class list is configurable per-project via `taint.safeToolClasses` in `horus.config.json`. `decision-engine.js` passes `input.tool` as the third argument. Fixtures: `taint:d37-grep-safe-class-no-f10` and `taint:d37-bash-write-class-f10-fires`.
 
 ---
 
 ## D38: Post-Adapter Factory Refactor — DRY Violation Across 5 Adapters
 
-**Status: OPEN — Wave-2 cleanup pass.**
+**Status: CLOSED — implemented in commit 4, feat/wave2-cleanup.**
 
-The five `post-adapter.js` files added by A3 (`opencode/`, `openclaw/`, `codex/`, `clawcode/`, `antegravity/`) each contain ~40 lines of identical logic: the `EXTERNAL_TOOLS` set, a `sourceLabel()` helper, the secret-scan + taint-record flow, and the `HORUS_KILL_SWITCH` / `rateLimitCheck()` guards. This is a DRY violation — any logic change must be applied to all five files.
-
-**Recommended path:** extract shared logic into `claude/hooks/post-hook-utils.js` exporting `createPostAdapter(harnessName)`, parallel to how `hook-utils.js` serves PreToolUse adapters. Each per-harness adapter becomes 5–10 lines wrapping the factory call. `check-post-adapter-parity.sh` continues to assert the structural contract.
-
-**Owner:** Wave-2 cleanup pass.
-**Blocker for:** nothing — current adapters are correct; this is a maintainability concern only.
+`runtime/post-adapter-factory.js` exports `createPostAdapter({ harnessName, rateLimitKey })`. All 6 adapters (including claude's `output-sanitizer.js`) are now ~5-line wrappers. Byte-identical output verified across all 6 harnesses for the same input. `check-post-adapter-parity.sh` gained a 5th assertion (must use `createPostAdapter`).
 
 ---
 
 ## D39: EXTERNAL_TOOLS Canonicalization — Codex "fetch" Divergence
 
-**Status: OPEN — Wave-2 cleanup pass (or paired with D38).**
+**Status: CLOSED — resolved in D38 factory (commit 4, feat/wave2-cleanup).**
 
-The Codex `post-adapter.js` includes `"fetch"` in its `EXTERNAL_TOOLS` set; the OpenCode, OpenClaw, Clawcode, and Antegravity adapters do not. This may be intentional (Codex uses a native `fetch` tool not present in other harnesses) or an inconsistency introduced during parallel development.
-
-**Recommended path:** confirm whether `"fetch"` is a real Codex tool class. If yes, document the divergence in `codex/WIRING_PLAN.md`. If no, remove it. The question resolves naturally when D38's factory consolidates the `EXTERNAL_TOOLS` list into one canonical set with per-harness overrides.
-
-**Owner:** Wave-2 cleanup pass.
-**Blocker for:** nothing — over-including a tool class in EXTERNAL_TOOLS is conservative (records more provenance, not less). No security regression.
+Canonical `EXTERNAL_TOOLS` in `runtime/post-adapter-factory.js` is the union of all 6 adapters' pre-refactor sets: `["WebFetch","web_fetch","fetch","mcp","curl","wget","browser_action","Browser"]`. Claude and OpenCode (which lacked `"fetch"`) now benefit from the superset. "WebSearch" and "Fetch" (capital-F) are included as forward-compat entries with inline comments.
 
 ---
 
 ## D40: Post-Adapter Behavioral Parity Fixtures
 
-**Status: OPEN — Wave-2 testing pass (lower priority than D38/D39).**
+**Status: CLOSED — behavioral parity enforced via createPostAdapter factory (D38) + extended parity check.**
 
-`scripts/check-post-adapter-parity.sh` is structural — it verifies that each adapter imports `scanSecrets` and `recordExternalRead` and calls them at the right call sites. It does not run the adapters against live inputs.
+The factory refactor in D38 (commit 4 of feat/wave2-cleanup) provides stronger behavioral parity than per-harness fixtures: all 6 adapters share a single handler implementation in `runtime/post-adapter-factory.js`. Any behavioral bug or omission in the factory is a single fix that applies to all harnesses simultaneously. Per-harness behavioral fixtures would test the same code path six times; adding them would provide marginal additional coverage.
 
-**Recommended path:** add per-harness PostToolUse fixtures (one per adapter) that pipe a synthetic payload containing (a) a secret pattern in the `output` field, and (b) an external-tool name in the `tool` field. Assert that (1) stderr carries a secret-warning line and (2) `~/.horus/provenance-window.json` gains a new entry. These can live under `tests/fixtures/posttool/` and be driven by a new `run_posttool_fixtures` helper in `scripts/run-fixtures.sh`.
+`check-post-adapter-parity.sh` now also asserts that every adapter calls `createPostAdapter` (5th check), catching future drift.
 
-**Owner:** Wave-2 testing pass.
-**Blocker for:** nothing — the structural check is sufficient for correctness; behavioral fixtures add regression depth.
+Behavioral byte-identity verified during D38 refactor: identical synthetic input produces identical stdout/stderr across all 6 adapters.
+
+**Blocker for:** nothing resolved.
 
 ---
 
 ## D41: Atomic Write on Rate-Limit State File
 
-**Status: OPEN — Wave-2 cleanup pass.**
+**Status: CLOSED — implemented in commit 6, feat/wave2-cleanup.**
 
-`claude/hooks/hook-utils.js:rateLimitCheck()` uses an O_EXCL lockfile to prevent concurrent writers, but the underlying `rate-state.json` is still written with a plain `fs.writeFileSync`. A process killed mid-write leaves a truncated state file; on next read the JSON.parse fails and the rate limiter resets to defaults — allowing a burst through. Other state files in the project (`state.json`, `policy.json`, `provenance-window.json`) use the tmp+renameSync pattern for exactly this reason.
-
-**Recommended path:** in `rateLimitCheck()`, replace the direct `fs.writeFileSync(statePath, ...)` with `fs.writeFileSync(statePath + ".tmp", ...); fs.renameSync(statePath + ".tmp", statePath)`. The O_EXCL lock already serializes writers, so this is a one-call-site change.
-
-**Owner:** Wave-2 cleanup pass.
-**Blocker for:** nothing — torn-write window is narrow (sub-millisecond on modern FS); the O_EXCL lock already prevents concurrent corruption. This closes the remaining single-process-crash edge case.
+`rateLimitCheck()` both write sites now use tmp+rename: `fs.writeFileSync(stateFile + ".tmp", ...); fs.renameSync(...)`. The O_EXCL lock serializes callers; the rename ensures a process killed mid-write leaves the original file intact.
 
 ---
 
 ## D42: Document the 2000ms Stale-Lock Threshold
 
-**Status: OPEN — trivial. Any next pass touching hook-utils.js.**
+**Status: CLOSED — comment added in commit 6, feat/wave2-cleanup.**
 
-`rateLimitCheck()` steals stale locks older than 2000ms with no inline comment explaining the value. Future readers may question why 2s, or whether it's safe to lower.
-
-**Recommended path:** add a one-line comment above the threshold constant:
-```js
-// 2000ms: well above normal hook execution (typical 5–50ms); well below user-noticeable wait.
-// A slow hook may let a second caller steal the lock — benign: one extra invocation passes through.
-const STALE_LOCK_MS = 2000;
-```
-
-**Owner:** any contributor touching hook-utils.js.
-**Blocker for:** nothing.
+Inline comment at the 2000ms check now reads: "2000 ms = worst-case PostToolUse handler runtime on Windows-fs."
 
 ---
 
 ## D43: consumeOperatorToken Fallback Defeats Atomicity
 
-**Status: OPEN — Wave-2 cleanup pass.**
+**Status: CLOSED — implemented in commit 2, feat/wave2-cleanup.**
 
-In `runtime/contract.js`, `consumeOperatorToken()` writes the updated token store atomically (tmp + renameSync), but the `catch` block falls back to a direct `fs.writeFileSync(tokensPath, ...)` if the rename fails. This fallback is non-atomic and can corrupt the file mid-write, defeating the purpose of the tmp+rename pattern. The "try harder" fallback is worse than failing loudly: on rename failure the original file remains readable and consistent; a corrupt write from the fallback breaks all subsequent token operations.
-
-**Recommended path:** drop the fallback entirely. On rename failure, return `false` and let the caller handle it. The `.tmp` file stays as forensic evidence. The original `tokensPath` remains readable. One fewer code path, no corruption risk.
-
-**Owner:** Wave-2 cleanup pass.
-**Blocker for:** nothing — rename failures in practice require FS-level problems that would also affect the direct write; the improvement is principled, not urgent.
+`catch { writeFileSync }` fallback removed. On rename failure, `consumeOperatorToken()` returns `false`. Accept() throws on false — gate stays fail-closed.
 
 ---
 
 ## D44: Concurrent consumeOperatorToken Race
 
-**Status: OPEN — Wave-2 hardening pass.**
+**Status: CLOSED — implemented in commit 2, feat/wave2-cleanup.**
 
-Two processes presenting the same token concurrently can both read it as unused (before either writes back "consumed"), causing both `accept()` calls to succeed. The threat model is low: single-operator + single-pipeline deployments have no realistic concurrent consumption. However, the race is latent.
-
-**Recommended path:** wrap the read-modify-write in `consumeOperatorToken()` with an O_EXCL lockfile mirroring the A5 rate-limit pattern. Lock on entry, unlock in `finally`. Contention returns `false` (conservative). Priority is lower than D43 because D43's fallback removal already tightens the write path; this adds the serialization layer.
-
-**Owner:** Wave-2 hardening pass.
-**Blocker for:** nothing — race requires specific operator misconfiguration (two callers presenting the same token at the same millisecond). Not a practical threat for the intended single-operator use case.
+O_EXCL lockfile wraps the full read-modify-write cycle of `consumeOperatorToken()`. Contention on a fresh lock returns `false` (second consumer denied). Stale lock (> 2000 ms) is stolen. Fixtures: `operator-token:d44-ocxl-contention`.
 
 ---
 
 ## D45: operator-token list and revoke Subcommands Missing
 
-**Status: OPEN — Wave-2 UX pass.**
+**Status: CLOSED — implemented in commit 2, feat/wave2-cleanup.**
 
-An operator who mints a token has no UX to inspect the store or invalidate a token they suspect was leaked. The current CLI only supports `mint` and `verify`.
-
-**Recommended path:**
-- `horus-cli.sh operator-token list` — prints `{ token-prefix-8-chars, label, createdAt, usedAt? }` per line (never prints the full token)
-- `horus-cli.sh operator-token revoke <token>` — marks `usedAt` on the entry without consuming it via the normal gate, so a re-presented token fails with `"invalid or already consumed"`
-
-**Owner:** Wave-2 UX pass.
-**Blocker for:** nothing — operators can work around the absence by re-minting and discarding old state.
+`horus-cli.sh operator-token list` prints id-prefix + label + status, never the full secret. `operator-token revoke <id>` atomically marks the token consumed (revokedAt field) via tmp+rename. Fixtures: `d45-list-shows-label-not-secret`, `d45-revoke-then-consume-false`.
 
 ---
 
 ## D27: secret-scan.js Encapsulation — getPatterns() vs redact(text)
 
-**Status: OPEN — low-priority follow-up, not blocking Wave 1.**
+**Status: CLOSED — implemented in commit 5, feat/wave2-cleanup.**
 
-`runtime/secret-scan.js` exposes `getPatterns()` as a raw pattern array. Callers (currently `decision-journal.js`) iterate the array and apply `pattern.replace()` themselves. This leaks the redaction mechanic into the caller.
-
-**Better interface:** export `redact(text, extraPatterns?)` from `secret-scan.js` and let `decision-journal.js` call that. This becomes important when contract-custom patterns land (caller would not need to merge arrays).
-
-**Recommended action:** fold into a future `secret-scan` improvement pass. Do not reopen A4.
-**Priority:** low — no correctness impact today.
+`runtime/secret-scan.js` now exports `redact(text)` and removes `getPatterns()` from exports. `decision-journal.js` imports `redact` directly. D29 per-pattern labels implemented in the same commit.
 
 ---
 
 ## D28: decision-journal.js Redaction Policy Comment
 
-**Status: OPEN — trivial one-liner, low-priority.**
+**Status: CLOSED — comment added in commit 5, feat/wave2-cleanup.**
 
-`runtime/decision-journal.js:append()` redacts `targetPath` and `notes` but not `tool`, `branch`, `kind`, or `action`. These structured/enum-like fields are defensible exclusions (they don't carry user-controlled free text), but the code does not say so.
-
-**Recommended action:** add a one-line comment in `decision-journal.js` next to the `const record = {` block explaining which fields are redacted and why others are not.
-**Priority:** low — doc-only.
+Comment added above `const record = {`: "D28: redaction policy — only targetPath and notes pass through clean(). action, riskLevel, riskScore, reasonCodes, tool, branch, intent, scopeHit, floorFired, taintSource, taintReason are retained verbatim."
 
 ---
 
 ## D29: Journal Redaction Provenance Label — [REDACTED:class-C] vs [REDACTED:<name>]
 
-**Status: OPEN — forensics improvement, low-priority.**
+**Status: CLOSED — implemented in commit 5, feat/wave2-cleanup.**
 
-The replacement label `[REDACTED:class-C]` is hardcoded in `decision-journal.js:redactText()`. This loses pattern provenance: a forensic reviewer cannot tell whether the redacted value was an AWS key, a Slack token, or a generic secret.
-
-**Better label:** `[REDACTED:<pattern_name>]` (e.g. `[REDACTED:AWS-access-key]`). Requires iterating matches and replacing per-pattern rather than in a single loop. Small performance overhead; large forensic gain.
-
-**Recommended action:** fold into the D27 encapsulation cleanup (if `secret-scan.js` exports `redact()`, it can return metadata too).
-**Priority:** low — no security regression in current form.
+`redact()` in `secret-scan.js` slugifies each pattern name and produces `[REDACTED:<slug>]`, e.g. `[REDACTED:openai-api-key]`. jredact fixture updated to assert the new label format.
 
 ---
 

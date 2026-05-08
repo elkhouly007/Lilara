@@ -1025,6 +1025,176 @@ else
 fi
 rm -rf "$_d45_tmp2"
 
+# ── inline: F4 / F6 / F7 floor tests (D26) ────────────────────────────────────
+printf '\nF4/F6/F7 floor tests (D26)...\n'
+
+# F4 positive #1: payloadClass=C → block (floor=secret-class-C)
+_f4_p1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "echo hello",
+  payloadClass: "C",
+  trustPosture: "balanced",
+  intent: "write-file",
+});
+if (r.action === "block" && r.floorFired === "secret-class-C") {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:action=" + r.action + " floor=" + r.floorFired);
+}
+NODEEOF
+)"
+if [ "$_f4_p1" = "PASS" ]; then
+  ok "floor:F4-payloadClass-C-blocks"
+else
+  fail "floor:F4-payloadClass-C-blocks" "$_f4_p1"
+fi
+
+# F4 positive #2: payloadClass=A but scanSecrets() hits class-C pattern → still F4
+_f4_p2="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash",
+  command: "export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+  payloadClass: "A",
+  trustPosture: "balanced",
+  intent: "write-file",
+});
+if (r.action === "block" && r.floorFired === "secret-class-C") {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:action=" + r.action + " floor=" + r.floorFired);
+}
+NODEEOF
+)"
+if [ "$_f4_p2" = "PASS" ]; then
+  ok "floor:F4-secret-in-command-blocks"
+else
+  fail "floor:F4-secret-in-command-blocks" "$_f4_p2"
+fi
+
+# F4 negative: payloadClass=A, no secret, strict → should NOT trigger F4
+_f4_n1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "echo hello world",
+  payloadClass: "A",
+  trustPosture: "strict",
+  intent: "write-file",
+});
+if (r.floorFired !== "secret-class-C") {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:F4 fired unexpectedly floor=" + r.floorFired);
+}
+NODEEOF
+)"
+if [ "$_f4_n1" = "PASS" ]; then
+  ok "floor:F4-clean-payload-does-not-fire"
+else
+  fail "floor:F4-clean-payload-does-not-fire" "$_f4_n1"
+fi
+
+# F6 positive: strict + gated class (sudo=medium risk) + scopeMatch=false + no operator → block
+_f6_p1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "sudo ls",
+  payloadClass: "A",
+  trustPosture: "strict",
+});
+if (r.action === "block" && (r.floorFired === "posture-strict-no-cover" || r.decisionSource === "posture-strict-no-cover")) {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:action=" + r.action + " floor=" + r.floorFired + " source=" + r.decisionSource);
+}
+NODEEOF
+)"
+if [ "$_f6_p1" = "PASS" ]; then
+  ok "floor:F6-strict-no-cover-blocks"
+else
+  fail "floor:F6-strict-no-cover-blocks" "$_f6_p1"
+fi
+
+# F6 negative: balanced posture + gated class → does NOT trigger F6
+_f6_n1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "sudo ls",
+  payloadClass: "A",
+  trustPosture: "balanced",
+});
+if (r.floorFired !== "posture-strict-no-cover") {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:F6 fired unexpectedly in balanced posture");
+}
+NODEEOF
+)"
+if [ "$_f6_n1" = "PASS" ]; then
+  ok "floor:F6-balanced-posture-does-not-fire"
+else
+  fail "floor:F6-balanced-posture-does-not-fire" "$_f6_n1"
+fi
+
+# F7 positive: strict + intent=unknown → block
+_f7_p1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "echo hello",
+  payloadClass: "A",
+  trustPosture: "strict",
+  intent: "unknown",
+});
+if (r.action === "block" && (r.floorFired === "intent-unknown-strict" || r.decisionSource === "intent-unknown-strict")) {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:action=" + r.action + " floor=" + r.floorFired + " source=" + r.decisionSource);
+}
+NODEEOF
+)"
+if [ "$_f7_p1" = "PASS" ]; then
+  ok "floor:F7-intent-unknown-strict-blocks"
+else
+  fail "floor:F7-intent-unknown-strict-blocks" "$_f7_p1"
+fi
+
+# F7 negative: balanced posture + intent=unknown → does NOT trigger F7
+_f7_n1="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+const r = decide({
+  tool: "Bash", command: "echo hello",
+  payloadClass: "A",
+  trustPosture: "balanced",
+  intent: "unknown",
+});
+if (r.floorFired !== "intent-unknown-strict") {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:F7 fired unexpectedly in balanced posture");
+}
+NODEEOF
+)"
+if [ "$_f7_n1" = "PASS" ]; then
+  ok "floor:F7-balanced-posture-does-not-fire"
+else
+  fail "floor:F7-balanced-posture-does-not-fire" "$_f7_n1"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
