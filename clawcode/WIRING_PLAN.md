@@ -43,7 +43,7 @@ Also accepted via fallback chain: `input.command`, `args.command`, `params.comma
 
 ## PostToolUse Parity
 
-Current wiring is **PreToolUse-only**. A PostToolUse hook (`clawcode/hooks/post-adapter.js`) is implemented and scans output for secrets and records external reads for the taint/provenance system.
+Current wiring is **PreToolUse-only**. A PostToolUse hook (`clawcode/hooks/post-adapter.js`) is being added by Wave 1 A3 (PR #13) and will scan output for secrets and record external reads for the taint/provenance system.
 
 Claw Code PostToolUse event model has not been verified against a real installation. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 

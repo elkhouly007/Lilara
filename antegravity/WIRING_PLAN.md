@@ -43,7 +43,7 @@ Also accepted via fallback chain: `input.command`, `args.command`, `params.comma
 
 ## PostToolUse Parity
 
-Current wiring is **PreToolUse-only**. A PostToolUse hook (`antegravity/hooks/post-adapter.js`) is implemented and scans output for secrets and records external reads for the taint/provenance system.
+Current wiring is **PreToolUse-only**. A PostToolUse hook (`antegravity/hooks/post-adapter.js`) is being added by Wave 1 A3 (PR #13) and will scan output for secrets and record external reads for the taint/provenance system.
 
 antegravity PostToolUse event model is unverified. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 

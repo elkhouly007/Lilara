@@ -46,9 +46,9 @@ It does not overwrite existing OpenClaw workspace files or global OpenClaw confi
 
 ## PostToolUse Parity
 
-Current wiring is **PreToolUse-only**. `openclaw/hooks/adapter.js` runs as a PreToolUse hook that gates shell commands before execution. A PostToolUse hook (equivalent to `claude/hooks/output-sanitizer.js`) is implemented at `openclaw/hooks/post-adapter.js` and records external reads and scans output for secrets.
+Current wiring is **PreToolUse-only**. `openclaw/hooks/adapter.js` runs as a PreToolUse hook that gates shell commands before execution. A PostToolUse hook (`openclaw/hooks/post-adapter.js`) is being added by Wave 1 A3 (PR #13) and will scan output for secrets and record external reads for the taint/provenance system.
 
-OpenClaw is an OpenCode fork and shares the same hook event model. PostToolUse wiring follows the same pattern as `opencode/hooks/post-adapter.js`. Verify the actual hook configuration path in your OpenClaw installation before wiring the PostToolUse event. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
+OpenClaw is an OpenCode fork and shares the same hook event model. PostToolUse wiring follows the same pattern as `opencode/hooks/output-sanitizer.js`. Verify the actual hook configuration path in your OpenClaw installation before wiring the PostToolUse event. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 
 ## Target Paths
 
