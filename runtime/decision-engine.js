@@ -254,6 +254,25 @@ function decide(input = {}) {
     source = "learned-allow";
   }
 
+  // F4 (D26): secret-class-C payload floor — rung 4 in the precedence matrix.
+  // Fires when payloadClass is explicitly C, OR when the command text contains a
+  // class-C secret pattern (API key, credential, private key). Floor = block.
+  // Cannot be demoted by contract-allow. payloadClass D does not exist in the schema.
+  if (action !== "block") {
+    const isClassC = (enriched.payloadClass || "A") === "C";
+    let secretInCommand = false;
+    if (!isClassC) {
+      try {
+        const { scanSecrets } = require("./secret-scan");
+        secretInCommand = Boolean(scanSecrets(input.command || ""));
+      } catch { /* secret-scan unavailable — skip */ }
+    }
+    if (isClassC || secretInCommand) {
+      action = "block";
+      floorFired = floorFired || "secret-class-C";
+    }
+  }
+
   // F10 (A2): taint floor — command overlaps with recently-read external content.
   // Fires at rung 8.5 (after protected-branch, before session-risk). Forces
   // require-review so the operator can confirm the command was not injected.
@@ -261,7 +280,7 @@ function decide(input = {}) {
   let taintResult = null;
   try {
     const { correlateCommand } = require("./taint");
-    taintResult = correlateCommand(input.command || "");
+    taintResult = correlateCommand(input.command || "", undefined, input.tool || "");
     if (taintResult.tainted && action !== "block") {
       action = "require-review";
       source = "taint-floor";
@@ -279,6 +298,29 @@ function decide(input = {}) {
     action = "escalate";
     source = "session-risk-floor";
     floorFired = floorFired || "session-risk-floor";
+  }
+
+  // F6 (D26): posture-strict-no-cover floor — rung 6 in the precedence matrix.
+  // Fires when trust posture is strict AND the command class is gated AND
+  // scopeMatch did not cover it (contractAllow=false, no operator-signal bypass).
+  // Trigger: trustPosture === "strict" + isGated + !contractAllow. Floor = block.
+  // Does NOT fire in balanced or relaxed posture — locked semantic per D26.
+  if (action !== "block" && isGated && !contractAllow && enriched.trustPosture === "strict") {
+    action = "block";
+    source = "posture-strict-no-cover";
+    floorFired = floorFired || "posture-strict-no-cover";
+  }
+
+  // F7 (D26): intent-unknown-strict floor — rung 7 in the precedence matrix.
+  // Fires when the intent classifier returns "unknown" AND trust posture is strict.
+  // A command the classifier cannot recognize is inherently higher-risk in strict
+  // mode — no contract scope can cover what the engine cannot categorise.
+  // Trigger: intentResult.intent === "unknown" + trustPosture === "strict". Floor = block.
+  // Does NOT fire in balanced or relaxed posture — locked semantic per D26.
+  if (action !== "block" && intentResult.intent === "unknown" && enriched.trustPosture === "strict") {
+    action = "block";
+    source = "intent-unknown-strict";
+    floorFired = floorFired || "intent-unknown-strict";
   }
 
   // Step 11: contract-allow — demotes baseline only; never demotes hard floors.
@@ -357,6 +399,7 @@ function decide(input = {}) {
   const result = {
     action,
     enforcementAction: ["block", "escalate", "require-review", "require-tests"].includes(action) ? "block" : "warn",
+    floorFired: floorFired || null,
     riskScore: risk.score,
     riskLevel: risk.level,
     reasonCodes: risk.reasons,

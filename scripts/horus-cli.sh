@@ -509,9 +509,57 @@ if (rec.usedAt) { process.stdout.write("CONSUMED: token already used at " + rec.
 process.stdout.write("VALID: token available (label=" + (rec.label || "none") + ", created=" + rec.createdAt + ")\n");
 EOF
         ;;
+      list)
+        node - "$root" <<'EOF'
+const path = require("path");
+const fs = require("fs");
+const { operatorTokensPath } = require(path.join(process.argv[2], "runtime/contract"));
+const p = operatorTokensPath();
+let lines;
+try { lines = fs.readFileSync(p, "utf8").split("\n").filter(Boolean); }
+catch { process.stdout.write("No operator tokens found.\n"); process.exit(0); }
+const records = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+if (records.length === 0) { process.stdout.write("No operator tokens found.\n"); process.exit(0); }
+for (const r of records) {
+  const status = r.usedAt ? "CONSUMED at " + r.usedAt : "AVAILABLE";
+  process.stdout.write("id=" + r.token.slice(0, 8) + "...  label=" + (r.label || "(none)") + "  created=" + r.createdAt + "  " + status + "\n");
+}
+EOF
+        ;;
+      revoke)
+        token_id="${1:-}"
+        if [ -z "$token_id" ]; then
+          printf '%sUsage: horus-cli.sh operator-token revoke <token-or-id-prefix>%s\n' "$RED" "$RESET" >&2
+          exit 2
+        fi
+        node - "$root" "$token_id" <<'EOF'
+const path = require("path");
+const fs = require("fs");
+const { operatorTokensPath } = require(path.join(process.argv[2], "runtime/contract"));
+const want = process.argv[3];
+const p = operatorTokensPath();
+let lines;
+try { lines = fs.readFileSync(p, "utf8").split("\n").filter(Boolean); }
+catch { process.stderr.write("No operator token store found.\n"); process.exit(1); }
+const records = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+const matches = records.filter(r => r.token === want || r.token.startsWith(want));
+if (matches.length === 0) { process.stderr.write("No matching token found for: " + want + "\n"); process.exit(1); }
+if (matches.length > 1) { process.stderr.write("Ambiguous prefix — " + matches.length + " matches. Use a longer prefix.\n"); process.exit(1); }
+const revokedAt = new Date().toISOString();
+const updated = records.map(r => {
+  if (r.token === matches[0].token) return JSON.stringify({ ...r, usedAt: r.usedAt || revokedAt, revokedAt });
+  return JSON.stringify(r);
+});
+const tmp = p + ".tmp";
+fs.writeFileSync(tmp, updated.join("\n") + "\n", { mode: 0o600 });
+try { fs.renameSync(tmp, p); }
+catch { fs.writeFileSync(p, updated.join("\n") + "\n", { mode: 0o600 }); }
+process.stdout.write("REVOKED: token id=" + matches[0].token.slice(0, 8) + "... at " + revokedAt + "\n");
+EOF
+        ;;
       *)
         printf '%sUnknown operator-token subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
-        printf 'Available: mint, verify\n' >&2
+        printf 'Available: mint, verify, list, revoke\n' >&2
         exit 2
         ;;
     esac

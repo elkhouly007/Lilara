@@ -160,7 +160,7 @@ function rateLimitCheck(hookName, capacity = 60, refillRate = 30) {
         try {
           const lstat = fs.statSync(lockFile);
           if (Date.now() - lstat.mtimeMs > 2000) {
-            // Stale lock from a crashed process — steal it.
+            // Stale lock (> 2000 ms = worst-case PostToolUse handler runtime on Windows-fs) — steal it.
             fs.rmSync(lockFile, { force: true });
             lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
           } else {
@@ -188,13 +188,19 @@ function rateLimitCheck(hookName, capacity = 60, refillRate = 30) {
       state.tokens = Math.min(capacity, (state.tokens || 0) + elapsed * refillRate);
       state.lastRefill = now;
 
+      // D41: atomic state write via tmp+rename — prevents partial reads under
+      // concurrent writers (same guarantee as policy.json and accepted-contracts.json).
+      const stateTmp = stateFile + ".tmp";
+
       if (state.tokens < 1) {
-        fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
+        fs.writeFileSync(stateTmp, JSON.stringify(state), { mode: 0o600 });
+        fs.renameSync(stateTmp, stateFile);
         return false;
       }
 
       state.tokens -= 1;
-      fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
+      fs.writeFileSync(stateTmp, JSON.stringify(state), { mode: 0o600 });
+      fs.renameSync(stateTmp, stateFile);
       return true;
     } finally {
       try { fs.unlinkSync(lockFile); } catch { /* best-effort */ }

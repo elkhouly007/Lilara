@@ -224,34 +224,60 @@ function mintOperatorToken(label) {
 function consumeOperatorToken(token) {
   if (!token) return false;
   const tokensPath = operatorTokensPath();
-  let lines;
-  try {
-    lines = fs.readFileSync(tokensPath, "utf8").split("\n").filter(Boolean);
-  } catch { return false; }
-
-  let consumed = false;
-  const updated = lines.map((line) => {
-    try {
-      const rec = JSON.parse(line);
-      if (rec.token === token && !rec.usedAt) {
-        consumed = true;
-        return JSON.stringify({ ...rec, usedAt: new Date().toISOString() });
-      }
-    } catch { /* skip malformed lines */ }
-    return line;
-  });
-
-  if (!consumed) return false;
-
+  const lockFile = tokensPath + ".lock";
   const dir = path.dirname(tokensPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const tmp = tokensPath + ".tmp";
-  fs.writeFileSync(tmp, updated.join("\n") + "\n", { mode: 0o600 });
-  try { fs.renameSync(tmp, tokensPath); } catch {
-    fs.writeFileSync(tokensPath, updated.join("\n") + "\n", { mode: 0o600 });
-    try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+
+  // O_EXCL lock: prevents concurrent consume() calls from racing on the JSONL store.
+  // Contention on a fresh lock (< 2000 ms old) → return false (deny second consumer).
+  // Stale lock (> 2000 ms, from a crashed process) → steal and proceed.
+  let lockFd = null;
+  try {
+    lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+  } catch (lockErr) {
+    if (lockErr.code === "EEXIST") {
+      try {
+        const lstat = fs.statSync(lockFile);
+        if (Date.now() - lstat.mtimeMs > 2000) {
+          fs.rmSync(lockFile, { force: true });
+          lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+        } else {
+          return false; // lock actively held — deny concurrent consumer
+        }
+      } catch { return false; }
+    } else { return false; }
   }
-  return true;
+  fs.closeSync(lockFd);
+
+  try {
+    let lines;
+    try {
+      lines = fs.readFileSync(tokensPath, "utf8").split("\n").filter(Boolean);
+    } catch { return false; }
+
+    let consumed = false;
+    const updated = lines.map((line) => {
+      try {
+        const rec = JSON.parse(line);
+        if (rec.token === token && !rec.usedAt) {
+          consumed = true;
+          return JSON.stringify({ ...rec, usedAt: new Date().toISOString() });
+        }
+      } catch { /* skip malformed lines */ }
+      return line;
+    });
+
+    if (!consumed) return false;
+
+    const tmp = tokensPath + ".tmp";
+    fs.writeFileSync(tmp, updated.join("\n") + "\n", { mode: 0o600 });
+    // D43: drop rename-fallback — a failed rename means the store is intact;
+    // returning false keeps accept() fail-closed rather than risking a partial write.
+    try { fs.renameSync(tmp, tokensPath); } catch { return false; }
+    return true;
+  } finally {
+    try { fs.unlinkSync(lockFile); } catch { /* best-effort */ }
+  }
 }
 
 /**
