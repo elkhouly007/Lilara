@@ -6,7 +6,7 @@ const os   = require("os");
 const path = require("path");
 const zlib = require("zlib");
 const { stateDir }    = require("./state-paths");
-const { getPatterns } = require("./secret-scan");
+const { redact } = require("./secret-scan");
 
 // Maximum size before rotation. Override with HORUS_JOURNAL_MAX_MB (integer MB).
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -78,15 +78,11 @@ function rotateIfNeeded(logFile) {
   } catch { /* rotation failure must never crash callers */ }
 }
 
-// Redact a free-text string using the shared 23-pattern secret set.
-// Each match is replaced with [REDACTED:class-C]. Applied before truncation
-// so a secret that spans the 256-char boundary is still caught.
+// Redact free-text using secret-scan.redact() (D27/D29).
+// Applied before truncation so a secret that spans the 256-char boundary is
+// still caught. Uses per-pattern labels, e.g. [REDACTED:aws-access-key-id].
 function redactText(text) {
-  let s = String(text || "");
-  for (const { pattern } of getPatterns()) {
-    s = s.replace(pattern, "[REDACTED:class-C]");
-  }
-  return s;
+  return redact(text);
 }
 
 function append(entry) {
@@ -101,6 +97,9 @@ function append(entry) {
   rotateIfNeeded(logFile);
   const shouldRedact = Boolean(entry.redact);
   const clean = shouldRedact ? redactText : (t) => String(t || "");
+  // D28: redaction policy — only targetPath and notes pass through clean().
+  // action, riskLevel, riskScore, reasonCodes, tool, branch, intent, scopeHit,
+  // floorFired, taintSource, taintReason are retained verbatim (never secrets).
   const record = {
     ts: new Date().toISOString(),
     kind: String(entry.kind || "decision"),

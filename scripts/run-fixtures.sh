@@ -442,8 +442,8 @@ append({
       fail "jredact:$name" "raw secret present in journal (should be redacted)"
       test_ok=0
     fi
-    if ! grep -qF "REDACTED:class-C" "$journal" 2>/dev/null; then
-      fail "jredact:$name" "[REDACTED:class-C] marker absent from journal"
+    if ! grep -qF "REDACTED:openai-api-key" "$journal" 2>/dev/null; then
+      fail "jredact:$name" "[REDACTED:openai-api-key] per-pattern label absent from journal (D29)"
       test_ok=0
     fi
     if ! grep -qF '"redactInJournal":true' "$journal" 2>/dev/null; then

@@ -49,15 +49,24 @@ function scanSecrets(text) {
   return null;
 }
 
-/**
- * Return the loaded pattern array (same set used by scanSecrets).
- * Callers that need to apply patterns to arbitrary text (e.g. journal redaction)
- * use this to avoid re-loading or duplicating the pattern list.
- *
- * @returns {{ name: string, pattern: RegExp }[]}
- */
-function getPatterns() {
-  return loadPatterns();
+function slugify(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-module.exports = { scanSecrets, getPatterns };
+/**
+ * Redact all secret-pattern matches in text.
+ * Each match is replaced with [REDACTED:<pattern-slug>] so the journal entry
+ * preserves which pattern class triggered redaction (D29 per-pattern label).
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function redact(text) {
+  let s = String(text || "");
+  for (const { name, pattern } of loadPatterns()) {
+    s = s.replace(pattern, `[REDACTED:${slugify(name)}]`);
+  }
+  return s;
+}
+
+module.exports = { scanSecrets, redact };
