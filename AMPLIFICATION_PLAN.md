@@ -54,7 +54,7 @@ G3. PostToolUse output-sanitizer parity for OpenCode and OpenClaw is deferred. C
 G4. Codex / Clawcode / Antegravity adapters are best-effort, not verified against real hook payload shapes — status is "Planned".
 G5. Rate limiter TOCTOU race — accepted as performance-only, not a security gate; documented but worth tightening if cheap.
 G6. MASTER_PLAN.md Sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) are stubbed; Phase 3 work is blocked on these.
-G7. Contract scope expansion: per-MCP-tool, per-skill, time-windowed, branch-aware, session-bounded scopes exist partially in v2 but are not consumed end-to-end by `decide()` and the CLI.
+G7. Contract scope expansion: per-MCP-tool, per-skill, time-windowed, branch-aware, session-bounded scopes exist partially in v2 but are not consumed end-to-end by `decide()` and the CLI. [validity wired]
 
 ---
 

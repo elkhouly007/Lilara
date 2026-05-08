@@ -181,6 +181,31 @@ function decide(input = {}) {
       "no accepted contract — run: horus-cli contract init && horus-cli contract accept");
   }
 
+  // F11: validity-window floor — contract-defined active hours/days.
+  // Fires after scopeMatch capture so contractAllow has a chance to set,
+  // and before risk classification so the floor can short-circuit.
+  let validityResult = { inWindow: true, reason: "no-validity-block" };
+  let validityWarning = null;
+  if (contract) {
+    try {
+      const { isInActiveWindow } = require("./contract");
+      validityResult = isInActiveWindow(contract);
+    } catch { /* helper unavailable → treat as in-window (fail-open per zero-dep policy) */ }
+
+    if (!validityResult.inWindow) {
+      const payloadClass = String(input.payloadClass || enriched.payloadClass || "A").toUpperCase();
+      const pcAction     = contract?.scopes?.payloadClasses?.[payloadClass] || "allow";
+      if (pcAction === "warn" || pcAction === "block") {
+        return buildEarlyBlock(
+          "validity-window", enriched, discovered, input,
+          `contract validity inactive (${validityResult.reason}); payloadClass=${payloadClass} action=${pcAction} — failing closed`
+        );
+      }
+      // Non-gated payload class outside-window → annotate, action unchanged.
+      validityWarning = { code: "outside-window", reason: validityResult.reason };
+    }
+  }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -290,6 +315,7 @@ function decide(input = {}) {
   if (discovered.hasConfig === false && discovered.primaryStack) explanationParts.push('config=missing');
   if (projectPolicy.trustPosture) explanationParts.push(`trust=${projectPolicy.trustPosture}`);
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
+  if (validityWarning) explanationParts.push("validity-warn=outside-window");
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -339,6 +365,7 @@ function decide(input = {}) {
     trajectoryNudge,
     intent: intentResult.intent,
     context: risk.context,
+    ...(validityWarning ? { validityWarning } : {}),
   };
 
   append({
@@ -356,6 +383,7 @@ function decide(input = {}) {
     ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
     ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
+    ...(validityWarning ? { validityWarning } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 

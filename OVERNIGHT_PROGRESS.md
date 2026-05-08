@@ -12,3 +12,8 @@ Append-only. One line per checkpoint.
 - 2026-05-08 — Track 2 complete: E2 wiring docs parity. PR #15 opened. openclaw fixture count corrected (12→19); codex/clawcode/antegravity gain Scope/Fixtures/PostToolUse/Target Paths/Wiring Model/Approval Mapping/DoD sections. Corrected premature post-adapter claims (A3 pending PR #13).
 - 2026-05-08 — Track 3 complete: B1 payload research. PR #16 opened. codex/clawcode/antegravity POSTTOOL_RESEARCH.md created with 3 shape hypotheses each, verification procedure, open unknowns.
 - 2026-05-08 — Track 4a+4b complete: D33-D36 filed (renumbered from D27-D30 to avoid conflict with A5's D27-D30 A4-smells) + D31 bench empirical update. PR #17 opened. Bench 5-run spread=14.4% (below 30%) → accepted noise. OVERNIGHT_REPORT_2.md written. Stopping.
+
+# Run 3 — 2026-05-08
+
+- 2026-05-08 — B2 Phase 1 (v2 wire-up) autonomous run started. 4 commits planned: validity, contextTrust, scopes.tools.perToolAllow, docs+example.
+- 2026-05-08 — Run 3 baseline p99=63.0ms (D31 reference 61.2ms, cap 1.5x = 91.8ms).

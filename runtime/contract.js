@@ -589,6 +589,54 @@ function harnessInScope(contract, harness) {
   return Array.isArray(contract.harnessScope) && contract.harnessScope.includes(harness);
 }
 
+// ---------------------------------------------------------------------------
+// v2 validity helpers — active-hours and active-days window checks
+// ---------------------------------------------------------------------------
+
+function getValidity(contract) {
+  if (!contract || typeof contract !== "object") return null;
+  return contract.validity || null;
+}
+
+const _DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/**
+ * Check whether the current time falls within the contract's validity window.
+ * @param {object} contract
+ * @param {Date}   [now]  defaults to new Date() — UTC-aware
+ * @returns {{ inWindow: boolean, reason: string }}
+ */
+function isInActiveWindow(contract, now = new Date()) {
+  const validity = getValidity(contract);
+  if (!validity) return { inWindow: true, reason: "no-validity-block" };
+
+  const utc    = new Date(now.getTime());
+  const dayName = _DAY_NAMES[utc.getUTCDay()];
+
+  if (Array.isArray(validity.activeDays) && validity.activeDays.length > 0) {
+    if (!validity.activeDays.includes(dayName)) {
+      return { inWindow: false, reason: `day-${dayName}-not-in-activeDays` };
+    }
+  }
+
+  const win = validity.activeHoursUtc;
+  if (win && typeof win.start === "string" && typeof win.end === "string") {
+    const [sh, sm] = win.start.split(":").map(Number);
+    const [eh, em] = win.end.split(":").map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin   = eh * 60 + em;
+    const nowMin   = utc.getUTCHours() * 60 + utc.getUTCMinutes();
+    const inWindow = startMin <= endMin
+      ? (nowMin >= startMin && nowMin <= endMin)
+      : (nowMin >= startMin || nowMin <= endMin); // crosses midnight
+    if (!inWindow) {
+      return { inWindow: false, reason: `time-${win.start}-${win.end}-utc-not-active` };
+    }
+  }
+
+  return { inWindow: true, reason: "in-window" };
+}
+
 module.exports = {
   load,
   verify,
@@ -606,4 +654,6 @@ module.exports = {
   operatorTokensPath,
   mintOperatorToken,
   consumeOperatorToken,
+  getValidity,
+  isInActiveWindow,
 };

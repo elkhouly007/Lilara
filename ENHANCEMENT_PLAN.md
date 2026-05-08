@@ -50,7 +50,7 @@ Documented gaps (verbatim from `SECURITY_MODEL.md`, `ROADMAP.md`, and `CHANGELOG
 - **G4.** Codex / Clawcode / Antegravity adapters are best-effort, not verified against real upstream payload shapes. Status: "Planned".
 - **G5.** Rate limiter TOCTOU race — accepted as performance-only; tightening is cheap.
 - **G6.** MASTER_PLAN.md sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) stubbed; Phase 3 work blocks here.
-- **G7.** Contract scope expansion: per-MCP-tool, per-skill, time-windowed, branch-aware, session-bounded scopes exist partially in v2 but are not consumed end-to-end by `decide()`.
+- **G7.** Contract scope expansion: per-MCP-tool, per-skill, time-windowed, branch-aware, session-bounded scopes exist partially in v2 but are not consumed end-to-end by `decide()`. [validity wired]
 
 New gaps (spotted during this review, not enumerated in the prior plan):
 

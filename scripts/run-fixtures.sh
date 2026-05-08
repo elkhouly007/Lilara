@@ -697,6 +697,66 @@ fi
 
 rm -rf "$_tmpstate_b3"
 
+# ── inline: validity-window unit tests (B2 Phase 1) ─────────────────────────
+printf '\nValidity-window (B2) tests...\n'
+
+_validity_in_window() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeHoursUtc: { start: '09:00', end: '18:00' } } };
+const now = new Date(Date.UTC(2026, 4, 8, 14, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":true'; then
+    ok "validity:in-window-allow"
+  else
+    fail "validity:in-window-allow" "expected inWindow=true at 14:00 UTC inside 09:00-18:00, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_in_window
+
+_validity_out_window() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeHoursUtc: { start: '09:00', end: '18:00' } } };
+const now = new Date(Date.UTC(2026, 4, 8, 22, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":false'; then
+    ok "validity:out-window-block"
+  else
+    fail "validity:out-window-block" "expected inWindow=false at 22:00 UTC outside 09:00-18:00, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_out_window
+
+_validity_wrong_dow() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeDays: ['mon','tue','wed','thu','fri'] } };
+const now = new Date(Date.UTC(2026, 4, 10, 12, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":false'; then
+    ok "validity:wrong-day-of-week"
+  else
+    fail "validity:wrong-day-of-week" "expected inWindow=false on Sunday with weekday-only activeDays, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_wrong_dow
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
