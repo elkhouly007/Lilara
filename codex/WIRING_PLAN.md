@@ -42,7 +42,7 @@ Also accepted via fallback chain: `cmd`, `tool_input.command`, `input.command`, 
 
 ## PostToolUse Parity
 
-Current wiring is **PreToolUse-only**. A PostToolUse hook (`codex/hooks/post-adapter.js`) is being added by Wave 1 A3 (PR #13) and will scan output for secrets and record external reads for the taint/provenance system.
+Current wiring includes both PreToolUse and PostToolUse. `codex/hooks/post-adapter.js` was added by Wave 1 A3 (merged in `3787b09`) and scans output for secrets and records external reads for the taint/provenance system.
 
 Codex PostToolUse event model has not been verified against a real installation. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 
