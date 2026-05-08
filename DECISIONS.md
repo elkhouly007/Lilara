@@ -135,6 +135,36 @@ Options: (a) implement F4/F6/F7 as `buildEarlyBlock` / `decision-engine.js` code
 **Owner:** Khouly (or dedicated Wave-2 item)
 **Blocker for:** nothing — no active security regression; aspirational architecture gap only.
 
+## D33: A2 Taint Correlator — Token-Overlap Algorithm
+
+**Status: CLOSED — implemented in `feat/a2-taint-claude` (PR #12).**
+
+`runtime/provenance-correlator.js:correlate()` checks whether shell command tokens appear verbatim in the provenance window (recent external reads). Exact-match first, then per-token. Token filter: `length >= minTokenLength && not a flag (-x / --foo)`.
+
+**Minimum token length:** configurable via `horus.config.json` key `taint.minTokenLength` (integer, range 4–32, default 6). Read by `project-policy.js:loadProjectPolicy()` and passed into `correlate()` via `taint.js:correlateCommand()`. Operators in high-FP token-overlap environments (e.g., reading package docs then installing that package) can raise this threshold without code changes.
+
+**Recommended path:** set `"taint": { "minTokenLength": 10 }` in `horus.config.json` to reduce false-positives in doc-heavy workflows.
+
+**Known gap (D37):** tool-class gate not yet implemented — F10 fires on any tool, not just Bash/Edit/Write/WebFetch. Tracked as D37.
+
+---
+
+## D37: F10 Tool-Class Filter Missing
+
+**Status: OPEN — Wave-2 cleanup pass.**
+
+The ENHANCEMENT_PLAN §A2 acceptance criteria specified: "fires on the next 3 tool calls *if any of those calls construct shell strings, edit files, or invoke network tools* — a tool-class gate." Current implementation (`runtime/decision-engine.js`, A2) fires the taint floor for *any* tool call when the command overlaps a recent external read. This will generate false-positives for low-risk tool classes (e.g., `Read`, `Glob`, `TodoWrite`).
+
+**Recommended path:** in `runtime/decision-engine.js`, wrap the F10 block with a tool-class guard:
+```js
+const TAINT_ELIGIBLE_TOOLS = new Set(["Bash","Edit","Write","NotebookEdit","WebFetch","WebSearch"]);
+if (TAINT_ELIGIBLE_TOOLS.has(input.tool)) { /* run correlateCommand */ }
+```
+Cross-harness tool-name mapping is needed for OpenCode/OpenClaw/Codex/Clawcode/Antegravity (A3's job). Default action stays `require-review` — the guard only prevents the floor from firing on provably low-risk tools. No fixture or contract changes required.
+
+**Owner:** Wave-2 cleanup pass.
+**Blocker for:** nothing — current behavior is conservative (over-fires), not under-fires. No security regression.
+
 ---
 
 ## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
