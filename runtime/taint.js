@@ -41,12 +41,20 @@ function recordExternalRead(content, source) {
  * Returns { tainted: true, reason, source, matchedToken? } when overlap found,
  * or { tainted: false } when the command appears unrelated to external reads.
  *
+ * Read-only tools (Read, Grep, Glob, LS, NotebookRead and any added to
+ * taint.safeToolClasses in horus.config.json) bypass correlation — they cannot
+ * execute injected payloads, so firing F10 on them produces only noise (D37).
+ *
  * @param {string} command         — shell command to check
  * @param {number} [windowSeconds] — correlation window in seconds (default: 60)
+ * @param {string} [toolName]      — tool being invoked (used for safe-class filter)
  */
-function correlateCommand(command, windowSeconds) {
+function correlateCommand(command, windowSeconds, toolName) {
   const recentReads = getProvenanceWindow(windowSeconds || DEFAULT_WINDOW_SECONDS);
   const policy = loadProjectPolicy({});
+  if (toolName && (policy.taintSafeToolClasses || []).includes(toolName)) {
+    return { tainted: false };
+  }
   return correlate(command, recentReads, policy.taintMinTokenLength);
 }
 

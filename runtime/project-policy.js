@@ -13,6 +13,7 @@ function defaultPolicy() {
     protectedBranches: ["main", "master"],
     sensitivePathPatterns: ["prod", "production", "secrets", "credentials", ".env", "terraform", "infra"],
     taintMinTokenLength: 6,
+  taintSafeToolClasses: ["Read", "Grep", "Glob", "LS", "NotebookRead"],
   };
 }
 
@@ -76,6 +77,9 @@ function loadProjectPolicy(input = {}) {
     if (typeof taintCfg.minTokenLength === "number") {
       const mtl = Math.round(taintCfg.minTokenLength);
       if (mtl >= 4 && mtl <= 32) normalized.taintMinTokenLength = mtl;
+    }
+    if (Array.isArray(taintCfg.safeToolClasses) && taintCfg.safeToolClasses.length > 0) {
+      normalized.taintSafeToolClasses = taintCfg.safeToolClasses.map(String).filter(Boolean);
     }
     return normalized;
   } catch (err) {

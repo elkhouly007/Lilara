@@ -261,7 +261,7 @@ function decide(input = {}) {
   let taintResult = null;
   try {
     const { correlateCommand } = require("./taint");
-    taintResult = correlateCommand(input.command || "");
+    taintResult = correlateCommand(input.command || "", undefined, input.tool || "");
     if (taintResult.tainted && action !== "block") {
       action = "require-review";
       source = "taint-floor";
