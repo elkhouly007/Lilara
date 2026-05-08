@@ -1276,6 +1276,283 @@ else
   fail "e2e:pretool-posttool-journal-cycle" "$_e2e_result"
 fi
 
+# ── inline: scopes.mcp unit tests (B2 Phase 2, commit 1) ────────────────────
+printf '\nMCP policy (B2) tests...\n'
+
+_mcp_server_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'block' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'context7')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "block" ]; then ok "mcp:server-block";
+  else fail "mcp:server-block" "expected 'block', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_block
+
+_mcp_server_warn() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'warn' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'context7')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "warn" ]; then ok "mcp:server-warn";
+  else fail "mcp:server-warn" "expected 'warn', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_warn
+
+_mcp_server_allow_default() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'allow' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'unknown-server')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "null" ]; then ok "mcp:server-allow-default";
+  else fail "mcp:server-allow-default" "expected 'null' for absent server, got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_allow_default
+
+# ── inline: scopes.skills unit tests (B2 Phase 2, commit 1) ─────────────────
+printf '\nSkill policy (B2) tests...\n'
+
+_skill_skill_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'evil-skill': { policy: 'block' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'evil-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "block" ]; then ok "skill:skill-block";
+  else fail "skill:skill-block" "expected 'block', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_block
+
+_skill_skill_warn() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'audited-skill': { policy: 'warn' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'audited-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "warn" ]; then ok "skill:skill-warn";
+  else fail "skill:skill-warn" "expected 'warn', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_warn
+
+_skill_skill_allow_default() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'known-skill': { policy: 'allow' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'unlisted-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "null" ]; then ok "skill:skill-allow-default";
+  else fail "skill:skill-allow-default" "expected 'null' for absent skill, got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_allow_default
+
+# ── inline: scopes.budget + scopes.session unit tests (B2 Phase 2, commit 2) ─
+printf '\nBudget/session policy (B2) tests...\n'
+
+_budget_destructive_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  printf '{"destructiveOps":5,"externalBytes":0,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bd.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getCounters } = require('./runtime/session-budget');
+const c = getCounters({ sessionId: 'test-session-bd' });
+process.stdout.write(String(c.destructiveOps));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "5" ]; then ok "budget:destructive-block";
+  else fail "budget:destructive-block" "expected destructiveOps=5, got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_budget_destructive_block
+
+_budget_bytes_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  printf '{"destructiveOps":0,"externalBytes":1048576,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bb.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getCounters } = require('./runtime/session-budget');
+const c = getCounters({ sessionId: 'test-session-bb' });
+process.stdout.write(String(c.externalBytes));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "1048576" ]; then ok "budget:bytes-block";
+  else fail "budget:bytes-block" "expected externalBytes=1048576, got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_budget_bytes_block
+
+_session_over_duration_require_review() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  mkdir -p "$tmpstate/session-budget"
+  local old_time; old_time=$(node -e 'process.stdout.write(String(Date.now() - 7200000))')
+  printf '{"destructiveOps":0,"externalBytes":0,"startTime":%s}' "$old_time" > "$tmpstate/session-budget/test-session-od.json"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSessionConstraints } = require('./runtime/contract');
+const { getCounters }           = require('./runtime/session-budget');
+const c    = { scopes: { session: { maxDurationMin: 1 } } };
+const cfg  = getSessionConstraints(c);
+const cnts = getCounters({ sessionId: 'test-session-od' });
+const ageMin = (Date.now() - cnts.startTime) / 60000;
+const over = cfg && Number.isFinite(cfg.maxDurationMin) && ageMin > cfg.maxDurationMin;
+process.stdout.write(over ? 'over' : 'ok');
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "over" ]; then ok "session:over-duration-require-review";
+  else fail "session:over-duration-require-review" "expected 'over', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_session_over_duration_require_review
+
+# ── inline: migration v2→v3 tests (B2 Phase 2, commit 3) ─────────────────────
+printf '\nMigration v2→v3 (B2) tests...\n'
+
+_migrate_v2_to_v3_lossless() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  # Write a minimal v2 contract fixture
+  node -e "
+const fs = require('fs');
+const { hashContract } = require('./runtime/contract');
+const doc = {
+  version: 2,
+  contractId: 'arg-20260508-aabbccddeeff',
+  revision: 1,
+  acceptedAt: '2026-05-08T00:00:00Z',
+  harnessScope: ['claude'],
+  trustPosture: 'balanced',
+  scopes: { payloadClasses: { A: 'allow', B: 'warn', C: 'block' } }
+};
+doc.contractHash = hashContract(doc);
+fs.writeFileSync(process.argv[1] + '/in.json', JSON.stringify(doc, null, 2) + '\n');
+" -- "$tmpstate" 2>/dev/null
+
+  # Run migration
+  node scripts/migrateV2ToV3.js "$tmpstate/in.json" "$tmpstate/out.draft" 2>/dev/null
+
+  # Check: draft exists, version=3, scopes preserved
+  local result; result=$(node -e "
+const fs = require('fs');
+const orig  = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+const draft = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (draft.version !== 3) { process.stdout.write('version=' + draft.version); process.exit(0); }
+const same = JSON.stringify(orig.scopes) === JSON.stringify(draft.scopes);
+process.stdout.write(same ? 'ok' : 'scopes-changed');
+" -- "$tmpstate/in.json" "$tmpstate/out.draft" 2>/dev/null)
+  if [ "$result" = "ok" ]; then ok "migrate:v2-to-v3-lossless";
+  else fail "migrate:v2-to-v3-lossless" "expected 'ok', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_migrate_v2_to_v3_lossless
+
+_migrate_v3_idempotent_noop() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  # Write a v3 draft to use as input
+  node -e "
+const fs = require('fs');
+const { hashContract } = require('./runtime/contract');
+const doc = {
+  version: 3,
+  contractId: 'arg-20260508-aabbccddeeff',
+  revision: 1,
+  acceptedAt: '2026-05-08T00:00:00Z',
+  harnessScope: ['claude'],
+  trustPosture: 'balanced',
+  scopes: { payloadClasses: { A: 'allow', B: 'warn', C: 'block' } }
+};
+doc.contractHash = hashContract(doc);
+fs.writeFileSync(process.argv[1] + '/v3.json', JSON.stringify(doc, null, 2) + '\n');
+" -- "$tmpstate" 2>/dev/null
+
+  # Run migration on v3 input — should exit 0, no draft written
+  local exit_code=0
+  local stderr_out; stderr_out=$(node scripts/migrateV2ToV3.js "$tmpstate/v3.json" "$tmpstate/v3.draft" 2>&1 1>/dev/null) || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then
+    fail "migrate:v3-idempotent-noop" "expected exit 0 for v3 input, got $exit_code"
+  elif ! echo "$stderr_out" | grep -qF "already version 3"; then
+    fail "migrate:v3-idempotent-noop" "expected 'already version 3' on stderr, got: $stderr_out"
+  elif [ -f "$tmpstate/v3.draft" ]; then
+    fail "migrate:v3-idempotent-noop" "expected no draft file written for v3 input"
+  else
+    ok "migrate:v3-idempotent-noop"
+  fi
+  rm -rf "$tmpstate"
+}
+_migrate_v3_idempotent_noop
+
+# ── inline: B2 Phase 2 integration — all four v3 field families (commit 4) ───
+printf '\nB2 Phase 2 integration tests...\n'
+
+_b2_phase2_integration_all_four() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const {
+  getMcpPolicy, getSkillPolicy, getSessionConstraints, getBudgetLimits, extractMcpServerName
+} = require('./runtime/contract');
+
+const c = {
+  version: 3,
+  scopes: {
+    mcp:     { 'my-server': { policy: 'block' }, 'safe-server': { policy: 'allow' } },
+    skills:  { 'bad-skill': { policy: 'block' }, 'good-skill':  { policy: 'warn'  } },
+    session: { maxDurationMin: 60 },
+    budget:  { maxDestructiveOps: 10, maxExternalBytes: 1024 }
+  }
+};
+
+const checks = [
+  getMcpPolicy(c, 'my-server')         === 'block',
+  getMcpPolicy(c, 'safe-server')       === 'allow',
+  getMcpPolicy(c, 'absent')            === null,
+  getSkillPolicy(c, 'bad-skill')       === 'block',
+  getSkillPolicy(c, 'good-skill')      === 'warn',
+  getSkillPolicy(c, 'absent')          === null,
+  getSessionConstraints(c).maxDurationMin === 60,
+  getBudgetLimits(c).maxDestructiveOps    === 10,
+  getBudgetLimits(c).maxExternalBytes     === 1024,
+  extractMcpServerName('mcp__my-server__do-thing') === 'my-server',
+  extractMcpServerName('not-mcp-tool')             === null,
+];
+
+const failed = checks.map((v, i) => v ? null : i).filter(v => v !== null);
+process.stdout.write(failed.length === 0 ? 'ok' : 'fail:checks=' + failed.join(','));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "ok" ]; then ok "b2-phase-2:integration-all-four";
+  else fail "b2-phase-2:integration-all-four" "expected 'ok', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_b2_phase2_integration_all_four
+
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

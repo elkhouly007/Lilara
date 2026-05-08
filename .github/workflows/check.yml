@@ -60,6 +60,9 @@ jobs:
       - name: Run fixtures (classify + hooks + redact)
         run: bash scripts/run-fixtures.sh
 
+      - name: Contract migration v2→v3 gate
+        run: bash scripts/check-migrate-v2-v3.sh
+
       - name: Check registries
         run: bash scripts/check-registries.sh
 

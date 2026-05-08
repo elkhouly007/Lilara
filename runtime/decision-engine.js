@@ -219,6 +219,81 @@ function decide(input = {}) {
     }
   }
 
+  // F12: mcp-deny floor — per-MCP-server policy (scopes.mcp).
+  let mcpWarning = null;
+  try {
+    const { getMcpPolicy, extractMcpServerName } = require("./contract");
+    const serverName = input.mcpServer || extractMcpServerName(input.tool);
+    if (serverName && contract) {
+      const policy = getMcpPolicy(contract, serverName);
+      if (policy === "block") {
+        return buildEarlyBlock("mcp-deny", enriched, discovered, input,
+          `MCP server '${serverName}' denied by contract scopes.mcp`);
+      }
+      if (policy === "warn") {
+        mcpWarning = { code: "policy-warn", name: serverName, policy: "warn" };
+      }
+    }
+  } catch { /* helper unavailable → no-op */ }
+
+  // F13: skill-deny floor — per-skill policy (scopes.skills).
+  let skillWarning = null;
+  try {
+    const { getSkillPolicy } = require("./contract");
+    const skillName = input.skillName;
+    if (skillName && contract) {
+      const policy = getSkillPolicy(contract, skillName);
+      if (policy === "block") {
+        return buildEarlyBlock("skill-deny", enriched, discovered, input,
+          `Skill '${skillName}' denied by contract scopes.skills`);
+      }
+      if (policy === "warn") {
+        skillWarning = { code: "policy-warn", name: skillName, policy: "warn" };
+      }
+    }
+  } catch { /* helper unavailable → no-op */ }
+
+  // F14: budget-exceeded hard floor + session-duration require-review escalation (D47).
+  let sessionDurationWarning = null;
+  let sessionOverDuration    = false;
+  try {
+    const { getSessionConstraints, getBudgetLimits } = require("./contract");
+    const { getCounters } = require("./session-budget");
+    const sessionId = enriched.sessionId || discovered.sessionId;
+
+    const sessionCfg = getSessionConstraints(contract);
+    const budgetCfg  = getBudgetLimits(contract);
+
+    if (sessionId && (sessionCfg || budgetCfg)) {
+      const counters = getCounters({ sessionId });
+
+      if (sessionCfg && Number.isFinite(sessionCfg.maxDurationMin)) {
+        const ageMin = (Date.now() - counters.startTime) / 60000;
+        if (ageMin > sessionCfg.maxDurationMin) {
+          sessionDurationWarning = {
+            code: "session-over-duration",
+            ageMin: Math.round(ageMin),
+            limitMin: sessionCfg.maxDurationMin,
+          };
+          sessionOverDuration = true;
+        }
+      }
+
+      if (budgetCfg) {
+        if (Number.isFinite(budgetCfg.maxDestructiveOps) &&
+            counters.destructiveOps >= budgetCfg.maxDestructiveOps) {
+          return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
+            `destructive-ops budget exceeded: ${counters.destructiveOps}/${budgetCfg.maxDestructiveOps}`);
+        }
+        if (Number.isFinite(budgetCfg.maxExternalBytes) &&
+            counters.externalBytes >= budgetCfg.maxExternalBytes) {
+          return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
+            `external-bytes budget exceeded: ${counters.externalBytes}/${budgetCfg.maxExternalBytes}`);
+        }
+      }
+    }
+  } catch { /* helper unavailable → no-op */ }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -355,6 +430,16 @@ function decide(input = {}) {
     if (trajectoryNudge) source = "trajectory-nudge";
   }
 
+  // F14b: session-over-duration require-review escalation (D47).
+  // Asserted AFTER all demotion blocks so contract-allow / auto-allow-once / trajectory-nudge
+  // cannot silently undo it. Operator declared "after N minutes, stop and ask me" — same
+  // pattern as F10 taint-floor: change action, not just annotate.
+  if (sessionOverDuration) {
+    action = "require-review";
+    source = "session-over-duration";
+    floorFired = floorFired || "session-over-duration";
+  }
+
   const pendingSuggestion = getSuggestionForInput(enriched);
   const policyFacts = getPolicyFacts(enriched);
   const promotionState = policyFacts.acceptedSuggestion || policyFacts.dismissedSuggestion || policyFacts.pendingSuggestion || null;
@@ -374,6 +459,9 @@ function decide(input = {}) {
   if (projectPolicy.trustPosture) explanationParts.push(`trust=${projectPolicy.trustPosture}`);
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
   if (validityWarning) explanationParts.push("validity-warn=outside-window");
+  if (mcpWarning)            explanationParts.push(`mcp-warn=${mcpWarning.name}`);
+  if (skillWarning)          explanationParts.push(`skill-warn=${skillWarning.name}`);
+  if (sessionDurationWarning) explanationParts.push(`session-over-duration=age:${sessionDurationWarning.ageMin}min/limit:${sessionDurationWarning.limitMin}min`);
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -425,6 +513,9 @@ function decide(input = {}) {
     intent: intentResult.intent,
     context: risk.context,
     ...(validityWarning ? { validityWarning } : {}),
+    ...(mcpWarning            ? { mcpWarning }            : {}),
+    ...(skillWarning          ? { skillWarning }          : {}),
+    ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
   };
 
   append({
@@ -443,6 +534,9 @@ function decide(input = {}) {
     ...(floorFired ? { floorFired } : {}),
     ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
     ...(validityWarning ? { validityWarning } : {}),
+    ...(mcpWarning            ? { mcpWarning }            : {}),
+    ...(skillWarning          ? { skillWarning }          : {}),
+    ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 
@@ -451,6 +545,14 @@ function decide(input = {}) {
     riskLevel: result.riskLevel,
     reasonCodes: result.reasonCodes,
   });
+
+  // Increment destructive-op counter after an allowed destructive-delete — F14 checks at next decide().
+  try {
+    if (action === "allow" && cmdClass === "destructive-delete") {
+      const { recordDestructiveOp } = require("./session-budget");
+      recordDestructiveOp({ sessionId: enriched.sessionId || discovered.sessionId });
+    }
+  } catch { /* session-budget unavailable → no-op */ }
 
   return result;
 }

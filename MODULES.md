@@ -26,6 +26,8 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Prompt pack | `opencode/prompts/`, `openclaw/prompts/` | template | Planning, review, security, and build repair prompts. |
 | Local installer | `scripts/install-local.sh` | manual | Copies kit files into a local target. |
 | Local auditor | `scripts/audit-local.sh` | manual | Flags risky strings for review. |
+| Contract migrator | `scripts/migrateV2ToV3.js` | manual | Zero-dep Node tool. Reads v1/v2 contract, sets version=3, recomputes hash, writes to horus.contract.json.draft. Idempotent (v3 input → exit 0). Never overwrites the live file. |
+| Migration CI gate | `scripts/check-migrate-v2-v3.sh` | CI | End-to-end migration gate: synthesizes a v2 fixture, runs migrateV2ToV3.js, asserts losslessness + hash correctness + schema validity + idempotency. |
 | Phase 1 policy reference | `references/phase1-policy.md` | enabled by reference | Defines trusted-agent, MCP, and shell rules. |
 | Phase 2 policy reference | `references/phase2-policy.md` | enabled by reference | Defines plugin, browser, and notification rules. |
 | Phase 3 policy reference | `references/phase3-policy.md` | enabled by reference | Defines installers, wrappers, daemons, and integration templates. |
@@ -104,7 +106,8 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | `arg-extractor.js`    | `runtime/arg-extractor.js`    | Argv splitter; handles quoted args, escapes, heredocs (fail-closed on `<<HEREDOC`). |
 | `decision-key.js`     | `runtime/decision-key.js`     | Builds `fineKey` (5-part) and `legacyKey` (4-part back-compat); classifies commands. |
 | `config-validator.js` | `runtime/config-validator.js` | Typed-field walker; validates `horus.config.json` and `horus.contract.json`. |
-| `contract.js`         | `runtime/contract.js`         | Contract lifecycle: load, verify, accept, generate, scope-match. v2 helpers: `getValidity(contract)`, `isInActiveWindow(contract, now)`, `getContextTrust(contract, branch)` (B2 Phase 1). |
+| `contract.js`         | `runtime/contract.js`         | Contract lifecycle: load, verify, accept, generate, scope-match. v2 helpers: `getValidity(contract)`, `isInActiveWindow(contract, now)`, `getContextTrust(contract, branch)` (B2 Phase 1). v3 helpers: `getMcpPolicy(contract, serverName)`, `getSkillPolicy(contract, skillName)`, `extractMcpServerName(toolName)` (B2 Phase 2, commit 1). `getSessionConstraints(contract)`, `getBudgetLimits(contract)` (B2 Phase 2, commit 2). |
+| `session-budget.js`   | `runtime/session-budget.js`   | Per-session destructive-op and external-bytes counters. Atomic tmp+rename writes, mode 0600. State at `~/.horus/session-budget/<session-id>.json`. API: `getCounters`, `recordDestructiveOp`, `recordExternalBytes`, `resetCounters`. |
 | `secret-scan.js`      | `runtime/secret-scan.js`      | Cross-harness secret pattern scanner (shared by pre- and post-tool hooks). Exports `scanSecrets()` and `getPatterns()` (returns full 23-pattern set for use by journal redaction). |
 | `telemetry.js`        | `runtime/telemetry.js`        | Structured event sink to `telemetry.jsonl`; never blocks. |
 | `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. |
