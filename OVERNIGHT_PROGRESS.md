@@ -4,3 +4,11 @@ Append-only. One line per checkpoint.
 
 - 2026-05-08 00:30 — Autonomous run started. Beginning bench diagnostic (5× master, 5× A5).
 - 2026-05-08 00:35 — Bench diagnostic complete. Master p99 53.8–66.9ms (median 55ms); A5 p99 53.5–54.8ms. All 10 runs green. Earlier 102ms was machine load noise. Filed D31. Proceeding to merges.
+
+# Run 2 — 2026-05-08
+
+- 2026-05-08 — Wave 2 prep autonomous run started. 4 tracks: B3 (accept gate), E2 (wiring docs), B1 (payload research), D27-D30+bench.
+- 2026-05-08 — Track 1 complete: B3 accept-gate hardening. PR #14 opened. module.exports updated, operator-token CLI added, 6 inline tests, CONTRACT.md §Operator Token Flow, D32, CHANGELOG breaking change. All 7 CI gates pass.
+- 2026-05-08 — Track 2 complete: E2 wiring docs parity. PR #15 opened. openclaw fixture count corrected (12→19); codex/clawcode/antegravity gain Scope/Fixtures/PostToolUse/Target Paths/Wiring Model/Approval Mapping/DoD sections. Corrected premature post-adapter claims (A3 pending PR #13).
+- 2026-05-08 — Track 3 complete: B1 payload research. PR #16 opened. codex/clawcode/antegravity POSTTOOL_RESEARCH.md created with 3 shape hypotheses each, verification procedure, open unknowns.
+- 2026-05-08 — Track 4a+4b complete: D33-D36 filed (renumbered from D27-D30 to avoid conflict with A5's D27-D30 A4-smells) + D31 bench empirical update. PR #17 opened. Bench 5-run spread=14.4% (below 30%) → accepted noise. OVERNIGHT_REPORT_2.md written. Stopping.
