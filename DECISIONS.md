@@ -304,3 +304,30 @@ On 2026-05-08, `bench-runtime-decision.sh` produced two consecutive p99 readings
 
 **Recommended action:** if bench fails in CI on any single run, re-run once before treating it as a hard stop. A second consecutive failure is a real regression. Document this in `SECURITY_MODEL.md` or bench runner header as a known Win32 behaviour.
 **Priority:** low — monitoring only.
+
+---
+
+## D32: contract.accept() — Invert Signal Model From Env-Var Allowlist To Positive Operator Token
+
+**Status: RESOLVED — B3 implemented in `runtime/contract.js`, shipped in Wave 2 Track 1.**
+
+**Date:** 2026-05-08
+
+**Problem (Q2):** The old `accept()` guarded against non-interactive acceptance by checking that none of the known harness session env vars were present (e.g. `CLAUDE_CODE_ENTRYPOINT`, `OPENCODE_SESSION_ID`). This "defense by absence" has a structural flaw: any novel harness or automation context whose env var was not in the allowlist would bypass the gate silently. Adding new harnesses (A3) made the allowlist permanently incomplete.
+
+**Decision:** Replace the env-var allowlist with a **positive operator signal**. Two paths are valid:
+1. `stdin.isTTY` is true — caller is in an interactive terminal.
+2. `HORUS_OPERATOR_TOKEN` is set to a valid unconsumed one-shot token from `~/.horus/operator-tokens.jsonl`.
+
+Any other caller (piped stdin, no token, or expired/consumed token) receives a hard error with remediation instructions.
+
+**One-shot token semantics:** tokens are 32-byte random hex, stored as JSONL records `{token, label, createdAt, usedAt}`. `usedAt` is null until the first successful `accept()`. Second use is rejected. Tokens are minted via `horus-cli.sh operator-token mint [label]`.
+
+**Alternatives considered:**
+- Keep and grow the allowlist — rejected; allowlist will always lag novel harnesses.
+- Require a password/passphrase — rejected; adds friction without a meaningful security gain over TTY check.
+
+**Impact:** breaking change for any automation that used `accept()` in a non-TTY context without `HORUS_OPERATOR_TOKEN`. Remediation: pre-mint a token and pass it. The `CHANGELOG.md` entry for B3 documents the migration path.
+
+**Owner:** Khouly
+**Blocker for:** nothing (no other item depends on the old allowlist).

@@ -190,3 +190,38 @@ Attempting to set a floor to a weaker action in `horus.contract.json` fails sche
 4. Previous contract stays in force during the draft window
 
 Downgrade (lower `revision`) is rejected. Every amend bumps monotonically.
+
+## Operator Token Flow (B3)
+
+`horus-cli.sh contract accept` requires a **positive operator signal** to run. Without one the command errors immediately. Two paths:
+
+### (a) Interactive terminal (default)
+
+Run `horus-cli.sh contract accept` from an interactive shell. `stdin.isTTY` is true → gate passes.
+
+### (b) Non-interactive / CI context
+
+Mint a one-shot token from an interactive session first, then pass it to the non-interactive call:
+
+```bash
+# In your interactive terminal:
+horus-cli.sh operator-token mint ci-deploy
+# → Token: <64-hex-chars>
+# → Usage: HORUS_OPERATOR_TOKEN=<token> horus-cli.sh contract accept
+
+# In CI / automation:
+HORUS_OPERATOR_TOKEN=<token> horus-cli.sh contract accept
+```
+
+Tokens are stored in `~/.horus/operator-tokens.jsonl` (mode 0600). Each token is consumed on first use; a second use returns "invalid or already consumed" and the accept call fails.
+
+### Token management
+
+| Command | Description |
+|---|---|
+| `horus-cli.sh operator-token mint [label]` | Mint a fresh one-shot token (with optional label) |
+| `horus-cli.sh operator-token verify <token>` | Check validity without consuming |
+
+### Security rationale
+
+The old `accept()` checked that none of the known harness session env vars were present ("defense by absence"). Novel harnesses whose env var was not in the allowlist bypassed this check silently (Q2 problem). The positive-signal model inverts this: **all non-TTY accept calls are denied unless a valid one-shot token is presented**. There is no env-var allowlist to bypass.

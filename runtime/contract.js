@@ -184,14 +184,112 @@ function verify(projectRoot) {
  * @param {string} projectRoot
  * @returns {{ contractId: string, contractHash: string }}
  */
-function accept(projectRoot) {
-  // Refuse to self-accept inside a harness session
-  const sessionEnvVars = ["CLAUDE_CODE_SESSION_ID", "OPENCODE_SESSION", "OPENCLAW_SESSION"];
-  for (const envVar of sessionEnvVars) {
-    if (process.env[envVar]) {
-      throw new Error(`contract.js: refusing to accept inside a harness session (${envVar} is set). Run 'horus-cli contract accept' in a separate terminal.`);
-    }
+// ---------------------------------------------------------------------------
+// Operator-token support (B3/Q2: positive operator signal for accept())
+// ---------------------------------------------------------------------------
+
+function operatorTokensPath() {
+  return path.join(stateDir(), "operator-tokens.jsonl");
+}
+
+/**
+ * Mint a one-shot 32-byte hex operator token.
+ * Appends to ~/.horus/operator-tokens.jsonl (mode 0600) and returns the token.
+ *
+ * @param {string} [label] — optional human label for audit trail
+ * @returns {string} 64-character hex token
+ */
+function mintOperatorToken(label) {
+  const token  = crypto.randomBytes(32).toString("hex");
+  const tokensPath = operatorTokensPath();
+  const dir    = path.dirname(tokensPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const record = JSON.stringify({
+    token,
+    label: label || null,
+    createdAt: new Date().toISOString(),
+    usedAt: null,
+  });
+  fs.appendFileSync(tokensPath, record + "\n", { mode: 0o600 });
+  return token;
+}
+
+/**
+ * Consume a one-shot operator token.
+ * Marks the first matching unused token as consumed (one-shot semantics).
+ *
+ * @param {string} token
+ * @returns {boolean} true if consumed; false if invalid or already used
+ */
+function consumeOperatorToken(token) {
+  if (!token) return false;
+  const tokensPath = operatorTokensPath();
+  let lines;
+  try {
+    lines = fs.readFileSync(tokensPath, "utf8").split("\n").filter(Boolean);
+  } catch { return false; }
+
+  let consumed = false;
+  const updated = lines.map((line) => {
+    try {
+      const rec = JSON.parse(line);
+      if (rec.token === token && !rec.usedAt) {
+        consumed = true;
+        return JSON.stringify({ ...rec, usedAt: new Date().toISOString() });
+      }
+    } catch { /* skip malformed lines */ }
+    return line;
+  });
+
+  if (!consumed) return false;
+
+  const dir = path.dirname(tokensPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const tmp = tokensPath + ".tmp";
+  fs.writeFileSync(tmp, updated.join("\n") + "\n", { mode: 0o600 });
+  try { fs.renameSync(tmp, tokensPath); } catch {
+    fs.writeFileSync(tokensPath, updated.join("\n") + "\n", { mode: 0o600 });
+    try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
   }
+  return true;
+}
+
+/**
+ * Require a positive operator signal before accepting a contract.
+ * (B3/Q2 fix: replaces the harness env-var allowlist — defense by absence.)
+ *
+ * Passes when: (a) stdin is a TTY (operator at interactive terminal), or
+ *              (b) HORUS_OPERATOR_TOKEN matches a valid one-shot token.
+ *
+ * @throws {Error} if neither condition is satisfied
+ */
+function _checkOperatorSignal() {
+  // (a) Interactive terminal — operator is physically present
+  if (process.stdin.isTTY) return;
+
+  // (b) One-shot operator token — pre-issued by an operator for scripted acceptance
+  const token = process.env.HORUS_OPERATOR_TOKEN || "";
+  if (token) {
+    if (consumeOperatorToken(token)) return;
+    throw new Error(
+      "contract.js: HORUS_OPERATOR_TOKEN is invalid or already consumed. " +
+      "Run 'horus-cli operator-token mint' to generate a fresh one-shot token."
+    );
+  }
+
+  throw new Error(
+    "contract.js: refusing to accept a contract outside an interactive terminal. " +
+    "Run 'horus-cli contract accept' in an interactive terminal (stdin is a TTY), or " +
+    "pre-issue a one-shot token with 'horus-cli operator-token mint' and pass it via " +
+    "HORUS_OPERATOR_TOKEN."
+  );
+}
+
+function accept(projectRoot) {
+  // B3/Q2: require a positive operator signal — either stdin is a TTY or a
+  // one-shot operator token is presented. Drops the previous env-var allowlist
+  // (defense by absence: novel harnesses whose env var wasn't listed bypassed it).
+  _checkOperatorSignal();
 
   const draftPath    = draftFilePath(projectRoot);
   const contractPath = contractFilePath(projectRoot);
@@ -505,4 +603,7 @@ module.exports = {
   contractFilePath,
   draftFilePath,
   acceptedContractsPath,
+  operatorTokensPath,
+  mintOperatorToken,
+  consumeOperatorToken,
 };
