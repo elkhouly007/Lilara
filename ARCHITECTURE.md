@@ -45,12 +45,13 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 ──────────────────────────────────────────────────────────────────────────────────
 1     kill-switch (HORUS_KILL_SWITCH=1)        no           to block      yes (F1)
 2     contract-hash-mismatch (strict mode)   no           to block      yes (F2)
-3     critical-risk (score === 10)           no           to block      yes (F3)
+3     critical-risk (score >= 8)             no           to block      yes (F3)
 4     secret-class-C payload                 no           to block      yes (F4)
 5     strict-mode + gated class + no cover   no           to block      yes (F5)
 6     scope-violation                        no           to escalate   yes (F6)
 7     novel-command-class                    no           to escalate   yes (F7)
 8     protected-branch-write                 no           to review     yes (F8)
+8.5   taint-floor (correlation >= 0.85)     no           to review     yes (F10)
 9     session-risk >= 3                      no           to escalate   yes (F9)
 9.5   taint-floor (F10, rung 8.5)            no           to review     yes (F10)
 10    risk scoring                           no           establishes baseline action
@@ -68,7 +69,7 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 ```
 
 **Demotion rules:**
-- Six floors are implemented today: F1 (kill-switch, `decision-engine.js:79`), F2 (contract-hash-mismatch, `decision-engine.js:133`), F3 (critical-risk, `decision-engine.js:189`), F5 (strict+gated+no-cover, `decision-engine.js:154`), F8 (protected-branch, `decision-engine.js:193`), F9 (session-risk, `decision-engine.js:216`). F2 and F5 fire only when `HORUS_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F4 (secret-class-C), F6 (scope-violation), and F7 (novel-command-class) appear in the table as floor-bound but are not yet implemented as code floors — F4 modifies the risk score only; F6 and F7 have no floor enforcement in the current engine (see DECISIONS.md D26). A2 added F10 (taint, rung 8.5). B2 added F11 (validity-window, rung 10.5).
+- Eleven floors are implemented: F1 (kill-switch, `decision-engine.js:82`), F2 (contract-hash-mismatch, `decision-engine.js:136`), F3 (critical-risk, `decision-engine.js:192`), F4 (secret-class-C, `decision-engine.js:222`), F5 (strict+gated+no-cover, `decision-engine.js:157`), F6 (posture-strict-no-cover, `decision-engine.js:268`), F7 (intent-unknown-strict, `decision-engine.js:285`), F8 (protected-branch, `decision-engine.js:196`), F9 (session-risk, `decision-engine.js:260`), F10 (taint-floor, `decision-engine.js:240`), F11 (validity-window, `decision-engine.js:298`). F2 and F5 fire only when `HORUS_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F10 fires only for write/exec-class tools (read-only tools such as Read/Grep/Glob are exempt — see D37). F4 fires when `payloadClass === "C"` or `scanSecrets()` detects a class-C pattern; cannot be demoted by contract-allow (D26). F6 fires when `trustPosture === "strict"` + gated class + `!contractAllow`; does not fire in balanced or relaxed posture (D26). F7 fires when `intent === "unknown"` + `trustPosture === "strict"`; does not fire in balanced or relaxed posture (D26). B2 Phase 1 added F11 at rung 10.5.
 - `contract-allow` demotes baseline only. Never demotes a floor.
 - Project default `trustPosture` is overridden per-branch by `contract.contextTrust[]` (first-match-wins, schema-defined order) before risk scoring; affects risk score only, not scopes or floors (B2 commit 2).
 - Step 11 per-tool source distinction: when contract scope-allow matches via `scopes.tools.perToolAllow`, source is `contract-allow-tool-scope` (not `contract-allow`). Both share the W11 escalate-demotion carve-out (B2 commit 3).
