@@ -333,7 +333,7 @@ A4's `jredact:redact-on` / `jredact:redact-off` tests live inline in `scripts/ru
 
 ---
 
-## D27: A2 Taint Correlator — Token Match Parameters
+## D33: A2 Taint Correlator — Token Match Parameters
 
 **Status: RESOLVED — implemented in `runtime/provenance-correlator.js` (Wave 1 A2, PR #12).**
 
@@ -357,7 +357,7 @@ Three choices locked the taint correlator design:
 
 ---
 
-## D28: A2 Provenance Window — TTL, Cap, File Mode
+## D34: A2 Provenance Window — TTL, Cap, File Mode
 
 **Status: RESOLVED — implemented in `runtime/session-context.js` (Wave 1 A2, PR #12).**
 
@@ -377,7 +377,7 @@ Three choices locked the taint correlator design:
 
 ---
 
-## D29: A3 Post-Adapter Split — Why Claude Gets output-sanitizer.js, Others Get post-adapter.js
+## D35: A3 Post-Adapter Split — Why Claude Gets output-sanitizer.js, Others Get post-adapter.js
 
 **Status: RESOLVED — implemented across all 6 harnesses (Wave 1 A3, PR #13).**
 
@@ -396,7 +396,7 @@ Option B was chosen. `output-sanitizer.js` gained the taint recording call (`rec
 
 ---
 
-## D30: A4 Redaction Scope — Only targetPath and notes Fields Are Redacted
+## D36: A4 Redaction Scope — Only targetPath and notes Fields Are Redacted
 
 **Status: RESOLVED — implemented in `runtime/decision-journal.js:append()` (Wave 1 A4, PR #9, merged).**
 
