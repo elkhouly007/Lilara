@@ -1507,6 +1507,51 @@ fs.writeFileSync(process.argv[1] + '/v3.json', JSON.stringify(doc, null, 2) + '\
 }
 _migrate_v3_idempotent_noop
 
+# ── inline: B2 Phase 2 integration — all four v3 field families (commit 4) ───
+printf '\nB2 Phase 2 integration tests...\n'
+
+_b2_phase2_integration_all_four() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const {
+  getMcpPolicy, getSkillPolicy, getSessionConstraints, getBudgetLimits, extractMcpServerName
+} = require('./runtime/contract');
+
+const c = {
+  version: 3,
+  scopes: {
+    mcp:     { 'my-server': { policy: 'block' }, 'safe-server': { policy: 'allow' } },
+    skills:  { 'bad-skill': { policy: 'block' }, 'good-skill':  { policy: 'warn'  } },
+    session: { maxDurationMin: 60 },
+    budget:  { maxDestructiveOps: 10, maxExternalBytes: 1024 }
+  }
+};
+
+const checks = [
+  getMcpPolicy(c, 'my-server')         === 'block',
+  getMcpPolicy(c, 'safe-server')       === 'allow',
+  getMcpPolicy(c, 'absent')            === null,
+  getSkillPolicy(c, 'bad-skill')       === 'block',
+  getSkillPolicy(c, 'good-skill')      === 'warn',
+  getSkillPolicy(c, 'absent')          === null,
+  getSessionConstraints(c).maxDurationMin === 60,
+  getBudgetLimits(c).maxDestructiveOps    === 10,
+  getBudgetLimits(c).maxExternalBytes     === 1024,
+  extractMcpServerName('mcp__my-server__do-thing') === 'my-server',
+  extractMcpServerName('not-mcp-tool')             === null,
+];
+
+const failed = checks.map((v, i) => v ? null : i).filter(v => v !== null);
+process.stdout.write(failed.length === 0 ? 'ok' : 'fail:checks=' + failed.join(','));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "ok" ]; then ok "b2-phase-2:integration-all-four";
+  else fail "b2-phase-2:integration-all-four" "expected 'ok', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_b2_phase2_integration_all_four
+
 
 # ── summary ───────────────────────────────────────────────────────────────────
 

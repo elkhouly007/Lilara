@@ -293,3 +293,116 @@ the general scope deny. To restrict per-tool, combine with restrictive general s
   }
 }
 ```
+
+---
+
+## v3 — scopes.mcp
+
+Per-MCP-server access policy. Key is the server name; value is `{ policy: "allow" | "warn" | "block" }`.
+
+Server name is extracted from the tool name using the `mcp__<server>__<tool>` convention (regex `^mcp__([^_]+(?:_[^_]+)*?)__`). If `input.mcpServer` is explicitly set, that takes precedence.
+
+- `block` → F12 hard floor: `buildEarlyBlock("mcp-deny", ...)`. Fires before risk scoring.
+- `warn` → `mcpWarning` annotation attached to the decision result and journal entry; action unchanged.
+- `allow` or absent entry → no effect.
+
+```json
+"mcp": {
+  "context7":       { "policy": "allow" },
+  "computer-use":   { "policy": "warn"  },
+  "unknown-server": { "policy": "block" }
+}
+```
+
+**Edge cases:**
+- Server name is case-sensitive and must match the `mcp__<name>__` prefix exactly.
+- If the tool name does not match `mcp__…__` and `input.mcpServer` is absent, F12 silently no-ops.
+- `warn` policy does not change the decision action. It is informational only.
+
+---
+
+## v3 — scopes.skills
+
+Per-skill access policy. Key is the skill name (as passed in `input.skillName`); value is `{ policy: "allow" | "warn" | "block" }`.
+
+- `block` → F13 hard floor: `buildEarlyBlock("skill-deny", ...)`. Fires after F12.
+- `warn` → `skillWarning` annotation; action unchanged.
+- `allow` or absent entry → no effect.
+
+```json
+"skills": {
+  "superpowers:writing-plans": { "policy": "allow" },
+  "dangerous-skill":           { "policy": "block" }
+}
+```
+
+**Edge cases:**
+- Skill name is taken directly from `input.skillName`. If that field is absent, F13 silently no-ops.
+- The colon separator in skill names (e.g. `superpowers:writing-plans`) is treated as a regular character — no namespace matching.
+
+---
+
+## v3 — scopes.session
+
+Session duration limit. When the session age exceeds `maxDurationMin`, the decision is escalated to `require-review` (D47 — operator declared "after N minutes, stop and ask me").
+
+```json
+"session": {
+  "maxDurationMin": 480
+}
+```
+
+- Session age is computed from `startTime` in `~/.horus/session-budget/<session-id>.json`. The first `getCounters` call for a session persists `startTime = Date.now()`.
+- When age > limit: `action = "require-review"`, `source = "session-over-duration"`. `sessionDurationWarning` annotation is also attached (`{ code, ageMin, limitMin }`).
+- The escalation is asserted **after** all demotion blocks (contract-allow, auto-allow-once, trajectory-nudge), so it cannot be silently undone. Same pattern as F10 taint-floor.
+- This is not a hard block — the operator reviews and decides. Use `scopes.budget.maxDestructiveOps` if you need a hard stop.
+
+---
+
+## v3 — scopes.budget
+
+Hard caps on session-scoped quantities. When either counter equals or exceeds its limit at decide-time, the decision is hard-blocked (F14 `buildEarlyBlock("budget-exceeded", ...)`).
+
+```json
+"budget": {
+  "maxDestructiveOps": 50,
+  "maxExternalBytes":  10485760
+}
+```
+
+- `maxDestructiveOps` — incremented after each `allow` on a `destructive-delete`-class command. Checked at the start of the next `decide()` call.
+- `maxExternalBytes` — incremented via `recordExternalBytes(bytes, { sessionId })`. Not yet wired to an automatic source; operators or future work can call this API directly.
+- Counters live at `~/.horus/session-budget/<session-id>.json` (mode 0600, atomic writes).
+
+**Edge cases:**
+- Counters are per-session-id. If `sessionId` is absent from the input, F14 silently no-ops (no counter read or write).
+- The budget check fires **before** risk scoring. A budget-exceeded block cannot be demoted by contract-allow or any other rung.
+- `maxDestructiveOps: 0` blocks the first destructive-delete (0 >= 0). Set to 1 to allow exactly one.
+
+---
+
+## v3 — Migrating from v2
+
+```bash
+node scripts/migrateV2ToV3.js [input] [output.draft]
+```
+
+- `input` defaults to `horus.contract.json` in the current directory.
+- `output` defaults to `horus.contract.json.draft` in the current directory.
+- The tool validates the input as v1 or v2, sets `version: 3`, recomputes `contractHash`, and writes the draft.
+- **Never overwrites the live `horus.contract.json`**. Refuses to overwrite an existing `.draft` file.
+- **Idempotent**: running on a v3 file exits 0 with "already version 3, no migration needed" on stderr and writes no output.
+- The draft leaves `scopes.mcp`, `scopes.skills`, `scopes.session`, and `scopes.budget` absent — opt in by editing the draft before accepting.
+
+After migration:
+
+```bash
+# 1. Review the draft
+cat horus.contract.json.draft
+
+# 2. Edit to add v3 fields as desired (optional)
+# ...
+
+# 3. Accept to finalize
+horus-cli.sh contract accept
+```
