@@ -921,6 +921,70 @@ process.stdout.write(JSON.stringify(out));
 }
 _b2_integration_all_three
 
+# ── inline: operator-token D44/D45 tests ──────────────────────────────────────
+printf '\nOperator-token (D44/D45) tests...\n'
+_tmpstate_d44="$(mktemp -d)"
+_cleanup_d44() { rm -rf "$_tmpstate_d44"; }
+trap _cleanup_d44 EXIT
+
+# D44: O_EXCL contention — simulate two concurrent consumers; second must return false.
+_d44_contend="$(node - "$root" "$_tmpstate_d44" <<'NODEEOF'
+"use strict";
+const path = require("path");
+const { mintOperatorToken, consumeOperatorToken, operatorTokensPath } = require(path.join(process.argv[2], "runtime/contract"));
+const fs = require("fs");
+process.env.HORUS_STATE_DIR = process.argv[3];
+const tok = mintOperatorToken("d44-test");
+// Simulate contention: pre-create the lock file before consume calls begin.
+const lockFile = operatorTokensPath() + ".lock";
+const lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+fs.closeSync(lockFd);
+const secondResult = consumeOperatorToken(tok); // must return false — lock held
+try { fs.unlinkSync(lockFile); } catch {}
+const firstResult = consumeOperatorToken(tok);  // must return true — lock free
+if (secondResult === false && firstResult === true) {
+  process.stdout.write("PASS");
+} else {
+  process.stdout.write("FAIL:second=" + secondResult + " first=" + firstResult);
+}
+NODEEOF
+)"
+if [ "$_d44_contend" = "PASS" ]; then
+  ok "operator-token:d44-ocxl-contention"
+else
+  fail "operator-token:d44-ocxl-contention" "$_d44_contend"
+fi
+
+# D45: list — after mint, list shows id prefix but never the full secret.
+_d45_tmp2="$(mktemp -d)"
+_d45_tok="$(HORUS_STATE_DIR="$_d45_tmp2" node - "$root" <<'NODEEOF'
+const path = require("path");
+const { mintOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
+process.stdout.write(mintOperatorToken("d45-list-test"));
+NODEEOF
+)"
+_d45_list_out="$(HORUS_STATE_DIR="$_d45_tmp2" bash "$root/scripts/horus-cli.sh" operator-token list 2>&1)"
+if echo "$_d45_list_out" | grep -q "d45-list-test" && ! echo "$_d45_list_out" | grep -qF "$_d45_tok"; then
+  ok "operator-token:d45-list-shows-label-not-secret"
+else
+  fail "operator-token:d45-list-shows-label-not-secret" "list output wrong: '${_d45_list_out:0:200}'"
+fi
+
+# D45: revoke — after revoke, consume returns false.
+_d45_revoke_out="$(HORUS_STATE_DIR="$_d45_tmp2" bash "$root/scripts/horus-cli.sh" operator-token revoke "$_d45_tok" 2>&1)"
+_d45_consume="$(HORUS_STATE_DIR="$_d45_tmp2" node - "$root" "$_d45_tok" <<'NODEEOF'
+const path = require("path");
+const { consumeOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
+process.stdout.write(String(consumeOperatorToken(process.argv[3])));
+NODEEOF
+)"
+if echo "$_d45_revoke_out" | grep -qi "revoked" && [ "$_d45_consume" = "false" ]; then
+  ok "operator-token:d45-revoke-then-consume-false"
+else
+  fail "operator-token:d45-revoke-then-consume-false" "revoke='${_d45_revoke_out:0:120}' consume='$_d45_consume'"
+fi
+rm -rf "$_d45_tmp2"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
