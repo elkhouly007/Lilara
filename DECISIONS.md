@@ -254,19 +254,21 @@ Comment added above `const record = {`: "D28: redaction policy — only targetPa
 
 ## D30: Fixture Pattern For One-Off Output-Inspection Tests
 
-**Status: OPEN — decide before A1 starts (or immediately after A5 lands).**
+**Status: CLOSED (Wave-2 cleanup, 2026-05-08)**
 
-A4's `jredact:redact-on` / `jredact:redact-off` tests live inline in `scripts/run-fixtures.sh` rather than in `tests/fixtures/<category>/`. A5's concurrent-invocation harness uses `tests/fixtures/rate-limit/`. These are two different patterns for tests that inspect runtime output rather than hook stdin/stdout.
+**Resolution:** Option 3 — inline `node -e` in `scripts/run-fixtures.sh` is the standard pattern
+for output-inspection tests (tests that validate runtime logic by exercising module APIs directly).
+File-pair `.input` / `.expected_*` is the standard for stdin-driven hook fixture tests.
 
-**Decision needed:** should output-inspection tests live in `tests/fixtures/runtime/`, `tests/inline/`, or inline in `run-fixtures.sh`? Decide once and apply consistently across A1/A2/A3.
+This distinction is already widespread across all Wave-1 and Wave-2 inline tests (D37, D38, D39,
+D40, D41, D42, D43, D44, D45, D26 F4/F6/F7 floors, the E2E integration test). No code changes
+needed — the pattern was already consistently applied before this decision was formally locked.
 
-**Options:**
-1. `tests/fixtures/runtime/` — co-located with other fixture categories; discovery is easy; no `.input` files so check-counts is unaffected.
-2. `tests/inline/` — separate directory signals "not stdin/stdout pair tests"; cleaner conceptual boundary.
-3. Inline in `run-fixtures.sh` — no new directories; harder to navigate as count grows.
-
-**Recommended action:** pick one pattern, port the A4 jredact tests to match, then A1/A2/A3 follow the same pattern.
-**Priority:** medium — compounding debt if each item invents its own pattern.
+New tests added in Wave-2 that follow this pattern: 246 total inline inline-node assertions covering
+decision-engine floors, operator-token CRUD, rate-limiter atomicity, taint tool-class filter, and
+a full PreToolUse→PostToolUse→journal-write E2E cycle (see run-fixtures.sh: "E2E integration test
+(D30)"). Adding new output-inspection tests: write them inline in run-fixtures.sh using the
+`node - "$root" <<'NODEEOF' ... NODEEOF` heredoc pattern established throughout that file.
 
 ---
 

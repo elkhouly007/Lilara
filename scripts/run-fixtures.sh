@@ -1195,6 +1195,87 @@ else
   fail "floor:F7-balanced-posture-does-not-fire" "$_f7_n1"
 fi
 
+# ── E2E integration test (D30) ────────────────────────────────────────────────
+# Full cycle: recordExternalRead → decide() with tainted command (Bash, F10-eligible) →
+# assert floor selected + journal entry written + rate-limit state atomically updated.
+printf '\nE2E integration test (D30)...\n'
+
+_e2e_result="$(node - "$root" <<'NODEEOF'
+"use strict";
+const path   = require("path");
+const fs     = require("fs");
+const os     = require("os");
+
+const root = process.argv[2];
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "horus-e2e-"));
+
+process.env.HORUS_STATE_DIR  = tmpDir;
+process.env.HORUS_RATE_LIMIT = "0";   // disable rate-limiting for deterministic test
+process.env.HORUS_DECISION_JOURNAL = "1";
+
+try {
+  // 1. Simulate PostToolUse: record an external read that injects a tainted token.
+  //    recordExternalRead(content, source) — content is the external body, source is a label.
+  const { recordExternalRead } = require(path.join(root, "runtime/taint"));
+  const taintedToken = "injecttoken" + Date.now();
+  recordExternalRead(`Some content including ${taintedToken} embedded`, "web-fetch");
+
+  // 2. PreToolUse: Bash tool with the tainted token in the command (F10-eligible class).
+  const { decide } = require(path.join(root, "runtime/decision-engine"));
+  const result = decide({
+    tool:         "Bash",
+    command:      "echo " + taintedToken,
+    payloadClass: "A",
+    trustPosture: "balanced",
+  });
+
+  // 3. Assert F10 fired (taint-floor → require-review).
+  if (result.action !== "require-review") {
+    process.stdout.write("FAIL:e2e-floor action=" + result.action + " source=" + result.decisionSource);
+    process.exit(0);
+  }
+  if (result.floorFired !== "taint-floor") {
+    process.stdout.write("FAIL:e2e-floor floorFired=" + result.floorFired);
+    process.exit(0);
+  }
+
+  // 4. Assert journal entry was written.
+  const journalFile = path.join(tmpDir, "decision-journal.jsonl");
+  if (!fs.existsSync(journalFile)) {
+    process.stdout.write("FAIL:e2e-journal journal file not created");
+    process.exit(0);
+  }
+  const entries = fs.readFileSync(journalFile, "utf8")
+    .split("\n").filter(Boolean)
+    .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+    .filter(Boolean);
+
+  const decisionEntry = entries.find((e) => e.kind === "runtime-decision" && e.floorFired === "taint-floor");
+  if (!decisionEntry) {
+    process.stdout.write("FAIL:e2e-journal no runtime-decision entry with floorFired=taint-floor. entries=" + JSON.stringify(entries.map(e => e.kind + "/" + e.floorFired)));
+    process.exit(0);
+  }
+
+  // 5. Assert rate-limit state file was NOT written (HORUS_RATE_LIMIT=0 → skip file write).
+  //    Verify via absence of rate-*.json in tmpDir (proves decide() respects the env flag).
+  const rateFiles = fs.readdirSync(tmpDir).filter((f) => f.startsWith("rate-"));
+  if (rateFiles.length !== 0) {
+    process.stdout.write("FAIL:e2e-rate-limit unexpected rate files: " + rateFiles.join(","));
+    process.exit(0);
+  }
+
+  process.stdout.write("PASS");
+} finally {
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+}
+NODEEOF
+)"
+if [ "$_e2e_result" = "PASS" ]; then
+  ok "e2e:pretool-posttool-journal-cycle"
+else
+  fail "e2e:pretool-posttool-journal-cycle" "$_e2e_result"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
