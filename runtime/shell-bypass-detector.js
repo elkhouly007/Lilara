@@ -2,22 +2,32 @@
 "use strict";
 
 /**
- * shell-ast.js — Zero-dep shell command tokenizer for bypass detection.
+ * shell-bypass-detector.js — Zero-dep regex-based shell bypass-pattern detector.
  *
- * Detects command-injection bypass patterns that pure-regex matchers miss:
- *   - base64 decode piped to a shell (opaque payload bypass)
- *   - IFS whitespace substitution (defeats \s+ word-boundary regexes)
- *   - eval with dynamic content (command substitution or base64 decode)
- *   - variable-as-command (variable holds the executing command, not an arg)
- *   - network process substitution: bash <(curl ...) / sh <(wget ...)
+ * NOTE: This is NOT a true shell tokenizer. It does not perform word-splitting,
+ * quote-context tracking, or command-tree construction. It uses focused regexes
+ * to detect five documented bypass patterns that elude simpler matchers:
+ *
+ *   1. base64-pipe-exec  — base64 decode piped to a shell (opaque payload bypass)
+ *   2. ifs-bypass        — IFS whitespace substitution (defeats \s+ word-boundary regexes)
+ *   3. eval-dynamic-exec — eval combined with command substitution or base64 decode
+ *   4. variable-as-command — variable used as the executing command (not as an argument)
+ *   5. network-process-sub — bash/sh <(curl ...) / sh <(wget ...) remote process substitution
+ *
+ * A future `runtime/shell-ast.js` may provide real AST-based analysis. This module
+ * intentionally does not claim that name to keep the path available.
+ *
+ * When `$(...)` or backtick substitution is present but none of the five named patterns
+ * fire, `isUnresolvable` is set to true — the substituted value is opaque at analysis
+ * time and the caller should fail-safe-up (see risk-score.js).
  *
  * All detection is purely textual — no sub-shells are spawned, no side effects.
  * Safe to call synchronously from risk-score.js on every tool invocation.
  *
  * @param {string} command — raw shell command string to analyze
- * @returns {ShellAstResult}
+ * @returns {BypassDetectorResult}
  */
-function tokenize(command) {
+function detectBypassPatterns(command) {
   const text = String(command || "");
   const reasons = [];
 
@@ -68,13 +78,13 @@ function tokenize(command) {
     /\b(bash|sh)\s+<\(/.test(text) && /\b(curl|wget)\b/.test(text);
   if (hasNetworkProcessSub) reasons.push("network-process-sub");
 
-  const isUnresolvable = (
-    hasBase64Pipe ||
-    hasIfsBypass ||
-    hasEvalDynamic ||
-    hasVariableAsCommand ||
-    hasNetworkProcessSub
-  );
+  // ── 7. Unresolvable: command substitution with no named bypass pattern ────
+  // $(...) or `...` appears in the command but none of the five named patterns
+  // fired. The substituted value is opaque at analysis time; we cannot know
+  // what it expands to. Fail-safe-up: escalate for human review.
+  // (Matches the "unresolvable → novel-command-class" intent in ENHANCEMENT_PLAN §A1.)
+  const isUnresolvable = hasCommandSub && reasons.length === 0;
+  if (isUnresolvable) reasons.push("shell-ast-unresolvable");
 
   return {
     hasBase64Pipe,
@@ -121,4 +131,4 @@ function _isVariableAsCommand(text) {
   return false;
 }
 
-module.exports = { tokenize };
+module.exports = { detectBypassPatterns };

@@ -2,7 +2,7 @@
 "use strict";
 
 const { globMatch }  = require("./glob-match");
-const { tokenize }   = require("./shell-ast");
+const { detectBypassPatterns } = require("./shell-bypass-detector");
 
 function normalize(input = {}) {
   return {
@@ -135,7 +135,7 @@ function score(input = {}) {
   // Catches bypass patterns that pure-regex matchers miss (base64-pipe, IFS,
   // eval+sub, variable-as-command, network process substitution).
   // Added after all regex checks so it only fires on genuine gaps.
-  const ast = tokenize(ctx.command);
+  const ast = detectBypassPatterns(ctx.command);
   if (ast.hasBase64Pipe) {
     value += 7;
     reasons.push("base64-pipe-exec");
@@ -155,6 +155,12 @@ function score(input = {}) {
   if (ast.hasNetworkProcessSub) {
     value += 5;
     reasons.push("shell-ast-network-proc-sub");
+  }
+  // isUnresolvable: command substitution present but no named bypass pattern fired.
+  // The substituted value is opaque at analysis time — fail-safe-up per plan §A1.
+  if (ast.isUnresolvable) {
+    value += 5;
+    reasons.push("shell-ast-unresolvable");
   }
 
   if (ctx.repeatedApprovals >= 3 && value > 0) {
