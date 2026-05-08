@@ -410,3 +410,50 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 
 **Owner:** Khouly
 **Blocker for:** nothing (no other item depends on the old allowlist).
+
+---
+
+## D46: MCP Server Name Extraction Regex (`mcp__<server>__<rest>`)
+
+**Date:** 2026-05-08
+
+**Context:** `scopes.mcp` (B2 Phase 2) maps server names to policies. The runtime needs to extract the server name from the tool name passed by the harness.
+
+**Decision:** Use `^mcp__([^_]+(?:_[^_]+)*?)__` to extract the server name. If `input.mcpServer` is explicitly provided, that takes precedence. Absent `mcp__` prefix → F12 silently no-ops.
+
+**Rationale:** The `mcp__<server>__<tool>` convention is stable across harnesses. The lazy quantifier prevents over-greedy matches when server names contain underscores (e.g. `mcp__my_server__tool` → server name `my_server`). The explicit `input.mcpServer` override is a clean escape hatch for harnesses that surface the server name separately.
+
+**Owner:** Khouly
+**Blocker for:** F12 mcp-deny floor.
+
+---
+
+## D47: `scopes.session.maxDurationMin` Escalates to `require-review` (Not Soft Annotation)
+
+**Date:** 2026-05-08
+
+**Context:** The operator sets `scopes.session.maxDurationMin` to declare "after N minutes, stop and ask me." The question was whether to: (a) set `action = "require-review"` + `source = "session-over-duration"`, or (b) attach only a `sessionDurationWarning` annotation with action unchanged.
+
+**Decision:** (a) — change the action to `require-review`. The `sessionDurationWarning` annotation is also attached for visibility, but the action change is the load-bearing signal.
+
+**Rationale:** A soft annotation would be silently ignored if the agent keeps calling `decide()` and receiving `allow` back. The operator declared a stop-and-ask boundary — that intention can only be enforced by changing the action. The F10 taint-floor (D34) is the correct precedent: the floor changes the action, not just decorates the result. The override is asserted AFTER all demotion blocks so contract-allow/auto-allow-once/trajectory-nudge cannot silently undo it.
+
+**Owner:** Khouly
+**Blocker for:** F14b session-over-duration floor.
+
+---
+
+## D48: Migration Writes to `.draft`, Never Live File; Idempotent Exit-0 on v3 Input
+
+**Date:** 2026-05-08
+
+**Context:** `scripts/migrateV2ToV3.js` needs a safe, pipeline-friendly migration UX. Two questions: (a) should it ever overwrite the live `horus.contract.json`? (b) what should it do on v3 input?
+
+**Decision:** (a) Never — always writes to `horus.contract.json.draft`. Refuses to overwrite an existing draft. (b) Exits 0 with "already version 3, no migration needed" on stderr; writes no output.
+
+**Rationale (a):** Never-overwrites-live ensures the operator reviews the draft before `contract accept` finalizes. A partial migration failure (schema validation fails on the draft) would otherwise corrupt the live contract.
+
+**Rationale (b):** Migration tools that exit non-zero on already-migrated input break pipelines that unconditionally run `migrate` before `accept` (alembic/knex convention). Exit 0 + stderr message is machine-parseable (check exit code) and human-readable (check message). No draft file is written, so repeated runs are truly idempotent.
+
+**Owner:** Khouly
+**Blocker for:** CI gate `check-migrate-v2-v3.sh`.

@@ -23,6 +23,16 @@ Append-only. One line per checkpoint.
 - 2026-05-08 — Commit 4 complete: CONTRACT.md v2 sections + horus.contract.v2.json.example + G7 PARTIAL + integration fixture. 244 fixtures pass. Bench p99=60.6ms. 7 gates green.
 - 2026-05-08 — B2 Phase 1 complete. PR #19 opened. 4 commits, 10 fixtures, 7 gates green per commit. Cumulative p99=60.6ms (baseline 63.0ms). OVERNIGHT_REPORT_3.md written. Stopping.
 
+# Run 4 — 2026-05-08
+
+- 2026-05-08 — B2 Phase 2 (v3 schema + migration) autonomous run started. Branch: feat/b2-v3-schema-migration from master 72f83af. 4 commits planned: scopes.mcp/skills (F12/F13), scopes.budget/session (F14), migration script, docs+integration.
+- 2026-05-08 — Run 4 baseline p99=54.6ms (5-run median; D31 reference 61.2ms, cap 1.5x = 81.9ms).
+- 2026-05-08 — Commit 1 complete: scopes.mcp + scopes.skills (F12, F13). 6 fixtures pass. Bench p99=57.8ms. 7 gates green.
+- 2026-05-08 — Commit 2 complete: scopes.session.maxDurationMin + scopes.budget (F14/F14b). NEW runtime/session-budget.js. 3 fixtures (budget:destructive-block, budget:bytes-block, session:over-duration-require-review). 243 fixtures pass. Bench p99=55.7ms. 7 gates green.
+- 2026-05-08 — Commit 3 complete: v2→v3 migration script + CI gate + v3 example. NEW scripts/migrateV2ToV3.js, scripts/check-migrate-v2-v3.sh, horus.contract.v3.json.example. Registered in check.yml. 2 migration fixtures. 245 fixtures pass. Bench p99=56.0ms. 8 gates green.
+- 2026-05-08 — Commit 4 complete: CONTRACT.md v3 sections + G7 COVERED + OWASP updates + integration fixture. 246 fixtures pass. Bench p99=57.2ms. 8 gates green.
+- 2026-05-08 — B2 Phase 2 complete. PR #20 opened. 4 commits, 13 new fixtures (246 total), 8 gates green per commit. Cumulative p99=57.2ms (D31 baseline 61.2ms, cap 91.8ms). OVERNIGHT_REPORT_4.md written. Stopping.
+
 # Run 5 — Wave-2 cleanup autonomous session (2026-05-08)
 
 - 2026-05-08 — Wave-2 cleanup run started. Branch: feat/wave2-cleanup off master 72f83af. Plan approved with 3 corrections (F4 class-C def, EXTERNAL_TOOLS union, F6 locked semantic). 8 commits target.
