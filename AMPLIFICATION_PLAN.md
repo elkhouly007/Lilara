@@ -54,7 +54,7 @@ G3. PostToolUse output-sanitizer parity for OpenCode and OpenClaw is deferred. C
 G4. Codex / Clawcode / Antegravity adapters are best-effort, not verified against real hook payload shapes — status is "Planned".
 G5. Rate limiter TOCTOU race — accepted as performance-only, not a security gate; documented but worth tightening if cheap.
 G6. MASTER_PLAN.md Sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) are stubbed; Phase 3 work is blocked on these.
-G7. **PARTIAL** — Contract scope expansion: validity.activeHoursUtc, validity.activeDays, contextTrust, scopes.tools.perToolAllow are now wired end-to-end into `decide()` (B2 Phase 1, PR #<N>). Still missing v3 additions (scopes.mcp, scopes.skills, scopes.session.maxDurationMin, scopes.budget) and the v2→v3 migration script — Phase 2.
+G7. **PARTIAL** — Contract scope expansion: validity.activeHoursUtc, validity.activeDays, contextTrust, scopes.tools.perToolAllow are now wired end-to-end into `decide()` (B2 Phase 1, PR #19). Still missing v3 additions (scopes.mcp, scopes.skills, scopes.session.maxDurationMin, scopes.budget) and the v2→v3 migration script — Phase 2.
 
 ---
 

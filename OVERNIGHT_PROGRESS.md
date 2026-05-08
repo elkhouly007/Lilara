@@ -20,3 +20,5 @@ Append-only. One line per checkpoint.
 - 2026-05-08 — Commit 1 complete: validity-window floor (F11). 3 fixtures pass (237 total). Bench p99=56.2ms. 7 gates green.
 - 2026-05-08 — Commit 2 complete: contextTrust per-branch posture override. 3 fixtures pass (240 total). Bench p99=55.2ms. 7 gates green.
 - 2026-05-08 — Commit 3 complete: scopes.tools.perToolAllow per-tool allowlist. 3 fixtures pass (243 total). Bench p99=56.0ms. 7 gates green.
+- 2026-05-08 — Commit 4 complete: CONTRACT.md v2 sections + horus.contract.v2.json.example + G7 PARTIAL + integration fixture. 244 fixtures pass. Bench p99=60.6ms. 7 gates green.
+- 2026-05-08 — B2 Phase 1 complete. PR #19 opened. 4 commits, 10 fixtures, 7 gates green per commit. Cumulative p99=60.6ms (baseline 63.0ms). OVERNIGHT_REPORT_3.md written. Stopping.
