@@ -113,6 +113,12 @@ function append(entry) {
     targetPath: clean(String(entry.targetPath || "")).slice(0, 256),
     notes: clean(String(entry.notes || "")).slice(0, 256),
     ...(shouldRedact ? { redactInJournal: true } : {}),
+    // Optional pass-through fields — present only when populated by caller
+    ...(entry.contractId    ? { contractId: String(entry.contractId), contractRevision: entry.contractRevision != null ? String(entry.contractRevision) : undefined } : {}),
+    ...(entry.scopeHit      ? { scopeHit: String(entry.scopeHit) } : {}),
+    ...(entry.floorFired    ? { floorFired: String(entry.floorFired) } : {}),
+    ...(entry.taintSource   ? { taintSource: String(entry.taintSource), taintReason: String(entry.taintReason || "") } : {}),
+    ...(entry.intent        ? { intent: String(entry.intent) } : {}),
   };
   fs.appendFileSync(logFile, JSON.stringify(record) + "\n", { mode: 0o600 });
   return true;
