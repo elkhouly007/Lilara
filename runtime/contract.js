@@ -448,6 +448,25 @@ function scopeMatch(contract, input) {
   // Secret class C — always block regardless of scope (hard floor complement)
   if (payloadClass === "C") return { allowed: false, reason: "payload-class-C", gated: true };
 
+  // B2 commit 3: scopes.tools.perToolAllow — per-tool command + path allowlists.
+  // Checked before class-specific gates so an explicit per-tool match wins.
+  const perToolAllow = scopes.tools?.perToolAllow || [];
+  if (perToolAllow.length > 0 && input.tool) {
+    const toolName = String(input.tool);
+    const cmdStr   = String(input.command || "");
+    const pathStr  = String(input.targetPath || "");
+    for (const entry of perToolAllow) {
+      if (!entry || entry.tool !== toolName) continue;
+      const cmdGlobs  = Array.isArray(entry.commandGlobs) ? entry.commandGlobs : null;
+      const pathGlobs = Array.isArray(entry.pathGlobs)    ? entry.pathGlobs    : null;
+      const cmdOk  = !cmdGlobs  || cmdGlobs.length  === 0 || cmdGlobs.some((p)  => globMatch(cmdStr,  p, ctx));
+      const pathOk = !pathGlobs || pathGlobs.length === 0 || pathGlobs.some((p) => globMatch(pathStr, p, ctx));
+      if (cmdOk && pathOk) {
+        return { allowed: true, reason: "tool-allow-tool-scope", gated: true };
+      }
+    }
+  }
+
   // Destructive-delete with multi-target all-or-nothing allowlist.
   // Extracts all path-like targets from the command; every target must match
   // an allow entry. Symlink / ".." escape is rejected after path resolution.

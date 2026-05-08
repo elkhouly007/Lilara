@@ -284,17 +284,20 @@ function decide(input = {}) {
   // Step 11: contract-allow — demotes baseline only; never demotes hard floors.
   // B4: protects require-review (protected-branch floor) from demotion.
   // W11: tool-allow reason permits escalate demotion (explicit per-tool pre-approval).
-  const canDemoteEscalate = contractAllow && contractReason === "tool-allow-matched";
+  const canDemoteEscalate = contractAllow && (
+    contractReason === "tool-allow-matched" ||
+    contractReason === "tool-allow-tool-scope"
+  );
   if (contractAllow &&
       risk.level !== "critical" &&
       action !== "block" &&
       action !== "require-review" &&
       (action !== "escalate" || canDemoteEscalate)) {
     action = "allow";
-    source = "contract-allow";
+    source = contractReason === "tool-allow-tool-scope" ? "contract-allow-tool-scope" : "contract-allow";
   }
 
-  if (source !== "learned-allow" && source !== "contract-allow" && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
+  if (source !== "learned-allow" && !source.startsWith("contract-allow") && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
     consumeAutoAllowOnce(policyKey);
     action = "allow";
     source = "auto-allow-once";
@@ -303,7 +306,7 @@ function decide(input = {}) {
   const trajectory = getSessionTrajectory();
   const trajectoryThreshold = Number(process.env.HORUS_TRAJECTORY_THRESHOLD || "3");
   let trajectoryNudge = null;
-  if (source !== "learned-allow" && source !== "auto-allow-once" && source !== "contract-allow" && trajectory.recentEscalations >= trajectoryThreshold) {
+  if (source !== "learned-allow" && source !== "auto-allow-once" && !source.startsWith("contract-allow") && trajectory.recentEscalations >= trajectoryThreshold) {
     if (action === "allow") { action = "route"; trajectoryNudge = "allow\u2192route"; }
     else if (action === "route") { action = "require-review"; trajectoryNudge = "route\u2192require-review"; }
     else if (action === "require-review") { action = "escalate"; trajectoryNudge = "require-review\u2192escalate"; }
@@ -336,8 +339,8 @@ function decide(input = {}) {
   if (promotionGuidance.stage !== "new" && promotionGuidance.stage !== "promoted") {
     explanationParts.push(`promotion=${promotionGuidance.stage}`);
   }
-  if (source === "contract-allow" && contractId)  explanationParts.push(`contract=${contractId}`);
-  if (source === "contract-allow" && contractReason) explanationParts.push(`scope=${contractReason}`);
+  if (source.startsWith("contract-allow") && contractId)  explanationParts.push(`contract=${contractId}`);
+  if (source.startsWith("contract-allow") && contractReason) explanationParts.push(`scope=${contractReason}`);
 
   const lifecycleSummary = promotionState
     ? [

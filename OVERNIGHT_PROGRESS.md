@@ -18,3 +18,4 @@ Append-only. One line per checkpoint.
 - 2026-05-08 — B2 Phase 1 (v2 wire-up) autonomous run started. 4 commits planned: validity, contextTrust, scopes.tools.perToolAllow, docs+example.
 - 2026-05-08 — Run 3 baseline p99=63.0ms (D31 reference 61.2ms, cap 1.5x = 91.8ms).
 - 2026-05-08 — Commit 1 complete: validity-window floor (F11). 3 fixtures pass (237 total). Bench p99=56.2ms. 7 gates green.
+- 2026-05-08 — Commit 2 complete: contextTrust per-branch posture override. 3 fixtures pass (240 total). Bench p99=55.2ms. 7 gates green.

@@ -817,6 +817,72 @@ process.stdout.write(String(getContextTrust(contract, 'feature/security/login'))
 }
 _ct_specificity
 
+# ── inline: scopes.tools.perToolAllow unit tests (B2 Phase 1) ───────────────
+printf '\nTool-scope (B2) tests...\n'
+
+_ts_bash_allow() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Bash', commandGlobs: ['npm *'] }
+] } } };
+const sm = scopeMatch(contract, { command: 'npm install lodash', commandClass: 'unknown', tool: 'Bash', targetPath: '', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"tool-allow-tool-scope"'; then
+    ok "tool-scope:bash-allow"
+  else
+    fail "tool-scope:bash-allow" "expected reason=tool-allow-tool-scope on Bash + 'npm install lodash' matching 'npm *', got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_bash_allow
+
+_ts_bash_deny() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Bash', commandGlobs: ['npm *'] }
+] } } };
+const sm = scopeMatch(contract, { command: 'rm -rf /', commandClass: 'destructive-delete', tool: 'Bash', targetPath: '/', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"destructive-delete-not-in-scope"'; then
+    ok "tool-scope:bash-deny"
+  else
+    fail "tool-scope:bash-deny" "expected fall-through to destructive-delete-not-in-scope, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_bash_deny
+
+_ts_per_tool_overrides_general() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Edit', pathGlobs: ['docs/**'] }
+] } } };
+const sm = scopeMatch(contract, { command: '', commandClass: 'unknown', tool: 'Edit', targetPath: 'docs/README.md', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"tool-allow-tool-scope"'; then
+    ok "tool-scope:per-tool-overrides-general"
+  else
+    fail "tool-scope:per-tool-overrides-general" "expected tool-allow-tool-scope on Edit+docs/README.md matching docs/**, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_per_tool_overrides_general
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
