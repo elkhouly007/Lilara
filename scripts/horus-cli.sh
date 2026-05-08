@@ -482,6 +482,7 @@ const path = require("path");
 const { mintOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
 const label = process.argv[3] || null;
 const token = mintOperatorToken(label);
+process.stderr.write("WARNING: Treat this like a credential — don't echo it in shared logs.\n");
 process.stdout.write("Token: " + token + "\n");
 process.stdout.write("Usage: HORUS_OPERATOR_TOKEN=" + token + " horus-cli.sh contract accept\n");
 EOF

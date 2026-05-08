@@ -237,6 +237,47 @@ const STALE_LOCK_MS = 2000;
 
 ---
 
+## D43: consumeOperatorToken Fallback Defeats Atomicity
+
+**Status: OPEN — Wave-2 cleanup pass.**
+
+In `runtime/contract.js`, `consumeOperatorToken()` writes the updated token store atomically (tmp + renameSync), but the `catch` block falls back to a direct `fs.writeFileSync(tokensPath, ...)` if the rename fails. This fallback is non-atomic and can corrupt the file mid-write, defeating the purpose of the tmp+rename pattern. The "try harder" fallback is worse than failing loudly: on rename failure the original file remains readable and consistent; a corrupt write from the fallback breaks all subsequent token operations.
+
+**Recommended path:** drop the fallback entirely. On rename failure, return `false` and let the caller handle it. The `.tmp` file stays as forensic evidence. The original `tokensPath` remains readable. One fewer code path, no corruption risk.
+
+**Owner:** Wave-2 cleanup pass.
+**Blocker for:** nothing — rename failures in practice require FS-level problems that would also affect the direct write; the improvement is principled, not urgent.
+
+---
+
+## D44: Concurrent consumeOperatorToken Race
+
+**Status: OPEN — Wave-2 hardening pass.**
+
+Two processes presenting the same token concurrently can both read it as unused (before either writes back "consumed"), causing both `accept()` calls to succeed. The threat model is low: single-operator + single-pipeline deployments have no realistic concurrent consumption. However, the race is latent.
+
+**Recommended path:** wrap the read-modify-write in `consumeOperatorToken()` with an O_EXCL lockfile mirroring the A5 rate-limit pattern. Lock on entry, unlock in `finally`. Contention returns `false` (conservative). Priority is lower than D43 because D43's fallback removal already tightens the write path; this adds the serialization layer.
+
+**Owner:** Wave-2 hardening pass.
+**Blocker for:** nothing — race requires specific operator misconfiguration (two callers presenting the same token at the same millisecond). Not a practical threat for the intended single-operator use case.
+
+---
+
+## D45: operator-token list and revoke Subcommands Missing
+
+**Status: OPEN — Wave-2 UX pass.**
+
+An operator who mints a token has no UX to inspect the store or invalidate a token they suspect was leaked. The current CLI only supports `mint` and `verify`.
+
+**Recommended path:**
+- `horus-cli.sh operator-token list` — prints `{ token-prefix-8-chars, label, createdAt, usedAt? }` per line (never prints the full token)
+- `horus-cli.sh operator-token revoke <token>` — marks `usedAt` on the entry without consuming it via the normal gate, so a re-presented token fails with `"invalid or already consumed"`
+
+**Owner:** Wave-2 UX pass.
+**Blocker for:** nothing — operators can work around the absence by re-minting and discarding old state.
+
+---
+
 ## D27: secret-scan.js Encapsulation — getPatterns() vs redact(text)
 
 **Status: OPEN — low-priority follow-up, not blocking Wave 1.**
