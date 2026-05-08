@@ -206,6 +206,37 @@ The Codex `post-adapter.js` includes `"fetch"` in its `EXTERNAL_TOOLS` set; the 
 
 ---
 
+## D41: Atomic Write on Rate-Limit State File
+
+**Status: OPEN — Wave-2 cleanup pass.**
+
+`claude/hooks/hook-utils.js:rateLimitCheck()` uses an O_EXCL lockfile to prevent concurrent writers, but the underlying `rate-state.json` is still written with a plain `fs.writeFileSync`. A process killed mid-write leaves a truncated state file; on next read the JSON.parse fails and the rate limiter resets to defaults — allowing a burst through. Other state files in the project (`state.json`, `policy.json`, `provenance-window.json`) use the tmp+renameSync pattern for exactly this reason.
+
+**Recommended path:** in `rateLimitCheck()`, replace the direct `fs.writeFileSync(statePath, ...)` with `fs.writeFileSync(statePath + ".tmp", ...); fs.renameSync(statePath + ".tmp", statePath)`. The O_EXCL lock already serializes writers, so this is a one-call-site change.
+
+**Owner:** Wave-2 cleanup pass.
+**Blocker for:** nothing — torn-write window is narrow (sub-millisecond on modern FS); the O_EXCL lock already prevents concurrent corruption. This closes the remaining single-process-crash edge case.
+
+---
+
+## D42: Document the 2000ms Stale-Lock Threshold
+
+**Status: OPEN — trivial. Any next pass touching hook-utils.js.**
+
+`rateLimitCheck()` steals stale locks older than 2000ms with no inline comment explaining the value. Future readers may question why 2s, or whether it's safe to lower.
+
+**Recommended path:** add a one-line comment above the threshold constant:
+```js
+// 2000ms: well above normal hook execution (typical 5–50ms); well below user-noticeable wait.
+// A slow hook may let a second caller steal the lock — benign: one extra invocation passes through.
+const STALE_LOCK_MS = 2000;
+```
+
+**Owner:** any contributor touching hook-utils.js.
+**Blocker for:** nothing.
+
+---
+
 ## D27: secret-scan.js Encapsulation — getPatterns() vs redact(text)
 
 **Status: OPEN — low-priority follow-up, not blocking Wave 1.**
