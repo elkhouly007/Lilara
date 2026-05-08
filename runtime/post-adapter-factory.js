@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+"use strict";
+
+// post-adapter-factory.js — Shared PostToolUse handler for all 6 harnesses.
+//
+// Extracts the common secret-scan + taint-record logic that was duplicated
+// across claude, opencode, openclaw, codex, clawcode, and antegravity adapters.
+// Each harness adapter becomes a ~5-line wrapper that calls createPostAdapter().
+//
+// D38: createPostAdapter factory; D39: canonical EXTERNAL_TOOLS.
+
+const path = require("path");
+
+// Canonical union of all 6 harness pre-refactor EXTERNAL_TOOLS sets (D39).
+// Must be a superset of every adapter's pre-refactor set.
+// "WebSearch", "Fetch": no current adapter uses these; kept for forward compat.
+const EXTERNAL_TOOLS = new Set([
+  "WebFetch", "web_fetch",
+  "WebSearch",  // no current adapter uses this; kept for forward compat
+  "Fetch",      // no current adapter uses this; kept for forward compat
+  "fetch",
+  "mcp",
+  "curl", "wget",
+  "browser_action", "Browser",
+]);
+
+function sourceLabel(toolName) {
+  const t = String(toolName || "").toLowerCase();
+  if (t.includes("fetch") || t.includes("browser")) return "web-fetch";
+  if (t.includes("mcp")) return "mcp";
+  if (t === "curl" || t === "wget") return "curl";
+  return "external";
+}
+
+/**
+ * Wire a PostToolUse stdin handler for a specific harness.
+ * Reads stdin, runs secret-scan + taint-record, writes stdin back to stdout.
+ *
+ * @param {object} opts
+ * @param {string} opts.harnessName   — human label (used in warning prefix)
+ * @param {string} opts.rateLimitKey  — unique per-harness key for rateLimitCheck + hookLog
+ */
+function createPostAdapter({ harnessName, rateLimitKey }) {
+  const { readStdin, collectText, hookLog, rateLimitCheck } = require(
+    path.join(__dirname, "..", "claude", "hooks", "hook-utils")
+  );
+  const { scanSecrets } = require("./secret-scan");
+  const { recordExternalRead } = require("./taint");
+
+  readStdin()
+    .then((raw) => {
+      if (process.env.HORUS_KILL_SWITCH === "1") {
+        process.stdout.write(raw);
+        return;
+      }
+
+      if (!rateLimitCheck(rateLimitKey)) {
+        process.stdout.write(raw);
+        return;
+      }
+
+      try {
+        const input = JSON.parse(raw || "{}");
+        // PostToolUse payload shape: { tool_use_id, tool_name, output, ... }
+        const toolName   = String(input.tool_name || input.tool || "");
+        const outputText = String(input.output || input.tool_output || input.content || "");
+        const text = outputText || collectText(input);
+
+        // 1. Secret scan — warn if tool output contains a credential pattern.
+        const hit = scanSecrets(text);
+        if (hit) {
+          process.stderr.write(`[Agent Runtime Guard] Possible ${hit.name} detected in tool output.\n`);
+          process.stderr.write("[Agent Runtime Guard] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
+          try { hookLog(rateLimitKey, "WARN", hit.name); } catch { /* log I/O is non-fatal */ }
+        }
+
+        // 2. Taint record — annotate external-source outputs for F10 taint floor.
+        if (EXTERNAL_TOOLS.has(toolName) && text) {
+          try { recordExternalRead(text, sourceLabel(toolName)); } catch { /* provenance is best-effort */ }
+        }
+      } catch { /* malformed payload — non-blocking */ }
+
+      process.stdout.write(raw);
+    })
+    .catch(() => process.exit(0));
+}
+
+module.exports = { createPostAdapter, EXTERNAL_TOOLS, sourceLabel };

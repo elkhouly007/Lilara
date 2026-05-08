@@ -42,20 +42,24 @@ for harness in claude opencode openclaw codex clawcode antegravity; do
 
   ok=1
 
-  if ! grep -qF "secret-scan" "$adapter"; then
-    fail "$harness: secret-scan not required in $adapter"; ok=0
+  if ! grep -qF "secret-scan" "$adapter" && ! grep -qF "post-adapter-factory" "$adapter"; then
+    fail "$harness: secret-scan not required in $adapter (and not delegating to factory)"; ok=0
   fi
 
-  if ! grep -qF "taint" "$adapter"; then
-    fail "$harness: taint not required in $adapter"; ok=0
+  if ! grep -qF "taint" "$adapter" && ! grep -qF "post-adapter-factory" "$adapter"; then
+    fail "$harness: taint not required in $adapter (and not delegating to factory)"; ok=0
   fi
 
-  if ! grep -qF "scanSecrets" "$adapter"; then
-    fail "$harness: scanSecrets() not called in $adapter"; ok=0
+  if ! grep -qF "scanSecrets" "$adapter" && ! grep -qF "post-adapter-factory" "$adapter"; then
+    fail "$harness: scanSecrets() not called in $adapter (and not delegating to factory)"; ok=0
   fi
 
-  if ! grep -qF "recordExternalRead" "$adapter"; then
-    fail "$harness: recordExternalRead() not called in $adapter"; ok=0
+  if ! grep -qF "recordExternalRead" "$adapter" && ! grep -qF "post-adapter-factory" "$adapter"; then
+    fail "$harness: recordExternalRead() not called in $adapter (and not delegating to factory)"; ok=0
+  fi
+
+  if ! grep -qF "createPostAdapter" "$adapter"; then
+    fail "$harness: adapter does not use createPostAdapter factory — drift risk"; ok=0
   fi
 
   if [ "$ok" -eq 1 ]; then
@@ -68,4 +72,4 @@ if [ "$FAILED" -ne 0 ]; then
   printf 'check-post-adapter-parity FAILED — see errors above.\n' >&2
   exit 1
 fi
-printf 'check-post-adapter-parity passed — all 6 harnesses have PostToolUse secret-scan + taint.\n'
+printf 'check-post-adapter-parity passed — all 6 harnesses use createPostAdapter (secret-scan + taint).\n'
