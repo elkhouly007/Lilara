@@ -883,6 +883,44 @@ process.stdout.write(JSON.stringify(sm));
 }
 _ts_per_tool_overrides_general
 
+# ── inline: B2 Phase 1 integration test — all 3 behaviors together ──────────
+printf '\nB2 Phase 1 integration tests...\n'
+
+_b2_integration_all_three() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch, isInActiveWindow, getContextTrust } = require('./runtime/contract');
+const contract = {
+  validity: {
+    activeHoursUtc: { start: '00:00', end: '23:59' },
+    activeDays: ['mon','tue','wed','thu','fri','sat','sun']
+  },
+  contextTrust: [{ branchPattern: 'feature/*', trustPosture: 'relaxed' }],
+  scopes: {
+    payloadClasses: { A: 'allow' },
+    tools: { perToolAllow: [{ tool: 'Bash', commandGlobs: ['npm *'] }] }
+  }
+};
+const out = {
+  validity: isInActiveWindow(contract).inWindow,
+  trust:    getContextTrust(contract, 'feature/x'),
+  scope:    scopeMatch(contract, { command: 'npm install', commandClass: 'unknown', tool: 'Bash', targetPath: '', payloadClass: 'A' }).reason
+};
+process.stdout.write(JSON.stringify(out));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"validity":true' \
+  && echo "$result" | grep -qF '"trust":"relaxed"' \
+  && echo "$result" | grep -qF '"scope":"tool-allow-tool-scope"'; then
+    ok "b2-phase-1:integration-all-three"
+  else
+    fail "b2-phase-1:integration-all-three" "all 3 wires expected; got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_b2_integration_all_three
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

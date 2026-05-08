@@ -19,3 +19,4 @@ Append-only. One line per checkpoint.
 - 2026-05-08 — Run 3 baseline p99=63.0ms (D31 reference 61.2ms, cap 1.5x = 91.8ms).
 - 2026-05-08 — Commit 1 complete: validity-window floor (F11). 3 fixtures pass (237 total). Bench p99=56.2ms. 7 gates green.
 - 2026-05-08 — Commit 2 complete: contextTrust per-branch posture override. 3 fixtures pass (240 total). Bench p99=55.2ms. 7 gates green.
+- 2026-05-08 — Commit 3 complete: scopes.tools.perToolAllow per-tool allowlist. 3 fixtures pass (243 total). Bench p99=56.0ms. 7 gates green.
