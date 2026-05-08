@@ -15,6 +15,7 @@
 #   check       Fast runtime + unit checks (< 30 s). No fixtures, no audit scans, no bench.
 #   ci          Full CI superset: check + audit + fixtures + bench. Matches GitHub Actions.
 #   contract    Manage the upfront security contract (init/accept/show/verify/diff/amend).
+#   operator-token  Manage one-shot operator tokens for non-TTY contract acceptance (mint/verify).
 #   fixtures    Run all fixture-based tests.
 #   eval        Measure decision quality: run labeled corpus through runtime.decide(), report FP/FN rates.
 #   integrity   Verify hook file SHA-256 integrity baseline.
@@ -460,6 +461,57 @@ EOF
       *)
         printf '%sUnknown contract subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: init, accept, show, verify, status, diff, amend\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── operator-token ────────────────────────────────────────────────────────
+  # Manage one-shot operator tokens for non-TTY contract acceptance.
+  # Usage:
+  #   horus-cli.sh operator-token mint [label]   Mint a fresh one-shot token.
+  #   horus-cli.sh operator-token verify <token>  Check validity without consuming it.
+  operator-token)
+    sub="${1:-mint}"
+    shift || true
+    case "$sub" in
+      mint)
+        label="${1:-}"
+        node - "$root" "$label" <<'EOF'
+const path = require("path");
+const { mintOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
+const label = process.argv[3] || null;
+const token = mintOperatorToken(label);
+process.stderr.write("WARNING: Treat this like a credential — don't echo it in shared logs.\n");
+process.stdout.write("Token: " + token + "\n");
+process.stdout.write("Usage: HORUS_OPERATOR_TOKEN=" + token + " horus-cli.sh contract accept\n");
+EOF
+        ;;
+      verify)
+        token="${1:-}"
+        if [ -z "$token" ]; then
+          printf '%sUsage: horus-cli.sh operator-token verify <token>%s\n' "$RED" "$RESET" >&2
+          exit 2
+        fi
+        node - "$root" "$token" <<'EOF'
+const path = require("path");
+const fs = require("fs");
+const { operatorTokensPath } = require(path.join(process.argv[2], "runtime/contract"));
+const want = process.argv[3];
+const p = operatorTokensPath();
+let lines;
+try { lines = fs.readFileSync(p, "utf8").split("\n").filter(Boolean); }
+catch { process.stdout.write("Token store not found.\n"); process.exit(1); }
+const rec = lines.map(l => { try { return JSON.parse(l); } catch { return null; } })
+  .filter(Boolean).find(r => r.token === want);
+if (!rec) { process.stdout.write("NOT FOUND: token not in store.\n"); process.exit(1); }
+if (rec.usedAt) { process.stdout.write("CONSUMED: token already used at " + rec.usedAt + ".\n"); process.exit(1); }
+process.stdout.write("VALID: token available (label=" + (rec.label || "none") + ", created=" + rec.createdAt + ")\n");
+EOF
+        ;;
+      *)
+        printf '%sUnknown operator-token subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: mint, verify\n' >&2
         exit 2
         ;;
     esac

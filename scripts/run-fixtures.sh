@@ -610,6 +610,93 @@ else
   fail "rate-limit:concurrent" "$_rl_result"
 fi
 
+# ── inline: accept-gate unit tests (B3) ──────────────────────────────────────
+printf '\nAccept-gate (B3) operator-token tests...\n'
+
+_tmpstate_b3="$(mktemp -d)"
+
+# 1. mint returns a 64-char hex token
+_b3_token=$(node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+const { mintOperatorToken } = require('./runtime/contract');
+process.stdout.write(mintOperatorToken('ci-test'));
+" -- "$_tmpstate_b3" 2>/dev/null)
+if echo "$_b3_token" | grep -qE '^[0-9a-f]{64}$'; then
+  ok "accept-gate:mint-format"
+else
+  fail "accept-gate:mint-format" "expected 64-char hex, got: '${_b3_token:0:80}'"
+fi
+
+# 2. consume returns true on first use
+_b3_c1=$(node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+const { consumeOperatorToken } = require('./runtime/contract');
+process.stdout.write(String(consumeOperatorToken(process.argv[2])));
+" -- "$_tmpstate_b3" "$_b3_token" 2>/dev/null)
+if [ "$_b3_c1" = "true" ]; then
+  ok "accept-gate:consume-first"
+else
+  fail "accept-gate:consume-first" "expected true, got: '$_b3_c1'"
+fi
+
+# 3. consume returns false on second use (already consumed)
+_b3_c2=$(node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+const { consumeOperatorToken } = require('./runtime/contract');
+process.stdout.write(String(consumeOperatorToken(process.argv[2])));
+" -- "$_tmpstate_b3" "$_b3_token" 2>/dev/null)
+if [ "$_b3_c2" = "false" ]; then
+  ok "accept-gate:consume-second-rejected"
+else
+  fail "accept-gate:consume-second-rejected" "expected false (already consumed), got: '$_b3_c2'"
+fi
+
+# 4. no signal (piped stdin, no env token) → "refusing to accept" error
+_b3_nosig_out=$(echo "" | node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+delete process.env.HORUS_OPERATOR_TOKEN;
+const { accept } = require('./runtime/contract');
+try { accept(process.argv[1]); } catch(e) { process.stderr.write(e.message); process.exit(1); }
+" -- "$_tmpstate_b3" 2>&1) || true
+if echo "$_b3_nosig_out" | grep -q "refusing to accept"; then
+  ok "accept-gate:no-signal-error"
+else
+  fail "accept-gate:no-signal-error" "expected 'refusing to accept', got: '${_b3_nosig_out:0:120}'"
+fi
+
+# 5. piped stdin + fresh token → gate passes; fails on missing draft (not gate error)
+_b3_fresh=$(node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+const { mintOperatorToken } = require('./runtime/contract');
+process.stdout.write(mintOperatorToken('ci-test-2'));
+" -- "$_tmpstate_b3" 2>/dev/null)
+_b3_tok_out=$(echo "" | node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+process.env.HORUS_OPERATOR_TOKEN = process.argv[2];
+const { accept } = require('./runtime/contract');
+try { accept(process.argv[1]); } catch(e) { process.stderr.write(e.message); process.exit(1); }
+" -- "$_tmpstate_b3" "$_b3_fresh" 2>&1) || true
+if echo "$_b3_tok_out" | grep -q "no draft found"; then
+  ok "accept-gate:valid-token-passes-gate"
+else
+  fail "accept-gate:valid-token-passes-gate" "expected 'no draft found' after gate pass, got: '${_b3_tok_out:0:120}'"
+fi
+
+# 6. piped stdin + consumed token → "invalid or already consumed" error
+_b3_used_out=$(echo "" | node -e "
+process.env.HORUS_STATE_DIR = process.argv[1];
+process.env.HORUS_OPERATOR_TOKEN = process.argv[2];
+const { accept } = require('./runtime/contract');
+try { accept(process.argv[1]); } catch(e) { process.stderr.write(e.message); process.exit(1); }
+" -- "$_tmpstate_b3" "$_b3_fresh" 2>&1) || true
+if echo "$_b3_used_out" | grep -q "invalid or already consumed"; then
+  ok "accept-gate:consumed-token-rejected"
+else
+  fail "accept-gate:consumed-token-rejected" "expected 'invalid or already consumed', got: '${_b3_used_out:0:120}'"
+fi
+
+rm -rf "$_tmpstate_b3"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
