@@ -225,3 +225,71 @@ Tokens are stored in `~/.horus/operator-tokens.jsonl` (mode 0600). Each token is
 ### Security rationale
 
 The old `accept()` checked that none of the known harness session env vars were present ("defense by absence"). Novel harnesses whose env var was not in the allowlist bypassed this check silently (Q2 problem). The positive-signal model inverts this: **all non-TTY accept calls are denied unless a valid one-shot token is presented**. There is no env-var allowlist to bypass.
+
+---
+
+## v2 — Validity Windows
+
+`validity.activeHoursUtc` and `validity.activeDays` constrain when contract-allow demotions
+take effect. When the current UTC time is outside the window OR the current UTC weekday is
+not in `activeDays`:
+
+- Payload classes set to `"warn"` or `"block"` in `scopes.payloadClasses` are blocked
+  (F11 floor; `decisionSource: "validity-outside-window"`, `floorFired: "validity-window"`).
+- Payload classes set to `"allow"` (default for A; configurable for B/C) get a
+  `validityWarning: { code: "outside-window", reason }` annotation on the decision return
+  + journal entry; action unchanged.
+- A window with `start > end` is interpreted as crossing midnight UTC.
+
+```json
+"validity": {
+  "activeHoursUtc": { "start": "09:00", "end": "18:00" },
+  "activeDays": ["mon", "tue", "wed", "thu", "fri"]
+}
+```
+
+## v2 — ContextTrust Per-Branch Override
+
+`contextTrust` is an array of `{branchPattern, trustPosture}` entries. Order semantics
+quoted verbatim from `schemas/horus.contract.schema.json`:
+
+> *"v2: Per-branch trust posture overrides. Entries are evaluated in order; first match wins.
+> Falls back to top-level trustPosture if no entry matches."*
+
+The first entry whose glob matches the current branch overrides the project-default
+trust posture (`horus.config.json` `runtime.trust_posture`). Affects risk-score posture
+adjustment only — does not modify scopes or floors.
+
+**Authors must order entries from most-specific to least-specific.** The runtime evaluates
+in list order and does not compute glob specificity. `branchPattern` uses the same glob
+syntax as `forcePushAllow` and `protected`.
+
+```json
+"contextTrust": [
+  { "branchPattern": "feature/security/*", "trustPosture": "strict"  },
+  { "branchPattern": "feature/*",          "trustPosture": "relaxed" },
+  { "branchPattern": "main",               "trustPosture": "strict"  }
+]
+```
+
+## v2 — scopes.tools.perToolAllow
+
+Per-tool allowlists provide explicit pre-approval for specific tool + command + path
+combinations. Each entry matches when `input.tool === entry.tool`; optional
+`commandGlobs` and `pathGlobs` further constrain the match (omitted = unconstrained).
+On match, the decision source is `contract-allow-tool-scope` (distinct from the W11
+`contract-allow` source), and the W11 escalate→allow carve-out applies.
+
+`perToolAllow` is **additive**: an entry can grant an explicit allow path but cannot make
+the general scope deny. To restrict per-tool, combine with restrictive general scope.
+
+```json
+"scopes": {
+  "tools": {
+    "perToolAllow": [
+      { "tool": "Bash", "commandGlobs": ["npm *", "node *"] },
+      { "tool": "Edit", "pathGlobs":    ["docs/**", "tests/**"] }
+    ]
+  }
+}
+```

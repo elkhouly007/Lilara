@@ -697,6 +697,230 @@ fi
 
 rm -rf "$_tmpstate_b3"
 
+# ── inline: validity-window unit tests (B2 Phase 1) ─────────────────────────
+printf '\nValidity-window (B2) tests...\n'
+
+_validity_in_window() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeHoursUtc: { start: '09:00', end: '18:00' } } };
+const now = new Date(Date.UTC(2026, 4, 8, 14, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":true'; then
+    ok "validity:in-window-allow"
+  else
+    fail "validity:in-window-allow" "expected inWindow=true at 14:00 UTC inside 09:00-18:00, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_in_window
+
+_validity_out_window() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeHoursUtc: { start: '09:00', end: '18:00' } } };
+const now = new Date(Date.UTC(2026, 4, 8, 22, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":false'; then
+    ok "validity:out-window-block"
+  else
+    fail "validity:out-window-block" "expected inWindow=false at 22:00 UTC outside 09:00-18:00, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_out_window
+
+_validity_wrong_dow() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { isInActiveWindow } = require('./runtime/contract');
+const contract = { validity: { activeDays: ['mon','tue','wed','thu','fri'] } };
+const now = new Date(Date.UTC(2026, 4, 10, 12, 0, 0));
+process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"inWindow":false'; then
+    ok "validity:wrong-day-of-week"
+  else
+    fail "validity:wrong-day-of-week" "expected inWindow=false on Sunday with weekday-only activeDays, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_validity_wrong_dow
+
+# ── inline: contextTrust unit tests (B2 Phase 1) ────────────────────────────
+printf '\nContextTrust (B2) tests...\n'
+
+_ct_main_strict() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [{ branchPattern: 'main', trustPosture: 'strict' }] };
+process.stdout.write(String(getContextTrust(contract, 'main')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "strict" ]; then
+    ok "context-trust:main-strict"
+  else
+    fail "context-trust:main-strict" "expected 'strict' on branch=main, got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_main_strict
+
+_ct_feature_relaxed() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [{ branchPattern: 'feature/*', trustPosture: 'relaxed' }] };
+process.stdout.write(String(getContextTrust(contract, 'feature/x')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "relaxed" ]; then
+    ok "context-trust:feature-relaxed"
+  else
+    fail "context-trust:feature-relaxed" "expected 'relaxed' on branch=feature/x with feature/* glob, got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_feature_relaxed
+
+_ct_specificity() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [
+  { branchPattern: 'feature/security/*', trustPosture: 'strict' },
+  { branchPattern: 'feature/*',          trustPosture: 'relaxed' }
+] };
+process.stdout.write(String(getContextTrust(contract, 'feature/security/login')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "strict" ]; then
+    ok "context-trust:specificity"
+  else
+    fail "context-trust:specificity" "expected 'strict' from first-match feature/security/* (ordered before feature/*), got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_specificity
+
+# ── inline: scopes.tools.perToolAllow unit tests (B2 Phase 1) ───────────────
+printf '\nTool-scope (B2) tests...\n'
+
+_ts_bash_allow() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Bash', commandGlobs: ['npm *'] }
+] } } };
+const sm = scopeMatch(contract, { command: 'npm install lodash', commandClass: 'unknown', tool: 'Bash', targetPath: '', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"tool-allow-tool-scope"'; then
+    ok "tool-scope:bash-allow"
+  else
+    fail "tool-scope:bash-allow" "expected reason=tool-allow-tool-scope on Bash + 'npm install lodash' matching 'npm *', got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_bash_allow
+
+_ts_bash_deny() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Bash', commandGlobs: ['npm *'] }
+] } } };
+const sm = scopeMatch(contract, { command: 'rm -rf /', commandClass: 'destructive-delete', tool: 'Bash', targetPath: '/', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"destructive-delete-not-in-scope"'; then
+    ok "tool-scope:bash-deny"
+  else
+    fail "tool-scope:bash-deny" "expected fall-through to destructive-delete-not-in-scope, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_bash_deny
+
+_ts_per_tool_overrides_general() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch } = require('./runtime/contract');
+const contract = { scopes: { tools: { perToolAllow: [
+  { tool: 'Edit', pathGlobs: ['docs/**'] }
+] } } };
+const sm = scopeMatch(contract, { command: '', commandClass: 'unknown', tool: 'Edit', targetPath: 'docs/README.md', payloadClass: 'A' });
+process.stdout.write(JSON.stringify(sm));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"reason":"tool-allow-tool-scope"'; then
+    ok "tool-scope:per-tool-overrides-general"
+  else
+    fail "tool-scope:per-tool-overrides-general" "expected tool-allow-tool-scope on Edit+docs/README.md matching docs/**, got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_ts_per_tool_overrides_general
+
+# ── inline: B2 Phase 1 integration test — all 3 behaviors together ──────────
+printf '\nB2 Phase 1 integration tests...\n'
+
+_b2_integration_all_three() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { scopeMatch, isInActiveWindow, getContextTrust } = require('./runtime/contract');
+const contract = {
+  validity: {
+    activeHoursUtc: { start: '00:00', end: '23:59' },
+    activeDays: ['mon','tue','wed','thu','fri','sat','sun']
+  },
+  contextTrust: [{ branchPattern: 'feature/*', trustPosture: 'relaxed' }],
+  scopes: {
+    payloadClasses: { A: 'allow' },
+    tools: { perToolAllow: [{ tool: 'Bash', commandGlobs: ['npm *'] }] }
+  }
+};
+const out = {
+  validity: isInActiveWindow(contract).inWindow,
+  trust:    getContextTrust(contract, 'feature/x'),
+  scope:    scopeMatch(contract, { command: 'npm install', commandClass: 'unknown', tool: 'Bash', targetPath: '', payloadClass: 'A' }).reason
+};
+process.stdout.write(JSON.stringify(out));
+" -- "$tmpstate" 2>/dev/null)
+  if echo "$result" | grep -qF '"validity":true' \
+  && echo "$result" | grep -qF '"trust":"relaxed"' \
+  && echo "$result" | grep -qF '"scope":"tool-allow-tool-scope"'; then
+    ok "b2-phase-1:integration-all-three"
+  else
+    fail "b2-phase-1:integration-all-three" "all 3 wires expected; got: $result"
+  fi
+  rm -rf "$tmpstate"
+}
+_b2_integration_all_three
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

@@ -125,6 +125,19 @@ function decide(input = {}) {
 
   // ── Section 4.6 precedence matrix: contract verification (Steps 2 + 5) ──
   const contract    = getContract(discovered.projectRoot || process.cwd());
+
+  // B2 commit 2: contextTrust per-branch posture override.
+  // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
+  if (contract && enriched.branch) {
+    try {
+      const { getContextTrust } = require("./contract");
+      const overridePosture = getContextTrust(contract, enriched.branch);
+      if (overridePosture) {
+        enriched.trustPosture = overridePosture;
+      }
+    } catch { /* override is best-effort; fall back to project policy */ }
+  }
+
   const cmdClass    = classifyCommand(input.command || "");
   const isGated     = GATED_COMMAND_CLASSES.has(cmdClass);
   let contractAllow = false;
@@ -179,6 +192,31 @@ function decide(input = {}) {
     // No contract + strict mode + gated class → block
     return buildEarlyBlock("no-contract-strict", enriched, discovered, input,
       "no accepted contract — run: horus-cli contract init && horus-cli contract accept");
+  }
+
+  // F11: validity-window floor — contract-defined active hours/days.
+  // Fires after scopeMatch capture so contractAllow has a chance to set,
+  // and before risk classification so the floor can short-circuit.
+  let validityResult = { inWindow: true, reason: "no-validity-block" };
+  let validityWarning = null;
+  if (contract) {
+    try {
+      const { isInActiveWindow } = require("./contract");
+      validityResult = isInActiveWindow(contract);
+    } catch { /* helper unavailable → treat as in-window (fail-open per zero-dep policy) */ }
+
+    if (!validityResult.inWindow) {
+      const payloadClass = String(input.payloadClass || enriched.payloadClass || "A").toUpperCase();
+      const pcAction     = contract?.scopes?.payloadClasses?.[payloadClass] || "allow";
+      if (pcAction === "warn" || pcAction === "block") {
+        return buildEarlyBlock(
+          "validity-window", enriched, discovered, input,
+          `contract validity inactive (${validityResult.reason}); payloadClass=${payloadClass} action=${pcAction} — failing closed`
+        );
+      }
+      // Non-gated payload class outside-window → annotate, action unchanged.
+      validityWarning = { code: "outside-window", reason: validityResult.reason };
+    }
   }
 
   const learnedAllow = isLearnedAllowed(enriched);
@@ -246,17 +284,20 @@ function decide(input = {}) {
   // Step 11: contract-allow — demotes baseline only; never demotes hard floors.
   // B4: protects require-review (protected-branch floor) from demotion.
   // W11: tool-allow reason permits escalate demotion (explicit per-tool pre-approval).
-  const canDemoteEscalate = contractAllow && contractReason === "tool-allow-matched";
+  const canDemoteEscalate = contractAllow && (
+    contractReason === "tool-allow-matched" ||
+    contractReason === "tool-allow-tool-scope"
+  );
   if (contractAllow &&
       risk.level !== "critical" &&
       action !== "block" &&
       action !== "require-review" &&
       (action !== "escalate" || canDemoteEscalate)) {
     action = "allow";
-    source = "contract-allow";
+    source = contractReason === "tool-allow-tool-scope" ? "contract-allow-tool-scope" : "contract-allow";
   }
 
-  if (source !== "learned-allow" && source !== "contract-allow" && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
+  if (source !== "learned-allow" && !source.startsWith("contract-allow") && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
     consumeAutoAllowOnce(policyKey);
     action = "allow";
     source = "auto-allow-once";
@@ -265,7 +306,7 @@ function decide(input = {}) {
   const trajectory = getSessionTrajectory();
   const trajectoryThreshold = Number(process.env.HORUS_TRAJECTORY_THRESHOLD || "3");
   let trajectoryNudge = null;
-  if (source !== "learned-allow" && source !== "auto-allow-once" && source !== "contract-allow" && trajectory.recentEscalations >= trajectoryThreshold) {
+  if (source !== "learned-allow" && source !== "auto-allow-once" && !source.startsWith("contract-allow") && trajectory.recentEscalations >= trajectoryThreshold) {
     if (action === "allow") { action = "route"; trajectoryNudge = "allow\u2192route"; }
     else if (action === "route") { action = "require-review"; trajectoryNudge = "route\u2192require-review"; }
     else if (action === "require-review") { action = "escalate"; trajectoryNudge = "require-review\u2192escalate"; }
@@ -290,6 +331,7 @@ function decide(input = {}) {
   if (discovered.hasConfig === false && discovered.primaryStack) explanationParts.push('config=missing');
   if (projectPolicy.trustPosture) explanationParts.push(`trust=${projectPolicy.trustPosture}`);
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
+  if (validityWarning) explanationParts.push("validity-warn=outside-window");
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -297,8 +339,8 @@ function decide(input = {}) {
   if (promotionGuidance.stage !== "new" && promotionGuidance.stage !== "promoted") {
     explanationParts.push(`promotion=${promotionGuidance.stage}`);
   }
-  if (source === "contract-allow" && contractId)  explanationParts.push(`contract=${contractId}`);
-  if (source === "contract-allow" && contractReason) explanationParts.push(`scope=${contractReason}`);
+  if (source.startsWith("contract-allow") && contractId)  explanationParts.push(`contract=${contractId}`);
+  if (source.startsWith("contract-allow") && contractReason) explanationParts.push(`scope=${contractReason}`);
 
   const lifecycleSummary = promotionState
     ? [
@@ -339,6 +381,7 @@ function decide(input = {}) {
     trajectoryNudge,
     intent: intentResult.intent,
     context: risk.context,
+    ...(validityWarning ? { validityWarning } : {}),
   };
 
   append({
@@ -356,6 +399,7 @@ function decide(input = {}) {
     ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
     ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
+    ...(validityWarning ? { validityWarning } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 
