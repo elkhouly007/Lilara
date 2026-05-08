@@ -333,6 +333,91 @@ A4's `jredact:redact-on` / `jredact:redact-off` tests live inline in `scripts/ru
 
 ---
 
+## D27: A2 Taint Correlator — Token Match Parameters
+
+**Status: RESOLVED — implemented in `runtime/provenance-correlator.js` (Wave 1 A2, PR #12).**
+
+**Date:** 2026-05-07
+
+**Decision: `MIN_TOKEN_LENGTH=6`, flag-style args excluded from per-token matching, exact command match checked first.**
+
+Three choices locked the taint correlator design:
+
+1. **`MIN_TOKEN_LENGTH = 6`** — tokens shorter than 6 chars (e.g. `ls`, `cat`, `rm`) are ubiquitous in shell commands and are not diagnostic of injection. 6 chars catches meaningful tokens like filenames, URLs, and identifiers while excluding noise. Setting it lower (e.g. 3) produces too many false positives; higher (e.g. 10) misses short but significant tokens.
+
+2. **Flag-style arg filter** (`/^-{1,2}[a-z]/i`) — command-line flags (`-f`, `--force`, `--rm`) also appear in external content and produce false positives. They are excluded from per-token matching; only non-flag tokens are tested.
+
+3. **Exact command match first** — if the full command string (trimmed) appears verbatim inside any external read content, that is the strongest taint signal and is checked before the per-token loop. This catches injection where the payload includes the entire command.
+
+**Alternatives considered:**
+- Semantic similarity (embedding distance): rejected — requires LLM in the loop; too slow for a PreToolUse hook that must complete in <1 ms.
+- Edit distance / fuzzy match: rejected — would require a dependency or >50 LOC; zero-dep invariant must be preserved.
+
+**Owner:** Khouly
+
+---
+
+## D28: A2 Provenance Window — TTL, Cap, File Mode
+
+**Status: RESOLVED — implemented in `runtime/session-context.js` (Wave 1 A2, PR #12).**
+
+**Date:** 2026-05-07
+
+**Decision: 5-minute TTL, max 20 entries, mode 0600, best-effort (never blocks).**
+
+1. **5-minute TTL (`PROVENANCE_MAX_AGE_MS = 300_000`)** — the threat model is same-session injection: attacker-controlled content is fetched by a WebFetch or similar tool, then the agent is prompted to run a command using that content. 5 minutes covers most agentic loops without carrying stale data into unrelated sessions. The system clock comparison is per-read at the taint-check call site.
+
+2. **20-entry cap** — prevents unbounded disk growth in long sessions with many external reads. Oldest entries are dropped when the cap is reached. 20 is large enough for a realistic agentic web-research session.
+
+3. **Mode 0600** — provenance window is stored at `~/.horus/provenance-window.json`. 0600 limits read access to the owner, consistent with all other Horus state files.
+
+4. **Best-effort, never blocking** — the taint floor fires on `require-review` (not `block`). `correlateCommand` and `recordExternalRead` are wrapped in try/catch at every call site. A file I/O failure in the provenance window cannot break a PreToolUse hook call.
+
+**Owner:** Khouly
+
+---
+
+## D29: A3 Post-Adapter Split — Why Claude Gets output-sanitizer.js, Others Get post-adapter.js
+
+**Status: RESOLVED — implemented across all 6 harnesses (Wave 1 A3, PR #13).**
+
+**Date:** 2026-05-07
+
+**Decision: Claude harness extends the existing `claude/hooks/output-sanitizer.js`; OpenCode, OpenClaw, Codex, Clawcode, antegravity each get a new `<harness>/hooks/post-adapter.js`.**
+
+Claude Code already had `output-sanitizer.js` (shipped in W8 — the initial PostToolUse implementation). The two choices were:
+
+- **Option A: Replace output-sanitizer.js with a uniform post-adapter.js** — would require migrating existing Claude hook wiring, updating `hooks.json`, and regenerating the SHA-256 integrity baseline. Scope: large.
+- **Option B: Extend output-sanitizer.js for Claude, add post-adapter.js for others** — Claude keeps its wiring intact; the new harnesses follow the same pattern as one another. Scope: minimal Claude change, uniform adapter files for new harnesses.
+
+Option B was chosen. `output-sanitizer.js` gained the taint recording call (`recordExternalRead`) without changing its secret-scanning or hook-wiring contract. The other five harnesses received identical `post-adapter.js` files that do both secret scanning and taint recording from the start. This avoids a disruptive rename while achieving full functional parity.
+
+**Owner:** Khouly
+
+---
+
+## D30: A4 Redaction Scope — Only targetPath and notes Fields Are Redacted
+
+**Status: RESOLVED — implemented in `runtime/decision-journal.js:append()` (Wave 1 A4, PR #9, merged).**
+
+**Date:** 2026-05-07
+
+**Decision: `redactInJournal=true` applies redaction only to `targetPath` and `notes`; structural fields (action, riskLevel, riskScore, tool, branch, reasonCodes) are never redacted.**
+
+Three considerations shaped this choice:
+
+1. **Structural fields are not free-text and cannot carry secrets.** `action` is one of a small enum (allow, block, require-review, etc.); `riskLevel` is low/medium/high/critical; `riskScore` is a number; `tool` and `branch` are short identifiers controlled by the harness, not user content; `reasonCodes` are internal decision codes. None of these can embed a secret.
+
+2. **`targetPath` and `notes` are free-text and can embed user-provided content.** `targetPath` is the path the agent is operating on — may include project-specific filenames or content. `notes` is the explanation field populated by the risk engine and can include command fragments. Both are the correct redaction targets.
+
+3. **Redaction before the 256-char slice** — the slice is applied after redaction so a secret that begins within the 256-char window but spans its boundary is still caught. Order: `redactText(text).slice(0, 256)`.
+
+**Why not redact all string fields?** Journal consumers (replay, analytics, dashboard) need structural fields to be stable and machine-readable. Redacting `tool` or `branch` would break JSONL replay assertions in `check-decision-replay.sh`.
+
+**Owner:** Khouly
+
+---
+
 ## D31: bench-runtime-decision.sh — Win32 Machine-Load Noise At p99
 
 **Status: RESOLVED by documentation. No code change needed.**
@@ -345,6 +430,20 @@ On 2026-05-08, `bench-runtime-decision.sh` produced two consecutive p99 readings
 
 **Recommended action:** if bench fails in CI on any single run, re-run once before treating it as a hard stop. A second consecutive failure is a real regression. Document this in `SECURITY_MODEL.md` or bench runner header as a known Win32 behaviour.
 **Priority:** low — monitoring only.
+
+**Wave 2 empirical validation (2026-05-08, 5 runs on master HEAD `dc9bb5d`):**
+
+| Run | p50 | p95 | p99 |
+|---|---|---|---|
+| 1 | 39.312ms | 61.300ms | 68.919ms |
+| 2 | 38.041ms | 59.830ms | 67.479ms |
+| 3 | 36.959ms | 53.244ms | 60.116ms |
+| 4 | 36.804ms | 53.091ms | 61.231ms |
+| 5 | 36.585ms | 52.570ms | 60.161ms |
+
+p99 spread: 60.116ms – 68.919ms (8.8ms range, 14.4% of median 61.231ms). Under 30% threshold → **accepted noise, no follow-up item**. Scoped-baseline self-correction is sufficient.
+
+B3 branch bench (same session, `feat/b3-accept-gate-hardening`): p99=56.895ms — within cap (85.782ms). B3 does not touch `decision-engine.js:decide()` — not a hot-path regression.
 
 ---
 
