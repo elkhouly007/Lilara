@@ -179,4 +179,42 @@ function resetCache() {
   _stateCache = null;
 }
 
-module.exports = { paths, loadState, saveState, getSessionRisk, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache };
+// ---------------------------------------------------------------------------
+// Provenance window — stores recent external-read annotations for taint.js
+// ---------------------------------------------------------------------------
+
+const PROVENANCE_MAX_AGE_MS  = 300_000; // 5 minutes hard TTL
+const PROVENANCE_MAX_ENTRIES = 20;
+
+function provenanceWindowPath() {
+  return path.join(paths().baseDir, "provenance-window.json");
+}
+
+function recordExternalRead(content, source) {
+  try {
+    ensureBaseDir();
+    const p = provenanceWindowPath();
+    let window = [];
+    try { window = JSON.parse(fs.readFileSync(p, "utf8")); } catch { /* first call */ }
+    const now = Date.now();
+    // Prune stale entries
+    window = window.filter((e) => (now - (e.ts || 0)) < PROVENANCE_MAX_AGE_MS);
+    window.push({ content: String(content || "").slice(0, 4096), source: String(source || "external"), ts: now });
+    if (window.length > PROVENANCE_MAX_ENTRIES) window = window.slice(-PROVENANCE_MAX_ENTRIES);
+    const tmp = p + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(window), { mode: 0o600 });
+    fs.renameSync(tmp, p);
+  } catch { /* provenance tracking is best-effort */ }
+}
+
+function getProvenanceWindow(windowSeconds) {
+  try {
+    const p = provenanceWindowPath();
+    if (!fs.existsSync(p)) return [];
+    const window = JSON.parse(fs.readFileSync(p, "utf8"));
+    const cutoff = Date.now() - ((windowSeconds || 60) * 1000);
+    return window.filter((e) => (e.ts || 0) >= cutoff);
+  } catch { return []; }
+}
+
+module.exports = { paths, loadState, saveState, getSessionRisk, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache, recordExternalRead, getProvenanceWindow };

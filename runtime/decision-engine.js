@@ -14,6 +14,9 @@ const { recommend } = require("./workflow-router");
 const { classifyCommand } = require("./decision-key");
 const { classifyIntent } = require("./intent-classifier");
 
+// Taint-floor disablement: warn once per process if taint module unavailable.
+let _taintWarnedOnce = false;
+
 // Contract is loaded lazily — disabled only when HORUS_CONTRACT_ENABLED=0
 let _contract = null;
 function getContract(projectRoot) {
@@ -213,6 +216,26 @@ function decide(input = {}) {
     source = "learned-allow";
   }
 
+  // F10 (A2): taint floor — command overlaps with recently-read external content.
+  // Fires at rung 8.5 (after protected-branch, before session-risk). Forces
+  // require-review so the operator can confirm the command was not injected.
+  // Best-effort: if taint module unavailable, skip silently.
+  let taintResult = null;
+  try {
+    const { correlateCommand } = require("./taint");
+    taintResult = correlateCommand(input.command || "");
+    if (taintResult.tainted && action !== "block") {
+      action = "require-review";
+      source = "taint-floor";
+      floorFired = floorFired || "taint-floor";
+    }
+  } catch (taintErr) {
+    if (!_taintWarnedOnce) {
+      _taintWarnedOnce = true;
+      try { append({ kind: "taint-floor-disabled", error: String(taintErr && taintErr.message || taintErr) }); } catch { /* journal is best-effort */ }
+    }
+  }
+
   // B3: session-risk >= 3 — true floor. Escalate unconditionally before contract-allow can demote.
   if (enriched.sessionRisk >= 3 && action !== "block" && action !== "escalate") {
     action = "escalate";
@@ -332,6 +355,7 @@ function decide(input = {}) {
     ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
     ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
+    ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 
