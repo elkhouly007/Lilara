@@ -708,6 +708,36 @@ function getContextTrust(contract, branch) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// v3 helpers: scopes.mcp + scopes.skills
+// ---------------------------------------------------------------------------
+
+function getMcpPolicy(contract, serverName) {
+  if (!contract || !serverName) return null;
+  const map = contract.scopes && contract.scopes.mcp;
+  if (!map || typeof map !== "object") return null;
+  const entry = map[serverName];
+  if (!entry || typeof entry.policy !== "string") return null;
+  const p = entry.policy;
+  return (p === "allow" || p === "warn" || p === "block") ? p : null;
+}
+
+function getSkillPolicy(contract, skillName) {
+  if (!contract || !skillName) return null;
+  const map = contract.scopes && contract.scopes.skills;
+  if (!map || typeof map !== "object") return null;
+  const entry = map[skillName];
+  if (!entry || typeof entry.policy !== "string") return null;
+  const p = entry.policy;
+  return (p === "allow" || p === "warn" || p === "block") ? p : null;
+}
+
+function extractMcpServerName(toolName) {
+  if (!toolName || typeof toolName !== "string") return null;
+  const m = /^mcp__([^_]+(?:_[^_]+)*?)__/.exec(toolName);
+  return m ? m[1] : null;
+}
+
 module.exports = {
   load,
   verify,
@@ -728,4 +758,7 @@ module.exports = {
   getValidity,
   isInActiveWindow,
   getContextTrust,
+  getMcpPolicy,
+  getSkillPolicy,
+  extractMcpServerName,
 };

@@ -1276,6 +1276,102 @@ else
   fail "e2e:pretool-posttool-journal-cycle" "$_e2e_result"
 fi
 
+# ── inline: scopes.mcp unit tests (B2 Phase 2, commit 1) ────────────────────
+printf '\nMCP policy (B2) tests...\n'
+
+_mcp_server_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'block' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'context7')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "block" ]; then ok "mcp:server-block";
+  else fail "mcp:server-block" "expected 'block', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_block
+
+_mcp_server_warn() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'warn' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'context7')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "warn" ]; then ok "mcp:server-warn";
+  else fail "mcp:server-warn" "expected 'warn', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_warn
+
+_mcp_server_allow_default() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getMcpPolicy } = require('./runtime/contract');
+const c = { scopes: { mcp: { context7: { policy: 'allow' } } } };
+process.stdout.write(String(getMcpPolicy(c, 'unknown-server')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "null" ]; then ok "mcp:server-allow-default";
+  else fail "mcp:server-allow-default" "expected 'null' for absent server, got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_mcp_server_allow_default
+
+# ── inline: scopes.skills unit tests (B2 Phase 2, commit 1) ─────────────────
+printf '\nSkill policy (B2) tests...\n'
+
+_skill_skill_block() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'evil-skill': { policy: 'block' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'evil-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "block" ]; then ok "skill:skill-block";
+  else fail "skill:skill-block" "expected 'block', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_block
+
+_skill_skill_warn() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'audited-skill': { policy: 'warn' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'audited-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "warn" ]; then ok "skill:skill-warn";
+  else fail "skill:skill-warn" "expected 'warn', got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_warn
+
+_skill_skill_allow_default() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getSkillPolicy } = require('./runtime/contract');
+const c = { scopes: { skills: { 'known-skill': { policy: 'allow' } } } };
+process.stdout.write(String(getSkillPolicy(c, 'unlisted-skill')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "null" ]; then ok "skill:skill-allow-default";
+  else fail "skill:skill-allow-default" "expected 'null' for absent skill, got: '$result'"; fi
+  rm -rf "$tmpstate"
+}
+_skill_skill_allow_default
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

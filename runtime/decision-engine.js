@@ -219,6 +219,40 @@ function decide(input = {}) {
     }
   }
 
+  // F12: mcp-deny floor — per-MCP-server policy (scopes.mcp).
+  let mcpWarning = null;
+  try {
+    const { getMcpPolicy, extractMcpServerName } = require("./contract");
+    const serverName = input.mcpServer || extractMcpServerName(input.tool);
+    if (serverName && contract) {
+      const policy = getMcpPolicy(contract, serverName);
+      if (policy === "block") {
+        return buildEarlyBlock("mcp-deny", enriched, discovered, input,
+          `MCP server '${serverName}' denied by contract scopes.mcp`);
+      }
+      if (policy === "warn") {
+        mcpWarning = { code: "policy-warn", name: serverName, policy: "warn" };
+      }
+    }
+  } catch { /* helper unavailable → no-op */ }
+
+  // F13: skill-deny floor — per-skill policy (scopes.skills).
+  let skillWarning = null;
+  try {
+    const { getSkillPolicy } = require("./contract");
+    const skillName = input.skillName;
+    if (skillName && contract) {
+      const policy = getSkillPolicy(contract, skillName);
+      if (policy === "block") {
+        return buildEarlyBlock("skill-deny", enriched, discovered, input,
+          `Skill '${skillName}' denied by contract scopes.skills`);
+      }
+      if (policy === "warn") {
+        skillWarning = { code: "policy-warn", name: skillName, policy: "warn" };
+      }
+    }
+  } catch { /* helper unavailable → no-op */ }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -374,6 +408,8 @@ function decide(input = {}) {
   if (projectPolicy.trustPosture) explanationParts.push(`trust=${projectPolicy.trustPosture}`);
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
   if (validityWarning) explanationParts.push("validity-warn=outside-window");
+  if (mcpWarning)   explanationParts.push(`mcp-warn=${mcpWarning.name}`);
+  if (skillWarning) explanationParts.push(`skill-warn=${skillWarning.name}`);
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -425,6 +461,8 @@ function decide(input = {}) {
     intent: intentResult.intent,
     context: risk.context,
     ...(validityWarning ? { validityWarning } : {}),
+    ...(mcpWarning   ? { mcpWarning }   : {}),
+    ...(skillWarning ? { skillWarning } : {}),
   };
 
   append({
@@ -443,6 +481,8 @@ function decide(input = {}) {
     ...(floorFired ? { floorFired } : {}),
     ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
     ...(validityWarning ? { validityWarning } : {}),
+    ...(mcpWarning   ? { mcpWarning }   : {}),
+    ...(skillWarning ? { skillWarning } : {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 

@@ -6,7 +6,7 @@
   "type": "object",
   "required": ["version", "contractId", "revision", "acceptedAt", "harnessScope", "trustPosture", "scopes", "contractHash"],
   "properties": {
-    "version":      { "type": "integer", "enum": [1, 2] },
+    "version":      { "type": "integer", "enum": [1, 2, 3] },
     "contractId":   { "type": "string",  "pattern": "^(hap|arg)-[0-9]{8}-[0-9a-f]{12}$" },
     "revision":     { "type": "integer", "minimum": 1 },
     "acceptedAt":   { "type": "string" },
@@ -144,6 +144,30 @@
             "C": { "type": "string", "enum": ["warn", "block"] }
           },
           "additionalProperties": false
+        },
+        "mcp": {
+          "type": "object",
+          "description": "v3: Per-MCP-server policy. Keys are server names (e.g. 'context7'). Values are { policy: 'allow' | 'warn' | 'block' }.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["policy"],
+            "properties": {
+              "policy": { "type": "string", "enum": ["allow", "warn", "block"] }
+            }
+          }
+        },
+        "skills": {
+          "type": "object",
+          "description": "v3: Per-skill policy. Keys are skill names (e.g. 'superpowers:writing-plans'). Values are { policy: 'allow' | 'warn' | 'block' }.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["policy"],
+            "properties": {
+              "policy": { "type": "string", "enum": ["allow", "warn", "block"] }
+            }
+          }
         },
         "tools": {
           "description": "v2: Per-tool command and path allowlists. Provides finer-grained control than the top-level shell scope.",
