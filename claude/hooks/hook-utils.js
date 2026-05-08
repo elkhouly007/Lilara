@@ -140,55 +140,67 @@ function hookLog(hookName, eventType, label) {
 function rateLimitCheck(hookName, capacity = 60, refillRate = 30) {
   if (process.env.HORUS_RATE_LIMIT === "0") return true;
 
-  // KNOWN LIMITATION — TOCTOU race condition:
-  //   Three PreToolUse hooks fire concurrently per Bash command. They all read
-  //   the state file, decrement in memory, and write back independently. Under
-  //   high concurrency, two processes can read the same state and both pass
-  //   while only one token is deducted. This means the effective rate limit
-  //   may be up to (n_hooks × capacity) invocations in a burst, not capacity.
-  //
-  //   This is accepted as benign because:
-  //   (a) rate limiting here is a performance optimization, not a security gate;
-  //   (b) the "fail open" catch block already accepts unbounded invocations on
-  //       any fs error, so the worst-case behavior is the same;
-  //   (c) fixing it atomically (e.g. mkdirSync mutex) adds complexity that is
-  //       not justified by the low impact of the issue.
-  //
-  //   A correct fix would use fs.openSync(O_CREAT|O_RDWR) + flock(). Deferred.
-
   try {
     const eccDir    = statePaths.hookStateDir();
     const stateFile = path.join(eccDir, `rate-${hookName.replace(/[^a-z0-9-]/g, "")}.json`);
+    const lockFile  = stateFile + ".lock";
 
     if (!fs.existsSync(eccDir)) {
       fs.mkdirSync(eccDir, { recursive: true, mode: 0o700 });
     }
 
-    const now = Date.now() / 1000; // seconds
-    let state = { tokens: capacity, lastRefill: now };
-
+    // O_EXCL lock: atomic creation ensures exactly one writer at a time.
+    // Contention → deny (rate-limit). Stale lock (>2 s) → steal and proceed.
+    // FS catastrophe → outer catch → fail-open (rate limiting is best-effort).
+    let lockFd = null;
     try {
-      state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    } catch {
-      // First call — use fresh state.
+      lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+    } catch (lockErr) {
+      if (lockErr.code === "EEXIST") {
+        try {
+          const lstat = fs.statSync(lockFile);
+          if (Date.now() - lstat.mtimeMs > 2000) {
+            // Stale lock from a crashed process — steal it.
+            fs.rmSync(lockFile, { force: true });
+            lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+          } else {
+            return false; // actively held — rate-limit this call
+          }
+        } catch {
+          return false; // could not inspect or steal stale lock → deny
+        }
+      } else {
+        throw lockErr; // other FS error → outer catch → fail-open
+      }
     }
 
-    // Refill tokens based on elapsed time.
-    const elapsed = Math.max(0, now - (state.lastRefill || now));
-    state.tokens = Math.min(capacity, (state.tokens || 0) + elapsed * refillRate);
-    state.lastRefill = now;
+    fs.closeSync(lockFd);
+    try {
+      const now = Date.now() / 1000;
+      let state = { tokens: capacity, lastRefill: now };
+      try {
+        state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+      } catch {
+        // First call — use fresh state.
+      }
 
-    if (state.tokens < 1) {
-      // Bucket empty — skip this hook invocation.
+      const elapsed = Math.max(0, now - (state.lastRefill || now));
+      state.tokens = Math.min(capacity, (state.tokens || 0) + elapsed * refillRate);
+      state.lastRefill = now;
+
+      if (state.tokens < 1) {
+        fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
+        return false;
+      }
+
+      state.tokens -= 1;
       fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
-      return false;
+      return true;
+    } finally {
+      try { fs.unlinkSync(lockFile); } catch { /* best-effort */ }
     }
-
-    state.tokens -= 1;
-    fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
-    return true;
   } catch (_) {
-    // On any error (race condition, fs issue) — allow the hook to proceed.
+    // FS catastrophe — allow the hook to proceed.
     return true;
   }
 }

@@ -18,7 +18,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner + taint recorder. Scans output via `runtime/secret-scan.js`; records external-source tool output (WebFetch, mcp, curl, Browser) to provenance window via `runtime/taint.js`. (A3: taint recording added.) |
 | Memory load hook | `claude/hooks/memory-load.js` | optional local hook (SessionStart) | Loads project memory context at session start. |
 | PR notifier hook | `claude/hooks/pr-notifier.js` | optional local hook (PostToolUse) | Notifies after PR-related actions. |
-| Hook utilities | `claude/hooks/hook-utils.js` | shared library | readStdin (5 MB cap), commandFrom, collectText, hookLog, rateLimitCheck, classifyCommandPayload, classifyPathSensitivity (advisory, feeds risk-score), readSessionRisk. Used by all hooks. |
+| Hook utilities | `claude/hooks/hook-utils.js` | shared library | readStdin (5 MB cap), commandFrom, collectText, hookLog, rateLimitCheck (O_EXCL lockfile — atomic token-bucket, contention→deny, FS-error→fail-open), classifyCommandPayload, classifyPathSensitivity (advisory, feeds risk-score), readSessionRisk. Used by all hooks. |
 | Instinct utilities | `claude/hooks/instinct-utils.js` | shared library | Instinct store read/write/prune/TTL management for session-start and session-end hooks. |
 | Dangerous patterns config | `claude/hooks/dangerous-patterns.json` | config | 21 extensible patterns with severity (critical/high/medium) for dangerous-command-gate. |
 | Secret patterns config | `claude/hooks/secret-patterns.json` | config | 23 regex patterns for secret detection in secret-warning hook. |

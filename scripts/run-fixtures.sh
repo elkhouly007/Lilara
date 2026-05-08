@@ -598,6 +598,18 @@ decide({ command: 'ls /tmp', tool: 'Bash', branch: 'main', targetPath: '/workspa
 }
 _taint_disabled_check
 
+# ── rate-limit:concurrent — O_EXCL lockfile no-over-allowance test ────────────
+# Spawns 8 Node processes against a counter pre-seeded with 3 tokens.
+# Uses concurrent-harness.js (Node-native tmpdir avoids Win32 POSIX-path issues).
+# Asserts: passes <= 3 (no over-allowance) and final token count >= 0.
+_rl_result=$(node "tests/fixtures/rate-limit/concurrent-harness.js" 8 3 2>&1)
+_rl_exit=$?
+if [ "$_rl_exit" -eq 0 ]; then
+  ok "rate-limit:concurrent"
+else
+  fail "rate-limit:concurrent" "$_rl_result"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
