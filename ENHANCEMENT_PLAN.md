@@ -50,7 +50,7 @@ Documented gaps (verbatim from `SECURITY_MODEL.md`, `ROADMAP.md`, and `CHANGELOG
 - **G4.** Codex / Clawcode / Antegravity adapters are best-effort, not verified against real upstream payload shapes. Status: "Planned".
 - **G5.** Rate limiter TOCTOU race — accepted as performance-only; tightening is cheap.
 - **G6.** MASTER_PLAN.md sections 7 (Component Inventory) and 8 (Host Compatibility Matrix) stubbed; Phase 3 work blocks here.
-- **G7. PARTIAL** — Contract scope expansion: validity.activeHoursUtc, validity.activeDays, contextTrust, scopes.tools.perToolAllow are now wired end-to-end into `decide()` (B2 Phase 1, PR #19). scopes.mcp and scopes.skills are now wired (B2 Phase 2, commit 1). scopes.session.maxDurationMin and scopes.budget are now wired (B2 Phase 2, commit 2). Still missing: v2→v3 migration script — Phase 2 commit 3.
+- **G7. COVERED** — Contract scope expansion complete: validity.activeHoursUtc, validity.activeDays, contextTrust, scopes.tools.perToolAllow wired (B2 Phase 1, PR #19). scopes.mcp, scopes.skills wired (B2 Phase 2, commit 1). scopes.session.maxDurationMin, scopes.budget wired (B2 Phase 2, commit 2). v2→v3 migration script shipped (B2 Phase 2, commit 3). G7 fully closed.
 
 New gaps (spotted during this review, not enumerated in the prior plan):
 

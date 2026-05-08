@@ -1,0 +1,29 @@
+{
+  "_comment": "Example horus.contract.json for v3. Copy to your project root, edit scopes, then run: horus-cli.sh contract accept",
+  "version": 3,
+  "contractId": "hap-20260508-0123456789ab",
+  "revision": 1,
+  "acceptedAt": "2026-05-08T00:00:00Z",
+  "acceptedBy": "operator@host",
+  "harnessScope": ["claude"],
+  "trustPosture": "balanced",
+  "scopes": {
+    "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+    "mcp": {
+      "context7":       { "policy": "allow" },
+      "computer-use":   { "policy": "warn"  }
+    },
+    "skills": {
+      "superpowers:writing-plans": { "policy": "allow" },
+      "dangerous-skill":           { "policy": "block" }
+    },
+    "session": {
+      "maxDurationMin": 480
+    },
+    "budget": {
+      "maxDestructiveOps": 50,
+      "maxExternalBytes":  10485760
+    }
+  },
+  "contractHash": "sha256:fc20317ac33a88ae717caf84d3d580601b0b56074ced92b22c87fe52520c302a"
+}

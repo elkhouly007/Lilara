@@ -26,6 +26,8 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Prompt pack | `opencode/prompts/`, `openclaw/prompts/` | template | Planning, review, security, and build repair prompts. |
 | Local installer | `scripts/install-local.sh` | manual | Copies kit files into a local target. |
 | Local auditor | `scripts/audit-local.sh` | manual | Flags risky strings for review. |
+| Contract migrator | `scripts/migrateV2ToV3.js` | manual | Zero-dep Node tool. Reads v1/v2 contract, sets version=3, recomputes hash, writes to horus.contract.json.draft. Idempotent (v3 input → exit 0). Never overwrites the live file. |
+| Migration CI gate | `scripts/check-migrate-v2-v3.sh` | CI | End-to-end migration gate: synthesizes a v2 fixture, runs migrateV2ToV3.js, asserts losslessness + hash correctness + schema validity + idempotency. |
 | Phase 1 policy reference | `references/phase1-policy.md` | enabled by reference | Defines trusted-agent, MCP, and shell rules. |
 | Phase 2 policy reference | `references/phase2-policy.md` | enabled by reference | Defines plugin, browser, and notification rules. |
 | Phase 3 policy reference | `references/phase3-policy.md` | enabled by reference | Defines installers, wrappers, daemons, and integration templates. |

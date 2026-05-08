@@ -1432,6 +1432,82 @@ process.stdout.write(over ? 'over' : 'ok');
 }
 _session_over_duration_require_review
 
+# ── inline: migration v2→v3 tests (B2 Phase 2, commit 3) ─────────────────────
+printf '\nMigration v2→v3 (B2) tests...\n'
+
+_migrate_v2_to_v3_lossless() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  # Write a minimal v2 contract fixture
+  node -e "
+const fs = require('fs');
+const { hashContract } = require('./runtime/contract');
+const doc = {
+  version: 2,
+  contractId: 'arg-20260508-aabbccddeeff',
+  revision: 1,
+  acceptedAt: '2026-05-08T00:00:00Z',
+  harnessScope: ['claude'],
+  trustPosture: 'balanced',
+  scopes: { payloadClasses: { A: 'allow', B: 'warn', C: 'block' } }
+};
+doc.contractHash = hashContract(doc);
+fs.writeFileSync(process.argv[1] + '/in.json', JSON.stringify(doc, null, 2) + '\n');
+" -- "$tmpstate" 2>/dev/null
+
+  # Run migration
+  node scripts/migrateV2ToV3.js "$tmpstate/in.json" "$tmpstate/out.draft" 2>/dev/null
+
+  # Check: draft exists, version=3, scopes preserved
+  local result; result=$(node -e "
+const fs = require('fs');
+const orig  = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+const draft = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (draft.version !== 3) { process.stdout.write('version=' + draft.version); process.exit(0); }
+const same = JSON.stringify(orig.scopes) === JSON.stringify(draft.scopes);
+process.stdout.write(same ? 'ok' : 'scopes-changed');
+" -- "$tmpstate/in.json" "$tmpstate/out.draft" 2>/dev/null)
+  if [ "$result" = "ok" ]; then ok "migrate:v2-to-v3-lossless";
+  else fail "migrate:v2-to-v3-lossless" "expected 'ok', got: $result"; fi
+  rm -rf "$tmpstate"
+}
+_migrate_v2_to_v3_lossless
+
+_migrate_v3_idempotent_noop() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  # Write a v3 draft to use as input
+  node -e "
+const fs = require('fs');
+const { hashContract } = require('./runtime/contract');
+const doc = {
+  version: 3,
+  contractId: 'arg-20260508-aabbccddeeff',
+  revision: 1,
+  acceptedAt: '2026-05-08T00:00:00Z',
+  harnessScope: ['claude'],
+  trustPosture: 'balanced',
+  scopes: { payloadClasses: { A: 'allow', B: 'warn', C: 'block' } }
+};
+doc.contractHash = hashContract(doc);
+fs.writeFileSync(process.argv[1] + '/v3.json', JSON.stringify(doc, null, 2) + '\n');
+" -- "$tmpstate" 2>/dev/null
+
+  # Run migration on v3 input — should exit 0, no draft written
+  local exit_code=0
+  local stderr_out; stderr_out=$(node scripts/migrateV2ToV3.js "$tmpstate/v3.json" "$tmpstate/v3.draft" 2>&1 1>/dev/null) || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then
+    fail "migrate:v3-idempotent-noop" "expected exit 0 for v3 input, got $exit_code"
+  elif ! echo "$stderr_out" | grep -qF "already version 3"; then
+    fail "migrate:v3-idempotent-noop" "expected 'already version 3' on stderr, got: $stderr_out"
+  elif [ -f "$tmpstate/v3.draft" ]; then
+    fail "migrate:v3-idempotent-noop" "expected no draft file written for v3 input"
+  else
+    ok "migrate:v3-idempotent-noop"
+  fi
+  rm -rf "$tmpstate"
+}
+_migrate_v3_idempotent_noop
+
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
