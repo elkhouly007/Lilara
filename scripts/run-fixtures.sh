@@ -757,6 +757,66 @@ process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
 }
 _validity_wrong_dow
 
+# ── inline: contextTrust unit tests (B2 Phase 1) ────────────────────────────
+printf '\nContextTrust (B2) tests...\n'
+
+_ct_main_strict() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [{ branchPattern: 'main', trustPosture: 'strict' }] };
+process.stdout.write(String(getContextTrust(contract, 'main')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "strict" ]; then
+    ok "context-trust:main-strict"
+  else
+    fail "context-trust:main-strict" "expected 'strict' on branch=main, got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_main_strict
+
+_ct_feature_relaxed() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [{ branchPattern: 'feature/*', trustPosture: 'relaxed' }] };
+process.stdout.write(String(getContextTrust(contract, 'feature/x')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "relaxed" ]; then
+    ok "context-trust:feature-relaxed"
+  else
+    fail "context-trust:feature-relaxed" "expected 'relaxed' on branch=feature/x with feature/* glob, got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_feature_relaxed
+
+_ct_specificity() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node -e "
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+const { getContextTrust } = require('./runtime/contract');
+const contract = { contextTrust: [
+  { branchPattern: 'feature/security/*', trustPosture: 'strict' },
+  { branchPattern: 'feature/*',          trustPosture: 'relaxed' }
+] };
+process.stdout.write(String(getContextTrust(contract, 'feature/security/login')));
+" -- "$tmpstate" 2>/dev/null)
+  if [ "$result" = "strict" ]; then
+    ok "context-trust:specificity"
+  else
+    fail "context-trust:specificity" "expected 'strict' from first-match feature/security/* (ordered before feature/*), got: '$result'"
+  fi
+  rm -rf "$tmpstate"
+}
+_ct_specificity
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

@@ -637,6 +637,32 @@ function isInActiveWindow(contract, now = new Date()) {
   return { inWindow: true, reason: "in-window" };
 }
 
+// ---------------------------------------------------------------------------
+// v2 contextTrust helper — per-branch trust posture override
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the first matching contextTrust entry's trustPosture for the given branch,
+ * or null if no entry matches. First-match-wins per schema description.
+ * @param {object} contract
+ * @param {string} branch
+ * @returns {string|null}
+ */
+function getContextTrust(contract, branch) {
+  if (!contract || !branch) return null;
+  const list = Array.isArray(contract.contextTrust) ? contract.contextTrust : null;
+  if (!list || list.length === 0) return null;
+  const { globMatch } = require("./glob-match");
+  for (const entry of list) {
+    if (!entry || typeof entry.branchPattern !== "string") continue;
+    if (globMatch(branch, entry.branchPattern, {})) {
+      const p = String(entry.trustPosture || "").trim();
+      if (p === "strict" || p === "balanced" || p === "relaxed") return p;
+    }
+  }
+  return null;
+}
+
 module.exports = {
   load,
   verify,
@@ -656,4 +682,5 @@ module.exports = {
   consumeOperatorToken,
   getValidity,
   isInActiveWindow,
+  getContextTrust,
 };

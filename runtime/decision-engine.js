@@ -125,6 +125,19 @@ function decide(input = {}) {
 
   // ── Section 4.6 precedence matrix: contract verification (Steps 2 + 5) ──
   const contract    = getContract(discovered.projectRoot || process.cwd());
+
+  // B2 commit 2: contextTrust per-branch posture override.
+  // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
+  if (contract && enriched.branch) {
+    try {
+      const { getContextTrust } = require("./contract");
+      const overridePosture = getContextTrust(contract, enriched.branch);
+      if (overridePosture) {
+        enriched.trustPosture = overridePosture;
+      }
+    } catch { /* override is best-effort; fall back to project policy */ }
+  }
+
   const cmdClass    = classifyCommand(input.command || "");
   const isGated     = GATED_COMMAND_CLASSES.has(cmdClass);
   let contractAllow = false;
