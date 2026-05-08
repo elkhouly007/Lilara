@@ -12,6 +12,7 @@ function defaultPolicy() {
     trustPosture: "balanced",
     protectedBranches: ["main", "master"],
     sensitivePathPatterns: ["prod", "production", "secrets", "credentials", ".env", "terraform", "infra"],
+    taintMinTokenLength: 6,
   };
 }
 
@@ -70,6 +71,11 @@ function loadProjectPolicy(input = {}) {
       const markers = parsed.languages.map(String).filter(Boolean);
       normalized.projectMarkers = [...new Set(markers)];
       normalized.primaryStack = markers.find((item) => item !== 'common' && item !== 'infrastructure') || markers[0] || null;
+    }
+    const taintCfg = parsed.taint || {};
+    if (typeof taintCfg.minTokenLength === "number") {
+      const mtl = Math.round(taintCfg.minTokenLength);
+      if (mtl >= 4 && mtl <= 32) normalized.taintMinTokenLength = mtl;
     }
     return normalized;
   } catch (err) {

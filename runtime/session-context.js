@@ -201,7 +201,9 @@ function recordExternalRead(content, source) {
     window = window.filter((e) => (now - (e.ts || 0)) < PROVENANCE_MAX_AGE_MS);
     window.push({ content: String(content || "").slice(0, 4096), source: String(source || "external"), ts: now });
     if (window.length > PROVENANCE_MAX_ENTRIES) window = window.slice(-PROVENANCE_MAX_ENTRIES);
-    fs.writeFileSync(p, JSON.stringify(window), { mode: 0o600 });
+    const tmp = p + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(window), { mode: 0o600 });
+    fs.renameSync(tmp, p);
   } catch { /* provenance tracking is best-effort */ }
 }
 

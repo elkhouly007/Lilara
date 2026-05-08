@@ -20,6 +20,7 @@
 
 const { recordExternalRead: _record, getProvenanceWindow } = require("./session-context");
 const { correlate } = require("./provenance-correlator");
+const { loadProjectPolicy } = require("./project-policy");
 
 const DEFAULT_WINDOW_SECONDS = 60;
 
@@ -45,7 +46,8 @@ function recordExternalRead(content, source) {
  */
 function correlateCommand(command, windowSeconds) {
   const recentReads = getProvenanceWindow(windowSeconds || DEFAULT_WINDOW_SECONDS);
-  return correlate(command, recentReads);
+  const policy = loadProjectPolicy({});
+  return correlate(command, recentReads, policy.taintMinTokenLength);
 }
 
 module.exports = { recordExternalRead, correlateCommand };

