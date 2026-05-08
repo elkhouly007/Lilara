@@ -42,7 +42,13 @@ It does not overwrite existing OpenClaw workspace files or global OpenClaw confi
 - Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
 - Block mode: `export HORUS_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
 
-**Fixtures:** `tests/fixtures/openclaw/` — 12 fixtures covering dangerous commands (rm -rf, force-push, curl\|sh, DROP TABLE, npx -y, git reset --hard), enforce mode, safe pass-through, and borderline sudo.
+**Fixtures:** `tests/fixtures/openclaw/` — 19 fixtures covering dangerous commands (rm -rf, force-push, curl|sh, DROP TABLE, npx -y, git reset --hard), enforce mode (dd, force-push, hard-reset, npx -y, rm --no-preserve-root, rm -rf), safe pass-through (git log, git push, ls, npm install), and borderline sudo.
+
+## PostToolUse Parity
+
+Current wiring is **PreToolUse-only**. `openclaw/hooks/adapter.js` runs as a PreToolUse hook that gates shell commands before execution. A PostToolUse hook (equivalent to `claude/hooks/output-sanitizer.js`) is implemented at `openclaw/hooks/post-adapter.js` and records external reads and scans output for secrets.
+
+OpenClaw is an OpenCode fork and shares the same hook event model. PostToolUse wiring follows the same pattern as `opencode/hooks/post-adapter.js`. Verify the actual hook configuration path in your OpenClaw installation before wiring the PostToolUse event. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 
 ## Target Paths
 
