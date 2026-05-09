@@ -1033,11 +1033,19 @@ _f4_p1="$(node - "$root" <<'NODEEOF'
 "use strict";
 const path = require("path");
 const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+// D26 follow-up: pass explicit context to isolate from CWD-derived discovery.
+// Without these overrides, running this fixture from inside the agent-runtime-guard
+// repo on master makes context-discovery report a protected branch and accumulated
+// session risk, pushing total risk to "critical" before the F4 floor evaluates.
 const r = decide({
   tool: "Bash", command: "echo hello",
   payloadClass: "C",
   trustPosture: "balanced",
   intent: "write-file",
+  branch: "feature/test-isolation",
+  protectedBranch: false,
+  sessionRisk: 0,
+  repeatedApprovals: 0,
 });
 if (r.action === "block" && r.floorFired === "secret-class-C") {
   process.stdout.write("PASS");
@@ -1106,10 +1114,16 @@ _f6_p1="$(node - "$root" <<'NODEEOF'
 "use strict";
 const path = require("path");
 const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+// D26 follow-up: pass explicit context to isolate from CWD-derived discovery.
+// See F4 fixture above for the same reasoning.
 const r = decide({
   tool: "Bash", command: "sudo ls",
   payloadClass: "A",
   trustPosture: "strict",
+  branch: "feature/test-isolation",
+  protectedBranch: false,
+  sessionRisk: 0,
+  repeatedApprovals: 0,
 });
 if (r.action === "block" && (r.floorFired === "posture-strict-no-cover" || r.decisionSource === "posture-strict-no-cover")) {
   process.stdout.write("PASS");
@@ -1147,18 +1161,34 @@ else
   fail "floor:F6-balanced-posture-does-not-fire" "$_f6_n1"
 fi
 
-# F7 positive: strict + intent=unknown → block
+# F7 positive: strict + intent=unknown → require-review (ADR-001 D)
+# Pre-ADR-001 this asserted action=block; ADR-001 Option D changed F7 from a hard
+# block to require-review so descriptive commands prompt for operator approval
+# instead of being killed. Block remains for genuinely critical risk via earlier
+# rungs (kill-switch, critical-risk, etc.).
+# D26 follow-up: explicit context + state isolation (CWD-derived discovery and
+# trajectory-nudge state can otherwise pollute the assertion).
 _f7_p1="$(node - "$root" <<'NODEEOF'
 "use strict";
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const tmpState = path.join(os.tmpdir(), "f7-fixture-" + process.pid);
+fs.mkdirSync(tmpState, { recursive: true });
+process.env.HORUS_STATE_DIR = tmpState;
 const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
 const r = decide({
   tool: "Bash", command: "echo hello",
   payloadClass: "A",
   trustPosture: "strict",
   intent: "unknown",
+  branch: "feature/test-isolation",
+  protectedBranch: false,
+  sessionRisk: 0,
+  repeatedApprovals: 0,
 });
-if (r.action === "block" && (r.floorFired === "intent-unknown-strict" || r.decisionSource === "intent-unknown-strict")) {
+fs.rmSync(tmpState, { recursive: true, force: true });
+if (r.action === "require-review" && (r.floorFired === "intent-unknown-strict" || r.decisionSource === "intent-unknown-strict")) {
   process.stdout.write("PASS");
 } else {
   process.stdout.write("FAIL:action=" + r.action + " floor=" + r.floorFired + " source=" + r.decisionSource);
@@ -1166,9 +1196,9 @@ if (r.action === "block" && (r.floorFired === "intent-unknown-strict" || r.decis
 NODEEOF
 )"
 if [ "$_f7_p1" = "PASS" ]; then
-  ok "floor:F7-intent-unknown-strict-blocks"
+  ok "floor:F7-intent-unknown-strict-require-review"
 else
-  fail "floor:F7-intent-unknown-strict-blocks" "$_f7_p1"
+  fail "floor:F7-intent-unknown-strict-require-review" "$_f7_p1"
 fi
 
 # F7 negative: balanced posture + intent=unknown → does NOT trigger F7

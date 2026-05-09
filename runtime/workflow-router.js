@@ -52,7 +52,26 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
 
   if (action === "require-review") {
     out.lane = "review";
-    out.reason = branch ? `Protected or sensitive work on branch ${branch} should route through review.` : "Sensitive work should route through review.";
+    // Tool-aware reason for source-code edits/writes preserves the
+    // descriptive contract from the workflow-router source-like branch
+    // (lines 119-132). Necessary after ADR-001 D moved F7 from action=block
+    // to action=require-review so check-runtime-core's tool-aware reason
+    // assertions still hold.
+    if (sourceLikeTarget && !docsLikeTarget && /edit|write|multiedit/.test(tool)) {
+      out.reason = trustPosture === "strict"
+        ? "This target looks like source code, and strict trust posture prefers review before direct code edits continue."
+        : (branch && risk.reasons?.includes("protected-branch")
+          ? `This target looks like source code on protected branch ${branch}, so direct edits should route through review first.`
+          : "This target looks like source code, so direct code edits should route through review first.");
+    } else if (sourceLikeTarget && !docsLikeTarget) {
+      out.reason = trustPosture === "strict"
+        ? "This target looks like source code, and strict trust posture prefers review before direct continuation."
+        : (branch && risk.reasons?.includes("protected-branch")
+          ? `This target looks like source code on protected branch ${branch}, so it should route through review first.`
+          : "Sensitive source-like work should route through review.");
+    } else {
+      out.reason = branch ? `Protected or sensitive work on branch ${branch} should route through review.` : "Sensitive work should route through review.";
+    }
     out.suggestedSurface = "review";
     out.suggestedTarget = "horus-cli.review";
     out.suggestedCommand = "horus-cli.sh review";

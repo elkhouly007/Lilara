@@ -329,10 +329,16 @@ function decide(input = {}) {
     source = "learned-allow";
   }
 
-  // F4 (D26): secret-class-C payload floor — rung 4 in the precedence matrix.
+  // F4 (D26 + ADR-002 B): secret-class-C payload floor — rung 4 in the precedence matrix.
   // Fires when payloadClass is explicitly C, OR when the command text contains a
-  // class-C secret pattern (API key, credential, private key). Floor = block.
+  // class-C secret pattern (API key, credential, private key). Floor = block by default.
   // Cannot be demoted by contract-allow. payloadClass D does not exist in the schema.
+  //
+  // ADR-002 Option B: an operator can demote F4 from `block` to `require-review` for
+  // legitimate inspection use cases (incident response, customer-data audit, security
+  // investigation) by minting a one-shot scoped token and passing it via
+  // HORUS_F4_DEMOTE_TOKEN. The token is single-use and scope-bound to
+  // `class-c-review-demote`. Without a valid token, F4 stays a hard block.
   if (action !== "block") {
     const isClassC = (enriched.payloadClass || "A") === "C";
     let secretInCommand = false;
@@ -343,8 +349,23 @@ function decide(input = {}) {
       } catch { /* secret-scan unavailable — skip */ }
     }
     if (isClassC || secretInCommand) {
-      action = "block";
-      floorFired = floorFired || "secret-class-C";
+      // Check for operator-token demotion (ADR-002 B)
+      let f4DemoteAllowed = false;
+      const demoteToken = process.env.HORUS_F4_DEMOTE_TOKEN || "";
+      if (demoteToken) {
+        try {
+          const { consumeScopedOperatorToken } = require("./contract");
+          f4DemoteAllowed = consumeScopedOperatorToken(demoteToken, "class-c-review-demote");
+        } catch { /* token mech unavailable — fail closed (no demotion) */ }
+      }
+      if (f4DemoteAllowed) {
+        action = "require-review";
+        source = "f4-class-c-demoted";
+        floorFired = floorFired || "secret-class-C-demoted";
+      } else {
+        action = "block";
+        floorFired = floorFired || "secret-class-C";
+      }
     }
   }
 
@@ -386,14 +407,19 @@ function decide(input = {}) {
     floorFired = floorFired || "posture-strict-no-cover";
   }
 
-  // F7 (D26): intent-unknown-strict floor — rung 7 in the precedence matrix.
+  // F7 (D26 + ADR-001 D): intent-unknown-strict floor — rung 7 in the precedence matrix.
   // Fires when the intent classifier returns "unknown" AND trust posture is strict.
   // A command the classifier cannot recognize is inherently higher-risk in strict
   // mode — no contract scope can cover what the engine cannot categorise.
-  // Trigger: intentResult.intent === "unknown" + trustPosture === "strict". Floor = block.
+  // Trigger: intentResult.intent === "unknown" + trustPosture === "strict".
+  // Action: require-review (operator must approve before execution).
   // Does NOT fire in balanced or relaxed posture — locked semantic per D26.
-  if (action !== "block" && intentResult.intent === "unknown" && enriched.trustPosture === "strict") {
-    action = "block";
+  // ADR-001 D: changed from "block" to "require-review" so descriptive commands
+  // ("update module", "edit file") in strict mode prompt for review instead of
+  // killing the work outright. Block remains for genuinely critical risk via
+  // earlier rungs (kill-switch, critical-risk, etc.).
+  if (action !== "block" && action !== "require-review" && intentResult.intent === "unknown" && enriched.trustPosture === "strict") {
+    action = "require-review";
     source = "intent-unknown-strict";
     floorFired = floorFired || "intent-unknown-strict";
   }
@@ -423,7 +449,14 @@ function decide(input = {}) {
   const trajectory = getSessionTrajectory();
   const trajectoryThreshold = Number(process.env.HORUS_TRAJECTORY_THRESHOLD || "3");
   let trajectoryNudge = null;
-  if (source !== "learned-allow" && source !== "auto-allow-once" && !source.startsWith("contract-allow") && trajectory.recentEscalations >= trajectoryThreshold) {
+  // Trajectory-nudge applies to baseline risk-engine decisions only. Floor-derived
+  // sources (intent-unknown-strict, taint-floor, session-risk-floor, f4-class-c-demoted,
+  // posture-strict-no-cover, etc.) are explicit policy decisions that already encode
+  // the right severity for their trigger condition; nudging them further would compound
+  // the escalation. ADR-001 D made this matter for F7 (was block, now require-review);
+  // ADR-002 B made it matter for F4 demotion path. The contract-allow / learned-allow /
+  // auto-allow-once exclusions are preserved (those are demotions, not floors).
+  if (source === "risk-engine" && trajectory.recentEscalations >= trajectoryThreshold) {
     if (action === "allow") { action = "route"; trajectoryNudge = "allow\u2192route"; }
     else if (action === "route") { action = "require-review"; trajectoryNudge = "route\u2192require-review"; }
     else if (action === "require-review") { action = "escalate"; trajectoryNudge = "require-review\u2192escalate"; }

@@ -246,9 +246,17 @@ class_b_route_output="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" bash "$root
 printf '%s\n' "$class_b_route_output" | grep -q 'workflow-lane: payload' || fail 'runtime explain routes class B payloads into payload lane'
 printf '%s\n' "$class_b_route_output" | grep -q 'workflow-target: horus-cli.review' || fail 'runtime explain prints class B review target'
 
-class_c_route_output="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" bash "$root/scripts/horus-cli.sh" runtime explain --tool Bash --command 'inspect incident bundle' --target bundle.zip --payloadClass C --branch feature/incidents)"
-printf '%s\n' "$class_c_route_output" | grep -q 'workflow-lane: review' || fail 'runtime explain routes class C payloads into review lane'
+# ADR-002 Option B: class C blocks by default. With an operator-token demotion
+# token, F4 yields require-review (legitimate inspection use case). Mint a
+# scoped one-shot token, pass it via env, expect review lane.
+class_c_demote_token="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" bash "$root/scripts/horus-cli.sh" operator-token mint test-class-c-route --scope class-c-review-demote 2>/dev/null | awk -F': ' '/^Token:/ {print $2}')"
+class_c_route_output="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" HORUS_F4_DEMOTE_TOKEN="$class_c_demote_token" bash "$root/scripts/horus-cli.sh" runtime explain --tool Bash --command 'inspect incident bundle' --target bundle.zip --payloadClass C --branch feature/incidents)"
+printf '%s\n' "$class_c_route_output" | grep -q 'workflow-lane: review' || fail 'runtime explain routes class C payloads into review lane (with demote token)'
 printf '%s\n' "$class_c_route_output" | grep -q 'workflow-target: horus-cli.review' || fail 'runtime explain prints class C review target'
+
+# ADR-002 Option B negative: without operator-token, class C stays blocked.
+class_c_blocked_output="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" bash "$root/scripts/horus-cli.sh" runtime explain --tool Bash --command 'inspect incident bundle' --target bundle.zip --payloadClass C --branch feature/incidents)"
+printf '%s\n' "$class_c_blocked_output" | grep -q 'workflow-lane: blocked' || fail 'runtime explain routes class C payloads to blocked without demote token'
 
 classify_route_output="$(HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" bash "$root/scripts/horus-cli.sh" runtime explain --tool Bash --command 'classify payload.json' --target payload.json)"
 printf '%s\n' "$classify_route_output" | grep -q 'workflow-target: horus-cli.classify' || fail 'runtime explain prints payload classify target'
