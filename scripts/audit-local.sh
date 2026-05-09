@@ -26,6 +26,7 @@ trap 'rm -f "$tmp"' EXIT
     ! -name 'audit-local.sh' \
     ! -name 'audit-examples.sh' \
     ! -name 'bench-runtime-decision.sh' \
+    ! -name 'bench-perf-regression.sh' \
     ! -name 'run-fixtures.sh' \
     ! -name 'check-*'
   find ./claude/hooks -maxdepth 1 -type f -name '*.js' \
