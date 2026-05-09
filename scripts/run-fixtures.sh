@@ -1033,11 +1033,19 @@ _f4_p1="$(node - "$root" <<'NODEEOF'
 "use strict";
 const path = require("path");
 const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+// D26 follow-up: pass explicit context to isolate from CWD-derived discovery.
+// Without these overrides, running this fixture from inside the agent-runtime-guard
+// repo on master makes context-discovery report a protected branch and accumulated
+// session risk, pushing total risk to "critical" before the F4 floor evaluates.
 const r = decide({
   tool: "Bash", command: "echo hello",
   payloadClass: "C",
   trustPosture: "balanced",
   intent: "write-file",
+  branch: "feature/test-isolation",
+  protectedBranch: false,
+  sessionRisk: 0,
+  repeatedApprovals: 0,
 });
 if (r.action === "block" && r.floorFired === "secret-class-C") {
   process.stdout.write("PASS");
@@ -1106,10 +1114,16 @@ _f6_p1="$(node - "$root" <<'NODEEOF'
 "use strict";
 const path = require("path");
 const { decide } = require(path.join(process.argv[2], "runtime/decision-engine"));
+// D26 follow-up: pass explicit context to isolate from CWD-derived discovery.
+// See F4 fixture above for the same reasoning.
 const r = decide({
   tool: "Bash", command: "sudo ls",
   payloadClass: "A",
   trustPosture: "strict",
+  branch: "feature/test-isolation",
+  protectedBranch: false,
+  sessionRisk: 0,
+  repeatedApprovals: 0,
 });
 if (r.action === "block" && (r.floorFired === "posture-strict-no-cover" || r.decisionSource === "posture-strict-no-cover")) {
   process.stdout.write("PASS");
