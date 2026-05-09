@@ -467,24 +467,49 @@ EOF
     ;;
 
   # ── operator-token ────────────────────────────────────────────────────────
-  # Manage one-shot operator tokens for non-TTY contract acceptance.
+  # Manage one-shot operator tokens for non-TTY contract acceptance and floor demotion.
   # Usage:
-  #   horus-cli.sh operator-token mint [label]   Mint a fresh one-shot token.
+  #   horus-cli.sh operator-token mint [label] [--scope <scope>]
+  #     Mint a fresh one-shot token. Optional scope binds the token to a specific
+  #     consumption purpose (e.g. class-c-review-demote for ADR-002 B F4 demotion).
   #   horus-cli.sh operator-token verify <token>  Check validity without consuming it.
   operator-token)
     sub="${1:-mint}"
     shift || true
     case "$sub" in
       mint)
-        label="${1:-}"
-        node - "$root" "$label" <<'EOF'
+        label=""
+        scope=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --scope)
+              scope="${2:-}"
+              shift 2
+              ;;
+            *)
+              if [ -z "$label" ]; then label="$1"; fi
+              shift
+              ;;
+          esac
+        done
+        node - "$root" "$label" "$scope" <<'EOF'
 const path = require("path");
 const { mintOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
 const label = process.argv[3] || null;
-const token = mintOperatorToken(label);
+const scope = process.argv[4] || null;
+const token = mintOperatorToken(label, scope);
 process.stderr.write("WARNING: Treat this like a credential — don't echo it in shared logs.\n");
 process.stdout.write("Token: " + token + "\n");
-process.stdout.write("Usage: HORUS_OPERATOR_TOKEN=" + token + " horus-cli.sh contract accept\n");
+if (scope) {
+  process.stdout.write("Scope: " + scope + "\n");
+  if (scope === "class-c-review-demote") {
+    process.stdout.write("Usage: HORUS_F4_DEMOTE_TOKEN=" + token + " <agent invocation>\n");
+  } else {
+    process.stdout.write("Usage: scope-bound token; pass via the appropriate env var for " + scope + "\n");
+  }
+} else {
+  process.stdout.write("Usage: HORUS_OPERATOR_TOKEN=" + token + " horus-cli.sh contract accept\n");
+}
 EOF
         ;;
       verify)

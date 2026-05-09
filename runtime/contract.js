@@ -197,9 +197,14 @@ function operatorTokensPath() {
  * Appends to ~/.horus/operator-tokens.jsonl (mode 0600) and returns the token.
  *
  * @param {string} [label] — optional human label for audit trail
+ * @param {string} [scope] — optional scope binding. When set, the token is
+ *   only consumable by `consumeScopedOperatorToken(token, scope)`. Used by
+ *   ADR-002 Option B for F4-class-C demotion (`class-c-review-demote`).
+ *   Backwards compatible: tokens minted without a scope match the existing
+ *   contract-accept consumption path (consumeOperatorToken).
  * @returns {string} 64-character hex token
  */
-function mintOperatorToken(label) {
+function mintOperatorToken(label, scope) {
   const token  = crypto.randomBytes(32).toString("hex");
   const tokensPath = operatorTokensPath();
   const dir    = path.dirname(tokensPath);
@@ -207,11 +212,78 @@ function mintOperatorToken(label) {
   const record = JSON.stringify({
     token,
     label: label || null,
+    scope: scope || null,
     createdAt: new Date().toISOString(),
     usedAt: null,
   });
   fs.appendFileSync(tokensPath, record + "\n", { mode: 0o600 });
   return token;
+}
+
+/**
+ * Consume a one-shot operator token bound to a specific scope.
+ * Only consumes a token whose stored `scope` exactly matches `requiredScope`.
+ * Tokens minted without a scope are NOT consumable by this function (they
+ * remain available for the contract-accept path).
+ *
+ * Used by decision-engine F4 demotion (ADR-002 Option B).
+ *
+ * @param {string} token
+ * @param {string} requiredScope
+ * @returns {boolean} true if consumed; false if invalid, scope mismatch, or already used
+ */
+function consumeScopedOperatorToken(token, requiredScope) {
+  if (!token || !requiredScope) return false;
+  const tokensPath = operatorTokensPath();
+  const lockFile = tokensPath + ".lock";
+  const dir = path.dirname(tokensPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+
+  let lockFd = null;
+  try {
+    lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+  } catch (lockErr) {
+    if (lockErr.code === "EEXIST") {
+      try {
+        const lstat = fs.statSync(lockFile);
+        if (Date.now() - lstat.mtimeMs > 2000) {
+          fs.rmSync(lockFile, { force: true });
+          lockFd = fs.openSync(lockFile, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+        } else {
+          return false;
+        }
+      } catch { return false; }
+    } else { return false; }
+  }
+  fs.closeSync(lockFd);
+
+  try {
+    let lines;
+    try {
+      lines = fs.readFileSync(tokensPath, "utf8").split("\n").filter(Boolean);
+    } catch { return false; }
+
+    let consumed = false;
+    const updated = lines.map((line) => {
+      try {
+        const rec = JSON.parse(line);
+        if (rec.token === token && !rec.usedAt && rec.scope === requiredScope) {
+          consumed = true;
+          return JSON.stringify({ ...rec, usedAt: new Date().toISOString() });
+        }
+      } catch { /* skip malformed lines */ }
+      return line;
+    });
+
+    if (!consumed) return false;
+
+    const tmp = tokensPath + ".tmp";
+    fs.writeFileSync(tmp, updated.join("\n") + "\n", { mode: 0o600 });
+    try { fs.renameSync(tmp, tokensPath); } catch { return false; }
+    return true;
+  } finally {
+    try { fs.unlinkSync(lockFile); } catch { /* best-effort */ }
+  }
 }
 
 /**
@@ -769,6 +841,7 @@ module.exports = {
   operatorTokensPath,
   mintOperatorToken,
   consumeOperatorToken,
+  consumeScopedOperatorToken,
   getValidity,
   isInActiveWindow,
   getContextTrust,

@@ -173,6 +173,12 @@ if (adaptiveTestsDecision.workflowRoute?.lane !== 'verification') throw new Erro
 if (adaptiveTestsDecision.workflowRoute?.suggestedTarget !== 'horus-cli.check') throw new Error(`expected verification target horus-cli.check, got ${adaptiveTestsDecision.workflowRoute?.suggestedTarget}`);
 
 step('workflow-routing');
+// Reset trajectory state so escalations from prior steps (decide-require-tests,
+// adaptive-tests-decision, etc.) do not trip trajectory-nudge upgrades during
+// workflow-routing assertions. Required after ADR-001 Option D where F7 routes
+// intent-unknown-strict cases to require-review (which trajectory-nudge can
+// further upgrade to escalate without this reset).
+saveState({ sessions: {}, recent: [], updatedAt: null });
 const lowRoute = decide({ command: 'npm test', targetPath: 'web/app.ts', tool: 'Bash', sessionRisk: 0 });
 if (lowRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected checks lane, got ${lowRoute.workflowRoute?.lane}`);
 if (lowRoute.workflowRoute?.suggestedTarget !== 'horus-cli.check') throw new Error(`expected checks target horus-cli.check, got ${lowRoute.workflowRoute?.suggestedTarget}`);
@@ -253,9 +259,22 @@ const classBRoute = decide({ command: 'open customer export', targetPath: 'expor
 if (classBRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected class B payload lane, got ${classBRoute.workflowRoute?.lane}`);
 if (classBRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected class B payload target horus-cli.review, got ${classBRoute.workflowRoute?.suggestedTarget}`);
 
+// ADR-002 Option B: class C blocks by default (F4 floor). Operator demotes to
+// require-review by minting a one-shot scoped token for legitimate inspection
+// (incident response, customer-data audit). Test the demotion path here so the
+// review-lane assertion remains meaningful after F4's stricter default.
+const { mintOperatorToken: _mintCRoute } = require(path.join(root, 'runtime/contract.js'));
+const _classCDemoteToken = _mintCRoute('test-class-c-route', 'class-c-review-demote');
+process.env.HORUS_F4_DEMOTE_TOKEN = _classCDemoteToken;
 const classCRoute = decide({ command: 'inspect incident bundle', targetPath: 'bundle.zip', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/incidents' });
-if (classCRoute.workflowRoute?.lane !== 'review') throw new Error(`expected class C review lane, got ${classCRoute.workflowRoute?.lane}`);
+delete process.env.HORUS_F4_DEMOTE_TOKEN;
+if (classCRoute.workflowRoute?.lane !== 'review') throw new Error(`expected class C review lane (with demote token), got ${classCRoute.workflowRoute?.lane}`);
 if (classCRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected class C review target horus-cli.review, got ${classCRoute.workflowRoute?.suggestedTarget}`);
+
+// ADR-002 Option B negative: class C without operator token stays blocked.
+const classCBlockedRoute = decide({ command: 'inspect incident bundle', targetPath: 'bundle.zip', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/incidents' });
+if (classCBlockedRoute.workflowRoute?.lane !== 'blocked') throw new Error(`expected class C blocked lane (without demote token), got ${classCBlockedRoute.workflowRoute?.lane}`);
+if (classCBlockedRoute.floorFired !== 'secret-class-C') throw new Error(`expected class C secret-class-C floor, got ${classCBlockedRoute.floorFired}`);
 
 const classifyRoute = decide({ command: 'classify inbound.txt', targetPath: 'payload.txt', tool: 'Bash', sessionRisk: 0 });
 if (classifyRoute.workflowRoute?.suggestedTarget !== 'horus-cli.classify') throw new Error(`expected classify target horus-cli.classify, got ${classifyRoute.workflowRoute?.suggestedTarget}`);
@@ -319,9 +338,13 @@ if (escalateDecision.workflowRoute?.suggestedSurface !== 'security-reviewer') th
 if (escalateDecision.workflowRoute?.suggestedTarget !== 'human-gate') throw new Error(`expected human-gate target, got ${escalateDecision.workflowRoute?.suggestedTarget}`);
 if (escalateDecision.enforcementAction !== 'block') throw new Error(`expected block enforcement for escalate, got ${escalateDecision.enforcementAction}`);
 
-// classifyCommandPayload: C-class payload flag should trigger review lane even for low-risk commands
+// classifyCommandPayload: C-class payload defaults to blocked (F4 floor). With an
+// operator-token demotion (ADR-002 B), it routes to review for legitimate inspection.
+const _classifyCToken = _mintCRoute('test-classify-c', 'class-c-review-demote');
+process.env.HORUS_F4_DEMOTE_TOKEN = _classifyCToken;
 const classifyCDecision = decide({ command: 'cat incident-report.pdf', targetPath: 'reports/', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/hooks' });
-if (classifyCDecision.workflowRoute?.lane !== 'review') throw new Error(`expected class C → review lane, got ${classifyCDecision.workflowRoute?.lane}`);
+delete process.env.HORUS_F4_DEMOTE_TOKEN;
+if (classifyCDecision.workflowRoute?.lane !== 'review') throw new Error(`expected class C → review lane (with demote token), got ${classifyCDecision.workflowRoute?.lane}`);
 
 // sessionRisk bump: elevated sessionRisk should add score and affect route for borderline commands
 const sessionRiskDecision = decide({ command: 'sudo systemctl restart app', targetPath: 'ops/service', tool: 'Bash', sessionRisk: 3 });

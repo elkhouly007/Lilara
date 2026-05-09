@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **D26 follow-up: F4/F6/F7 fixture context isolation + ADR-001 D + ADR-002 B.** Three test scripts (`run-fixtures.sh`, `check-runtime-core.sh`, `check-runtime-cli.sh`) had assertions written before D26 floors and were silently relying on CWD-derived context discovery (protected branch, accumulated session risk, trajectory-nudge). Fixture coverage now stands at **247 fixtures** with explicit context isolation. ADR-001 Option D: F7 (intent-unknown-strict) changed from `block` to `require-review` so descriptive commands prompt for operator approval instead of being killed. ADR-002 Option B: F4 (secret-class-C) blocks by default but is demotable to `require-review` via a one-shot scoped operator token (`class-c-review-demote`) for legitimate inspection use cases (incident response, customer-data audit). Trajectory-nudge logic now applies only when source is `risk-engine`, leaving floor-derived decisions (intent-unknown-strict, taint-floor, f4-class-c-demoted, etc.) at the explicit severity their floor encodes. New `consumeScopedOperatorToken(token, scope)` in `runtime/contract.js`; `horus-cli.sh operator-token mint --scope <scope>` flag.
+
 ### Breaking Changes
 
 - **B3 — `contract.accept()` now requires a positive operator signal.** The previous env-var allowlist (checking absence of `CLAUDE_CODE_ENTRYPOINT`, `OPENCODE_SESSION_ID`, etc.) has been replaced with: (a) `stdin.isTTY` is true, OR (b) `HORUS_OPERATOR_TOKEN` is a valid unconsumed one-shot token. Any non-TTY automation that called `accept()` without a token will now fail with a clear error. Migration: run `horus-cli.sh operator-token mint <label>` in an interactive shell, then pass the printed token via `HORUS_OPERATOR_TOKEN`. See `CONTRACT.md` § Operator Token Flow and D32 in `DECISIONS.md`.
