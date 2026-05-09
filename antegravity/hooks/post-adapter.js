@@ -3,4 +3,8 @@
 "use strict";
 
 const { createPostAdapter } = require("../../runtime/post-adapter-factory");
-createPostAdapter({ harnessName: "antegravity", rateLimitKey: "antegravity-post-adapter" });
+// TODO(F15/Task0.6): publish this via antegravity/manifest.json. Until then,
+// treat antegravity as envelopeReporting: false.
+const ADAPTER_CAPABILITIES = { envelopeReporting: false };
+void ADAPTER_CAPABILITIES;
+createPostAdapter({ harnessName: "antegravity", rateLimitKey: "antegravity-post-adapter", envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting });

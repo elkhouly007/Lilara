@@ -20,6 +20,7 @@ const fs   = require("fs");
 const path = require("path");
 const { decide }      = require("./decision-engine");
 const { discover }    = require("./context-discovery");
+const { build: buildEnvelope, rememberPending } = require("./envelope");
 const { scanSecrets } = require("./secret-scan");
 
 // ---------------------------------------------------------------------------
@@ -117,7 +118,13 @@ function classifyPathSensitivity(targetPath) {
  *
  * @returns {{ exitCode: 0|2, stderrLines: string[], logAction: string|null, logHitName: string|null }}
  */
-function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0 }) {
+function isCriticalEnvelopeRecheck(decision, payloadClass) {
+  if (!decision || ["block", "escalate"].includes(decision.action)) return false;
+  if (payloadClass === "C") return true;
+  return Array.isArray(decision.reasonCodes) && decision.reasonCodes.includes("protected-branch");
+}
+
+function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0, envelopeReporting = false }) {
   const stderrLines = [];
   const emit = (msg) => stderrLines.push(msg);
   const ENFORCE = process.env.HORUS_ENFORCE === "1";
@@ -164,8 +171,23 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   // session-risk, and strict-mode checks.
   let decision;
   let discovered;
+  let envelope = null;
   try {
     discovered = discover({ targetPath, branch: String(rawInput?.branch || "").trim() });
+    if (envelopeReporting) {
+      envelope = buildEnvelope({
+        harness: String(harness || ""),
+        tool: String(tool || "Bash"),
+        command: cmd,
+        cwd: targetPath || discovered.projectRoot || process.cwd(),
+        targetPath,
+        projectRoot: discovered.projectRoot,
+        sessionId: rawInput?.session_id || rawInput?.sessionId,
+        trackPaths: rawInput?.track_paths || rawInput?.trackPaths,
+        aliases: rawInput?.aliases,
+      });
+      if (rawInput?.tool_use_id) rememberPending(rawInput.tool_use_id, envelope);
+    }
     decision = decide({
       harness:     String(harness || ""),
       tool:        String(tool || "Bash"),
@@ -177,8 +199,38 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       payloadClass,
       sessionRisk,
       pathSensitivity,
+      envelope,
       notes: hit ? `${harness}-gate:${hit.name}` : `${harness}-gate`,
     });
+
+    if (envelopeReporting && envelope && isCriticalEnvelopeRecheck(decision, payloadClass)) {
+      const observedEnvelope = buildEnvelope({
+        harness: String(harness || ""),
+        tool: String(tool || "Bash"),
+        command: cmd,
+        cwd: targetPath || discovered.projectRoot || process.cwd(),
+        targetPath,
+        projectRoot: discovered.projectRoot,
+        sessionId: rawInput?.session_id || rawInput?.sessionId,
+        trackPaths: rawInput?.track_paths || rawInput?.trackPaths,
+        aliases: rawInput?.aliases,
+      });
+      decision = decide({
+        harness:     String(harness || ""),
+        tool:        String(tool || "Bash"),
+        command:     cmd,
+        targetPath,
+        branch:      discovered.branch,
+        projectRoot: discovered.projectRoot,
+        configPath:  discovered.configPath,
+        payloadClass,
+        sessionRisk,
+        pathSensitivity,
+        envelope,
+        observedEnvelope,
+        notes: `${harness}-gate:pre-exec-recheck`,
+      });
+    }
   } catch (runtimeErr) {
     const errMsg = runtimeErr instanceof Error ? runtimeErr.message : String(runtimeErr);
     emit(`[Agent Runtime Guard] WARNING: runtime decision engine unavailable (${errMsg}). Applying severity fallback.`);
@@ -220,6 +272,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   if (sessionRisk > 0) emit(`[Agent Runtime Guard] Session risk: ${sessionRisk}`);
   emit(`[Agent Runtime Guard] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})`);
   emit(`[Agent Runtime Guard] Explanation: ${decision.explanation}`);
+  if (decision.envelope?.hash) emit(`[Agent Runtime Guard] Execution envelope: ${decision.envelope.hash}`);
 
   if (decision.action === "escalate") {
     emit("[Agent Runtime Guard] ESCALATION ROUTE: human gate required — do not auto-allow.");

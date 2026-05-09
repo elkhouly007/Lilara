@@ -51,6 +51,7 @@ process.env.HOME = _testStateDir;
 process.env.HORUS_DECISION_JOURNAL = '0'; // suppress journal file writes during tests
 const { score } = require(path.join(root, 'runtime/risk-score.js'));
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
+const { build: buildEnvelope, verify: verifyEnvelope } = require(path.join(root, 'runtime/envelope.js'));
 const { discover } = require(path.join(root, 'runtime/context-discovery.js'));
 const { recordApproval, setLearnedAllow, isLearnedAllowed, listSuggestions, acceptSuggestion, summarizePolicy, decisionKey, getSuggestion, grantAutoAllowOnce, hasAutoAllowOnce, getSuggestionForInput } = require(path.join(root, 'runtime/policy-store.js'));
 const { fineKey: computeFineKey } = require(path.join(root, 'runtime/decision-key.js'));
@@ -541,6 +542,33 @@ if (!secretGateResult.stderrLines.some(l => l.includes('Payload class: C')))
 if (secretGateResult.logHitName !== scanHit.name)
   throw new Error(`runPreToolGate: expected logHitName=${scanHit.name}, got ${secretGateResult.logHitName}`);
 console.log('cross-harness-secret-scan: ok');
+
+step('f15-envelope-hash-stability');
+const f15Repo = path.resolve(process.env.HOME, 'f15-envelope-repo');
+fs.mkdirSync(path.join(f15Repo, 'bin'), { recursive: true });
+fs.writeFileSync(path.join(f15Repo, 'bin', 'safe-tool'), '#!/usr/bin/env bash\necho ok\n');
+fs.chmodSync(path.join(f15Repo, 'bin', 'safe-tool'), 0o755);
+fs.writeFileSync(path.join(f15Repo, 'tracked.txt'), 'alpha\n');
+execFileSync('git', ['init'], { cwd: f15Repo, stdio: 'ignore' });
+execFileSync('git', ['config', 'user.email', 'f15@example.com'], { cwd: f15Repo, stdio: 'ignore' });
+execFileSync('git', ['config', 'user.name', 'F15 Test'], { cwd: f15Repo, stdio: 'ignore' });
+execFileSync('git', ['add', '.'], { cwd: f15Repo, stdio: 'ignore' });
+execFileSync('git', ['commit', '-m', 'init'], { cwd: f15Repo, stdio: 'ignore' });
+const baseEnv = { ...process.env, PATH: path.join(f15Repo, 'bin') + path.delimiter + process.env.PATH, BASH_ALIASES: "safe-tool='safe-tool --flag'", HORUS_ENVELOPE_TEST: 'alpha' };
+const envA = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
+const envB = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
+if (envA.hash !== envB.hash) throw new Error(`expected stable envelope hash, got ${envA.hash} vs ${envB.hash}`);
+if (verifyEnvelope(envA, envB).ok !== true) throw new Error('expected identical envelopes to verify cleanly');
+const decisionWithEnvelope = decide({ command: 'safe-tool tracked.txt', targetPath: path.join(f15Repo, 'tracked.txt'), tool: 'Bash', branch: 'feature/f15', projectRoot: f15Repo, envelope: envA });
+if (decisionWithEnvelope.envelope?.hash !== envA.hash) throw new Error('expected additive decision.envelope field');
+
+step('f15-envelope-divergence-floor');
+const envChangedPath = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: { ...baseEnv, HORUS_ENVELOPE_TEST: 'beta' }, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
+const diverged = decide({ command: 'safe-tool tracked.txt', targetPath: path.join(f15Repo, 'tracked.txt'), tool: 'Bash', branch: 'feature/f15', projectRoot: f15Repo, envelope: envA, observedEnvelope: envChangedPath });
+if (diverged.action !== 'block') throw new Error(`expected F15 block, got ${diverged.action}`);
+if (diverged.decisionSource !== 'execution-envelope-diverged') throw new Error(`expected F15 source, got ${diverged.decisionSource}`);
+if (diverged.floorFired !== 'execution-envelope') throw new Error(`expected F15 floor, got ${diverged.floorFired}`);
+if (diverged.envelopeVerification?.reason !== 'env-diff') throw new Error(`expected env-diff mismatch, got ${diverged.envelopeVerification?.reason}`);
 
 console.log('runtime-core-node-check: ok');
 NODE

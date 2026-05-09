@@ -313,8 +313,9 @@ function runtimeContext(input) {
  * @param {function} opts.extractCommand — (input) → command string
  * @param {function} opts.extractCwd    — (input) → cwd string
  * @param {function} opts.extractTool   — (input) → tool name string
+ * @param {boolean}  [opts.envelopeReporting=false] — adapter can report F15 execution envelopes
  */
-function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool }) {
+function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false }) {
   const { runPreToolGate } = require(path.join(__dirname, "..", "..", "runtime", "pretool-gate"));
   readStdin()
     .then((raw) => {
@@ -328,6 +329,7 @@ function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extr
         cwd:         extractCwd(input),
         rawInput:    input,
         sessionRisk: readSessionRisk(),
+        envelopeReporting,
       });
       for (const line of stderrLines) process.stderr.write(line + "\n");
       if (logAction && logHitName) {

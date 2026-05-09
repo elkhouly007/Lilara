@@ -3,4 +3,8 @@
 "use strict";
 
 const { createPostAdapter } = require("../../runtime/post-adapter-factory");
-createPostAdapter({ harnessName: "openclaw", rateLimitKey: "openclaw-post-adapter" });
+// TODO(F15/Task0.6): publish this via openclaw/manifest.json. Until then,
+// treat OpenClaw as envelopeReporting: false.
+const ADAPTER_CAPABILITIES = { envelopeReporting: false };
+void ADAPTER_CAPABILITIES;
+createPostAdapter({ harnessName: "openclaw", rateLimitKey: "openclaw-post-adapter", envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting });

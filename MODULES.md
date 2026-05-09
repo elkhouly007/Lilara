@@ -8,14 +8,14 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | --- | --- | --- | --- |
 | Claude local instructions | `claude/AGENTS.md` | enabled by copying | Local-first agent operating rules. |
 | Secret warning hook | `claude/hooks/secret-warning.js` | optional local hook (PreToolUse) | Scans prompt JSON for 23 secret patterns (API keys, tokens, JWTs, etc.). Blocks in `HORUS_ENFORCE=1`. |
-| Dangerous command gate | `claude/hooks/dangerous-command-gate.js` | optional local hook (PreToolUse Bash) | Blocks/warns on 21 dangerous shell patterns: rm -rf, force-push, curl\|sh, DROP TABLE, prompt injection, etc. Highest-severity match wins. Blocks in `HORUS_ENFORCE=1`. |
+| Dangerous command gate | `claude/hooks/dangerous-command-gate.js` | optional local hook (PreToolUse Bash) | Blocks/warns on 21 dangerous shell patterns: rm -rf, force-push, curl\|sh, DROP TABLE, prompt injection, etc. Highest-severity match wins. Claude now also reports F15 execution envelopes from this hook path. Blocks in `HORUS_ENFORCE=1`. |
 | Build reminder hook | `claude/hooks/build-reminder.js` | optional local hook (PreToolUse Bash) | Reminds the user to review build/test output before continuing. |
 | Git push reminder hook | `claude/hooks/git-push-reminder.js` | optional local hook (PreToolUse Bash) | Reminds before push; blocks force-push in `HORUS_ENFORCE=1`. |
 | Quality gate hook | `claude/hooks/quality-gate.js` | optional local hook (PostToolUse Edit/Write) | Suggests linter/test commands after file edits based on file extension. |
 | Session start hook | `claude/hooks/session-start.js` | optional local hook (SessionStart) | Loads instinct store, shows pending review count. |
 | Session end hook | `claude/hooks/session-end.js` | optional local hook (Stop) | Captures session metadata to instinct store for future sessions. |
 | Strategic compact hook | `claude/hooks/strategic-compact.js` | optional local hook (PostToolUse) | Suggests /compact when context window may be filling. |
-| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner + taint recorder. Scans output via `runtime/secret-scan.js`; records external-source tool output (WebFetch, mcp, curl, Browser) to provenance window via `runtime/taint.js`. (A3: taint recording added.) |
+| Output sanitizer hook | `claude/hooks/output-sanitizer.js` | optional local hook (PostToolUse) | PostToolUse secret scanner + taint recorder. Scans output via `runtime/secret-scan.js`; records external-source tool output (WebFetch, mcp, curl, Browser) to provenance window via `runtime/taint.js`. Claude also consumes reported F15 execution envelopes here for post-run divergence journaling. |
 | Memory load hook | `claude/hooks/memory-load.js` | optional local hook (SessionStart) | Loads project memory context at session start. |
 | PR notifier hook | `claude/hooks/pr-notifier.js` | optional local hook (PostToolUse) | Notifies after PR-related actions. |
 | Hook utilities | `claude/hooks/hook-utils.js` | shared library | readStdin (5 MB cap), commandFrom, collectText, hookLog, rateLimitCheck (O_EXCL lockfile — atomic token-bucket, contention→deny, FS-error→fail-open), classifyCommandPayload, classifyPathSensitivity (advisory, feeds risk-score), readSessionRisk. Used by all hooks. |
@@ -102,6 +102,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Context discovery | `runtime/context-discovery.js` | Auto-detects project root, git branch, primary stack, and config presence from filesystem. |
 | `state-paths.js`      | `runtime/state-paths.js`      | Single source of truth for storage paths; honors `HORUS_STATE_DIR` override. |
 | `canonical-json.js`   | `runtime/canonical-json.js`   | Deterministic JSON stringify (keys sorted) for contract hashing. |
+| `envelope.js`         | `runtime/envelope.js`         | F15 execution-envelope builder/verifier. Captures cwd inode, git HEAD, normalized command AST, env diff, resolved executable path, and tracked target metadata; persists env baselines + pending envelopes under `HORUS_STATE_DIR`. |
 | `glob-match.js`       | `runtime/glob-match.js`       | Zero-dep glob matcher (`**`, `*`, `?`, `[abc]`, `!` negation, `${projectRoot}`). |
 | `arg-extractor.js`    | `runtime/arg-extractor.js`    | Argv splitter; handles quoted args, escapes, heredocs (fail-closed on `<<HEREDOC`). |
 | `decision-key.js`     | `runtime/decision-key.js`     | Builds `fineKey` (5-part) and `legacyKey` (4-part back-compat); classifies commands. |
@@ -110,7 +111,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | `session-budget.js`   | `runtime/session-budget.js`   | Per-session destructive-op and external-bytes counters. Atomic tmp+rename writes, mode 0600. State at `~/.horus/session-budget/<session-id>.json`. API: `getCounters`, `recordDestructiveOp`, `recordExternalBytes`, `resetCounters`. |
 | `secret-scan.js`      | `runtime/secret-scan.js`      | Cross-harness secret pattern scanner (shared by pre- and post-tool hooks). Exports `scanSecrets()` and `getPatterns()` (returns full 23-pattern set for use by journal redaction). |
 | `telemetry.js`        | `runtime/telemetry.js`        | Structured event sink to `telemetry.jsonl`; never blocks. |
-| `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. |
+| `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. Builds/report F15 envelopes when the adapter supports it and re-checks critical writes immediately before execution. |
 
 All runtime modules write only to `HORUS_STATE_DIR` (or `~/.horus/`). No network access. No package manager invocations. State files are created with mode 0700 directories and 0600 files.
 
@@ -120,12 +121,12 @@ Each harness has a PostToolUse hook that: (1) scans tool output for secrets via 
 
 | Harness | Path | Notes |
 |---------|------|-------|
-| Claude | `claude/hooks/output-sanitizer.js` | Canonical implementation (A3 adds taint recording) |
-| OpenCode | `opencode/hooks/post-adapter.js` | Claude Code fork — same PostToolUse hook format |
-| OpenClaw | `openclaw/hooks/post-adapter.js` | Claude Code-compatible shape; event model likely verified |
-| Codex | `codex/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
-| Clawcode | `clawcode/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
-| Antegravity | `antegravity/hooks/post-adapter.js` | Best-effort — API unverified, covers likely payload shapes |
+| Claude | `claude/hooks/output-sanitizer.js` | Canonical implementation (A3 taint recording + F15 envelope post-run verification) |
+| OpenCode | `opencode/hooks/post-adapter.js` | Claude Code fork — same PostToolUse hook format; F15 manifest stub currently reports `envelopeReporting: false` |
+| OpenClaw | `openclaw/hooks/post-adapter.js` | Claude Code-compatible shape; F15 manifest stub currently reports `envelopeReporting: false` |
+| Codex | `codex/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
+| Clawcode | `clawcode/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
+| Antegravity | `antegravity/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
 
 `scripts/check-post-adapter-parity.sh` CI gate enforces that all 6 files require both secret-scan and taint modules and call both `scanSecrets()` and `recordExternalRead()`.
 

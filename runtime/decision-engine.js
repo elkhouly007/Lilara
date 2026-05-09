@@ -40,15 +40,16 @@ function harnessInScope(contract, harness) {
   return Array.isArray(contract?.harnessScope) && contract.harnessScope.includes(harness);
 }
 
-function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation) {
+function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   const result = {
     action: "block",
     enforcementAction: "block",
+    floorFired: extra.floorFired || null,
     riskScore: 10,
     riskLevel: "critical",
     reasonCodes: [reasonCode],
     confidence: 1,
-    decisionSource: "contract-floor",
+    decisionSource: extra.decisionSource || "contract-floor",
     policyKey: reasonCode,
     explanation,
     pendingSuggestion: null,
@@ -58,6 +59,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation) {
     workflowRoute: null,
     actionPlan: null,
     trajectoryNudge: null,
+    envelope: input.envelope || null,
+    envelopeVerification: extra.envelopeVerification || null,
     context: {},
   };
   // Still journal the early block so diff-decisions can replay it
@@ -71,7 +74,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation) {
       tool: input.tool || "",
       branch: input.branch || "",
       targetPath: input.targetPath || "",
-      notes: `contract-floor:${reasonCode}`,
+      notes: `${result.decisionSource}:${reasonCode}`,
+      ...(result.floorFired ? { floorFired: result.floorFired } : {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
   } catch { /* journal is best-effort */ }
@@ -294,6 +298,44 @@ function decide(input = {}) {
     }
   } catch { /* helper unavailable → no-op */ }
 
+  // F15: execution-envelope divergence floor — fail closed when the adapter's
+  // observed execution envelope differs from the decision envelope.
+  let envelopeVerification = null;
+  if (input.envelope && input.observedEnvelope) {
+    try {
+      const { verify } = require("./envelope");
+      envelopeVerification = verify(input.envelope, input.observedEnvelope, {
+        enforceEnvDiff: input.enforceEnvDiff !== false,
+      });
+      if (!envelopeVerification.ok) {
+        return buildEarlyBlock(
+          "execution-envelope-diverged",
+          enriched,
+          discovered,
+          input,
+          `execution envelope diverged (${envelopeVerification.reason}) — failing closed`,
+          {
+            floorFired: "execution-envelope",
+            decisionSource: "execution-envelope-diverged",
+            envelopeVerification,
+          }
+        );
+      }
+    } catch (verifyErr) {
+      return buildEarlyBlock(
+        "execution-envelope-diverged",
+        enriched,
+        discovered,
+        input,
+        `execution envelope verify error (${verifyErr instanceof Error ? verifyErr.message : "unknown"}) — failing closed`,
+        {
+          floorFired: "execution-envelope",
+          decisionSource: "execution-envelope-diverged",
+        }
+      );
+    }
+  }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -495,6 +537,7 @@ function decide(input = {}) {
   if (mcpWarning)            explanationParts.push(`mcp-warn=${mcpWarning.name}`);
   if (skillWarning)          explanationParts.push(`skill-warn=${skillWarning.name}`);
   if (sessionDurationWarning) explanationParts.push(`session-over-duration=age:${sessionDurationWarning.ageMin}min/limit:${sessionDurationWarning.limitMin}min`);
+  if (input.envelope?.hash) explanationParts.push(`envelope=${input.envelope.hash}`);
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -543,6 +586,8 @@ function decide(input = {}) {
     workflowRoute,
     actionPlan,
     trajectoryNudge,
+    envelope: input.envelope || null,
+    envelopeVerification,
     intent: intentResult.intent,
     context: risk.context,
     ...(validityWarning ? { validityWarning } : {}),

@@ -24,6 +24,7 @@ runtime/
 ├── glob-match.js           Zero-dep glob matcher (**/*/?/[abc]/! negation/${projectRoot}).
 ├── arg-extractor.js        Argv splitter. Quoted args, escapes, heredocs → <<HEREDOC (fail-closed).
 ├── canonical-json.js       Deterministic JSON stringify (keys sorted) for contract hashing.
+├── envelope.js             F15 execution envelope build/verify helpers + pending-envelope persistence.
 ├── config-validator.js     Typed-field walker. Validates horus.config.json and horus.contract.json.
 ├── state-paths.js          Single source of truth for all storage paths. HORUS_STATE_DIR override.
 ├── decision-lattice.js     HAP ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
@@ -33,9 +34,9 @@ runtime/
 
 Adapters (thin, ~30–70 lines each):
 ```
-claude/hooks/dangerous-command-gate.js   → createAdapter({ harness:"claude", ... })   (hook-utils.js)
-openclaw/hooks/adapter.js                → createAdapter({ harness:"openclaw", ... })  (hook-utils.js)
-opencode/hooks/adapter.js                → createAdapter({ harness:"opencode", ... })  (hook-utils.js)
+claude/hooks/dangerous-command-gate.js   → createAdapter({ harness:"claude", envelopeReporting:true, ... })   (hook-utils.js)
+openclaw/hooks/adapter.js                → createAdapter({ harness:"openclaw", envelopeReporting:false, ... })  (hook-utils.js)
+opencode/hooks/adapter.js                → createAdapter({ harness:"opencode", envelopeReporting:false, ... })  (hook-utils.js)
 ```
 
 ## 2. Decision Flow — Section 4.6 Precedence Matrix
@@ -78,7 +79,7 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 ```
 
 **Demotion rules:**
-- Fifteen floors are implemented: F1 (kill-switch, `decision-engine.js:82`), F2 (contract-hash-mismatch, `decision-engine.js:136`), F3 (critical-risk, `decision-engine.js:192`), F4 (secret-class-C, `decision-engine.js:222`), F5 (strict+gated+no-cover, `decision-engine.js:157`), F6 (posture-strict-no-cover, `decision-engine.js:268`), F7 (intent-unknown-strict, `decision-engine.js:285`), F8 (protected-branch, `decision-engine.js:196`), F9 (session-risk, `decision-engine.js:260`), F10 (taint-floor, `decision-engine.js:240`), F11 (validity-window, `decision-engine.js:298`), F12 (mcp-deny, `decision-engine.js`), F13 (skill-deny, `decision-engine.js`), F14 (budget-exceeded, `decision-engine.js`), F14b (session-over-duration → require-review, D47). F2 and F5 fire only when `HORUS_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F10 fires only for write/exec-class tools (read-only tools such as Read/Grep/Glob are exempt — see D37). F4 fires when `payloadClass === "C"` or `scanSecrets()` detects a class-C pattern; cannot be demoted by contract-allow (D26). F6 fires when `trustPosture === "strict"` + gated class + `!contractAllow`; does not fire in balanced or relaxed posture (D26). F7 fires when `intent === "unknown"` + `trustPosture === "strict"`; does not fire in balanced or relaxed posture (D26). B2 Phase 1 added F11. B2 Phase 2 commit 1 adds F12/F13; commit 2 adds F14/F14b and `runtime/session-budget.js`.
+- Fifteen floors are implemented: F1 (kill-switch, `decision-engine.js:82`), F2 (contract-hash-mismatch, `decision-engine.js:136`), F3 (critical-risk, `decision-engine.js:192`), F4 (secret-class-C, `decision-engine.js:222`), F5 (strict+gated+no-cover, `decision-engine.js:157`), F6 (posture-strict-no-cover, `decision-engine.js:268`), F7 (intent-unknown-strict, `decision-engine.js:285`), F8 (protected-branch, `decision-engine.js:196`), F9 (session-risk, `decision-engine.js:260`), F10 (taint-floor, `decision-engine.js:240`), F11 (validity-window, `decision-engine.js:298`), F12 (mcp-deny, `decision-engine.js`), F13 (skill-deny, `decision-engine.js`), F14 (budget-exceeded, `decision-engine.js`), F14b (session-over-duration → require-review, D47). F2 and F5 fire only when `HORUS_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F10 fires only for write/exec-class tools (read-only tools such as Read/Grep/Glob are exempt — see D37). F4 fires when `payloadClass === "C"` or `scanSecrets()` detects a class-C pattern; cannot be demoted by contract-allow (D26). F6 fires when `trustPosture === "strict"` + gated class + `!contractAllow`; does not fire in balanced or relaxed posture (D26). F7 fires when `intent === "unknown"` + `trustPosture === "strict"`; does not fire in balanced or relaxed posture (D26). B2 Phase 1 added F11. B2 Phase 2 commit 1 adds F12/F13; commit 2 adds F14/F14b and `runtime/session-budget.js`. F15 adds an execution-envelope divergence floor: when an adapter reports an observed execution envelope and `runtime/envelope.verify()` finds drift, `decide()` fails closed with `decisionSource="execution-envelope-diverged"`, `floorFired="execution-envelope"`. Critical writes (payload-class-C and protected-branch writes) are re-checked immediately before execution.
 - `contract-allow` demotes baseline only. Never demotes a floor.
 - Project default `trustPosture` is overridden per-branch by `contract.contextTrust[]` (first-match-wins, schema-defined order) before risk scoring; affects risk score only, not scopes or floors (B2 commit 2).
 - Step 11 per-tool source distinction: when contract scope-allow matches via `scopes.tools.perToolAllow`, source is `contract-allow-tool-scope` (not `contract-allow`). Both share the W11 escalate-demotion carve-out (B2 commit 3).
@@ -112,6 +113,8 @@ All paths go through `runtime/state-paths.js`. Override with `HORUS_STATE_DIR`.
 ├── current-session-id              16-hex session ID written at SessionStart
 ├── policy.json                     Learned-allow, approvals, auto-allow-once grants
 ├── accepted-contracts.json         { <projectRootAbs>: { contractHash, acceptedAt, revision } }
+├── envelope-baselines/             Stable env baselines keyed by session/harness/cwd
+├── pending-envelopes/              Pending F15 pre-exec envelopes keyed by tool_use_id
 └── telemetry.jsonl                 Structured telemetry events (never blocks decisions)
 
 <projectRoot>/
@@ -148,7 +151,7 @@ Each adapter must:
 4. Exit 0 to allow the action; exit 2 to block (when `HORUS_ENFORCE=1` and decision is block/escalate/require-review).
 5. Never modify the JSON passed to the model.
 
-`runtime/pretool-gate.js` implements steps 3–5 for all harnesses. Adapters provide only the harness-specific stdin parsing.
+`runtime/pretool-gate.js` implements steps 3–5 for all harnesses. Adapters provide only the harness-specific stdin parsing plus an `envelopeReporting` capability bit. In this run, only Claude reports full F15 envelopes; other adapters stay explicitly stubbed off.
 
 ## 7. Zero-Dependency Policy
 
