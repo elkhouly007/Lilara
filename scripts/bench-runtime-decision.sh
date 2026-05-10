@@ -35,12 +35,44 @@ node - <<'NODE' "$root" "$workdir" "$P99_CEILING_MS" "$slow_fs" || exit 1
 "use strict";
 const path = require('path');
 const fs   = require('fs');
+const cp   = require('child_process');
 const root = process.argv[2];
 const workdir = process.argv[3];
 const p99Ceiling = Number(process.argv[4]);
 
 process.env.HORUS_STATE_DIR = workdir;
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
+
+// Baseline lineage helpers — mirror tests/perf/bench.js. CI cache restore-keys
+// are prefix-matched, so artifacts/bench/baseline.json often comes from an
+// orphaned/unrelated commit (pre-rebase HEAD, sibling feature branch). Compar-
+// ing a fresh run on a different runner against that arbitrary stale baseline
+// produces 1.5× false-positive failures (esp. Windows slowfs runner variance).
+// Stamp baselines with commitSha and only enforce the 1.5× regression gate
+// when the baseline is from an ancestor of the current commit. The hard
+// platform ceiling ladder is unchanged and still catches severe regressions.
+function gitTry(args) {
+  try {
+    return cp.execFileSync("git", args, {
+      cwd: root, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8",
+    }).trim();
+  } catch { return ""; }
+}
+function currentCommitSha() {
+  return process.env.HORUS_BENCH_BASELINE_SHA
+      || process.env.GITHUB_SHA
+      || gitTry(["rev-parse", "HEAD"]) || "";
+}
+function isAncestorOrSame(maybeAncestor, head) {
+  if (!maybeAncestor || !head) return false;
+  if (maybeAncestor === head) return true;
+  try {
+    cp.execFileSync("git", ["merge-base", "--is-ancestor", maybeAncestor, head], {
+      cwd: root, stdio: "ignore",
+    });
+    return true;
+  } catch { return false; }
+}
 
 const inputs = [
   { command: 'npm test',                   tool: 'Bash', targetPath: 'src/app.ts',      sessionRisk: 0, repeatedApprovals: 0 },
@@ -98,14 +130,23 @@ try {
   }
 } catch { /* baseline is optional */ }
 
+const headSha = currentCommitSha();
 if (baseline && baseline[platformKey] && baseline[platformKey].p99) {
-  const baseP99 = Number(baseline[platformKey].p99);
+  const prior = baseline[platformKey];
+  const baseP99 = Number(prior.p99);
   const cap = Math.min(p99Ceiling, baseP99 * 1.5);
-  if (p99 > cap) {
-    console.error(`  ERROR   p99 ${p99.toFixed(3)}ms exceeds 1.5× baseline (${baseP99.toFixed(3)}ms → cap ${cap.toFixed(3)}ms)`);
+  const baseSha = prior.commitSha || "";
+  const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
+  if (!baseSha) {
+    console.log(`  info    baseline has no commitSha stamp (legacy); skipping 1.5× gate, recording stamped baseline`);
+  } else if (!lineageOk) {
+    console.log(`  info    baseline from non-ancestor commit ${baseSha.slice(0,12)} (head ${headSha.slice(0,12) || "?"}); skipping 1.5× gate (likely rebase or stale cache from sibling branch)`);
+  } else if (p99 > cap) {
+    console.error(`  ERROR   p99 ${p99.toFixed(3)}ms exceeds 1.5× baseline (${baseP99.toFixed(3)}ms → cap ${cap.toFixed(3)}ms) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
     process.exit(1);
+  } else {
+    console.log(`  ok      p99 within 1.5× baseline (baseline=${baseP99.toFixed(3)}ms cap=${cap.toFixed(3)}ms) [baseline ${baseSha.slice(0,12)} ancestor]`);
   }
-  console.log(`  ok      p99 within 1.5× baseline (baseline=${baseP99.toFixed(3)}ms cap=${cap.toFixed(3)}ms)`);
 }
 
 try {
@@ -117,7 +158,15 @@ try {
   if (prior && Number(prior.p50) > 0 && p50 > Number(prior.p50) * 3) {
     console.log(`  WARN    p50 is 3× slower than prior baseline — skipping overwrite (likely wrong FS context)`);
   } else {
-    existing[platformKey] = { p50: p50.toFixed(3), p95: p95.toFixed(3), p99: p99.toFixed(3), updatedAt: new Date().toISOString(), node: nodeVer };
+    existing[platformKey] = {
+      p50: p50.toFixed(3),
+      p95: p95.toFixed(3),
+      p99: p99.toFixed(3),
+      updatedAt: new Date().toISOString(),
+      node: nodeVer,
+      commitSha: headSha || undefined,
+      commitRef: process.env.GITHUB_REF || gitTry(["rev-parse", "--abbrev-ref", "HEAD"]) || undefined,
+    };
     fs.writeFileSync(baselineFile, JSON.stringify(existing, null, 2) + "\n");
   }
 } catch { /* baseline write is best-effort */ }

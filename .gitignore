@@ -5,6 +5,7 @@ ubuntu_log.txt
 
 # ── Benchmark artifacts ───────────────────────────────────────────────────────
 artifacts/bench/
+artifacts/perf/
 
 # ── Claude Code session artifacts ─────────────────────────────────────────────
 .claude/scheduled_tasks.lock

@@ -183,3 +183,20 @@ jobs:
         with:
           path: artifacts/bench
           key: bench-baseline-${{ matrix.os }}-${{ github.sha }}
+
+      - name: Restore perf-regression baseline
+        uses: actions/cache@v4
+        with:
+          path: artifacts/perf
+          key: perf-baseline-${{ matrix.os }}-${{ github.sha }}
+          restore-keys: perf-baseline-${{ matrix.os }}-
+
+      - name: Perf regression guard (Task 0.12, 120 flows × 200 iter)
+        run: HORUS_PERF_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-perf-regression.sh
+
+      - name: Save perf-regression baseline
+        uses: actions/cache@v4
+        if: always()
+        with:
+          path: artifacts/perf
+          key: perf-baseline-${{ matrix.os }}-${{ github.sha }}
