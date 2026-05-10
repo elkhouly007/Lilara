@@ -68,6 +68,7 @@ function hashContract(doc) {
 
 let _cache = null;
 let _cacheKey = null;
+let _cacheLoaded = false;
 
 /**
  * Load and validate horus.contract.json for the given project root.
@@ -80,11 +81,12 @@ let _cacheKey = null;
 function load(projectRoot) {
   const filePath = contractFilePath(projectRoot);
   const cacheKey = filePath;
-  if (_cache !== null && _cacheKey === cacheKey) return _cache;
+  if (_cacheLoaded && _cacheKey === cacheKey) return _cache;
 
   if (!fs.existsSync(filePath)) {
     _cache = null;
     _cacheKey = cacheKey;
+    _cacheLoaded = true;
     return null;
   }
 
@@ -102,6 +104,7 @@ function load(projectRoot) {
 
   _cache = doc;
   _cacheKey = cacheKey;
+  _cacheLoaded = true;
   return doc;
 }
 
@@ -109,6 +112,7 @@ function load(projectRoot) {
 function invalidateCache() {
   _cache = null;
   _cacheKey = null;
+  _cacheLoaded = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -484,6 +488,11 @@ function generate(projectRoot, opts = {}) {
         outboundAllow:   [],
         outboundDeny:    ["*"],
         remoteExecAllow: [],
+        // F18 (ADR-005): default-deny outbound. Empty allowlist blocks all
+        // network. Operator opts in by listing trusted domains here, e.g.
+        // ["api.anthropic.com", "*.github.com"]. Loopback is exempt.
+        allowDomains: [],
+        denyDomains:  [],
       },
       secrets: {
         scanMode:        "block",
@@ -824,6 +833,21 @@ function getBudgetLimits(contract) {
   return contract.scopes.budget;
 }
 
+// ---------------------------------------------------------------------------
+// F18 helper: scopes.network.allowDomains / denyDomains (additive opt-in)
+// ---------------------------------------------------------------------------
+//
+// Returns the contract's network egress policy block, or null when no contract
+// is loaded. Returning the raw block (rather than a parsed shape) keeps this
+// helper a pure accessor; runtime/network-egress.js owns interpretation.
+//
+// F18 is enabled only when `network.allowDomains` is an array (additive
+// schema; existing v1/v2/v3 contracts without the field are unaffected).
+function getNetworkPolicy(contract) {
+  if (!contract || !contract.scopes || !contract.scopes.network) return null;
+  return contract.scopes.network;
+}
+
 module.exports = {
   load,
   verify,
@@ -850,4 +874,5 @@ module.exports = {
   extractMcpServerName,
   getSessionConstraints,
   getBudgetLimits,
+  getNetworkPolicy,
 };

@@ -33,8 +33,10 @@ const {
   getSkillPolicy: _contractGetSkillPolicy,
   getSessionConstraints: _contractGetSessionConstraints,
   getBudgetLimits: _contractGetBudgetLimits,
+  getNetworkPolicy: _contractGetNetworkPolicy,
   consumeScopedOperatorToken: _contractConsumeScopedOperatorToken,
 } = _contractMod;
+const { evaluate: _evalNet } = require("./network-egress");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -321,6 +323,36 @@ function decide(input = {}) {
       }
     }
   } catch { /* helper unavailable → no-op */ }
+
+  // F18: network-egress floor (ADR-005) — per-contract domain allowlist for
+  // outbound network calls. Default-deny: empty allowDomains blocks all network.
+  // Additive opt-in: only enforces when the contract carries a
+  // `scopes.network.allowDomains` array. Existing v1/v2/v3 contracts without
+  // the field continue to operate exactly as before.
+  if (contract) {
+    try {
+      const netPolicy = _contractGetNetworkPolicy(contract);
+      if (netPolicy && Array.isArray(netPolicy.allowDomains)) {
+        const ne = _evalNet(input.command || "", netPolicy);
+        if (ne.fired) {
+          const detail =
+            ne.reason === "ip-literal-blocked"
+              ? `IP-literal host '${ne.host}' blocked (use allowDomains hostnames; loopback exempt)`
+              : ne.reason === "deny-domain-match"
+                ? `host '${ne.host}' matched denyDomains`
+                : `host '${ne.host}' not in network.allowDomains`;
+          return buildEarlyBlock(
+            "network-egress-denied",
+            enriched,
+            discovered,
+            input,
+            `network egress blocked: ${detail} (target=${ne.target})`,
+            { floorFired: "network-egress", decisionSource: "network-egress-denied" }
+          );
+        }
+      }
+    } catch { /* network-egress unavailable → no-op (fail-open per zero-dep policy) */ }
+  }
 
   // F15: execution-envelope divergence floor — fail closed when the adapter's
   // observed execution envelope differs from the decision envelope.

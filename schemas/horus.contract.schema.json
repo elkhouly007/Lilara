@@ -89,7 +89,26 @@
               "items": { "type": "string" },
               "description": "Hostname/glob deny list. Empty array allows all outbound — use ['*'] to deny all. Engine outbound floors (critical-risk block, remote-exec gating) are independent of this field and cannot be loosened by any contract value."
             },
-            "remoteExecAllow": { "type": "array", "items": { "type": "string" } }
+            "remoteExecAllow": { "type": "array", "items": { "type": "string" } },
+            "allowDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "F18 (ADR-005): per-contract outbound domain allowlist. Default-deny when present and empty. Wildcard support is leading-dot only ('*.github.com' matches subdomains but NOT the bare apex 'github.com'). IP literals are not allowed in this list. Loopback (localhost, 127.0.0.0/8, ::1) is exempt by default. Backwards-compat: F18 enforces only when this field is present; existing contracts without it operate unchanged."
+            },
+            "denyDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "F18 (ADR-005): explicit outbound domain deny list. Higher precedence than allowDomains. Same wildcard rules as allowDomains."
+            },
+            "dnsCacheSeconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "F18 (ADR-005): DNS resolution cache TTL in seconds. Reserved for envelope-bound DNS resolution; not consumed by the v1 sync evaluator. Default: 60."
+            },
+            "allowOnLookupFailure": {
+              "type": "boolean",
+              "description": "F18 (ADR-005): when true, allow outbound calls when DNS resolution fails. Reserved for envelope-bound DNS resolution; not consumed by the v1 sync evaluator. Default: false."
+            }
           },
           "additionalProperties": false
         },

