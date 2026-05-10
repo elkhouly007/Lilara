@@ -30,9 +30,42 @@
 const fs   = require("fs");
 const os   = require("os");
 const path = require("path");
+const cp   = require("child_process");
 
 const root = path.resolve(__dirname, "..", "..");
 const corpus = require("./corpus.js");
+
+// Baseline lineage helpers. The CI cache restore-keys are a prefix match,
+// so the baseline cache often comes from an orphaned/unrelated commit (e.g.
+// pre-rebase head, sibling feature branch). Comparing a fresh run on a
+// different runner against that arbitrary stale baseline produces 1.5×
+// false-positive failures, especially on macOS where runner variance is
+// high. We stamp baselines with their commit SHA and only enforce the 1.5×
+// regression gate when the baseline is from an ancestor of the current
+// commit (or the same commit). The hard ceiling ladder (10/200/500ms) is
+// unchanged and continues to catch severe regressions on every run.
+function gitTry(args) {
+  try {
+    return cp.execFileSync("git", args, {
+      cwd: root, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8",
+    }).trim();
+  } catch { return ""; }
+}
+function currentCommitSha() {
+  return process.env.HORUS_PERF_BASELINE_SHA
+      || process.env.GITHUB_SHA
+      || gitTry(["rev-parse", "HEAD"]) || "";
+}
+function isAncestorOrSame(maybeAncestor, head) {
+  if (!maybeAncestor || !head) return false;
+  if (maybeAncestor === head) return true;
+  try {
+    cp.execFileSync("git", ["merge-base", "--is-ancestor", maybeAncestor, head], {
+      cwd: root, stdio: "ignore",
+    });
+    return true;
+  } catch { return false; }
+}
 
 if (!process.env.HORUS_STATE_DIR) {
   process.env.HORUS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "hap-perf-"));
@@ -134,15 +167,23 @@ function run() {
   } catch { /* baseline is optional */ }
 
   const key = platformKey();
+  const headSha = currentCommitSha();
   let regressionFailed = false;
-  if (baseline[key] && baseline[key].p99) {
-    const baseP99 = Number(baseline[key].p99);
+  const prior = baseline[key];
+  if (prior && prior.p99) {
+    const baseP99 = Number(prior.p99);
     const cap = Math.min(ceiling, baseP99 * 1.5);
-    if (p99 > cap) {
-      console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds 1.5× baseline (${fmt(baseP99)}ms cap=${fmt(cap)}ms)`);
+    const baseSha = prior.commitSha || "";
+    const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
+    if (!baseSha) {
+      console.log(`  info    baseline has no commitSha stamp (legacy); skipping 1.5× gate, recording stamped baseline`);
+    } else if (!lineageOk) {
+      console.log(`  info    baseline from non-ancestor commit ${baseSha.slice(0,12)} (head ${headSha.slice(0,12) || "?"}); skipping 1.5× gate (likely rebase or stale cache from sibling branch)`);
+    } else if (p99 > cap) {
+      console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds 1.5× baseline (${fmt(baseP99)}ms cap=${fmt(cap)}ms) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
       regressionFailed = true;
     } else {
-      console.log(`  ok      p99 within 1.5× baseline (baseline=${fmt(baseP99)}ms cap=${fmt(cap)}ms)`);
+      console.log(`  ok      p99 within 1.5× baseline (baseline=${fmt(baseP99)}ms cap=${fmt(cap)}ms) [baseline ${baseSha.slice(0,12)} ancestor]`);
     }
   } else {
     console.log(`  info    no baseline for ${key}; recording fresh baseline`);
@@ -151,7 +192,6 @@ function run() {
   // Update baseline only if not regressed and p50 isn't 3× prior (FS context drift guard).
   try {
     if (!fs.existsSync(baselineDir)) fs.mkdirSync(baselineDir, { recursive: true });
-    const prior = baseline[key];
     const skipUpdate = prior && Number(prior.p50) > 0 && p50 > Number(prior.p50) * 3;
     if (skipUpdate) {
       console.log(`  WARN    p50 is 3× prior baseline - skipping baseline update (likely wrong FS context)`);
@@ -161,6 +201,8 @@ function run() {
         flows: corpus.length, iter: ITER,
         updatedAt: new Date().toISOString(),
         node: process.version,
+        commitSha: headSha || undefined,
+        commitRef: process.env.GITHUB_REF || gitTry(["rev-parse", "--abbrev-ref", "HEAD"]) || undefined,
       };
       fs.writeFileSync(baselineFile, JSON.stringify(baseline, null, 2) + "\n");
     }
