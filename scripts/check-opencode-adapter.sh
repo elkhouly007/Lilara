@@ -29,6 +29,13 @@ _check_state_dir="$(mktemp -d)"
 export HORUS_STATE_DIR="$_check_state_dir"
 trap 'rm -rf "$_check_state_dir"' EXIT
 
+# Isolate from CWD context discovery: when CI checks out the repo on a
+# protected branch (master/main), context-discovery surfaces protected-branch
+# risk and the runtime emits a route warning on otherwise-safe commands.
+# Pin the branch override to a non-protected name so the adapter behavior is
+# the only thing under test (same pattern as the D26 fixture isolation fix).
+export HORUS_BRANCH_OVERRIDE="test-isolation"
+
 # 1 — file exists
 [ -f "$adapter" ] || fail "opencode/hooks/adapter.js missing"
 pass "adapter.js exists"
