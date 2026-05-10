@@ -26,6 +26,8 @@ runtime/
 ├── canonical-json.js       Deterministic JSON stringify (keys sorted) for contract hashing.
 ├── config-validator.js     Typed-field walker. Validates horus.config.json and horus.contract.json.
 ├── state-paths.js          Single source of truth for all storage paths. HORUS_STATE_DIR override.
+├── decision-lattice.js     HAP ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
+├── action-ir.js            HAP ADR-007 PR-A: Canonical Action IR skeleton (EMPTY_IR, build, validate, irHash). Not yet wired into pretool-gate; PR-B will normalize per-adapter inputs.
 └── telemetry.js            Structured telemetry events to telemetry.jsonl. Never blocks.
 ```
 
@@ -37,6 +39,8 @@ opencode/hooks/adapter.js                → createAdapter({ harness:"opencode",
 ```
 
 ## 2. Decision Flow — Section 4.6 Precedence Matrix
+
+> **HAP ADR-007 (PR-A) note:** the rung/source/demotability columns below are now mirrored as data in `runtime/decision-lattice.js` (`LATTICE`). PR-A introduces the table + an `assertOrdered()` self-check (`scripts/check-lattice-ordering.sh`); PR-C will switch `decision-engine.js` to read floor labels from `LATTICE` constants instead of inline string literals so this prose and the code can never drift again. See `references/adr-007-canonical-action-ir.md`.
 
 Every `decide()` call walks this fixed ladder. Each rung can only make things more restrictive, except step 11 (contract-allow), which is the single demotion rung and cannot override a floor set above it.
 

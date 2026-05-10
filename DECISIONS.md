@@ -457,3 +457,28 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 
 **Owner:** Khouly
 **Blocker for:** CI gate `check-migrate-v2-v3.sh`.
+
+---
+
+## D49: HAP ADR-007 — Canonical Action IR + Explicit Decision Lattice (PR-A skeleton)
+
+**Date:** 2026-05-10
+
+**Context:** HAP scope (`agent-runtime-guard-scope.md`) §4.1 invariants 9 and 10 require (9) every adapter to normalize raw harness payloads into one canonical action representation before floors run, and (10) every floor to declare its rung, action, demotability, and source tag in one explicit table — with no implicit precedence and no hidden demotion paths. Today the precedence ladder lives in prose in `ARCHITECTURE.md` §2 and in inline string literals (`source = "..."`, `floorFired = "..."`) scattered across `runtime/decision-engine.js`; adapter parity is by convention rather than schema. This is the single-failure-point HAP product plan §6 calls out as the precondition for clean F15/F16/F18 receipts, replay, output-channel exfiltration guards, and audit-grade fixtures.
+
+**Decision (Option C — IR-first, lattice-declarative, floors stay in code):** Land the foundation in four sequential PRs on `feat/adr-007-canonical-action-ir`. **PR-A (this decision)** ships the documented ADR + the lattice table (`runtime/decision-lattice.js`) + the Canonical Action IR module skeleton (`runtime/action-ir.js`) with **zero behavior change**. `decision-engine.js` is unchanged; `pretool-gate.js` is unchanged. PR-B wires `actionIr.build()` into adapters as a back-compat shim and adds cross-adapter parity fixtures. PR-C switches `decision-engine.js` source/floor labels to read from `LATTICE` constants and adds `irHash`/`rung`/`latticeVersion` to receipts (additive). PR-D adds replay + adversarial seed + perf gates.
+
+**Rationale:** The IR removes "what does this adapter actually mean" ambiguity from every floor; the lattice removes "which rung wins, in what order, demotable by what" ambiguity from every operator and auditor. Both are small (zero-dep, fixture-pinned) and stay inside the engine's p99 budget. Alternatives considered: A) IR only — fails invariant 10 (precedence still implicit). B) Lattice only — fails invariant 9 (adapter drift keeps leaking into floors). D) Fully data-driven engine via JSON DSL — adds an interpreter, audit surface, and bug surface; violates the small-core invariant. E) Defer until v0.6 — retrofit cost > upfront cost; rejected by D-013 in `agent-runtime-guard-plan.md`.
+
+**Constraints honored in PR-A:**
+- Zero runtime dependencies (`runtime/decision-lattice.js` and `runtime/action-ir.js` use Node builtins + local `runtime/` requires only).
+- Schema additive: `schemas/horus.contract.schema.json` byte-unchanged.
+- Hard Ethical Core untouched. Rung 0 (`L1`) is reserved with `predicateRef: "reserved"`; no engine code consumes it yet.
+- No floor predicate, ordering, or outcome changes.
+- No HAP enforcement wired into Claude Code or OpenClaw. Adapter manifests + IR consumption are PR-B work.
+- New script `scripts/check-lattice-ordering.sh` validates the table at runtime (frozen, strictly-increasing rungs, unique ids, required fields) plus the IR skeleton (frozen `EMPTY_IR`, `build()` returns frozen IR, `validate()` accepts/rejects shapes, `irHash()` is canonical-stable).
+
+**Owner:** Khouly (sponsor) / Misk (scope) / Claude Code (implementation).
+**Blocker for:** F15/F16/F18 receipts, output-channel exfiltration guard, change-intent diffing, replay harness, audit-grade receipts. PR-B unblocks adapter parity fixtures; PR-C unblocks lattice-anchored receipts; PR-D unblocks replay + adversarial gates.
+
+**See also:** `references/adr-007-canonical-action-ir.md` (repo-level reference doc), `agent-runtime-guard-scope.md` §4.1, `agent-runtime-guard-plan.md` §4.1 + §6, `hap-adr-007-claude-plan.md` (full implementation plan).

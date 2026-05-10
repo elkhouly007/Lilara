@@ -1,0 +1,189 @@
+[
+  {
+    "id": "L1",
+    "rung": 0,
+    "name": "hard-ethical-core",
+    "action": "block",
+    "source": "hard-ethical-core",
+    "demotableBy": []
+  },
+  {
+    "id": "F1",
+    "rung": 1,
+    "name": "kill-switch",
+    "action": "block",
+    "source": "kill-switch",
+    "demotableBy": []
+  },
+  {
+    "id": "F2",
+    "rung": 2,
+    "name": "contract-hash-mismatch",
+    "action": "block",
+    "source": "contract-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F5",
+    "rung": 3,
+    "name": "strict-gated-no-cover",
+    "action": "block",
+    "source": "harness-out-of-scope",
+    "demotableBy": []
+  },
+  {
+    "id": "F11",
+    "rung": 4,
+    "name": "validity-window",
+    "action": "block",
+    "source": "contract-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F12",
+    "rung": 5,
+    "name": "mcp-deny",
+    "action": "block",
+    "source": "contract-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F13",
+    "rung": 6,
+    "name": "skill-deny",
+    "action": "block",
+    "source": "contract-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F14",
+    "rung": 7,
+    "name": "budget-exceeded",
+    "action": "block",
+    "source": "contract-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F3",
+    "rung": 8,
+    "name": "critical-risk",
+    "action": "block",
+    "source": "risk-engine",
+    "demotableBy": []
+  },
+  {
+    "id": "F8",
+    "rung": 9,
+    "name": "protected-branch",
+    "action": "require-review",
+    "source": "risk-engine",
+    "demotableBy": []
+  },
+  {
+    "id": "F4",
+    "rung": 10,
+    "name": "secret-class-C",
+    "action": "block",
+    "source": [
+      "secret-class-C",
+      "f4-class-c-demoted"
+    ],
+    "demotableBy": [
+      "operator-token:class-c-review-demote"
+    ]
+  },
+  {
+    "id": "F10",
+    "rung": 11,
+    "name": "taint-floor",
+    "action": "require-review",
+    "source": "taint-floor",
+    "demotableBy": []
+  },
+  {
+    "id": "F9",
+    "rung": 12,
+    "name": "session-risk-floor",
+    "action": "escalate",
+    "source": "session-risk-floor",
+    "demotableBy": [
+      "contract-allow:tool-allow-matched",
+      "contract-allow:tool-allow-tool-scope"
+    ]
+  },
+  {
+    "id": "F6",
+    "rung": 13,
+    "name": "posture-strict-no-cover",
+    "action": "block",
+    "source": "posture-strict-no-cover",
+    "demotableBy": []
+  },
+  {
+    "id": "F7",
+    "rung": 14,
+    "name": "intent-unknown-strict",
+    "action": "require-review",
+    "source": "intent-unknown-strict",
+    "demotableBy": []
+  },
+  {
+    "id": "F14b",
+    "rung": 15,
+    "name": "session-over-duration",
+    "action": "require-review",
+    "source": "session-over-duration",
+    "demotableBy": []
+  },
+  {
+    "id": "F18",
+    "rung": 16,
+    "name": "network-egress-denied",
+    "action": "block",
+    "source": "network-egress-denied",
+    "demotableBy": []
+  },
+  {
+    "id": "F15",
+    "rung": 17,
+    "name": "execution-envelope-diverged",
+    "action": "block",
+    "source": "execution-envelope-diverged",
+    "demotableBy": []
+  },
+  {
+    "id": "D-CONTRACT-ALLOW",
+    "rung": 18,
+    "name": "contract-allow",
+    "action": "demote-baseline",
+    "source": [
+      "contract-allow",
+      "contract-allow-tool-scope"
+    ],
+    "demotableBy": []
+  },
+  {
+    "id": "D-LEARNED-ALLOW",
+    "rung": 19,
+    "name": "learned-allow",
+    "action": "demote-narrow",
+    "source": "learned-allow",
+    "demotableBy": []
+  },
+  {
+    "id": "D-AUTO-ALLOW-ONCE",
+    "rung": 20,
+    "name": "auto-allow-once",
+    "action": "demote-narrow",
+    "source": "auto-allow-once",
+    "demotableBy": []
+  },
+  {
+    "id": "P-TRAJECTORY-NUDGE",
+    "rung": 21,
+    "name": "trajectory-nudge",
+    "action": "promote",
+    "source": "trajectory-nudge",
+    "demotableBy": []
+  }
+]

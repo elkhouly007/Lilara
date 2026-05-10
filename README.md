@@ -53,7 +53,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 # 6. Run runtime and structural checks, including install and apply-status verification:
 ./scripts/horus-cli.sh check
 
-# 7. Run all 247 fixture-based tests:
+# 7. Run all 249 fixture-based tests:
 ./scripts/horus-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
@@ -100,7 +100,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 72 files
+### Scripts (`scripts/`) — 73 files
 
 | Script | Purpose |
 |--------|---------|
