@@ -6,4 +6,6 @@
 "use strict";
 
 const { createPostAdapter } = require("../../runtime/post-adapter-factory");
-createPostAdapter({ harnessName: "claude", rateLimitKey: "output-sanitizer" });
+const ADAPTER_CAPABILITIES = { envelopeReporting: true };
+void ADAPTER_CAPABILITIES;
+createPostAdapter({ harnessName: "claude", rateLimitKey: "output-sanitizer", envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting });

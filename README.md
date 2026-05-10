@@ -4,11 +4,12 @@
 
 The goal is **more capability with less silent risk**:
 
-- **Safety floors that cannot be demoted** — kill-switch, critical risk, scope violation, secret payload class C, protected-branch writes, session-risk escalation.
+- **Safety floors that cannot be demoted** — kill-switch, critical risk, scope violation, secret payload class C, protected-branch writes, session-risk escalation, and F15 execution-envelope divergence.
 - **Context-aware decisions** — branch, project shape, session trajectory, payload class, and approval history all shape the next routing choice.
 - **Workflow-shaped actions** — `require-review`, `require-tests`, `modify`, `escalate` come with concrete next steps, not just allow/deny.
 - **A unified amplification surface** — specialist agents, language and domain rules, and high-leverage skills, all built around the ARG philosophy.
 - **One engine across harnesses** — runs on Claude Code, OpenCode, and OpenClaw through a single decision spine; adapters in flight for additional harnesses.
+- **Execution-envelope verification for critical writes** — Claude now reports a stable F15 envelope (cwd inode, git HEAD, normalized command AST, env diff, resolved executable path, tracked target metadata), and the core re-checks sensitive writes immediately before execution.
 
 Every decision is journaled locally. Decision state and learned policy stay on the machine by default; any external capability remains explicit, reviewed, and policy-bound.
 
@@ -71,11 +72,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 | Hook | Event | Purpose |
 |------|-------|---------|
 | `secret-warning.js` | PreToolUse | Scans prompt for 23 secret patterns (API keys, tokens, JWTs, etc.) |
-| `dangerous-command-gate.js` | PreToolUse Bash | Blocks/warns on 21 patterns: rm -rf, force-push, curl\|sh, DROP TABLE, prompt injection, etc. |
+| `dangerous-command-gate.js` | PreToolUse Bash | Blocks/warns on 21 patterns: rm -rf, force-push, curl\|sh, DROP TABLE, prompt injection, etc. Claude also reports F15 execution envelopes from this hook path. |
 | `build-reminder.js` | PreToolUse Bash | Reminds to review build/test output before continuing |
 | `git-push-reminder.js` | PreToolUse Bash | Reminds before push; blocks force-push in enforce mode |
 | `quality-gate.js` | PostToolUse Edit/Write | Suggests linter/test commands after file edits |
-| `output-sanitizer.js` | PostToolUse | Scans tool output for secrets; warns if a credential was echoed by the tool |
+| `output-sanitizer.js` | PostToolUse | Scans tool output for secrets; warns if a credential was echoed by the tool; Claude also consumes F15 execution-envelope reports for post-run divergence journaling |
 | `session-start.js` | SessionStart | Loads instinct store, shows pending review count |
 | `session-end.js` | Stop | Captures session metadata to instinct store |
 | `strategic-compact.js` | PostToolUse | Suggests /compact when context may be filling |
@@ -118,7 +119,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |
 | `check-config-integration.sh` | Verify `generate-config`, `install-local`, and `wire-hooks --check` integration paths |
-| `check-runtime-core.sh` | Verify the runtime decision core, learned policy, adaptive action plans, workflow routing guidance plus concrete tool targets for checks/review/setup/payload/wiring, source-file routing under balanced/strict trust postures, tool-aware wiring routing, payload-class-aware routing, session context, and project-aware decisioning scaffold |
+| `check-runtime-core.sh` | Verify the runtime decision core, learned policy, adaptive action plans, workflow routing guidance plus concrete tool targets for checks/review/setup/payload/wiring, source-file routing under balanced/strict trust postures, tool-aware wiring routing, payload-class-aware routing, session context, project-aware decisioning scaffold, and F15 envelope stability/divergence handling |
 | `check-runtime-cli.sh` | Verify runtime local state display, suggestion accept/promote/dismiss flows, workflow routing guidance, concrete tool targets, and adaptive explain output |
 | `runtime-state.js` | Inspect runtime learned policy, pending suggestions, reviewed-default lifecycle timing and compact lifecycle summaries, plus decision explanations, workflow routing guidance, and adaptive action plans locally |
 | `check-hook-edge-cases.sh` | Verify hook behavior on empty stdin, large payloads, config edge cases, and multi-line dangerous commands |

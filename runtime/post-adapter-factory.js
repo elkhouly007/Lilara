@@ -39,11 +39,14 @@ function sourceLabel(toolName) {
  * @param {object} opts
  * @param {string} opts.harnessName   — human label (used in warning prefix)
  * @param {string} opts.rateLimitKey  — unique per-harness key for rateLimitCheck + hookLog
+ * @param {boolean} [opts.envelopeReporting=false] — adapter can report exec-time F15 envelopes
  */
-function createPostAdapter({ harnessName, rateLimitKey }) {
+function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = false }) {
   const { readStdin, collectText, hookLog, rateLimitCheck } = require(
     path.join(__dirname, "..", "claude", "hooks", "hook-utils")
   );
+  const { append } = require("./decision-journal");
+  const { loadPending, verify } = require("./envelope");
   const { scanSecrets } = require("./secret-scan");
   const { recordExternalRead } = require("./taint");
 
@@ -77,6 +80,34 @@ function createPostAdapter({ harnessName, rateLimitKey }) {
         // 2. Taint record — annotate external-source outputs for F10 taint floor.
         if (EXTERNAL_TOOLS.has(toolName) && text) {
           try { recordExternalRead(text, sourceLabel(toolName)); } catch { /* provenance is best-effort */ }
+        }
+
+        // 3. Optional envelope verification — only active for adapters that can
+        // report an exec-time envelope in PostToolUse payloads.
+        if (envelopeReporting) {
+          const toolUseId = input.tool_use_id || input.toolUseId || null;
+          const observedEnvelope = input.executionEnvelope || input.execution_envelope || input.horus?.executionEnvelope || null;
+          const expectedEnvelope = toolUseId ? loadPending(toolUseId, Boolean(observedEnvelope)) : null;
+          if (expectedEnvelope && observedEnvelope) {
+            const result = verify(expectedEnvelope, observedEnvelope, { enforceEnvDiff: true });
+            if (!result.ok) {
+              process.stderr.write(`[Agent Runtime Guard] Execution envelope diverged after ${harnessName} tool run (${result.reason}).\n`);
+              try {
+                append({
+                  kind: "execution-envelope-diverged",
+                  action: "block",
+                  riskLevel: "critical",
+                  riskScore: 10,
+                  reasonCodes: ["execution-envelope-diverged"],
+                  tool: toolName,
+                  branch: "",
+                  targetPath: "",
+                  notes: `posttool:${harnessName}:${result.reason}`,
+                  floorFired: "execution-envelope",
+                });
+              } catch { /* journal is best-effort */ }
+            }
+          }
         }
       } catch { /* malformed payload — non-blocking */ }
 

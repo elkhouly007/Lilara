@@ -6,10 +6,14 @@
 
 const { createAdapter, commandFrom } = require("./hook-utils");
 
+const ADAPTER_CAPABILITIES = { envelopeReporting: true };
+void ADAPTER_CAPABILITIES;
+
 createAdapter({
   harness:        "claude",
   rateLimitKey:   "dangerous-command-gate",
   extractCommand: (i) => commandFrom(i),
   extractCwd:     (i) => String(i.cwd || i.args?.cwd || i.tool_input?.cwd || ""),
   extractTool:    (i) => String(i.tool_name || i.tool || "Bash"),
+  envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting,
 });

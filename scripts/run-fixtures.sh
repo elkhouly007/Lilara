@@ -1582,6 +1582,188 @@ process.stdout.write(failed.length === 0 ? 'ok' : 'fail:checks=' + failed.join('
 }
 _b2_phase2_integration_all_four
 
+# ── inline: F15 execution-envelope fixtures ──────────────────────────────────
+printf '\nF15 execution-envelope fixtures...\n'
+
+_run_f15_case() {
+  local name="$1"
+  local tmpstate; tmpstate="$(mktemp -d)"
+  local result; result=$(node - <<'NODE' "$tmpstate" "$name"
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const tmpstate = process.argv[2];
+const name = process.argv[3];
+process.env.HORUS_STATE_DIR = tmpstate;
+process.env.HORUS_DECISION_JOURNAL = '0';
+const { build, verify } = require('./runtime/envelope');
+
+function assert(condition, message) {
+  if (!condition) {
+    process.stdout.write('FAIL:' + message);
+    process.exit(0);
+  }
+}
+
+function mkrepo(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 'f15@example.com'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.name', 'F15 Test'], { cwd: dir, stdio: 'ignore' });
+  fs.writeFileSync(path.join(dir, 'README.md'), '# test\n');
+  execFileSync('git', ['add', '.'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
+  return dir;
+}
+
+function envWith(overrides = {}) {
+  return { ...process.env, ...overrides };
+}
+
+function baselineFrom(env) {
+  return { PATH: String(env.PATH || ''), BASH_ALIASES: String(env.BASH_ALIASES || '') };
+}
+
+function mismatchHas(result, codePrefix) {
+  return Array.isArray(result.mismatches) && result.mismatches.some((item) => String(item.code || '').startsWith(codePrefix));
+}
+
+switch (name) {
+  case 'symlink-swap': {
+    const repo = mkrepo('f15-symlink-');
+    const a = path.join(repo, 'real-a.txt');
+    const b = path.join(repo, 'real-b.txt');
+    const link = path.join(repo, 'tracked-link.txt');
+    fs.writeFileSync(a, 'alpha\n');
+    fs.writeFileSync(b, 'beta\n');
+    fs.symlinkSync(a, link);
+    const env = envWith();
+    const expected = build({ command: 'cat tracked-link.txt', cwd: repo, targetPath: link, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    fs.unlinkSync(link);
+    fs.symlinkSync(b, link);
+    const observed = build({ command: 'cat tracked-link.txt', cwd: repo, targetPath: link, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && mismatchHas(result, 'target-'), 'symlink swap should diverge on target metadata');
+    break;
+  }
+  case 'branch-change': {
+    const repo = mkrepo('f15-branch-');
+    const env = envWith();
+    const expected = build({ command: 'git status', cwd: repo, targetPath: repo, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    fs.writeFileSync(path.join(repo, 'README.md'), '# changed\n');
+    execFileSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'change'], { cwd: repo, stdio: 'ignore' });
+    const observed = build({ command: 'git status', cwd: repo, targetPath: repo, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && result.reason === 'git-head', 'branch/HEAD change should diverge on git-head');
+    break;
+  }
+  case 'cwd-change': {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-cwd-'));
+    const a = path.join(root, 'a');
+    const b = path.join(root, 'b');
+    fs.mkdirSync(a, { recursive: true });
+    fs.mkdirSync(b, { recursive: true });
+    const env = envWith();
+    const expected = build({ command: 'echo hello', cwd: a, targetPath: a, projectRoot: a, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const observed = build({ command: 'echo hello', cwd: b, targetPath: b, projectRoot: b, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && result.reason === 'cwd', 'cwd change should diverge on cwd');
+    break;
+  }
+  case 'path-shadow': {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-path-'));
+    const bin1 = path.join(root, 'bin1');
+    const bin2 = path.join(root, 'bin2');
+    fs.mkdirSync(bin1, { recursive: true });
+    fs.mkdirSync(bin2, { recursive: true });
+    // Windows resolves bare command names via PATHEXT — a file with no
+    // recognized extension is invisible to resolveExecutable there.
+    const toolName = process.platform === 'win32' ? 'safe-tool.cmd' : 'safe-tool';
+    fs.writeFileSync(path.join(bin1, toolName), '#!/usr/bin/env bash\necho one\n');
+    fs.writeFileSync(path.join(bin2, toolName), '#!/usr/bin/env bash\necho two\n');
+    fs.chmodSync(path.join(bin1, toolName), 0o755);
+    fs.chmodSync(path.join(bin2, toolName), 0o755);
+    const expectedEnv = envWith({ PATH: bin1 + path.delimiter + process.env.PATH });
+    const observedEnv = envWith({ PATH: bin2 + path.delimiter + process.env.PATH });
+    const expected = build({ command: 'safe-tool', cwd: root, targetPath: root, projectRoot: root, env: expectedEnv, persistEnvBaseline: false, envBaseline: baselineFrom(expectedEnv) });
+    const observed = build({ command: 'safe-tool', cwd: root, targetPath: root, projectRoot: root, env: observedEnv, persistEnvBaseline: false, envBaseline: baselineFrom(expectedEnv) });
+    const result = verify(expected, observed);
+    assert(!result.ok && mismatchHas(result, 'exec-path'), 'PATH shadow should diverge on exec-path');
+    break;
+  }
+  case 'file-replacement': {
+    const repo = mkrepo('f15-file-');
+    const target = path.join(repo, 'tracked.txt');
+    fs.writeFileSync(target, 'alpha\n');
+    const env = envWith();
+    const expected = build({ command: 'cat tracked.txt', cwd: repo, targetPath: target, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    fs.unlinkSync(target);
+    fs.writeFileSync(target, 'beta\n');
+    const observed = build({ command: 'cat tracked.txt', cwd: repo, targetPath: target, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && mismatchHas(result, 'target-'), 'file replacement should diverge on target metadata');
+    break;
+  }
+  case 'generated-script-mutation': {
+    const repo = mkrepo('f15-script-');
+    const script = path.join(repo, 'generated.sh');
+    fs.writeFileSync(script, '#!/usr/bin/env bash\necho safe\n');
+    fs.chmodSync(script, 0o755);
+    const env = envWith({ PATH: repo + path.delimiter + process.env.PATH });
+    const expected = build({ command: './generated.sh', cwd: repo, targetPath: script, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    fs.writeFileSync(script, '#!/usr/bin/env bash\necho mutated\n');
+    fs.chmodSync(script, 0o755);
+    const observed = build({ command: './generated.sh', cwd: repo, targetPath: script, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && mismatchHas(result, 'target-'), 'generated script mutation should diverge on tracked target metadata');
+    break;
+  }
+  case 'mcp-tool-reconfig': {
+    const repo = mkrepo('f15-mcp-');
+    const config = path.join(repo, 'mcp.json');
+    fs.writeFileSync(config, '{"server":"safe"}\n');
+    const env = envWith();
+    const expected = build({ command: 'node client.js', cwd: repo, targetPath: repo, projectRoot: repo, trackPaths: [config], env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    fs.writeFileSync(config, '{"server":"mutated"}\n');
+    const observed = build({ command: 'node client.js', cwd: repo, targetPath: repo, projectRoot: repo, trackPaths: [config], env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
+    const result = verify(expected, observed);
+    assert(!result.ok && mismatchHas(result, 'target-'), 'MCP tool reconfig should diverge on tracked config');
+    break;
+  }
+  case 'shell-alias-change': {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-alias-'));
+    const expectedEnv = envWith({ BASH_ALIASES: "safe-tool='echo one'" });
+    const observedEnv = envWith({ BASH_ALIASES: "safe-tool='echo two'" });
+    const expected = build({ command: 'safe-tool', cwd: root, targetPath: root, projectRoot: root, env: expectedEnv, persistEnvBaseline: false, envBaseline: baselineFrom(expectedEnv) });
+    const observed = build({ command: 'safe-tool', cwd: root, targetPath: root, projectRoot: root, env: observedEnv, persistEnvBaseline: false, envBaseline: baselineFrom(expectedEnv) });
+    const result = verify(expected, observed);
+    assert(!result.ok && result.reason === 'command-ast', 'shell alias change should diverge on command-ast');
+    break;
+  }
+  default:
+    process.stdout.write('FAIL:unknown-case');
+    process.exit(0);
+}
+
+process.stdout.write('PASS');
+NODE
+)
+  if [ "$result" = "PASS" ]; then ok "f15:$name";
+  else fail "f15:$name" "$result"; fi
+  rm -rf "$tmpstate"
+}
+
+_run_f15_case symlink-swap
+_run_f15_case branch-change
+_run_f15_case cwd-change
+_run_f15_case path-shadow
+_run_f15_case file-replacement
+_run_f15_case generated-script-mutation
+_run_f15_case mcp-tool-reconfig
+_run_f15_case shell-alias-change
 
 # ── summary ───────────────────────────────────────────────────────────────────
 
