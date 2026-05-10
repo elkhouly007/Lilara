@@ -53,7 +53,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 # 6. Run runtime and structural checks, including install and apply-status verification:
 ./scripts/horus-cli.sh check
 
-# 7. Run all 247 fixture-based tests:
+# 7. Run all 249 fixture-based tests:
 ./scripts/horus-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
