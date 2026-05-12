@@ -15,10 +15,11 @@
 // in the loaded contract (additive opt-in). Existing v1/v2/v3 contracts
 // without the field continue to operate exactly as before.
 //
-// Zero external dependencies. Built-ins only: url, net.
+// Zero external dependencies. Built-ins only: url, net, dns/promises.
 
 const { URL } = require("url");
 const net = require("net");
+const dnsPromises = require("dns").promises;
 
 // Loopback hostnames are exempt — loopback is not an exfil channel.
 // Operators can still deny them explicitly via `denyDomains`.
@@ -234,9 +235,16 @@ function evaluate(command, networkPolicy) {
     return { fired: false, reason: "no-allow-domains" };
   }
 
-  const allow = networkPolicy.allowDomains.filter((s) => typeof s === "string");
+  // Normalize allow entries: strings stay as-is; object form contributes its
+  // `pattern` field. Object entries with no/blank pattern are dropped (treated
+  // identically to legacy filter-by-typeof-string semantics).
+  const allow = networkPolicy.allowDomains
+    .map(entryPattern)
+    .filter((p) => typeof p === "string" && p.length > 0);
   const deny = Array.isArray(networkPolicy.denyDomains)
-    ? networkPolicy.denyDomains.filter((s) => typeof s === "string")
+    ? networkPolicy.denyDomains
+        .map(entryPattern)
+        .filter((p) => typeof p === "string" && p.length > 0)
     : [];
 
   const targets = extractTargets(command);
@@ -276,11 +284,260 @@ function evaluate(command, networkPolicy) {
   return { fired: false, reason: "all-targets-allowed" };
 }
 
+// ---------------------------------------------------------------------------
+// Per-allow-entry helpers (ADR-005 FC #4)
+// ---------------------------------------------------------------------------
+//
+// allowDomains items may be either:
+//   - a plain string ("github.com" or "*.github.com")
+//   - an object  ({ pattern: "github.com", allowOnLookupFailure: true })
+// Both forms participate identically in FC #1-#3 matching. The object form
+// carries optional per-entry policy fields that only FC #4 consumes.
+
+function entryPattern(entry) {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry === "object" && typeof entry.pattern === "string") return entry.pattern;
+  return "";
+}
+
+function entryAllowOnLookupFailure(entry, networkPolicy) {
+  // Per-entry override wins when present and boolean.
+  if (entry && typeof entry === "object" && typeof entry.allowOnLookupFailure === "boolean") {
+    return entry.allowOnLookupFailure;
+  }
+  // Otherwise fall back to the top-level network default (additive in ADR-005).
+  if (networkPolicy && typeof networkPolicy.allowOnLookupFailure === "boolean") {
+    return networkPolicy.allowOnLookupFailure;
+  }
+  // Default-deny on DNS failure (FC #4 invariant).
+  return false;
+}
+
+function matchingAllowEntry(hostname, allowList) {
+  if (!Array.isArray(allowList)) return null;
+  for (const entry of allowList) {
+    const pat = entryPattern(entry);
+    if (pat && hostMatches(hostname, pat)) return entry;
+  }
+  return null;
+}
+
+/**
+ * Resolve DNS for the unique hostnames extracted from a command. Async.
+ *
+ * Returns a map: { hostname → { ok, ips: [...], code: null|string } }.
+ * IP literals and loopback hostnames are skipped (no resolution needed).
+ * Returns an empty map when no resolvable targets exist or DNS module is
+ * unavailable. Always resolves; never rejects.
+ *
+ * Used by the gate to pre-resolve before calling decide() synchronously.
+ */
+async function resolveTargets(command, options = {}) {
+  const targets = extractTargets(command);
+  const out = Object.create(null);
+  const hostsSeen = new Set();
+  const lookup = options.lookup || ((host) => dnsPromises.lookup(host, { all: true, verbatim: true }));
+  for (const t of targets) {
+    const host = String(t.host || "").toLowerCase();
+    if (!host) continue;
+    if (isIpLiteral(host) || isLoopback(host)) continue;
+    if (hostsSeen.has(host)) continue;
+    hostsSeen.add(host);
+    try {
+      const records = await lookup(host);
+      const ips = Array.isArray(records)
+        ? records.map((r) => (r && typeof r === "object" ? r.address : String(r))).filter(Boolean)
+        : [];
+      out[host] = { ok: true, ips, code: null };
+    } catch (err) {
+      out[host] = { ok: false, ips: [], code: (err && err.code) ? String(err.code) : "UNKNOWN" };
+    }
+  }
+  return out;
+}
+
+/**
+ * FC #4 — Evaluate DNS-failure path.
+ *
+ * Returns { fired, reason, host?, target?, scheme?, resolverCode? }.
+ * Fires when an allow-matched destination hostname failed DNS resolution and
+ * the per-entry `allowOnLookupFailure` flag is not true (default false).
+ *
+ * Inputs:
+ *   command       — the raw command string (re-extracted; cheap)
+ *   networkPolicy — contract scopes.network block (with allowDomains[])
+ *   dnsResolutions — { hostname → { ok, ips, code } } map produced by
+ *                   resolveTargets() (or pre-computed by the caller).
+ *
+ * Backward compat: if dnsResolutions is empty or missing, returns
+ * { fired:false, reason:"no-dns-results" } — FC #4 is dormant when callers
+ * have not pre-resolved DNS.
+ */
+function evaluateDns(command, networkPolicy, dnsResolutions) {
+  if (!networkPolicy || typeof networkPolicy !== "object") {
+    return { fired: false, reason: "no-policy" };
+  }
+  if (!Array.isArray(networkPolicy.allowDomains)) {
+    return { fired: false, reason: "no-allow-domains" };
+  }
+  if (!dnsResolutions || typeof dnsResolutions !== "object") {
+    return { fired: false, reason: "no-dns-results" };
+  }
+
+  const targets = extractTargets(command);
+  if (targets.length === 0) return { fired: false, reason: "no-network-target" };
+
+  const allow = networkPolicy.allowDomains;
+  for (const t of targets) {
+    const host = String(t.host || "").toLowerCase();
+    if (!host) continue;
+    if (isIpLiteral(host) || isLoopback(host)) continue;
+
+    const entry = matchingAllowEntry(host, allow);
+    // If host was not in allow, FC #1-#3 already handled it; skip.
+    if (!entry) continue;
+
+    const res = dnsResolutions[host];
+    // No resolution recorded → treat as not-attempted; FC #4 stays dormant
+    // for this host (gate may have skipped resolution by design).
+    if (!res || typeof res !== "object") continue;
+    if (res.ok === true) continue;
+
+    // DNS failed. Honor per-entry allow-on-failure (with policy default fallback).
+    if (entryAllowOnLookupFailure(entry, networkPolicy)) continue;
+
+    return {
+      fired: true,
+      reason: "dns_lookup_failed",
+      host,
+      target: t.raw,
+      scheme: t.scheme,
+      resolverCode: (res && res.code) ? String(res.code) : "UNKNOWN",
+    };
+  }
+  return { fired: false, reason: "all-dns-resolved-or-allowed" };
+}
+
+/**
+ * Build envelope-bound networkTargets from a contract+command+dns triple.
+ *
+ * Returns an array of { host, port, scheme, resolvedIps[] }. Sorted by host
+ * for canonical hashing. Hosts that are IP literals or loopback are recorded
+ * with their literal as the only resolvedIp (FC #5 still binds them, but
+ * F18 FC #1 already blocks non-loopback IP literals upstream).
+ *
+ * Excludes hosts not in dnsResolutions or whose lookup failed; FC #4 owns
+ * the failure path, so FC #5 only binds successful resolutions.
+ */
+function buildNetworkTargets(command, dnsResolutions) {
+  const targets = extractTargets(command);
+  const seen = new Map();
+  for (const t of targets) {
+    const host = String(t.host || "").toLowerCase();
+    if (!host) continue;
+    const port = t.port ? Number(t.port) : null;
+    const scheme = t.scheme || null;
+    const key = `${host}|${port == null ? "" : port}|${scheme || ""}`;
+    if (seen.has(key)) continue;
+
+    let resolvedIps = null;
+    if (isIpLiteral(host) || isLoopback(host)) {
+      resolvedIps = [host];
+    } else if (dnsResolutions && dnsResolutions[host] && dnsResolutions[host].ok) {
+      resolvedIps = [...new Set(dnsResolutions[host].ips || [])].filter(Boolean).sort();
+    }
+    if (!resolvedIps || resolvedIps.length === 0) continue;
+
+    seen.set(key, { host, port, scheme, resolvedIps });
+  }
+  return [...seen.values()].sort((a, b) => {
+    if (a.host !== b.host) return a.host < b.host ? -1 : 1;
+    const ap = a.port == null ? -1 : a.port;
+    const bp = b.port == null ? -1 : b.port;
+    if (ap !== bp) return ap - bp;
+    const as = a.scheme || "";
+    const bs = b.scheme || "";
+    return as < bs ? -1 : as > bs ? 1 : 0;
+  });
+}
+
+/**
+ * FC #5 — Envelope-bound IP recheck at exec-time.
+ *
+ * Returns { fired, reason, host?, observedIp?, envelopeBoundIps? }.
+ * Fires when an exec-time observed connection IP is not present in the
+ * envelope-bound `resolvedIps` set for its host. O(1) Set membership.
+ *
+ * Inputs:
+ *   networkTargets       — [{ host, resolvedIps[] }, ...] from the
+ *                          PreToolUse envelope (envelope.networkTargets).
+ *   observedConnectedIps — [{ host, ip }, ...] reported by the harness
+ *                          adapter at exec-time. Loopback IPs are exempt.
+ *
+ * Dormant when either input is missing or empty.
+ */
+function evaluateIpSet(networkTargets, observedConnectedIps) {
+  if (!Array.isArray(networkTargets) || networkTargets.length === 0) {
+    return { fired: false, reason: "no-envelope-targets" };
+  }
+  if (!Array.isArray(observedConnectedIps) || observedConnectedIps.length === 0) {
+    return { fired: false, reason: "no-observed-ips" };
+  }
+
+  // Group resolvedIps per host into a single Set (a host may appear under
+  // multiple ports/schemes; union them so the exec-time check stays O(1)).
+  const ipsByHost = new Map();
+  for (const e of networkTargets) {
+    if (!e || typeof e !== "object") continue;
+    const host = String(e.host || "").toLowerCase();
+    if (!host) continue;
+    const set = ipsByHost.get(host) || new Set();
+    for (const ip of e.resolvedIps || []) set.add(String(ip));
+    ipsByHost.set(host, set);
+  }
+
+  for (const obs of observedConnectedIps) {
+    if (!obs || typeof obs !== "object") continue;
+    const host = String(obs.host || "").toLowerCase();
+    const ip = String(obs.ip || "");
+    if (!host || !ip) continue;
+    if (isLoopback(ip)) continue;
+
+    const set = ipsByHost.get(host);
+    if (!set || set.size === 0) {
+      return {
+        fired: true,
+        reason: "ip_set_mismatch",
+        host,
+        observedIp: ip,
+        envelopeBoundIps: [],
+      };
+    }
+    if (!set.has(ip)) {
+      return {
+        fired: true,
+        reason: "ip_set_mismatch",
+        host,
+        observedIp: ip,
+        envelopeBoundIps: [...set].sort(),
+      };
+    }
+  }
+  return { fired: false, reason: "all-observed-ips-bound" };
+}
+
 module.exports = {
   extractTargets,
   hostMatches,
   validatePattern,
   evaluate,
+  evaluateDns,
+  evaluateIpSet,
+  resolveTargets,
+  buildNetworkTargets,
+  entryPattern,
+  entryAllowOnLookupFailure,
+  matchingAllowEntry,
   isIpLiteral,
   isLoopback,
   LOOPBACK_HOSTS,

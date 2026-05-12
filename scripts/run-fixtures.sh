@@ -1994,6 +1994,238 @@ switch (name) {
       'allowlisted host must not fire F18 — got ' + JSON.stringify({a: allowed.action, f: allowed.floorFired}));
     break;
   }
+  case 'fc4-dns-failure-deny-default': {
+    // ADR-005 FC #4 — domain in allowDomains, DNS lookup fails, no per-entry
+    // override and no top-level override → F18 must fire with
+    // failureReason=dns_lookup_failed and resolverErrorCode populated.
+    const policy4 = {
+      allowDomains: ['api.example.com'],
+    };
+    const dns = { 'api.example.com': { ok: false, ips: [], code: 'ENOTFOUND' } };
+    const r = ne.evaluateDns('curl https://api.example.com/v1/ping', policy4, dns);
+    assert(r.fired === true && r.reason === 'dns_lookup_failed',
+      'FC #4 default must fire on DNS failure — got ' + JSON.stringify(r));
+    assert(r.host === 'api.example.com', 'host must be reported — got ' + JSON.stringify(r));
+    assert(r.resolverCode === 'ENOTFOUND', 'resolverCode must be reported — got ' + JSON.stringify(r));
+
+    // Build an integration-style contract so decide() returns the right shape.
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const crypto = require('crypto');
+    const { canonicalJson } = require('./runtime/canonical-json');
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-fc4-deny-'));
+    const body = {
+      version: 3,
+      contractId: 'hap-20260101-000000000004',
+      revision: 1,
+      acceptedAt: '2026-01-01T00:00:00Z',
+      acceptedBy: 'f18-test',
+      harnessScope: ['claude'],
+      trustPosture: 'balanced',
+      scopes: {
+        network: { allowDomains: ['api.example.com'] },
+        payloadClasses: { A: 'allow', B: 'warn', C: 'block' },
+      },
+    };
+    body.contractHash = 'sha256:' + crypto.createHash('sha256').update(canonicalJson(body), 'utf8').digest('hex');
+    fs.writeFileSync(path.join(proj, 'horus.contract.json'), JSON.stringify(body, null, 2));
+    fs.writeFileSync(path.join(tmpstate, 'accepted-contracts.json'), JSON.stringify({
+      [proj]: { contractHash: body.contractHash, acceptedAt: body.acceptedAt, revision: 1 },
+    }));
+    const { invalidateCache } = require('./runtime/contract');
+    invalidateCache();
+    const blocked = decide({
+      harness: 'claude',
+      tool: 'Bash',
+      command: 'curl https://api.example.com/v1/ping',
+      targetPath: proj,
+      projectRoot: proj,
+      branch: 'feature/test',
+      payloadClass: 'A',
+      dnsResolutions: dns,
+    });
+    assert(blocked.action === 'block' &&
+           blocked.floorFired === 'network-egress' &&
+           blocked.decisionSource === 'network-egress-denied' &&
+           blocked.networkEgress &&
+           blocked.networkEgress.failureReason === 'dns_lookup_failed' &&
+           blocked.networkEgress.hostname === 'api.example.com' &&
+           blocked.networkEgress.resolverCode === 'ENOTFOUND',
+      'decide() must hard-block via FC #4 with full receipt — got ' + JSON.stringify({
+        a: blocked.action, f: blocked.floorFired, s: blocked.decisionSource, n: blocked.networkEgress,
+      }));
+    break;
+  }
+  case 'fc4-dns-failure-allow-flag': {
+    // ADR-005 FC #4 — same scenario as fc4-dns-failure-deny-default but the
+    // matching allow entry sets allowOnLookupFailure:true → F18 must NOT fire
+    // on this condition. (Other floors / fire conditions remain in effect.)
+    const policy5 = {
+      allowDomains: [{ pattern: 'api.example.com', allowOnLookupFailure: true }],
+    };
+    const dns = { 'api.example.com': { ok: false, ips: [], code: 'EAI_AGAIN' } };
+
+    // FC #1-#3 still treats the object entry as a normal allow — the host
+    // matches the pattern and is not blocked.
+    const r1 = ne.evaluate('curl https://api.example.com/v1/ping', policy5);
+    assert(r1.fired === false,
+      'per-entry object form must still participate in FC #1-#3 — got ' + JSON.stringify(r1));
+
+    const r2 = ne.evaluateDns('curl https://api.example.com/v1/ping', policy5, dns);
+    assert(r2.fired === false,
+      'allowOnLookupFailure:true must suppress FC #4 — got ' + JSON.stringify(r2));
+
+    // Per-entry override beats top-level default (top-level false, entry true).
+    const policy6 = {
+      allowDomains: [{ pattern: 'api.example.com', allowOnLookupFailure: true }],
+      allowOnLookupFailure: false,
+    };
+    const r3 = ne.evaluateDns('curl https://api.example.com/v1/ping', policy6, dns);
+    assert(r3.fired === false,
+      'per-entry true must override top-level false — got ' + JSON.stringify(r3));
+
+    // Top-level default applies to string entries too.
+    const policy7 = {
+      allowDomains: ['api.example.com'],
+      allowOnLookupFailure: true,
+    };
+    const r4 = ne.evaluateDns('curl https://api.example.com/v1/ping', policy7, dns);
+    assert(r4.fired === false,
+      'top-level allowOnLookupFailure must cover string entries — got ' + JSON.stringify(r4));
+    break;
+  }
+  case 'fc5-ip-set-match': {
+    // ADR-005 FC #5 — exec-time observed IP is in the envelope-bound set →
+    // F18 FC #5 must not fire. Pass-through.
+    const targets = [
+      { host: 'api.example.com', port: 443, scheme: 'https', resolvedIps: ['203.0.113.10', '203.0.113.11'] },
+    ];
+    const observed = [{ host: 'api.example.com', ip: '203.0.113.11' }];
+    const r = ne.evaluateIpSet(targets, observed);
+    assert(r.fired === false,
+      'observed IP in envelope-bound set must pass — got ' + JSON.stringify(r));
+
+    // Loopback observation is exempt (not policy-relevant).
+    const rLoop = ne.evaluateIpSet(targets, [{ host: 'api.example.com', ip: '127.0.0.1' }]);
+    assert(rLoop.fired === false,
+      'loopback observed IP must be exempt — got ' + JSON.stringify(rLoop));
+
+    // Dormant when envelope has no bound targets.
+    const rDormantNoTargets = ne.evaluateIpSet([], observed);
+    assert(rDormantNoTargets.fired === false && rDormantNoTargets.reason === 'no-envelope-targets',
+      'empty networkTargets must keep FC #5 dormant — got ' + JSON.stringify(rDormantNoTargets));
+
+    // Dormant when adapter reports no observations.
+    const rDormantNoObs = ne.evaluateIpSet(targets, []);
+    assert(rDormantNoObs.fired === false && rDormantNoObs.reason === 'no-observed-ips',
+      'empty observedConnectedIps must keep FC #5 dormant — got ' + JSON.stringify(rDormantNoObs));
+
+    // envelope.build() integration: networkTargets are bound into the
+    // envelope record and survive the hash (so F15 verify still works).
+    const env1 = require('./runtime/envelope').build({
+      command: 'curl https://api.example.com/v1/ping',
+      cwd: tmpstate,
+      networkTargets: targets,
+      persistEnvBaseline: false,
+    });
+    assert(Array.isArray(env1.networkTargets) &&
+           env1.networkTargets.length === 1 &&
+           env1.networkTargets[0].host === 'api.example.com' &&
+           env1.networkTargets[0].resolvedIps.length === 2,
+      'envelope.build must carry networkTargets — got ' + JSON.stringify(env1.networkTargets));
+    const env2 = require('./runtime/envelope').build({
+      command: 'curl https://api.example.com/v1/ping',
+      cwd: tmpstate,
+      networkTargets: targets,
+      persistEnvBaseline: false,
+    });
+    assert(env1.hash === env2.hash,
+      'envelopes with identical inputs must hash equal — got ' + env1.hash + ' vs ' + env2.hash);
+    break;
+  }
+  case 'fc5-ip-set-mismatch': {
+    // ADR-005 FC #5 — exec-time observed IP is not in the envelope-bound set
+    // → F18 must fire with failureReason=ip_set_mismatch and a full receipt
+    // (envelope-bound set, observed IP, hostname).
+    const targets = [
+      { host: 'api.example.com', port: 443, scheme: 'https', resolvedIps: ['203.0.113.10'] },
+    ];
+    const observed = [{ host: 'api.example.com', ip: '198.51.100.99' }];
+    const r = ne.evaluateIpSet(targets, observed);
+    assert(r.fired === true && r.reason === 'ip_set_mismatch',
+      'FC #5 must fire on mismatch — got ' + JSON.stringify(r));
+    assert(r.host === 'api.example.com', 'host on receipt — got ' + JSON.stringify(r));
+    assert(r.observedIp === '198.51.100.99', 'observedIp on receipt — got ' + JSON.stringify(r));
+    assert(Array.isArray(r.envelopeBoundIps) &&
+           r.envelopeBoundIps.length === 1 &&
+           r.envelopeBoundIps[0] === '203.0.113.10',
+      'envelopeBoundIps on receipt — got ' + JSON.stringify(r));
+
+    // Integration with decide(): build an envelope with networkTargets,
+    // pass observedConnectedIps; expect block + full receipt fields.
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const crypto = require('crypto');
+    const { canonicalJson } = require('./runtime/canonical-json');
+    const { build: buildEnv } = require('./runtime/envelope');
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-fc5-'));
+    const body = {
+      version: 3,
+      contractId: 'hap-20260101-000000000005',
+      revision: 1,
+      acceptedAt: '2026-01-01T00:00:00Z',
+      acceptedBy: 'f18-test',
+      harnessScope: ['claude'],
+      trustPosture: 'balanced',
+      scopes: {
+        network: { allowDomains: ['api.example.com'] },
+        payloadClasses: { A: 'allow', B: 'warn', C: 'block' },
+      },
+    };
+    body.contractHash = 'sha256:' + crypto.createHash('sha256').update(canonicalJson(body), 'utf8').digest('hex');
+    fs.writeFileSync(path.join(proj, 'horus.contract.json'), JSON.stringify(body, null, 2));
+    fs.writeFileSync(path.join(tmpstate, 'accepted-contracts.json'), JSON.stringify({
+      [proj]: { contractHash: body.contractHash, acceptedAt: body.acceptedAt, revision: 1 },
+    }));
+    const { invalidateCache } = require('./runtime/contract');
+    invalidateCache();
+    const envelope = buildEnv({
+      command: 'curl https://api.example.com/v1/ping',
+      cwd: proj,
+      projectRoot: proj,
+      networkTargets: targets,
+      persistEnvBaseline: false,
+    });
+    const blocked = decide({
+      harness: 'claude',
+      tool: 'Bash',
+      command: 'curl https://api.example.com/v1/ping',
+      targetPath: proj,
+      projectRoot: proj,
+      branch: 'feature/test',
+      payloadClass: 'A',
+      envelope,
+      observedConnectedIps: observed,
+      // Pre-resolved DNS that succeeded — FC #4 should stay dormant for this
+      // case (success). FC #5 should still fire on the IP mismatch.
+      dnsResolutions: { 'api.example.com': { ok: true, ips: ['203.0.113.10'], code: null } },
+    });
+    assert(blocked.action === 'block' &&
+           blocked.floorFired === 'network-egress' &&
+           blocked.decisionSource === 'network-egress-denied' &&
+           blocked.networkEgress &&
+           blocked.networkEgress.failureReason === 'ip_set_mismatch' &&
+           blocked.networkEgress.hostname === 'api.example.com' &&
+           blocked.networkEgress.observedIp === '198.51.100.99' &&
+           Array.isArray(blocked.networkEgress.envelopeBoundIps) &&
+           blocked.networkEgress.envelopeBoundIps.includes('203.0.113.10'),
+      'decide() must hard-block via FC #5 with full receipt — got ' + JSON.stringify({
+        a: blocked.action, f: blocked.floorFired, s: blocked.decisionSource, n: blocked.networkEgress,
+      }));
+    break;
+  }
   default:
     out('FAIL:unknown-case');
 }
@@ -2027,6 +2259,10 @@ _run_f18_case no-network-target-passes
 _run_f18_case no-policy-no-fire
 _run_f18_case pattern-validation
 _run_f18_case integration-decide-blocks
+_run_f18_case fc4-dns-failure-deny-default
+_run_f18_case fc4-dns-failure-allow-flag
+_run_f18_case fc5-ip-set-match
+_run_f18_case fc5-ip-set-mismatch
 
 # ── summary ───────────────────────────────────────────────────────────────────
 

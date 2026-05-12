@@ -92,8 +92,24 @@
             "remoteExecAllow": { "type": "array", "items": { "type": "string" } },
             "allowDomains": {
               "type": "array",
-              "items": { "type": "string" },
-              "description": "F18 (ADR-005): per-contract outbound domain allowlist. Default-deny when present and empty. Wildcard support is leading-dot only ('*.github.com' matches subdomains but NOT the bare apex 'github.com'). IP literals are not allowed in this list. Loopback (localhost, 127.0.0.0/8, ::1) is exempt by default. Backwards-compat: F18 enforces only when this field is present; existing contracts without it operate unchanged."
+              "items": {
+                "oneOf": [
+                  { "type": "string" },
+                  {
+                    "type": "object",
+                    "required": ["pattern"],
+                    "properties": {
+                      "pattern": { "type": "string" },
+                      "allowOnLookupFailure": {
+                        "type": "boolean",
+                        "description": "FC #4 (ADR-005): when true, F18 permits this allow entry's host when its PreToolUse DNS lookup fails. Default: false. Per-entry value wins over the top-level scopes.network.allowOnLookupFailure default."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "F18 (ADR-005): per-contract outbound domain allowlist. Items may be either a plain pattern string or an object { pattern, allowOnLookupFailure? } for per-entry overrides. Default-deny when present and empty. Wildcard support is leading-dot only ('*.github.com' matches subdomains but NOT the bare apex 'github.com'). IP literals are not allowed in this list. Loopback (localhost, 127.0.0.0/8, ::1) is exempt by default. Backwards-compat: F18 enforces only when this field is present; existing contracts without it operate unchanged."
             },
             "denyDomains": {
               "type": "array",
@@ -107,7 +123,7 @@
             },
             "allowOnLookupFailure": {
               "type": "boolean",
-              "description": "F18 (ADR-005): when true, allow outbound calls when DNS resolution fails. Reserved for envelope-bound DNS resolution; not consumed by the v1 sync evaluator. Default: false."
+              "description": "F18 (ADR-005) FC #4 default: when true, allow outbound calls when DNS resolution fails for any allow entry that does not set its own per-entry allowOnLookupFailure. Default: false (default-deny on DNS failure)."
             }
           },
           "additionalProperties": false

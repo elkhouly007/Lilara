@@ -36,7 +36,11 @@ const {
   getNetworkPolicy: _contractGetNetworkPolicy,
   consumeScopedOperatorToken: _contractConsumeScopedOperatorToken,
 } = _contractMod;
-const { evaluate: _evalNet } = require("./network-egress");
+const {
+  evaluate: _evalNet,
+  evaluateDns: _evalNetDns,
+  evaluateIpSet: _evalNetIpSet,
+} = require("./network-egress");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -95,6 +99,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     trajectoryNudge: null,
     envelope: input.envelope || null,
     envelopeVerification: extra.envelopeVerification || null,
+    networkEgress: extra.networkEgress || null,
     context: {},
   };
   // Still journal the early block so diff-decisions can replay it
@@ -349,6 +354,66 @@ function decide(input = {}) {
             `network egress blocked: ${detail} (target=${ne.target})`,
             { floorFired: "network-egress", decisionSource: "network-egress-denied" }
           );
+        }
+
+        // ADR-005 FC #4: DNS-failure path. When the caller pre-resolved DNS
+        // and the lookup failed for an allow-matched host, F18 fires unless
+        // the per-entry `allowOnLookupFailure` flag is true. Dormant when
+        // input.dnsResolutions is absent (callers may skip resolution).
+        if (input.dnsResolutions && typeof input.dnsResolutions === "object") {
+          const dnsCheck = _evalNetDns(input.command || "", netPolicy, input.dnsResolutions);
+          if (dnsCheck.fired) {
+            return buildEarlyBlock(
+              "network-egress-denied",
+              enriched,
+              discovered,
+              input,
+              `network egress blocked: DNS lookup failed for '${dnsCheck.host}' (resolver=${dnsCheck.resolverCode}) (target=${dnsCheck.target})`,
+              {
+                floorFired: "network-egress",
+                decisionSource: "network-egress-denied",
+                networkEgress: {
+                  failureReason: "dns_lookup_failed",
+                  hostname: dnsCheck.host,
+                  resolverCode: dnsCheck.resolverCode,
+                  target: dnsCheck.target,
+                },
+              }
+            );
+          }
+        }
+
+        // ADR-005 FC #5: envelope-bound IP recheck at exec-time. The
+        // PreToolUse envelope carries the resolved-IP set; the harness
+        // adapter reports the actual connected IP(s) via
+        // input.observedConnectedIps. Fires if observed IP is not in the set.
+        // O(1) Set membership — no DNS re-resolve here.
+        if (
+          input.envelope &&
+          Array.isArray(input.envelope.networkTargets) &&
+          Array.isArray(input.observedConnectedIps) &&
+          input.observedConnectedIps.length > 0
+        ) {
+          const ipCheck = _evalNetIpSet(input.envelope.networkTargets, input.observedConnectedIps);
+          if (ipCheck.fired) {
+            return buildEarlyBlock(
+              "network-egress-denied",
+              enriched,
+              discovered,
+              input,
+              `network egress blocked: exec-time IP ${ipCheck.observedIp} for host '${ipCheck.host}' not in envelope-bound set [${(ipCheck.envelopeBoundIps || []).join(",")}]`,
+              {
+                floorFired: "network-egress",
+                decisionSource: "network-egress-denied",
+                networkEgress: {
+                  failureReason: "ip_set_mismatch",
+                  hostname: ipCheck.host,
+                  observedIp: ipCheck.observedIp,
+                  envelopeBoundIps: ipCheck.envelopeBoundIps || [],
+                },
+              }
+            );
+          }
         }
       }
     } catch { /* network-egress unavailable → no-op (fail-open per zero-dep policy) */ }
