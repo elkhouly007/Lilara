@@ -42,22 +42,36 @@ function normalizeRuntimeConfig(runtime = {}, projectRoot = "") {
   return config;
 }
 
+// Per-process memo for findConfig walk-up. The walk does ~6 fs.existsSync per
+// call on a deep cwd; decide() invokes findConfig 3x per call (via discover(),
+// loadProjectPolicy, and taint.correlateCommand). On macOS those existsSync
+// calls are ~5-10x slower than on Linux, so memoizing by resolved start path
+// is the dominant lever for the macOS p99. Cache is invalidated only on
+// process restart - acceptable because horus.config.json is project-level
+// and not expected to materialize mid-session.
+const _findConfigCache = new Map();
 function findConfig(startPath = "") {
-  let current = path.resolve(startPath || process.cwd());
+  const start = path.resolve(startPath || process.cwd());
+  const cached = _findConfigCache.get(start);
+  if (cached !== undefined) return cached;
+
+  let current = start;
   try {
     if (!fs.statSync(current).isDirectory()) current = path.dirname(current);
   } catch {
     current = path.dirname(current);
   }
 
+  let found = "";
   while (true) {
     const candidate = path.join(current, "horus.config.json");
-    if (fs.existsSync(candidate)) return candidate;
+    if (fs.existsSync(candidate)) { found = candidate; break; }
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
   }
-  return "";
+  _findConfigCache.set(start, found);
+  return found;
 }
 
 function loadProjectPolicy(input = {}) {

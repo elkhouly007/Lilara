@@ -17,20 +17,52 @@ const { classifyIntent } = require("./intent-classifier");
 // Taint-floor disablement: warn once per process if taint module unavailable.
 let _taintWarnedOnce = false;
 
-// Contract is loaded lazily — disabled only when HORUS_CONTRACT_ENABLED=0
+// Hoisted contract helpers - resolved once at module init so the decide() hot
+// path doesn't pay per-call require() lookups (10x per decide pre-hoist on
+// no-contract installs, dominant on macOS where cold requires are slow).
+const _contractMod = require("./contract");
+const {
+  GATED_CLASSES: GATED_COMMAND_CLASSES,
+  load: _contractLoad,
+  verify: _contractVerify,
+  getContextTrust: _contractGetContextTrust,
+  scopeMatch: _contractScopeMatch,
+  isInActiveWindow: _contractIsInActiveWindow,
+  getMcpPolicy: _contractGetMcpPolicy,
+  extractMcpServerName: _contractExtractMcpServerName,
+  getSkillPolicy: _contractGetSkillPolicy,
+  getSessionConstraints: _contractGetSessionConstraints,
+  getBudgetLimits: _contractGetBudgetLimits,
+  consumeScopedOperatorToken: _contractConsumeScopedOperatorToken,
+} = _contractMod;
+// Optional modules - fixtures rename these to *.disabled-test-bak to verify
+// fail-open fallback, so the require itself must be guarded. Each cached as
+// null when absent and call sites check before use.
+let _scanSecrets = null;
+try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
+let _correlateCommand = null;
+try { _correlateCommand = require("./taint").correlateCommand; } catch { /* optional */ }
+let _getCounters = null, _recordDestructiveOp = null;
+try {
+  const sb = require("./session-budget");
+  _getCounters = sb.getCounters;
+  _recordDestructiveOp = sb.recordDestructiveOp;
+} catch { /* optional */ }
+
+// Contract is loaded lazily - disabled only when HORUS_CONTRACT_ENABLED=0.
+// `_contractLoaded` distinguishes "not yet loaded" from "loaded as null" so a
+// missing contract file doesn't re-trigger fs.existsSync on every decide().
 let _contract = null;
+let _contractLoaded = false;
 function getContract(projectRoot) {
   if (process.env.HORUS_CONTRACT_ENABLED === "0") return null;
-  if (_contract !== null) return _contract;
+  if (_contractLoaded) return _contract;
   try {
-    const { load } = require("./contract");
-    _contract = load(projectRoot || process.cwd());
+    _contract = _contractLoad(projectRoot || process.cwd());
   } catch { _contract = null; }
+  _contractLoaded = true;
   return _contract;
 }
-
-// Gated capability classes — single source of truth from contract.js.
-const { GATED_CLASSES: GATED_COMMAND_CLASSES } = require("./contract");
 
 // ---------------------------------------------------------------------------
 // Helpers for early-block returns (keep decide() readable)
@@ -134,8 +166,7 @@ function decide(input = {}) {
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
   if (contract && enriched.branch) {
     try {
-      const { getContextTrust } = require("./contract");
-      const overridePosture = getContextTrust(contract, enriched.branch);
+      const overridePosture = _contractGetContextTrust(contract, enriched.branch);
       if (overridePosture) {
         enriched.trustPosture = overridePosture;
       }
@@ -152,8 +183,7 @@ function decide(input = {}) {
     // Step 2: contract-hash-mismatch in strict mode — block
     if (process.env.HORUS_CONTRACT_REQUIRED === "1") {
       try {
-        const { verify } = require("./contract");
-        const vResult = verify(discovered.projectRoot || process.cwd());
+        const vResult = _contractVerify(discovered.projectRoot || process.cwd());
         if (!vResult.ok) {
           return buildEarlyBlock(
             "contract-hash-mismatch", enriched, discovered, input,
@@ -180,8 +210,7 @@ function decide(input = {}) {
 
     // Step 11: contract scope-allow — may demote baseline (but never demotes floors)
     try {
-      const { scopeMatch } = require("./contract");
-      const sm = scopeMatch(contract, {
+      const sm = _contractScopeMatch(contract, {
         command: input.command, commandClass: cmdClass,
         targetPath: input.targetPath, branch: enriched.branch,
         payloadClass: enriched.payloadClass || "A",
@@ -205,8 +234,7 @@ function decide(input = {}) {
   let validityWarning = null;
   if (contract) {
     try {
-      const { isInActiveWindow } = require("./contract");
-      validityResult = isInActiveWindow(contract);
+      validityResult = _contractIsInActiveWindow(contract);
     } catch { /* helper unavailable → treat as in-window (fail-open per zero-dep policy) */ }
 
     if (!validityResult.inWindow) {
@@ -226,10 +254,9 @@ function decide(input = {}) {
   // F12: mcp-deny floor — per-MCP-server policy (scopes.mcp).
   let mcpWarning = null;
   try {
-    const { getMcpPolicy, extractMcpServerName } = require("./contract");
-    const serverName = input.mcpServer || extractMcpServerName(input.tool);
+    const serverName = input.mcpServer || _contractExtractMcpServerName(input.tool);
     if (serverName && contract) {
-      const policy = getMcpPolicy(contract, serverName);
+      const policy = _contractGetMcpPolicy(contract, serverName);
       if (policy === "block") {
         return buildEarlyBlock("mcp-deny", enriched, discovered, input,
           `MCP server '${serverName}' denied by contract scopes.mcp`);
@@ -243,10 +270,9 @@ function decide(input = {}) {
   // F13: skill-deny floor — per-skill policy (scopes.skills).
   let skillWarning = null;
   try {
-    const { getSkillPolicy } = require("./contract");
     const skillName = input.skillName;
     if (skillName && contract) {
-      const policy = getSkillPolicy(contract, skillName);
+      const policy = _contractGetSkillPolicy(contract, skillName);
       if (policy === "block") {
         return buildEarlyBlock("skill-deny", enriched, discovered, input,
           `Skill '${skillName}' denied by contract scopes.skills`);
@@ -261,15 +287,13 @@ function decide(input = {}) {
   let sessionDurationWarning = null;
   let sessionOverDuration    = false;
   try {
-    const { getSessionConstraints, getBudgetLimits } = require("./contract");
-    const { getCounters } = require("./session-budget");
     const sessionId = enriched.sessionId || discovered.sessionId;
 
-    const sessionCfg = getSessionConstraints(contract);
-    const budgetCfg  = getBudgetLimits(contract);
+    const sessionCfg = _contractGetSessionConstraints(contract);
+    const budgetCfg  = _contractGetBudgetLimits(contract);
 
-    if (sessionId && (sessionCfg || budgetCfg)) {
-      const counters = getCounters({ sessionId });
+    if (sessionId && (sessionCfg || budgetCfg) && _getCounters) {
+      const counters = _getCounters({ sessionId });
 
       if (sessionCfg && Number.isFinite(sessionCfg.maxDurationMin)) {
         const ageMin = (Date.now() - counters.startTime) / 60000;
@@ -384,10 +408,9 @@ function decide(input = {}) {
   if (action !== "block") {
     const isClassC = (enriched.payloadClass || "A") === "C";
     let secretInCommand = false;
-    if (!isClassC) {
+    if (!isClassC && _scanSecrets) {
       try {
-        const { scanSecrets } = require("./secret-scan");
-        secretInCommand = Boolean(scanSecrets(input.command || ""));
+        secretInCommand = Boolean(_scanSecrets(input.command || ""));
       } catch { /* secret-scan unavailable — skip */ }
     }
     if (isClassC || secretInCommand) {
@@ -396,8 +419,7 @@ function decide(input = {}) {
       const demoteToken = process.env.HORUS_F4_DEMOTE_TOKEN || "";
       if (demoteToken) {
         try {
-          const { consumeScopedOperatorToken } = require("./contract");
-          f4DemoteAllowed = consumeScopedOperatorToken(demoteToken, "class-c-review-demote");
+          f4DemoteAllowed = _contractConsumeScopedOperatorToken(demoteToken, "class-c-review-demote");
         } catch { /* token mech unavailable — fail closed (no demotion) */ }
       }
       if (f4DemoteAllowed) {
@@ -416,19 +438,23 @@ function decide(input = {}) {
   // require-review so the operator can confirm the command was not injected.
   // Best-effort: if taint module unavailable, skip silently.
   let taintResult = null;
-  try {
-    const { correlateCommand } = require("./taint");
-    taintResult = correlateCommand(input.command || "", undefined, input.tool || "");
-    if (taintResult.tainted && action !== "block") {
-      action = "require-review";
-      source = "taint-floor";
-      floorFired = floorFired || "taint-floor";
+  if (_correlateCommand) {
+    try {
+      taintResult = _correlateCommand(input.command || "", undefined, input.tool || "");
+      if (taintResult.tainted && action !== "block") {
+        action = "require-review";
+        source = "taint-floor";
+        floorFired = floorFired || "taint-floor";
+      }
+    } catch (taintErr) {
+      if (!_taintWarnedOnce) {
+        _taintWarnedOnce = true;
+        try { append({ kind: "taint-floor-disabled", error: String(taintErr && taintErr.message || taintErr) }); } catch { /* journal is best-effort */ }
+      }
     }
-  } catch (taintErr) {
-    if (!_taintWarnedOnce) {
-      _taintWarnedOnce = true;
-      try { append({ kind: "taint-floor-disabled", error: String(taintErr && taintErr.message || taintErr) }); } catch { /* journal is best-effort */ }
-    }
+  } else if (!_taintWarnedOnce) {
+    _taintWarnedOnce = true;
+    try { append({ kind: "taint-floor-disabled", error: "module not found" }); } catch { /* journal is best-effort */ }
   }
 
   // B3: session-risk >= 3 — true floor. Escalate unconditionally before contract-allow can demote.
@@ -626,9 +652,8 @@ function decide(input = {}) {
 
   // Increment destructive-op counter after an allowed destructive-delete — F14 checks at next decide().
   try {
-    if (action === "allow" && cmdClass === "destructive-delete") {
-      const { recordDestructiveOp } = require("./session-budget");
-      recordDestructiveOp({ sessionId: enriched.sessionId || discovered.sessionId });
+    if (action === "allow" && cmdClass === "destructive-delete" && _recordDestructiveOp) {
+      _recordDestructiveOp({ sessionId: enriched.sessionId || discovered.sessionId });
     }
   } catch { /* session-budget unavailable → no-op */ }
 
