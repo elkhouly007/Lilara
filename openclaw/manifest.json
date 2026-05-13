@@ -1,0 +1,18 @@
+{
+  "harness": "openclaw",
+  "harnessVersion": "0.5",
+  "envelopeReporting": false,
+  "argsFidelity": "exact",
+  "cwdFidelity": "exact",
+  "mcpInterception": "supported",
+  "skillInterception": "supported",
+  "outputChannels": {
+    "toolOutput": "intercept",
+    "generatedFiles": "intercept",
+    "commitText": "observe",
+    "prText": "observe",
+    "finalMessage": "observe",
+    "terminal": "observe",
+    "screenshots": "none"
+  }
+}

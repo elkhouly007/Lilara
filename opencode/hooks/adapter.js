@@ -5,18 +5,17 @@
 
 "use strict";
 
-const { createAdapter, commandFrom } = require("../../claude/hooks/hook-utils");
-
-// TODO(F15/Task0.6): publish this via opencode/manifest.json. Until then,
-// treat OpenCode as envelopeReporting: false.
-const ADAPTER_CAPABILITIES = { envelopeReporting: false };
-void ADAPTER_CAPABILITIES;
+const { createAdapter, commandFrom, loadManifest } = require("../../claude/hooks/hook-utils");
 
 createAdapter({
-  harness:        "opencode",
-  rateLimitKey:   "opencode-adapter",
-  extractCommand: (i) => commandFrom(i),
-  extractCwd:     (i) => String(i.cwd || i.args?.cwd || i.tool_input?.cwd || i.input?.cwd || ""),
-  extractTool:    (i) => String(i.tool_name || i.tool || "Bash"),
-  envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting,
+  harness:           "opencode",
+  rateLimitKey:      "opencode-adapter",
+  extractCommand:    (i) => commandFrom(i),
+  extractCwd:        (i) => String(i.cwd || i.args?.cwd || i.tool_input?.cwd || i.input?.cwd || ""),
+  extractTool:       (i) => String(i.tool_name || i.tool || "Bash"),
+  // HAP ADR-007 PR-B: opencode/manifest.json declares envelopeReporting=false
+  // (today; lifts when F15 OpenCode wiring lands), exact arg/cwd fidelity,
+  // supported MCP/skill interception.
+  envelopeReporting: false,
+  extractTrustMeta:  () => loadManifest("opencode"),
 });

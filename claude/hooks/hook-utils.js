@@ -303,9 +303,47 @@ function runtimeContext(input) {
 }
 
 /**
- * Shared adapter factory for all three harness adapters (claude, openclaw, opencode).
- * Handles stdin read, rate-limit guard, JSON parse, pretool-gate delegation,
- * stderr output, and hookLog — reducing each adapter to a single createAdapter() call.
+ * loadManifest(harness) — read <harness>/manifest.json and project it into the
+ * shape `runPreToolGate` consumes. Cached per process so repeated adapter
+ * invocations do not re-read disk. HAP ADR-007 PR-B publishes one manifest per
+ * harness declaring envelopeReporting, args/cwd fidelity, mcp/skill
+ * interception, and outputChannels. Missing manifest → null (gate falls back
+ * to EMPTY_IR conservative defaults).
+ */
+const _MANIFEST_CACHE = Object.create(null);
+
+function loadManifest(harness) {
+  if (Object.prototype.hasOwnProperty.call(_MANIFEST_CACHE, harness)) {
+    return _MANIFEST_CACHE[harness];
+  }
+  let result = null;
+  try {
+    const file = path.join(__dirname, "..", "..", harness, "manifest.json");
+    const raw = fs.readFileSync(file, "utf8");
+    const m = JSON.parse(raw);
+    result = {
+      harness: String(m.harness || harness),
+      harnessVersion: typeof m.harnessVersion === "string" ? m.harnessVersion : null,
+      envelopeReporting: Boolean(m.envelopeReporting),
+      trustMeta: {
+        envelopeReporting: Boolean(m.envelopeReporting),
+        argsFidelity: typeof m.argsFidelity === "string" ? m.argsFidelity : "best-effort",
+        cwdFidelity: typeof m.cwdFidelity === "string" ? m.cwdFidelity : "best-effort",
+        mcpInterception: typeof m.mcpInterception === "string" ? m.mcpInterception : "unverified",
+        skillInterception: typeof m.skillInterception === "string" ? m.skillInterception : "unverified",
+      },
+      outputChannels: m.outputChannels && typeof m.outputChannels === "object" ? m.outputChannels : {},
+    };
+  } catch { /* missing or malformed — leave as null, gate will use EMPTY_IR defaults */ }
+  _MANIFEST_CACHE[harness] = result;
+  return result;
+}
+
+/**
+ * Shared adapter factory for all six harness adapters (claude, openclaw,
+ * opencode, codex, clawcode, antegravity). Handles stdin read, rate-limit
+ * guard, JSON parse, pretool-gate delegation, stderr output, and hookLog —
+ * reducing each adapter to a single createAdapter() call.
  *
  * @param {object} opts
  * @param {string} opts.harness         — harness name passed to runPreToolGate
@@ -314,22 +352,32 @@ function runtimeContext(input) {
  * @param {function} opts.extractCwd    — (input) → cwd string
  * @param {function} opts.extractTool   — (input) → tool name string
  * @param {boolean}  [opts.envelopeReporting=false] — adapter can report F15 execution envelopes
+ * @param {function} [opts.extractTrustMeta] — (input) → manifest snapshot used by
+ *   action-ir to populate trustMeta + outputChannels. HAP ADR-007 PR-B; pass
+ *   `() => loadManifest("<harness>")` for the standard manifest-backed adapter.
  */
-function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false }) {
+function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false, extractTrustMeta = null }) {
   const { runPreToolGate } = require(path.join(__dirname, "..", "..", "runtime", "pretool-gate"));
   readStdin()
     .then((raw) => {
       if (!rateLimitCheck(rateLimitKey)) { process.stdout.write(raw); return; }
       let input = {};
       try { input = JSON.parse(raw || "{}"); } catch { /* malformed — proceed with empty */ }
+      let manifest = null;
+      if (typeof extractTrustMeta === "function") {
+        try { manifest = extractTrustMeta(input); } catch { manifest = null; }
+      }
       const { exitCode, stderrLines, logAction, logHitName } = runPreToolGate({
         harness,
-        tool:        extractTool(input),
-        command:     extractCommand(input),
-        cwd:         extractCwd(input),
-        rawInput:    input,
-        sessionRisk: readSessionRisk(),
+        tool:           extractTool(input),
+        command:        extractCommand(input),
+        cwd:            extractCwd(input),
+        rawInput:       input,
+        sessionRisk:    readSessionRisk(),
         envelopeReporting,
+        trustMeta:      manifest && manifest.trustMeta      ? manifest.trustMeta      : null,
+        outputChannels: manifest && manifest.outputChannels ? manifest.outputChannels : null,
+        harnessVersion: manifest && manifest.harnessVersion ? manifest.harnessVersion : null,
       });
       for (const line of stderrLines) process.stderr.write(line + "\n");
       if (logAction && logHitName) {
@@ -341,4 +389,4 @@ function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extr
     .catch(() => process.exit(0));
 }
 
-module.exports = { readStdin, commandFrom, collectText, ENFORCE, hookLog, rateLimitCheck, MAX_STDIN_BYTES, runtimeDecision, runtimeContext, classifyCommandPayload, readSessionRisk, classifyPathSensitivity, createAdapter };
+module.exports = { readStdin, commandFrom, collectText, ENFORCE, hookLog, rateLimitCheck, MAX_STDIN_BYTES, runtimeDecision, runtimeContext, classifyCommandPayload, readSessionRisk, classifyPathSensitivity, createAdapter, loadManifest };

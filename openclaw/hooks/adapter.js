@@ -6,18 +6,17 @@
 
 "use strict";
 
-const { createAdapter } = require("../../claude/hooks/hook-utils");
-
-// TODO(F15/Task0.6): publish this via openclaw/manifest.json. Until then,
-// treat OpenClaw as envelopeReporting: false.
-const ADAPTER_CAPABILITIES = { envelopeReporting: false };
-void ADAPTER_CAPABILITIES;
+const { createAdapter, loadManifest } = require("../../claude/hooks/hook-utils");
 
 createAdapter({
-  harness:        "openclaw",
-  rateLimitKey:   "openclaw-adapter",
-  extractCommand: (i) => String(i.cmd || i.input?.cmd || i.command || i.args?.command || i.tool_input?.command || i.input?.command || ""),
-  extractCwd:     (i) => String(i.cwd || i.input?.cwd || i.args?.cwd || i.tool_input?.cwd || ""),
-  extractTool:    (i) => String(i.tool || "shell"),
-  envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting,
+  harness:           "openclaw",
+  rateLimitKey:      "openclaw-adapter",
+  extractCommand:    (i) => String(i.cmd || i.input?.cmd || i.command || i.args?.command || i.tool_input?.command || i.input?.command || ""),
+  extractCwd:        (i) => String(i.cwd || i.input?.cwd || i.args?.cwd || i.tool_input?.cwd || ""),
+  extractTool:       (i) => String(i.tool || "shell"),
+  // HAP ADR-007 PR-B: openclaw/manifest.json declares envelopeReporting=false
+  // (today; lifts when F15 OpenClaw wiring lands), exact arg/cwd fidelity,
+  // supported MCP/skill interception.
+  envelopeReporting: false,
+  extractTrustMeta:  () => loadManifest("openclaw"),
 });
