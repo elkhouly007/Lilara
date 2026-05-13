@@ -243,6 +243,20 @@ const LATTICE = Object.freeze([
     predicateRef: "runtime/envelope.js + decision-engine wiring",
     notes: "ADR-003 B: pre-exec re-check on critical writes; envelope hash divergence = block.",
   }),
+  Object.freeze({
+    id: "F16",
+    rung: 17.5,
+    // ADR-009 PR-B: ambient-authority floor. Non-integer rung is intentional
+    // and remains strictly increasing per assertOrdered(); F15 (17) < F16 (17.5)
+    // < D-CONTRACT-ALLOW (18). Name matches what decision-engine writes to
+    // `floorFired` ("ambient-authority"); the "-denied" form lives on `source`.
+    name: "ambient-authority",
+    action: "block",
+    source: "ambient-authority-denied",
+    demotableBy: [],
+    predicateRef: "runtime/decision-engine.js + runtime/ambient.js",
+    notes: "ADR-009 PR-B: write into ambient-authority path outside projectRoot. Demotion only via scopes.ambient.allow[<class>]=true or path-prefix entry.",
+  }),
   // --- demotion / promotion rungs (not floors; recorded for completeness) ---
   Object.freeze({
     id: "D-CONTRACT-ALLOW",

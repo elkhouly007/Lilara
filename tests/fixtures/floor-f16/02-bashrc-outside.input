@@ -1,0 +1,22 @@
+{
+  "title": "F16/02: write to ~/.bashrc outside projectRoot → BLOCK with ambientClass=shellRc",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "/home/user/.bashrc",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "/home/user/.bashrc"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "ambient-authority-denied",
+    "floorFired": "ambient-authority",
+    "ambientClass": "shellRc",
+    "rung": 17.5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["ambient-authority-denied"]
+  }
+}

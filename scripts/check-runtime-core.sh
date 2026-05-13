@@ -239,16 +239,25 @@ if (!String(setupShapeRoute.workflowRoute?.suggestedCommand || '').includes('gen
 if (!String(setupShapeRoute.explanation || '').includes('stack=node')) throw new Error('expected project-shape stack in explanation');
 if (!String(setupShapeRoute.explanation || '').includes('config=missing')) throw new Error('expected missing-config explanation flag');
 
-const wiringEditRoute = decide({ command: '', targetPath: '.claude/settings.json', tool: 'Edit', sessionRisk: 0, branch: 'feature/hooks' });
+// ADR-009 PR-B: writes into `.claude/settings.json` classify as `mcpConfig`
+// (auto-loaded on next agent start) and trigger F16 even when project-local —
+// `mcpConfig` is not on F16's project-local exception list. Operators editing
+// the Claude Code hooks config must opt in via
+// `scopes.ambient.allow[{class:"mcpConfig"}]`. To preserve the workflow
+// router test (which is what this section asserts), point at a wiring-routed
+// path that doesn't classify as ambient: `claude/hooks/settings-edit.json`
+// still matches the router's `hook|hooks\.json|settings\.json` regex but
+// lives under `claude/` (no leading dot) so the ambient classifier skips it.
+const wiringEditRoute = decide({ command: '', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, branch: 'feature/hooks' });
 if (wiringEditRoute.workflowRoute?.lane !== 'wiring') throw new Error(`expected wiring edit lane, got ${wiringEditRoute.workflowRoute?.lane}`);
 if (wiringEditRoute.workflowRoute?.suggestedTarget !== 'horus-cli.wire') throw new Error(`expected wiring edit target horus-cli.wire, got ${wiringEditRoute.workflowRoute?.suggestedTarget}`);
 if (!String(wiringEditRoute.workflowRoute?.reason || '').includes('direct hook or settings editing')) throw new Error('expected tool-aware wiring reason');
 
-const strictWiringEditRoute = decide({ command: 'edit settings', targetPath: '.claude/settings.json', tool: 'Edit', sessionRisk: 0, trustPosture: 'strict' });
+const strictWiringEditRoute = decide({ command: 'edit settings', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, trustPosture: 'strict' });
 if (strictWiringEditRoute.workflowRoute?.lane !== 'review') throw new Error(`expected strict wiring edit review lane, got ${strictWiringEditRoute.workflowRoute?.lane}`);
 if (strictWiringEditRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected strict wiring edit target horus-cli.review, got ${strictWiringEditRoute.workflowRoute?.suggestedTarget}`);
 
-const protectedWiringEditRoute = decide({ command: 'edit settings', targetPath: '.claude/settings.json', tool: 'Edit', sessionRisk: 0, branch: 'release', protectedBranches: ['release'] });
+const protectedWiringEditRoute = decide({ command: 'edit settings', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, branch: 'release', protectedBranches: ['release'] });
 if (protectedWiringEditRoute.workflowRoute?.lane !== 'review') throw new Error(`expected protected wiring edit review lane, got ${protectedWiringEditRoute.workflowRoute?.lane}`);
 if (!String(protectedWiringEditRoute.workflowRoute?.reason || '').includes('protected branch release')) throw new Error('expected protected wiring review reason');
 

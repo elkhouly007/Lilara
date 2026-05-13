@@ -1,0 +1,19 @@
+{
+  "title": "F16/10: project-local nonAmbient write (projectRoot/src/app.ts) → unaffected (no F16 in floorFired)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/src/app.ts",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "{{projectRoot}}/src/app.ts"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

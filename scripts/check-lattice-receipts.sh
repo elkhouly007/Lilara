@@ -277,6 +277,12 @@ function runFixture(fixturePath) {
     if (exp.floorFired !== undefined && (result.floorFired || null) !== exp.floorFired) {
       diffs.push(`floorFired: got=${result.floorFired} want=${exp.floorFired}`);
     }
+    // F16 PR-B: ambientClass is the LATTICE-anchored ambient class label
+    // ("ssh", "gitConfig", …) emitted on the receipt when F16 fires. Optional
+    // for other floors — only F16 fixtures will set it.
+    if (exp.ambientClass !== undefined && (result.ambientClass || null) !== exp.ambientClass) {
+      diffs.push(`ambientClass: got=${result.ambientClass} want=${exp.ambientClass}`);
+    }
     if (Array.isArray(exp.reasonCodesIncludes)) {
       for (const code of exp.reasonCodesIncludes) {
         if (!Array.isArray(result.reasonCodes) || result.reasonCodes.indexOf(code) === -1) {

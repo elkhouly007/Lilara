@@ -248,6 +248,41 @@
             }
           },
           "additionalProperties": false
+        },
+        "ambient": {
+          "description": "ADR-009 PR-B: F16 ambient-authority opt-in. The F16 floor blocks writes into ambient-authority paths (SSH keys, shell rc, global git config, cloud-CLI credentials, IDE settings, MCP configs, browser profiles, OS keychain, …) outside `projectRoot`. F16 is non-demotable through contract-allow / learned-allow / auto-allow-once; the ONLY legitimate bypass is an entry in this `allow[]` array. Backwards-compat: contracts without `scopes.ambient` retain default-deny behavior (F16 fires whenever it would otherwise fire).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow": {
+              "type": "array",
+              "description": "Opt-in list of ambient-authority touches this contract explicitly permits. An entry with `class` only permits ALL ambient paths classified as `class`. An entry with `class` + `pathPrefix` permits only ambient paths that both classify as `class` AND start (segment-aligned, case-insensitive, after the same backslash/`file://` normalization `ambient.js` applies) with `pathPrefix`. `reason` is operator-advisory and logged through to the decision receipt when the floor would have fired but for this entry.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["class"],
+                "properties": {
+                  "class": {
+                    "type": "string",
+                    "enum": [
+                      "ssh",
+                      "gitConfig",
+                      "shellRc",
+                      "packageCache",
+                      "credentialHelper",
+                      "ideSettings",
+                      "mcpConfig",
+                      "browserProfile",
+                      "osKeychain"
+                    ]
+                  },
+                  "pathPrefix": { "type": "string" },
+                  "reason":     { "type": "string", "maxLength": 200 }
+                }
+              },
+              "default": []
+            }
+          }
         }
       },
       "additionalProperties": false

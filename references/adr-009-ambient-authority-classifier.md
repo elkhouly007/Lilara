@@ -1,9 +1,10 @@
-# ADR-009 — Ambient-Authority Path Classifier (F16 PR-A foundation)
+# ADR-009 — Ambient-Authority Path Classifier (F16)
 
-**Status:** ACCEPTED — Khouly 2026-05-13 (foundation only; no behavior change).
+**Status:** ACCEPTED — Khouly 2026-05-13.
 **PR-A status:** SHIPPED (classifier + tests only).
+**PR-B status:** SHIPPED (F16 floor wired into decision-engine + `scopes.ambient.allow[]` opt-in + fixtures + tests + this doc).
 **Authors:** Khouly (scope), Claude Code (implementation).
-**Repo cross-refs:** `runtime/ambient.js`, `runtime/index.js`, `tests/runtime/ambient.test.js`.
+**Repo cross-refs:** `runtime/ambient.js`, `runtime/decision-engine.js`, `runtime/decision-lattice.js`, `runtime/index.js`, `schemas/horus.contract.schema.json`, `tests/runtime/ambient.test.js`, `tests/runtime/ambient-floor.test.js`, `tests/fixtures/floor-f16/`, `tests/fixtures/lattice-receipts/F16-ambient-authority.input`.
 
 ---
 
@@ -138,3 +139,125 @@ preserves the runtime's single-responsibility module convention.
 - `bash scripts/audit-local.sh` — no risky patterns introduced.
 - `HORUS_HERMETIC_TEST=1 bash scripts/run-fixtures.sh` — unchanged
   fixture behavior.
+
+## 7. PR-B contract (SHIPPED)
+
+PR-B turns the PR-A classifier into a hard floor. The runtime additions are:
+
+### 7.1 LATTICE entry — F16
+
+A single frozen entry was inserted into `runtime/decision-lattice.js` between
+F15 (rung 17, `execution-envelope`) and `D-CONTRACT-ALLOW` (rung 18):
+
+```js
+{ id: "F16", rung: 17.5,
+  name: "ambient-authority",
+  action: "block",
+  source: "ambient-authority-denied",
+  demotableBy: [],
+  predicateRef: "runtime/decision-engine.js + runtime/ambient.js",
+  notes: "ADR-009 PR-B: write into ambient-authority path outside projectRoot. Demotion only via scopes.ambient.allow[<class>]=true or path-prefix entry." }
+```
+
+The non-integer rung is intentional: `assertOrdered()` only requires strict
+monotonicity, and 17.5 keeps F15 < F16 < D-CONTRACT-ALLOW without renumbering
+any existing rung. `demotableBy: []` makes F16 non-demotable — contract-allow,
+learned-allow, auto-allow-once, operator tokens, and trajectory-nudge cannot
+demote it. The ONLY legitimate bypass is the `scopes.ambient.allow[]` opt-in
+described below.
+
+### 7.2 Engine wiring (placement, ordering, fail-open)
+
+The F16 check sits in `runtime/decision-engine.js:decide()` **immediately after
+the F15 envelope check** and **before** risk scoring, contract-allow demotion,
+auto-allow-once, trajectory-nudge, and F14b. The placement matches the rung:
+17 < 17.5 < 18. When both F15 and F16 would fire, F15 wins (its early-block
+returns first) — verified by an explicit lattice-ordering test in
+`tests/runtime/ambient-floor.test.js`.
+
+The check is wrapped in `try { … } catch { /* fail-open */ }` per the zero-dep
+policy: if anything inside `runtime/ambient.js` throws on a specific input, the
+engine continues to the rest of the precedence ladder rather than crashing.
+Hoisted import (`require("./ambient")` at module top) mirrors the F18 wiring
+style; the try/catch covers evaluation only.
+
+### 7.3 Project-local exception list
+
+Some ambient classes have a **legitimate in-project shape**:
+
+| class         | legitimate in-project shape                                  |
+| ------------- | ------------------------------------------------------------ |
+| `gitConfig`   | `<projectRoot>/.git/config` — per-repo git config            |
+| `ideSettings` | `<projectRoot>/.vscode/`, `<projectRoot>/.idea/`, `.cursor/` |
+
+Writes whose path classifies as one of these AND is segment-aligned inside
+`projectRoot` skip F16. Every other ambient class fires regardless of project
+membership — a write to `<projectRoot>/.ssh/id_rsa` still blocks because the
+`ssh` class has no legitimate in-project reason. Project-membership uses the
+same shape-only normalization as the classifier (`\\` → `/`, strip `file://`,
+trim trailing slash, case-insensitive).
+
+### 7.4 Schema — `scopes.ambient.allow[]`
+
+Additive opt-in extension to `schemas/horus.contract.schema.json`. Shape:
+
+```jsonc
+"scopes": {
+  "ambient": {
+    "allow": [
+      // class-only: permit ALL paths of this class
+      { "class": "gitConfig", "reason": "global git config rotated externally" },
+      // class + pathPrefix: permit only paths starting with the prefix
+      { "class": "credentialHelper", "pathPrefix": "/home/user/.aws/" }
+    ]
+  }
+}
+```
+
+- `class` is required; enum-restricted to the 9 ambient classes (the 10th
+  member of `AMBIENT_CLASSES`, `nonAmbient`, is not a valid opt-in value).
+- `pathPrefix` is optional. Matching is **case-insensitive** and
+  **segment-aligned** (`pathPrefix:"/home/user/.aw"` does NOT permit
+  `/home/user/.aws/credentials`). Prefix normalization mirrors ambient.js:
+  backslashes fold to forward slashes, `file://` stripped, trailing slash
+  trimmed.
+- `reason` is operator-advisory (≤200 chars). It's logged through to the
+  decision receipt for traceability.
+- `additionalProperties: false` applied to both `scopes.ambient` and each
+  `allow[]` entry, matching the convention of every other `scopes.*` block.
+
+Existing contracts without `scopes.ambient` retain default-deny behavior: F16
+fires whenever it would otherwise fire.
+
+### 7.5 Receipt enrichment (PR-B scope)
+
+When F16 fires, the decision receipt carries:
+
+- `ambientClass`: the classifier's class id (`"ssh"`, `"gitConfig"`, …).
+- `ambientPath`: the offending path (raw, pre-normalization, so the receipt
+  reflects the agent's actual write target).
+
+PR-B explicitly **does NOT** add `ambientClass` to non-F16 decisions; that is
+PR-C's scope per §2 (receipt enrichment on every ambient touch).
+
+### 7.6 Non-demotability
+
+F16 is `demotableBy: []`. The PR-C `canDemote()` guard returns `false` for any
+`(F16, attemptedSource)` pair. The floor-demotion-matrix fixture
+(`tests/fixtures/decision-engine/floor-demotion-matrix.input`) was extended
+with an F16 row asserting every common demotion source is rejected
+(`contract-allow`, `contract-allow:tool-allow-matched`,
+`operator-token:class-c-review-demote`, `learned-allow`, `auto-allow-once`).
+
+### 7.7 Local gates added by PR-B
+
+- `tests/runtime/ambient-floor.test.js` — 14 node:assert cases.
+- `tests/fixtures/floor-f16/*.input` — 10 fixture-driven scenarios (1–10 from
+  the PR-B brief).
+- `tests/fixtures/lattice-receipts/F16-ambient-authority.input` — canonical
+  per-floor receipt-shape pin (action, decisionSource, floorFired,
+  ambientClass, rung, latticeVersion).
+- `scripts/check-floor-f16.sh` — sweep runner, wired into `run-fixtures.sh`.
+- `scripts/check-lattice-ordering.sh` — expectedFloors list now includes
+  `F16`.
+- `scripts/check-lattice-receipts.sh` — recognizes `expected.ambientClass`.

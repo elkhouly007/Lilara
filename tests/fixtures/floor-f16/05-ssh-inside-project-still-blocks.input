@@ -1,0 +1,22 @@
+{
+  "title": "F16/05: write to projectRoot/.ssh/id_rsa INSIDE projectRoot → BLOCK (ssh class has no legitimate in-project reason)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/.ssh/id_rsa",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "{{projectRoot}}/.ssh/id_rsa"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "ambient-authority-denied",
+    "floorFired": "ambient-authority",
+    "ambientClass": "ssh",
+    "rung": 17.5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["ambient-authority-denied"]
+  }
+}
