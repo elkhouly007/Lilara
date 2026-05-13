@@ -134,7 +134,15 @@ const headSha = currentCommitSha();
 if (baseline && baseline[platformKey] && baseline[platformKey].p99) {
   const prior = baseline[platformKey];
   const baseP99 = Number(prior.p99);
-  const cap = Math.min(p99Ceiling, baseP99 * 1.5);
+  // Variance floor for tiny baselines. When baseP99 is sub-millisecond, the
+  // 1.5× multiplier collapses the cap to sub-millisecond too — and ordinary
+  // GH runner jitter (sub-10ms spikes that are invisible against the 200ms
+  // macOS / 500ms slowfs ceiling) gets misread as a regression. Scale a per-
+  // platform absolute headroom from the ceiling (≈10%) and let p99 clear
+  // EITHER the relative cap OR the absolute headroom. The platform ceiling
+  // above this gate still catches severe regressions on every run.
+  const headroomMs = p99Ceiling * 0.1;
+  const cap = Math.min(p99Ceiling, Math.max(baseP99 * 1.5, baseP99 + headroomMs));
   const baseSha = prior.commitSha || "";
   const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
   if (!baseSha) {
@@ -142,10 +150,10 @@ if (baseline && baseline[platformKey] && baseline[platformKey].p99) {
   } else if (!lineageOk) {
     console.log(`  info    baseline from non-ancestor commit ${baseSha.slice(0,12)} (head ${headSha.slice(0,12) || "?"}); skipping 1.5× gate (likely rebase or stale cache from sibling branch)`);
   } else if (p99 > cap) {
-    console.error(`  ERROR   p99 ${p99.toFixed(3)}ms exceeds 1.5× baseline (${baseP99.toFixed(3)}ms → cap ${cap.toFixed(3)}ms) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
+    console.error(`  ERROR   p99 ${p99.toFixed(3)}ms exceeds cap ${cap.toFixed(3)}ms (baseline ${baseP99.toFixed(3)}ms, max(1.5×, +${headroomMs.toFixed(3)}ms headroom)) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
     process.exit(1);
   } else {
-    console.log(`  ok      p99 within 1.5× baseline (baseline=${baseP99.toFixed(3)}ms cap=${cap.toFixed(3)}ms) [baseline ${baseSha.slice(0,12)} ancestor]`);
+    console.log(`  ok      p99 within cap (baseline=${baseP99.toFixed(3)}ms cap=${cap.toFixed(3)}ms max(1.5×, +${headroomMs.toFixed(3)}ms)) [baseline ${baseSha.slice(0,12)} ancestor]`);
   }
 }
 
