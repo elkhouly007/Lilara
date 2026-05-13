@@ -320,6 +320,37 @@ function hashEnvelope(envelope) {
   return sha256(canonicalJson(copy));
 }
 
+function normalizeNetworkTargets(raw) {
+  // Defensive normalisation so the field stays canonical regardless of how
+  // callers shape it. Entries with no host or no resolvedIps are dropped.
+  // Sort hosts, ports, and the IP list itself for deterministic hashing.
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
+    const host = String(e.host || "").toLowerCase();
+    if (!host) continue;
+    const port = e.port == null ? null : Number(e.port);
+    const scheme = e.scheme == null ? null : String(e.scheme);
+    const ips = Array.isArray(e.resolvedIps)
+      ? [...new Set(e.resolvedIps.map((x) => String(x)).filter(Boolean))].sort()
+      : [];
+    if (ips.length === 0) continue;
+    out.push({ host, port, scheme, resolvedIps: ips });
+  }
+  if (out.length === 0) return null;
+  out.sort((a, b) => {
+    if (a.host !== b.host) return a.host < b.host ? -1 : 1;
+    const ap = a.port == null ? -1 : a.port;
+    const bp = b.port == null ? -1 : b.port;
+    if (ap !== bp) return ap - bp;
+    const as = a.scheme || "";
+    const bs = b.scheme || "";
+    return as < bs ? -1 : as > bs ? 1 : 0;
+  });
+  return out;
+}
+
 function build(input = {}) {
   const env = input.env && typeof input.env === "object" ? input.env : process.env;
   const cwd = path.resolve(String(input.cwd || input.projectRoot || process.cwd()));
@@ -336,6 +367,12 @@ function build(input = {}) {
     execPath: resolveExecutable(commandAst, cwd, env),
     targets: targetCandidates(input, cwd).map(targetMeta),
   };
+  // ADR-005 FC #5: optionally bind resolved network targets (host, port,
+  // scheme, resolvedIps) into the envelope. Additive: when no targets are
+  // supplied, the field is omitted entirely and the envelope hash is
+  // identical to pre-ADR-005 envelopes (backward compat for F15 fixtures).
+  const networkTargets = normalizeNetworkTargets(input.networkTargets);
+  if (networkTargets) envelope.networkTargets = networkTargets;
   envelope.hash = hashEnvelope(envelope);
   return envelope;
 }

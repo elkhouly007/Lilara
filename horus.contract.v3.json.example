@@ -23,6 +23,17 @@
     "budget": {
       "maxDestructiveOps": 50,
       "maxExternalBytes":  10485760
+    },
+    "_comment_network": "F18 (ADR-005): outbound network egress floor. allowDomains entries may be a plain string OR an object with per-entry allowOnLookupFailure (FC #4). Default flag value is false → DNS lookup failure denies. Top-level allowOnLookupFailure is the fallback for string entries. FC #5 (envelope-bound IP recheck) needs no contract opt-in.",
+    "network": {
+      "allowDomains": [
+        "api.anthropic.com",
+        "*.github.com",
+        { "pattern": "registry.npmjs.org", "allowOnLookupFailure": false },
+        { "pattern": "pypi.org",           "allowOnLookupFailure": true  }
+      ],
+      "denyDomains": ["gist.github.com"],
+      "allowOnLookupFailure": false
     }
   },
   "contractHash": "sha256:fc20317ac33a88ae717caf84d3d580601b0b56074ced92b22c87fe52520c302a"
