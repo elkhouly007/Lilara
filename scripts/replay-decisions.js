@@ -19,7 +19,11 @@
 //      `irHash` are optional and only checked when present.
 //
 // Determinism is enforced by isolating each call: fresh HORUS_STATE_DIR,
-// session-context cache reset, contract disabled, branch override stripped.
+// session-context cache reset, contract disabled, and HORUS_BRANCH_OVERRIDE
+// pinned to a synthetic non-protected sentinel so entries with empty/missing
+// `branch` do not inherit the cwd's git branch via context-discovery's
+// `git symbolic-ref` fallback (which would let a master-checkout CI drift
+// adversarial boundary entries into the protected-branch lane).
 //
 // Usage:
 //   node scripts/replay-decisions.js [--corpus path.jsonl] [--journal path.jsonl]
@@ -78,8 +82,16 @@ process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
 process.env.HORUS_RATE_LIMIT = "0";
 delete process.env.HORUS_KILL_SWITCH;
 delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_BRANCH_OVERRIDE;
 delete process.env.HORUS_F4_DEMOTE_TOKEN;
+// Pin a synthetic non-protected sentinel so entries with empty/missing
+// `branch` do not pick up the CI checkout's actual branch via
+// context-discovery's `git symbolic-ref` fallback. Explicit input.branch on
+// any entry still wins inside discover(); only the empty/missing case is
+// covered. Sentinel intentionally not in the default protectedBranches list
+// ("main","master") so the engine does not auto-escalate to protected-branch
+// review semantics. IR.branch comes from input only — sentinel does not enter
+// the canonical IR, so irHash stays byte-stable.
+process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));

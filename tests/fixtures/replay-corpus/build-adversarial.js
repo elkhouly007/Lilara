@@ -47,8 +47,13 @@ process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
 process.env.HORUS_RATE_LIMIT = "0";
 delete process.env.HORUS_KILL_SWITCH;
 delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_BRANCH_OVERRIDE;
 delete process.env.HORUS_F4_DEMOTE_TOKEN;
+// Mirror scripts/replay-decisions.js: pin a synthetic non-protected branch
+// sentinel so the boundary cases below (empty/missing `branch`) do not pick
+// up the generator host's actual git branch via context-discovery's
+// `git symbolic-ref` fallback. Keeps the generated fixture identical whether
+// build-adversarial is run on master, a feature branch, or a worktree.
+process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
