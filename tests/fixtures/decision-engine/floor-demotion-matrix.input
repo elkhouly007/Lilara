@@ -1,0 +1,28 @@
+{
+  "title": "HAP ADR-007 PR-C: every (floor, attemptedSource) demotion pair audit",
+  "description": "For each floor in LATTICE, list the demotion sources it explicitly permits (demotableBy) and assert canDemote() returns the expected boolean. Negative pairs (random/unrelated sources) MUST return false. This pins the lattice's demotability matrix as the single arbiter — no implicit demotion path may exist outside canDemote().",
+  "matrix": [
+    { "floor": "F1",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow"] },
+    { "floor": "F2",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "operator-token:class-c-review-demote"] },
+    { "floor": "F3",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "contract-allow", "learned-allow"] },
+    { "floor": "F4",  "demotableBy": ["operator-token:class-c-review-demote"], "negativeSamples": ["contract-allow:tool-allow-matched", "learned-allow", "operator-token:wrong-scope"] },
+    { "floor": "F5",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F6",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "auto-allow-once"] },
+    { "floor": "F7",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "auto-allow-once"] },
+    { "floor": "F8",  "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched"] },
+    { "floor": "F9",  "demotableBy": ["contract-allow:tool-allow-matched", "contract-allow:tool-allow-tool-scope"], "negativeSamples": ["contract-allow", "learned-allow", "operator-token:class-c-review-demote", "auto-allow-once"] },
+    { "floor": "F10", "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched"] },
+    { "floor": "F11", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F12", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F13", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F14", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F14b","demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "auto-allow-once"] },
+    { "floor": "F15", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F18", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] }
+  ],
+  "additionalAssertions": {
+    "unknownFloorId": { "id": "F999", "anySource": false },
+    "emptyAttemptedSource": { "id": "F4", "source": "", "expected": false },
+    "nullInputs": { "id": null, "source": null, "expected": false }
+  }
+}

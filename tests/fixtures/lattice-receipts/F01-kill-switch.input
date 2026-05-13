@@ -1,0 +1,17 @@
+{
+  "title": "F1 kill-switch fires unconditionally with HORUS_KILL_SWITCH=1",
+  "env": { "HORUS_KILL_SWITCH": "1" },
+  "input": {
+    "tool": "Bash",
+    "command": "ls -la",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "kill-switch",
+    "floorFired": "kill-switch",
+    "reasonCodesIncludes": ["kill-switch"],
+    "journalWritten": false
+  }
+}

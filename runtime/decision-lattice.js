@@ -6,9 +6,11 @@
 // HAP ADR-007 / scope §4.1 invariant 10: every floor declares its rung,
 // action, demotability, and source tag in one place. This file is the
 // source of truth for ORDERING + DEMOTABILITY + FIXTURE IDENTITY of the
-// floors that decision-engine.js implements imperatively. PR-A introduces
-// the table only — decision-engine.js is unchanged in this PR; PR-C will
-// switch its string literals to read from LATTICE.
+// floors that decision-engine.js implements imperatively. PR-A introduced
+// the table; PR-C anchored decision-engine.js into it — every
+// `floorFired` and `decisionSource` string the engine emits is now derived
+// from a LATTICE entry, and every post-floor demotion routes through
+// `canDemote(floorId, attemptedSource)` which reads `demotableBy` below.
 //
 // Pure data + tiny helpers. Zero I/O. Zero external dependencies.
 //
@@ -145,6 +147,9 @@ const LATTICE = Object.freeze([
     name: "secret-class-C",
     action: "block",
     source: ["secret-class-C", "f4-class-c-demoted"],
+    // demotableBy: ADR-002 Option B — F4 (this floor) grants a one-shot scoped
+    // operator token (HORUS_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
+    // authority to demote `block` → `require-review`. No other source qualifies.
     demotableBy: ["operator-token:class-c-review-demote"],
     predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets)",
     notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token.",
@@ -165,6 +170,9 @@ const LATTICE = Object.freeze([
     name: "session-risk-floor",
     action: "escalate",
     source: "session-risk-floor",
+    // demotableBy: W11 carve-out — contract.scopes.tools.toolAllow / perToolAllow
+    // matches grant F9 (this floor) demotion authority over its own `escalate`.
+    // Any other contract-allow reason (path/secret/etc) does NOT demote F9.
     demotableBy: ["contract-allow:tool-allow-matched", "contract-allow:tool-allow-tool-scope"],
     predicateRef: "runtime/decision-engine.js:decide(sessionRisk>=3)",
     notes: "W11 carve-out permits escalate→allow demotion via per-tool contract scope.",
@@ -202,7 +210,11 @@ const LATTICE = Object.freeze([
   Object.freeze({
     id: "F18",
     rung: 16,
-    name: "network-egress-denied",
+    // PR-C: name matches what decision-engine writes to `floorFired`
+    // ("network-egress"); the longer "-denied" form lives on `source` and is
+    // also the buildEarlyBlock reasonCode. getRungByName("network-egress")
+    // must resolve so the journal annotates rung=16 on F18 hits.
+    name: "network-egress",
     action: "block",
     source: "network-egress-denied",
     demotableBy: [],
@@ -222,7 +234,9 @@ const LATTICE = Object.freeze([
   Object.freeze({
     id: "F15",
     rung: 17,
-    name: "execution-envelope-diverged",
+    // PR-C: name matches what decision-engine writes to `floorFired`
+    // ("execution-envelope"); the "-diverged" form lives on `source`.
+    name: "execution-envelope",
     action: "block",
     source: "execution-envelope-diverged",
     demotableBy: [],
@@ -337,6 +351,26 @@ function listFloors() {
   return LATTICE.filter((e) => e.id[0] === "F" || e.id[0] === "L");
 }
 
+// canDemote(currentFloorId, attemptedSource) — PR-C demotion guard. Returns
+// true only when `attemptedSource` is explicitly listed in the floor's
+// `demotableBy` array; an unknown floorId or an unlisted source returns
+// false. decision-engine.js routes every post-floor demotion through this
+// helper so no future drift can silently bypass a floor by reassigning
+// `action` / `source` directly. `currentFloorId` is the LATTICE `id`
+// (e.g. "F4"), not the human-readable name written into floorFired.
+function canDemote(currentFloorId, attemptedSource) {
+  if (typeof currentFloorId !== "string" || currentFloorId.length === 0) return false;
+  if (typeof attemptedSource !== "string" || attemptedSource.length === 0) return false;
+  const entry = _BY_ID[currentFloorId];
+  if (!entry) return false;
+  const list = entry.demotableBy;
+  if (!Array.isArray(list) || list.length === 0) return false;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] === attemptedSource) return true;
+  }
+  return false;
+}
+
 // assertOrdered() — enforces the table invariants. Throws Error on first
 // violation. Used by tests + by the lattice-ordering CI script. Cheap to
 // call; safe to invoke at module load when HORUS_LATTICE_SELFTEST=1.
@@ -403,5 +437,6 @@ module.exports = {
   getRungByName,
   getFloor,
   listFloors,
+  canDemote,
   assertOrdered,
 };

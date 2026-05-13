@@ -1,0 +1,19 @@
+{
+  "title": "F8 protected-branch: high-risk write against protected branch → require-review",
+  "input": {
+    "tool": "Bash",
+    "command": "npm install -g typescript",
+    "branch": "main",
+    "targetPath": "/tmp",
+    "protectedBranch": true
+  },
+  "expected": {
+    "action": "require-review",
+    "decisionSource": "risk-engine",
+    "floorFired": "protected-branch",
+    "rung": 9,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["protected-branch"]
+  }
+}
