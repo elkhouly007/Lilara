@@ -27,6 +27,7 @@
 #   log         Show or clear the hook event log (HORUS_HOOK_LOG=1).
 #   version     Print Agent Runtime Guard version.
 #   runtime     Show runtime roadmap, state, approvals, promotions, and decision explanations.
+#   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -655,6 +656,49 @@ __ROUTE_EOF__
         ;;
       *)
         die "Unknown runtime subcommand: $sub"
+        ;;
+    esac
+    ;;
+
+  # ── journal ───────────────────────────────────────────────────────────────
+  # ADR-004 PR 37A: tamper-evident hash-chained journal. Detection-only — no
+  # enforcement gating; degraded-mode wiring lands in PR 37B.
+  journal)
+    sub="${1:-verify}"
+    shift || true
+    case "$sub" in
+      verify)
+        # Optional --file <path> override; defaults to <stateDir>/journal-chain.jsonl.
+        chain_file=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --file)   shift; chain_file="${1:-}" ;;
+            --file=*) chain_file="${1#--file=}" ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$chain_file" <<'__JOURNAL_VERIFY_EOF__'
+"use strict";
+const path = require("path");
+const { verify, chainPath } = require(path.join(process.argv[2], "runtime/journal-chain"));
+const file = process.argv[3] || chainPath();
+const result = verify({ file });
+if (result.ok) {
+  process.stdout.write("journal verify: OK (" + result.entryCount + " entries) " + file + "\n");
+  process.exit(0);
+}
+process.stdout.write("journal verify: FAIL (" + result.errors.length + " error(s), " + result.entryCount + " entries) " + file + "\n");
+for (const e of result.errors) {
+  process.stdout.write("  seq=" + (e.seq === null ? "?" : e.seq) + " line=" + (e.line === null ? "?" : e.line) + " reason=" + e.reason + "\n");
+}
+process.exit(1);
+__JOURNAL_VERIFY_EOF__
+        ;;
+      *)
+        printf '%sUnknown journal subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: verify\n' >&2
+        exit 2
         ;;
     esac
     ;;

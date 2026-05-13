@@ -20,5 +20,9 @@ const { resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS } = require("./route-
 // to read decisionLattice.LATTICE for source/floor labels.
 const actionIr = require("./action-ir");
 const decisionLattice = require("./decision-lattice");
+// HAP ADR-004 PR 37A: tamper-evident hash-chained journal. Exposed as a
+// namespace so existing consumers stay unaffected; CLI and tests reach in
+// explicitly. No call site appends today — detection/reporting only.
+const journalChain = require("./journal-chain");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain };
