@@ -13,13 +13,46 @@ const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
 const { classifyCommand } = require("./decision-key");
 const { classifyIntent } = require("./intent-classifier");
-const { LATTICE_VERSION, getRungByName } = require("./decision-lattice");
+const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
 
-// HAP ADR-007 PR-B: extra journal fields are gated behind HORUS_IR_JOURNAL=1.
-// Default off so receipts stay byte-identical until consumers opt in. PR-C
-// will flip the default and remove the gate.
+// HAP ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
+// constant below resolves to the canonical name/source for its floor; the
+// engine reads these instead of hard-coded strings so a future relabel
+// only has to touch decision-lattice.js. `_LF`/`_LS` capture the floor
+// name (used as floorFired) and decisionSource respectively. For F4 where
+// `source` is an array, the demoted variant lives at index 1.
+const _F1  = getEntry("F1");          // kill-switch
+const _F2  = getEntry("F2");          // contract-hash-mismatch
+const _F5  = getEntry("F5");          // strict-gated-no-cover (harness-out-of-scope)
+const _F11 = getEntry("F11");         // validity-window
+const _F12 = getEntry("F12");         // mcp-deny
+const _F13 = getEntry("F13");         // skill-deny
+const _F14 = getEntry("F14");         // budget-exceeded
+const _F3  = getEntry("F3");          // critical-risk
+const _F8  = getEntry("F8");          // protected-branch
+const _F4  = getEntry("F4");          // secret-class-C
+const _F10 = getEntry("F10");         // taint-floor
+const _F9  = getEntry("F9");          // session-risk-floor
+const _F6  = getEntry("F6");          // posture-strict-no-cover
+const _F7  = getEntry("F7");          // intent-unknown-strict
+const _F14b = getEntry("F14b");       // session-over-duration
+const _F18 = getEntry("F18");         // network-egress
+const _F15 = getEntry("F15");         // execution-envelope
+const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
+const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
+const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
+const _TN  = getEntry("P-TRAJECTORY-NUDGE");// trajectory-nudge
+
+// Demotion source identifiers used with canDemote(). Format mirrors the
+// `demotableBy` strings in decision-lattice.js.
+const _DEMOTE_F4_OPERATOR_TOKEN     = "operator-token:class-c-review-demote";
+const _DEMOTE_F9_TOOL_ALLOW_MATCHED = "contract-allow:tool-allow-matched";
+const _DEMOTE_F9_TOOL_ALLOW_SCOPE   = "contract-allow:tool-allow-tool-scope";
+
+// HAP ADR-007 PR-C: extra journal fields are emitted by default. Disable
+// with HORUS_IR_JOURNAL=0 for one release while consumers cut over.
 function _irJournalExtras(input, floorFired) {
-  if (process.env.HORUS_IR_JOURNAL !== "1") return null;
+  if (process.env.HORUS_IR_JOURNAL === "0") return null;
   const ir = input && input.ir;
   if (!ir || typeof ir.irHash !== "string" || ir.irHash.length === 0) return null;
   const extras = { irHash: ir.irHash, latticeVersion: LATTICE_VERSION };
@@ -144,12 +177,13 @@ function decide(input = {}) {
     return {
       action: "block",
       enforcementAction: "block",
+      floorFired: _F1.name,
       riskScore: 10,
       riskLevel: "critical",
-      reasonCodes: ["kill-switch"],
+      reasonCodes: [_F1.name],
       confidence: 1,
-      decisionSource: "kill-switch",
-      policyKey: "kill-switch",
+      decisionSource: _F1.source,
+      policyKey: _F1.name,
       explanation: "kill-switch engaged — all decisions blocked",
       pendingSuggestion: null,
       promotionGuidance: null,
@@ -212,14 +246,16 @@ function decide(input = {}) {
         if (!vResult.ok) {
           return buildEarlyBlock(
             "contract-hash-mismatch", enriched, discovered, input,
-            `contract hash mismatch (${vResult.reason}) — failing closed`
+            `contract hash mismatch (${vResult.reason}) — failing closed`,
+            { floorFired: _F2.name, decisionSource: _F2.source }
           );
         }
       } catch (verifyErr) {
         // verify threw — fail closed in strict mode
         return buildEarlyBlock(
           "contract-hash-mismatch", enriched, discovered, input,
-          `contract verify error (${verifyErr instanceof Error ? verifyErr.message : "unknown"}) — failing closed`
+          `contract verify error (${verifyErr instanceof Error ? verifyErr.message : "unknown"}) — failing closed`,
+          { floorFired: _F2.name, decisionSource: _F2.source }
         );
       }
     }
@@ -229,7 +265,8 @@ function decide(input = {}) {
     if (process.env.HORUS_CONTRACT_REQUIRED === "1" && harness && !harnessInScope(contract, harness)) {
       if (isGated) {
         return buildEarlyBlock("harness-out-of-scope", enriched, discovered, input,
-          `harness '${harness}' not in contract harnessScope — run: horus-cli contract amend --add-harness ${harness}`);
+          `harness '${harness}' not in contract harnessScope — run: horus-cli contract amend --add-harness ${harness}`,
+          { floorFired: _F5.name, decisionSource: _F5.source });
       }
     }
 
@@ -268,7 +305,8 @@ function decide(input = {}) {
       if (pcAction === "warn" || pcAction === "block") {
         return buildEarlyBlock(
           "validity-window", enriched, discovered, input,
-          `contract validity inactive (${validityResult.reason}); payloadClass=${payloadClass} action=${pcAction} — failing closed`
+          `contract validity inactive (${validityResult.reason}); payloadClass=${payloadClass} action=${pcAction} — failing closed`,
+          { floorFired: _F11.name, decisionSource: _F11.source }
         );
       }
       // Non-gated payload class outside-window → annotate, action unchanged.
@@ -284,7 +322,8 @@ function decide(input = {}) {
       const policy = _contractGetMcpPolicy(contract, serverName);
       if (policy === "block") {
         return buildEarlyBlock("mcp-deny", enriched, discovered, input,
-          `MCP server '${serverName}' denied by contract scopes.mcp`);
+          `MCP server '${serverName}' denied by contract scopes.mcp`,
+          { floorFired: _F12.name, decisionSource: _F12.source });
       }
       if (policy === "warn") {
         mcpWarning = { code: "policy-warn", name: serverName, policy: "warn" };
@@ -300,7 +339,8 @@ function decide(input = {}) {
       const policy = _contractGetSkillPolicy(contract, skillName);
       if (policy === "block") {
         return buildEarlyBlock("skill-deny", enriched, discovered, input,
-          `Skill '${skillName}' denied by contract scopes.skills`);
+          `Skill '${skillName}' denied by contract scopes.skills`,
+          { floorFired: _F13.name, decisionSource: _F13.source });
       }
       if (policy === "warn") {
         skillWarning = { code: "policy-warn", name: skillName, policy: "warn" };
@@ -336,12 +376,14 @@ function decide(input = {}) {
         if (Number.isFinite(budgetCfg.maxDestructiveOps) &&
             counters.destructiveOps >= budgetCfg.maxDestructiveOps) {
           return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
-            `destructive-ops budget exceeded: ${counters.destructiveOps}/${budgetCfg.maxDestructiveOps}`);
+            `destructive-ops budget exceeded: ${counters.destructiveOps}/${budgetCfg.maxDestructiveOps}`,
+            { floorFired: _F14.name, decisionSource: _F14.source });
         }
         if (Number.isFinite(budgetCfg.maxExternalBytes) &&
             counters.externalBytes >= budgetCfg.maxExternalBytes) {
           return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
-            `external-bytes budget exceeded: ${counters.externalBytes}/${budgetCfg.maxExternalBytes}`);
+            `external-bytes budget exceeded: ${counters.externalBytes}/${budgetCfg.maxExternalBytes}`,
+            { floorFired: _F14.name, decisionSource: _F14.source });
         }
       }
     }
@@ -370,7 +412,7 @@ function decide(input = {}) {
             discovered,
             input,
             `network egress blocked: ${detail} (target=${ne.target})`,
-            { floorFired: "network-egress", decisionSource: "network-egress-denied" }
+            { floorFired: _F18.name, decisionSource: _F18.source }
           );
         }
 
@@ -388,8 +430,8 @@ function decide(input = {}) {
               input,
               `network egress blocked: DNS lookup failed for '${dnsCheck.host}' (resolver=${dnsCheck.resolverCode}) (target=${dnsCheck.target})`,
               {
-                floorFired: "network-egress",
-                decisionSource: "network-egress-denied",
+                floorFired: _F18.name,
+                decisionSource: _F18.source,
                 networkEgress: {
                   failureReason: "dns_lookup_failed",
                   hostname: dnsCheck.host,
@@ -421,8 +463,8 @@ function decide(input = {}) {
               input,
               `network egress blocked: exec-time IP ${ipCheck.observedIp} for host '${ipCheck.host}' not in envelope-bound set [${(ipCheck.envelopeBoundIps || []).join(",")}]`,
               {
-                floorFired: "network-egress",
-                decisionSource: "network-egress-denied",
+                floorFired: _F18.name,
+                decisionSource: _F18.source,
                 networkEgress: {
                   failureReason: "ip_set_mismatch",
                   hostname: ipCheck.host,
@@ -454,8 +496,8 @@ function decide(input = {}) {
           input,
           `execution envelope diverged (${envelopeVerification.reason}) — failing closed`,
           {
-            floorFired: "execution-envelope",
-            decisionSource: "execution-envelope-diverged",
+            floorFired: _F15.name,
+            decisionSource: _F15.source,
             envelopeVerification,
           }
         );
@@ -468,8 +510,8 @@ function decide(input = {}) {
         input,
         `execution envelope verify error (${verifyErr instanceof Error ? verifyErr.message : "unknown"}) — failing closed`,
         {
-          floorFired: "execution-envelope",
-          decisionSource: "execution-envelope-diverged",
+          floorFired: _F15.name,
+          decisionSource: _F15.source,
         }
       );
     }
@@ -479,17 +521,20 @@ function decide(input = {}) {
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
   let action = "allow";
-  let source = "risk-engine";
-  // Tracks the first floor that constrained the final action (written to journal).
+  let source = _F3.source; // baseline "risk-engine" — derived from LATTICE.F3.source
+  // floorFired holds the LATTICE entry name of the first floor that fired
+  // (string written into the receipt + journal). canDemote() lookups in this
+  // function use the corresponding LATTICE id; the two stay in sync because
+  // every assignment below routes through a _Fx.name read.
   let floorFired = null;
 
   if (risk.level === "critical") {
     action = "block";
-    floorFired = "critical-risk";
+    floorFired = _F3.name;
   } else if (risk.level === "high" && risk.reasons.includes("protected-branch")) {
     // Floor: protected-branch write always requires review; contract-allow cannot demote it (B4).
     action = "require-review";
-    floorFired = "protected-branch";
+    floorFired = _F8.name;
   } else if (risk.level === "high" && risk.reasons.includes("destructive-delete-pattern")) {
     // Learned-allow is permitted only for the destructive-delete-pattern case at high risk.
     action = learnedAllow ? "allow" : "require-tests";
@@ -507,7 +552,7 @@ function decide(input = {}) {
 
   // Learned-allow source: only when it actually demoted a destructive-delete-pattern hit.
   if (learnedAllow && risk.level === "high" && risk.reasons.includes("destructive-delete-pattern") && action === "allow") {
-    source = "learned-allow";
+    source = _LA.source;
   }
 
   // F4 (D26 + ADR-002 B): secret-class-C payload floor — rung 4 in the precedence matrix.
@@ -529,21 +574,26 @@ function decide(input = {}) {
       } catch { /* secret-scan unavailable — skip */ }
     }
     if (isClassC || secretInCommand) {
-      // Check for operator-token demotion (ADR-002 B)
+      // ADR-002 Option B: demotion authorization is the LATTICE.F4.demotableBy
+      // gate via canDemote(F4.id, operator-token:class-c-review-demote). Token
+      // presence is necessary but not sufficient — canDemote() is the sole
+      // arbiter so future drift cannot bypass the lattice.
       let f4DemoteAllowed = false;
       const demoteToken = process.env.HORUS_F4_DEMOTE_TOKEN || "";
-      if (demoteToken) {
+      if (demoteToken && canDemote(_F4.id, _DEMOTE_F4_OPERATOR_TOKEN)) {
         try {
           f4DemoteAllowed = _contractConsumeScopedOperatorToken(demoteToken, "class-c-review-demote");
         } catch { /* token mech unavailable — fail closed (no demotion) */ }
       }
       if (f4DemoteAllowed) {
         action = "require-review";
-        source = "f4-class-c-demoted";
-        floorFired = floorFired || "secret-class-C-demoted";
+        // F4.source is ["secret-class-C", "f4-class-c-demoted"]; element 1 is
+        // the demoted variant per LATTICE.F4.
+        source = _F4.source[1];
+        floorFired = floorFired || _F4.name;
       } else {
         action = "block";
-        floorFired = floorFired || "secret-class-C";
+        floorFired = floorFired || _F4.name;
       }
     }
   }
@@ -558,8 +608,8 @@ function decide(input = {}) {
       taintResult = _correlateCommand(input.command || "", undefined, input.tool || "");
       if (taintResult.tainted && action !== "block") {
         action = "require-review";
-        source = "taint-floor";
-        floorFired = floorFired || "taint-floor";
+        source = _F10.source;
+        floorFired = floorFired || _F10.name;
       }
     } catch (taintErr) {
       if (!_taintWarnedOnce) {
@@ -572,11 +622,12 @@ function decide(input = {}) {
     try { append({ kind: "taint-floor-disabled", error: "module not found" }); } catch { /* journal is best-effort */ }
   }
 
-  // B3: session-risk >= 3 — true floor. Escalate unconditionally before contract-allow can demote.
+  // F9 (B3): session-risk >= 3 — true floor. Escalate unconditionally before
+  // contract-allow can demote (the demotion path below routes through canDemote).
   if (enriched.sessionRisk >= 3 && action !== "block" && action !== "escalate") {
     action = "escalate";
-    source = "session-risk-floor";
-    floorFired = floorFired || "session-risk-floor";
+    source = _F9.source;
+    floorFired = floorFired || _F9.name;
   }
 
   // F6 (D26): posture-strict-no-cover floor — rung 6 in the precedence matrix.
@@ -586,8 +637,8 @@ function decide(input = {}) {
   // Does NOT fire in balanced or relaxed posture — locked semantic per D26.
   if (action !== "block" && isGated && !contractAllow && enriched.trustPosture === "strict") {
     action = "block";
-    source = "posture-strict-no-cover";
-    floorFired = floorFired || "posture-strict-no-cover";
+    source = _F6.source;
+    floorFired = floorFired || _F6.name;
   }
 
   // F7 (D26 + ADR-001 D): intent-unknown-strict floor — rung 7 in the precedence matrix.
@@ -603,30 +654,44 @@ function decide(input = {}) {
   // earlier rungs (kill-switch, critical-risk, etc.).
   if (action !== "block" && action !== "require-review" && intentResult.intent === "unknown" && enriched.trustPosture === "strict") {
     action = "require-review";
-    source = "intent-unknown-strict";
-    floorFired = floorFired || "intent-unknown-strict";
+    source = _F7.source;
+    floorFired = floorFired || _F7.name;
   }
 
   // Step 11: contract-allow — demotes baseline only; never demotes hard floors.
   // B4: protects require-review (protected-branch floor) from demotion.
-  // W11: tool-allow reason permits escalate demotion (explicit per-tool pre-approval).
-  const canDemoteEscalate = contractAllow && (
-    contractReason === "tool-allow-matched" ||
-    contractReason === "tool-allow-tool-scope"
-  );
+  // W11: tool-allow reason permits escalate demotion. When an active F9
+  // (session-risk-floor) is the escalating floor, the demotion routes through
+  // canDemote(F9.id, contract-allow:tool-allow-*) so LATTICE.F9.demotableBy is
+  // the sole arbiter. Non-F9 escalates (baseline risk-engine high-risk)
+  // preserve the original W11 carve-out without consulting canDemote (no floor
+  // to authorize against).
+  const _attemptedF9DemoteSource = contractReason === "tool-allow-matched"
+    ? _DEMOTE_F9_TOOL_ALLOW_MATCHED
+    : contractReason === "tool-allow-tool-scope"
+      ? _DEMOTE_F9_TOOL_ALLOW_SCOPE
+      : null;
+  const _isF9Escalate = floorFired === _F9.name;
+  const _canDemoteF9 = _isF9Escalate && _attemptedF9DemoteSource != null &&
+    canDemote(_F9.id, _attemptedF9DemoteSource);
+  const _canDemoteBaselineEscalate = !_isF9Escalate &&
+    (contractReason === "tool-allow-matched" || contractReason === "tool-allow-tool-scope");
+  const canDemoteEscalate = contractAllow && (_canDemoteF9 || _canDemoteBaselineEscalate);
   if (contractAllow &&
       risk.level !== "critical" &&
       action !== "block" &&
       action !== "require-review" &&
       (action !== "escalate" || canDemoteEscalate)) {
     action = "allow";
-    source = contractReason === "tool-allow-tool-scope" ? "contract-allow-tool-scope" : "contract-allow";
+    source = contractReason === "tool-allow-tool-scope" ? _CA.source[1] : _CA.source[0];
+    // F9-demoted state — receipt reflects via source, clear the floor stamp.
+    if (_canDemoteF9) floorFired = null;
   }
 
-  if (source !== "learned-allow" && !source.startsWith("contract-allow") && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
+  if (source !== _LA.source && !source.startsWith("contract-allow") && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
     consumeAutoAllowOnce(policyKey);
     action = "allow";
-    source = "auto-allow-once";
+    source = _AAO.source;
   }
 
   const trajectory = getSessionTrajectory();
@@ -639,11 +704,11 @@ function decide(input = {}) {
   // the escalation. ADR-001 D made this matter for F7 (was block, now require-review);
   // ADR-002 B made it matter for F4 demotion path. The contract-allow / learned-allow /
   // auto-allow-once exclusions are preserved (those are demotions, not floors).
-  if (source === "risk-engine" && trajectory.recentEscalations >= trajectoryThreshold) {
+  if (source === _F3.source && trajectory.recentEscalations >= trajectoryThreshold) {
     if (action === "allow") { action = "route"; trajectoryNudge = "allow\u2192route"; }
     else if (action === "route") { action = "require-review"; trajectoryNudge = "route\u2192require-review"; }
     else if (action === "require-review") { action = "escalate"; trajectoryNudge = "require-review\u2192escalate"; }
-    if (trajectoryNudge) source = "trajectory-nudge";
+    if (trajectoryNudge) source = _TN.source;
   }
 
   // F14b: session-over-duration require-review escalation (D47).
@@ -652,8 +717,8 @@ function decide(input = {}) {
   // pattern as F10 taint-floor: change action, not just annotate.
   if (sessionOverDuration) {
     action = "require-review";
-    source = "session-over-duration";
-    floorFired = floorFired || "session-over-duration";
+    source = _F14b.source;
+    floorFired = floorFired || _F14b.name;
   }
 
   const pendingSuggestion = getSuggestionForInput(enriched);
@@ -666,8 +731,8 @@ function decide(input = {}) {
   ];
   if (risk.reasons.length > 0) explanationParts.push(`reasons=${risk.reasons.join(",")}`);
   if (pendingSuggestion?.status === "pending") explanationParts.push(`suggestion=pending:${policyKey}`);
-  if (learnedAllow && source === "learned-allow") explanationParts.push("learned-allow=matched");
-  if (source === "auto-allow-once") explanationParts.push("auto-allow-once=consumed");
+  if (learnedAllow && source === _LA.source) explanationParts.push("learned-allow=matched");
+  if (source === _AAO.source) explanationParts.push("auto-allow-once=consumed");
   if (trajectoryNudge) explanationParts.push(`trajectory-nudge=${trajectoryNudge} (${trajectory.recentEscalations} recent escalations in session)`);
   if (projectPolicy.projectScope && projectPolicy.projectScope !== 'global') explanationParts.push(`project=${projectPolicy.projectScope}`);
   if (discovered.primaryStack) explanationParts.push(`stack=${discovered.primaryStack}`);
@@ -708,7 +773,7 @@ function decide(input = {}) {
     riskScore: risk.score,
     riskLevel: risk.level,
     reasonCodes: risk.reasons,
-    confidence: source === "learned-allow"
+    confidence: source === _LA.source
       ? 0.92
       : risk.level === "low"
         ? 0.9
@@ -750,7 +815,7 @@ function decide(input = {}) {
     targetPath: input.targetPath || "",
     notes: `${source}${input.notes ? ` | ${input.notes}` : ""}`,
     ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
-    ...(source === "contract-allow" ? { scopeHit: contractReason } : {}),
+    ...(source === _CA.source[0] ? { scopeHit: contractReason } : {}),
     ...(floorFired ? { floorFired } : {}),
     ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
     ...(validityWarning ? { validityWarning } : {}),

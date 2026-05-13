@@ -1,0 +1,31 @@
+{
+  "title": "F9 demoted via W11 tool-allow (canDemote(F9.id, contract-allow:tool-allow-matched))",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-00000000f09b",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "shell": { "toolAllow": ["npm install"] }
+    }
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "npm install lodash",
+    "branch": "feature/test",
+    "targetPath": "/tmp",
+    "sessionRisk": 3
+  },
+  "expected": {
+    "action": "allow",
+    "decisionSource": "contract-allow",
+    "floorFired": null,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

@@ -159,8 +159,8 @@ Coverage in PR-A:
 | 13 | F6 | posture-strict-no-cover | block | — | posture-strict-no-cover |
 | 14 | F7 | intent-unknown-strict | require-review | — | intent-unknown-strict |
 | 15 | F14b | session-over-duration | require-review | — | session-over-duration |
-| 16 | F18 | network-egress-denied | block | — | network-egress-denied |
-| 17 | F15 | execution-envelope-diverged | block | — | execution-envelope-diverged |
+| 16 | F18 | network-egress | block | — | network-egress-denied |
+| 17 | F15 | execution-envelope | block | — | execution-envelope-diverged |
 | 18 | D-CONTRACT-ALLOW | contract-allow | demote-baseline | — | contract-allow / contract-allow-tool-scope |
 | 19 | D-LEARNED-ALLOW | learned-allow | demote-narrow | — | learned-allow |
 | 20 | D-AUTO-ALLOW-ONCE | auto-allow-once | demote-narrow | — | auto-allow-once |

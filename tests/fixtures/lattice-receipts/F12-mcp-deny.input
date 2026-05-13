@@ -1,0 +1,32 @@
+{
+  "title": "F12 mcp-deny: scopes.mcp[server]=block forces block",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-00000000f012",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "mcp": { "dangerous-server": { "policy": "block" } }
+    }
+  },
+  "input": {
+    "tool": "mcp__dangerous-server__do",
+    "harness": "claude",
+    "command": "doStuff",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "contract-floor",
+    "floorFired": "mcp-deny",
+    "rung": 5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["mcp-deny"]
+  }
+}

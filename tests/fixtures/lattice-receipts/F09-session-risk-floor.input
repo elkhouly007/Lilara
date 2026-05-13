@@ -1,0 +1,18 @@
+{
+  "title": "F9 session-risk-floor: sessionRisk>=3 forces escalate",
+  "input": {
+    "tool": "Bash",
+    "command": "npm install lodash",
+    "branch": "feature/test",
+    "targetPath": "/tmp",
+    "sessionRisk": 3
+  },
+  "expected": {
+    "action": "escalate",
+    "decisionSource": "session-risk-floor",
+    "floorFired": "session-risk-floor",
+    "rung": 12,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}
