@@ -210,6 +210,16 @@ const LATTICE = Object.freeze([
     notes: "ADR-005: default-deny network egress when contract.network.egress unmatched.",
   }),
   Object.freeze({
+    id: "F18-D007",
+    rung: 16.5,
+    name: "plaintext-target-blocked",
+    action: "block",
+    source: "F18-D007",
+    demotableBy: [],
+    predicateRef: "runtime/network-egress.js:evaluate(plaintext-target-blocked)",
+    notes: "D-007: default-deny plaintext http:// outbound; opt-out via scopes.network.allowPlaintext=true. Loopback exempt.",
+  }),
+  Object.freeze({
     id: "F15",
     rung: 17,
     name: "execution-envelope-diverged",
