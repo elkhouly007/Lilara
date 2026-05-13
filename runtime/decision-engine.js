@@ -13,6 +13,22 @@ const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
 const { classifyCommand } = require("./decision-key");
 const { classifyIntent } = require("./intent-classifier");
+const { LATTICE_VERSION, getRungByName } = require("./decision-lattice");
+
+// HAP ADR-007 PR-B: extra journal fields are gated behind HORUS_IR_JOURNAL=1.
+// Default off so receipts stay byte-identical until consumers opt in. PR-C
+// will flip the default and remove the gate.
+function _irJournalExtras(input, floorFired) {
+  if (process.env.HORUS_IR_JOURNAL !== "1") return null;
+  const ir = input && input.ir;
+  if (!ir || typeof ir.irHash !== "string" || ir.irHash.length === 0) return null;
+  const extras = { irHash: ir.irHash, latticeVersion: LATTICE_VERSION };
+  if (floorFired) {
+    const r = getRungByName(floorFired);
+    if (r != null) extras.rung = r;
+  }
+  return extras;
+}
 
 // Taint-floor disablement: warn once per process if taint module unavailable.
 let _taintWarnedOnce = false;
@@ -97,6 +113,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   };
   // Still journal the early block so diff-decisions can replay it
   try {
+    const irExtras = _irJournalExtras(input, result.floorFired);
     append({
       kind: "runtime-decision",
       action: "block",
@@ -108,6 +125,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       targetPath: input.targetPath || "",
       notes: `${result.decisionSource}:${reasonCode}`,
       ...(result.floorFired ? { floorFired: result.floorFired } : {}),
+      ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
   } catch { /* journal is best-effort */ }
@@ -622,6 +640,7 @@ function decide(input = {}) {
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
   };
 
+  const irExtras = _irJournalExtras(input, floorFired);
   append({
     kind: "runtime-decision",
     action: result.action,
@@ -641,6 +660,7 @@ function decide(input = {}) {
     ...(mcpWarning            ? { mcpWarning }            : {}),
     ...(skillWarning          ? { skillWarning }          : {}),
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+    ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
 

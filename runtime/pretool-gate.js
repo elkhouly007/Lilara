@@ -22,6 +22,7 @@ const { decide }      = require("./decision-engine");
 const { discover }    = require("./context-discovery");
 const { build: buildEnvelope, rememberPending } = require("./envelope");
 const { scanSecrets } = require("./secret-scan");
+const { build: buildIr } = require("./action-ir");
 
 // ---------------------------------------------------------------------------
 // Dangerous pattern loading
@@ -124,7 +125,7 @@ function isCriticalEnvelopeRecheck(decision, payloadClass) {
   return Array.isArray(decision.reasonCodes) && decision.reasonCodes.includes("protected-branch");
 }
 
-function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0, envelopeReporting = false }) {
+function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0, envelopeReporting = false, ir = null, trustMeta = null, outputChannels = null, harnessVersion = null }) {
   const stderrLines = [];
   const emit = (msg) => stderrLines.push(msg);
   const ENFORCE = process.env.HORUS_ENFORCE === "1";
@@ -188,6 +189,23 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       });
       if (rawInput?.tool_use_id) rememberPending(rawInput.tool_use_id, envelope);
     }
+    // HAP ADR-007 PR-B: build the canonical IR and pass it to decide(). The
+    // gate is the back-compat shim — adapters that don't pre-build an IR get
+    // one synthesized here from the same flat fields decide() reads. The IR
+    // is additive: floors still read flat fields; decide() only journals
+    // irHash (gated behind HORUS_IR_JOURNAL=1).
+    const gateIr = ir || buildIr(rawInput, {
+      harness:        String(harness || ""),
+      tool:           String(tool || "Bash"),
+      command:        cmd,
+      cwd:            targetPath,
+      projectRoot:    discovered.projectRoot,
+      branch:         discovered.branch,
+      harnessVersion,
+      trustMeta,
+      outputChannels,
+    });
+
     decision = decide({
       harness:     String(harness || ""),
       tool:        String(tool || "Bash"),
@@ -200,6 +218,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       sessionRisk,
       pathSensitivity,
       envelope,
+      ir: gateIr,
       notes: hit ? `${harness}-gate:${hit.name}` : `${harness}-gate`,
     });
 
@@ -228,6 +247,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
         pathSensitivity,
         envelope,
         observedEnvelope,
+        ir: gateIr,
         notes: `${harness}-gate:pre-exec-recheck`,
       });
     }

@@ -1,40 +1,37 @@
 #!/usr/bin/env node
 "use strict";
 
-// action-ir.js — Canonical Action IR skeleton (HAP ADR-007 PR-A).
+// action-ir.js — Canonical Action IR (HAP ADR-007 PR-A skeleton + PR-B builders).
 //
 // The Canonical Action IR is the single normalized shape that every adapter
 // produces before floors run (scope §4.1 invariant 9). Floors then read the
 // IR instead of harness-specific raw payloads.
 //
-// PR-A intentionally lands the SHAPE + helpers only:
-//   - EMPTY_IR    : the canonical empty record (frozen). Used as the
-//                   default + reference shape for parity tests.
-//   - build()     : conservative best-effort builder. Accepts a flat legacy
-//                   input + optional ctx and returns a frozen IR. It never
-//                   throws on missing fields; it simply leaves them at their
-//                   EMPTY_IR defaults so PR-B can layer adapter-specific
-//                   normalization without changing call sites.
-//   - validate()  : structural check returning { ok, reason }. Cheap.
-//   - canonicalize(): deterministic shape-stable copy used by tests.
-//   - irHash()    : sha256 of canonicalJson(ir with irHash="").
-//   - IR_VERSION  : frozen "1"; bump only via scope amendment.
+// PR-A (already shipped): module shape + helpers, no adapter wiring.
+// PR-B (this PR): build() now extracts commandTokens, commandClass, fileTargets,
+// networkTargets, payloadClass, mcpServer, destructive, writeIntent, and
+// computes irHash automatically. pretool-gate calls build() on every gate
+// invocation; the result is byte-identical across the 6 adapters for the same
+// logical action (modulo harness/tool/manifest fields).
 //
-// PR-B will (a) wire build() into pretool-gate.js as a back-compat shim,
-// (b) add cross-adapter parity fixtures, and (c) attach `irHash` to the
-// decision journal under HORUS_IR_JOURNAL=1. PR-A does NOT change any
-// floor predicates, ordering, or runtime behavior.
-//
-// Pure functions. Zero I/O. Zero external dependencies (Node builtins only).
+// Pure functions. Zero I/O. Zero external dependencies (Node builtins + local
+// runtime/* only).
 
 const crypto = require("crypto");
 const path = require("path");
 const { canonicalJson } = require("./canonical-json");
+const { extractArgs, extractPaths } = require("./arg-extractor");
+const { classifyCommand } = require("./decision-key");
+
+// secret-scan is optional — fixtures rename it to *.disabled-test-bak to verify
+// fail-open. Cached as null when absent; payloadClass falls back to inline
+// classification only.
+let _scanSecrets = null;
+try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
 
 const IR_VERSION = "1";
 
-// Allowed values per IR field — PR-A keeps them small + conservative; PR-B
-// expands fileTargets/networkTargets/etc. with adapter-side extractors.
+// Allowed values per IR field — PR-B keeps them small + conservative.
 const KNOWN_HARNESSES = Object.freeze([
   "claude",
   "opencode",
@@ -60,6 +57,31 @@ const KNOWN_CWD_FIDELITY = Object.freeze(["exact", "best-effort", "opaque"]);
 const KNOWN_INTERCEPTION = Object.freeze(["supported", "unsupported", "unverified"]);
 const KNOWN_OUTPUT_CHANNEL_STATE = Object.freeze(["intercept", "observe", "none"]);
 const KNOWN_PAYLOAD_CLASS = Object.freeze(["A", "B", "C"]);
+
+// commandClass values that imply destructive write semantics. Mirrors the
+// destructive set decision-engine.js keys off; centralized here so floors can
+// reason about destructiveness via IR rather than re-classifying the command.
+const DESTRUCTIVE_CLASSES = new Set([
+  "destructive-delete",
+  "force-push",
+  "hard-reset",
+  "destructive-db",
+  "disk-write",
+]);
+
+// commandClass values that imply write intent (broader than destructive — also
+// covers package installs, remote exec, sudo elevation).
+const WRITE_INTENT_CLASSES = new Set([
+  "destructive-delete",
+  "force-push",
+  "hard-reset",
+  "destructive-db",
+  "disk-write",
+  "global-pkg-install",
+  "remote-exec",
+  "auto-download",
+  "sudo",
+]);
 
 // Frozen empty IR — used as the default skeleton + the reference shape that
 // `validate()` checks against. Every field present (null/empty allowed) so
@@ -154,13 +176,16 @@ function _frozenObj(o) {
 }
 
 function _frozenArr(a) {
-  return Object.freeze(a.slice());
+  return Object.freeze(a.map((item) =>
+    _isPlainObject(item) ? Object.freeze({ ...item }) : item
+  ));
 }
 
 function _classifyTool(tool) {
   const t = _str(tool);
   if (!t) return "unknown";
-  // Pattern-based — adapter-agnostic. PR-B will refine when adapters land.
+  // Pattern-based — adapter-agnostic. claude/opencode use "Bash";
+  // openclaw uses "shell"; codex/clawcode/antegravity may use "bash".
   if (/^Bash$|^bash$|^shell$/.test(t)) return "shell";
   if (/^Read$|^Grep$|^Glob$/.test(t)) return "file-read";
   if (/^Edit$|^Write$|^MultiEdit$|^NotebookEdit$/.test(t)) return "file-write";
@@ -175,11 +200,6 @@ function _pickHarness(input, ctx) {
     _strOrNull(input && input.harness) ||
     _strOrNull(ctx && ctx.harness) ||
     null;
-  if (h && KNOWN_HARNESSES.indexOf(h) === -1) {
-    // unknown harness names are preserved as-is so PR-B can surface them
-    // explicitly through validation rather than silently bucket them.
-    return h;
-  }
   return h;
 }
 
@@ -192,6 +212,7 @@ function _pickCommand(input) {
     input.tool_input && input.tool_input.command,
     input.input && input.input.command,
     input.args && input.args.command,
+    input.params && input.params.command,
   ];
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
@@ -206,11 +227,124 @@ function _pickCwd(input, ctx) {
       input.cwd ||
       (input.tool_input && input.tool_input.cwd) ||
       input.workdir ||
-      input.working_directory;
+      input.working_directory ||
+      (input.args && input.args.cwd);
     if (typeof c === "string" && c.length > 0) return c;
   }
   if (ctx && typeof ctx.cwd === "string" && ctx.cwd.length > 0) return ctx.cwd;
   return null;
+}
+
+function _pickTool(input, ctx) {
+  if (ctx) {
+    const t = ctx.tool;
+    if (typeof t === "string" && t.length > 0) return t;
+  }
+  if (input) {
+    const t = input.tool || input.tool_name || input.type;
+    if (typeof t === "string" && t.length > 0) return t;
+  }
+  return null;
+}
+
+// Mirror of pretool-gate.classifyCommandPayload so action-ir is self-contained.
+// Kept pattern-identical so payloadClass stays byte-stable across the gate +
+// IR build paths.
+function _classifyPayloadInline(text) {
+  const t = String(text || "");
+  if (
+    /api[_-]?key\s*[=:]/i.test(t) || /password\s*[=:]/i.test(t) ||
+    /secret\s*[=:]/i.test(t) || /auth[_-]?token\s*[=:]/i.test(t) ||
+    /-----BEGIN\s+(RSA|EC|OPENSSH)?\s*PRIVATE/i.test(t) ||
+    /AWS_SECRET_ACCESS_KEY/i.test(t) || /GITHUB_TOKEN|GH_TOKEN/i.test(t) ||
+    /customer\s+(data|pii|email|list)/i.test(t)
+  ) return "C";
+  if (
+    /internal[_-]?(only|project|memo)/i.test(t) || /private[_-]?repo/i.test(t) ||
+    /security[_-]?incident/i.test(t) || /non[_-]?public/i.test(t) ||
+    /financial[_-]?(data|report)/i.test(t)
+  ) return "B";
+  return "A";
+}
+
+function _classifyPathSensitivity(p) {
+  const s = String(p || "").replace(/\\/g, "/");
+  if (
+    /\/\.ssh\b/.test(s) || /\/\.aws\b/.test(s) || /\/\.gnupg\b/.test(s) ||
+    /\/\.password-store\b/.test(s) || /\/\.kube\b/.test(s) ||
+    /\/(vault|secrets?)\b/i.test(s) || /\/(id_rsa|id_ed25519|id_ecdsa)\b/.test(s) ||
+    /\/(payments?|billing)\b/i.test(s) || /\/private[-_]?key\b/i.test(s)
+  ) return "high";
+  if (
+    /\/\.env[^/]*$/.test(s) || /\/\.envrc$/.test(s) ||
+    /\/(prod(uction)?|staging|infra|terraform)\b/i.test(s) ||
+    /\/(internal|confidential)\b/i.test(s)
+  ) return "medium";
+  return "low";
+}
+
+function _extractMcpServer(tool) {
+  if (typeof tool !== "string") return null;
+  const m = tool.match(/^mcp__([^_]+)__/);
+  return m ? m[1] : null;
+}
+
+function _extractNetworkTargets(command) {
+  if (!command) return [];
+  const matches = String(command).match(/https?:\/\/[^\s'"|]+/g) || [];
+  const out = [];
+  for (const url of matches) {
+    let host = "";
+    let scheme = null;
+    try {
+      const u = new URL(url);
+      host = u.hostname;
+      scheme = u.protocol.replace(":", "");
+    } catch { /* unparseable URL — keep raw */ }
+    const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    const ipLiteral = host.length > 0 && (
+      /^[0-9.]+$/.test(host) || /^\[?[0-9a-f:]+\]?$/i.test(host)
+    );
+    out.push({ host, scheme, ipLiteral, isLoopback, raw: url });
+  }
+  return out;
+}
+
+function _extractFileTargets(command, cwd, toolKind, commandClass, input) {
+  const targets = [];
+  // Explicit file_path on file tools wins (Edit/Read on Claude shape).
+  const explicitPath =
+    (input.tool_input && input.tool_input.file_path) ||
+    input.file_path ||
+    null;
+  if (explicitPath && (toolKind === "file-write" || toolKind === "file-read")) {
+    const abs = cwd ? path.resolve(cwd, explicitPath) : explicitPath;
+    const intent = toolKind === "file-write" ? "write" : "read";
+    targets.push({
+      path: abs,
+      intent,
+      sensitivity: _classifyPathSensitivity(abs),
+    });
+    return targets;
+  }
+  if (!command) return targets;
+  // Filter URLs out of the path candidates so curl-style commands don't
+  // surface https://example.com/setup.sh as a "file target".
+  const paths = extractPaths(command).filter((p) => !/^[a-z]+:\/\//i.test(p));
+  let intent = "read";
+  if (commandClass === "destructive-delete") intent = "delete";
+  else if (DESTRUCTIVE_CLASSES.has(commandClass) || /\b(cp|mv|dd|chmod|chown|ln|tee)\b/.test(command)) {
+    intent = "write";
+  }
+  for (const p of paths) {
+    const abs = cwd ? path.resolve(cwd, p) : p;
+    targets.push({
+      path: abs,
+      intent,
+      sensitivity: _classifyPathSensitivity(abs),
+    });
+  }
+  return targets;
 }
 
 function _safeRawHash(input) {
@@ -223,106 +357,159 @@ function _safeRawHash(input) {
   }
 }
 
+function _computeIrHash(ir) {
+  // Hash the canonical JSON of the IR with irHash placeholder so the result is
+  // reproducible across processes/machines. canonical-json sorts keys.
+  const src = canonicalJson({ ...ir, irHash: "" });
+  return "sha256:" + crypto.createHash("sha256").update(src).digest("hex");
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-// build(input, ctx) — conservative IR builder.
+// build(input, ctx) — canonical IR builder.
 //
-// `input` is the legacy flat payload (matches the shape decision-engine.decide
-// receives today); `ctx` is optional adapter context. The function:
+// `input` is the harness-side raw payload (after JSON parse). `ctx` is the
+// adapter-side normalized context (harness, command, cwd, tool, manifest data).
+// ctx values take precedence over input where both are present so the gate can
+// pass already-extracted command/cwd/tool without re-parsing.
+//
+// The function:
 //   - never throws on missing/odd inputs
 //   - returns a deeply-frozen IR
 //   - leaves all unknown fields at EMPTY_IR defaults
-//   - computes `rawPayloadHash` from the original input when possible
-//   - leaves `irHash` to the caller (or to `irHash(ir)` below) so the hash is
-//     reproducible across processes/machines
-//
-// PR-B will replace the bodies of _pickX with adapter-specific extractors;
-// the public signature stays stable.
+//   - computes `commandTokens`, `commandClass`, `argv0`, `fileTargets`,
+//     `networkTargets`, `mcpServer`, `payloadClass`, `destructive`, `writeIntent`
+//     deterministically from the (extracted) command + cwd + tool
+//   - computes `rawPayloadHash` from the original input
+//   - auto-computes `irHash` so callers don't have to call irHash() separately
 function build(input, ctx) {
   const safeInput = _isPlainObject(input) ? input : {};
   const safeCtx = _isPlainObject(ctx) ? ctx : {};
 
   const harness = _pickHarness(safeInput, safeCtx);
-  const command = _pickCommand(safeInput);
-  const tool = _strOrNull(safeInput.tool || safeInput.tool_name) || null;
-  const toolKind = _classifyTool(tool);
-  const cwd = _pickCwd(safeInput, safeCtx);
-  const projectRoot = _strOrNull(
-    safeInput.projectRoot || (safeCtx && safeCtx.projectRoot)
+  const harnessVersion = _strOrNull(
+    safeCtx.harnessVersion || safeInput.harnessVersion
   );
-  const branch = _strOrNull(safeInput.branch || (safeCtx && safeCtx.branch));
+  const tool = _pickTool(safeInput, safeCtx);
+  const toolKind = _classifyTool(tool);
+  const command =
+    typeof safeCtx.command === "string" && safeCtx.command.length > 0
+      ? safeCtx.command
+      : _pickCommand(safeInput);
+  const commandTokens = command ? extractArgs(command) : [];
+  const commandClass = command ? classifyCommand(command) : "unknown";
+  const argv0 = commandTokens.length > 0 ? commandTokens[0] : null;
 
+  const cwdRaw =
+    typeof safeCtx.cwd === "string" && safeCtx.cwd.length > 0
+      ? safeCtx.cwd
+      : _pickCwd(safeInput, safeCtx);
+  const cwd = cwdRaw ? path.resolve(cwdRaw) : null;
+
+  const projectRoot = _strOrNull(
+    safeInput.projectRoot || safeCtx.projectRoot
+  );
+  const branch = _strOrNull(safeInput.branch || safeCtx.branch);
+
+  // payloadClass: explicit input wins; otherwise inline classify + secret scan.
   let payloadClass = String(safeInput.payloadClass || "A").toUpperCase();
   if (KNOWN_PAYLOAD_CLASS.indexOf(payloadClass) === -1) payloadClass = "A";
+  if (payloadClass !== "C" && command) {
+    const cls = _classifyPayloadInline(command);
+    if (cls === "C") payloadClass = "C";
+    else if (payloadClass === "A" && cls === "B") payloadClass = "B";
+    if (payloadClass !== "C" && _scanSecrets) {
+      try {
+        if (_scanSecrets(command)) payloadClass = "C";
+      } catch { /* secret-scan unavailable — fall through */ }
+    }
+  }
 
-  const argv0 = command ? command.trim().split(/\s+/, 1)[0] || null : null;
+  const destructive =
+    DESTRUCTIVE_CLASSES.has(commandClass) || _bool(safeInput.destructive);
+  const writeIntent =
+    toolKind === "file-write" ||
+    destructive ||
+    WRITE_INTENT_CLASSES.has(commandClass) ||
+    _bool(safeInput.writeIntent);
 
-  const writeIntent = toolKind === "file-write" || _bool(safeInput.writeIntent);
-  const destructive = _bool(safeInput.destructive);
+  const fileTargets = Array.isArray(safeInput.fileTargets)
+    ? safeInput.fileTargets.slice()
+    : _extractFileTargets(command, cwd, toolKind, commandClass, safeInput);
+  const networkTargets = Array.isArray(safeInput.networkTargets)
+    ? safeInput.networkTargets.slice()
+    : _extractNetworkTargets(command);
+
+  const mcpServer = _strOrNull(safeInput.mcpServer) || _extractMcpServer(tool);
+  const skillName = _strOrNull(safeInput.skillName);
+
+  // outputChannels + trustMeta: ctx (manifest-derived) wins, then input, then
+  // EMPTY_IR defaults. Conservative defaults preserved for missing manifests.
+  const outputChannels = _isPlainObject(safeCtx.outputChannels)
+    ? _frozenObj({ ...EMPTY_IR.outputChannels, ...safeCtx.outputChannels })
+    : _isPlainObject(safeInput.outputChannels)
+      ? _frozenObj({ ...EMPTY_IR.outputChannels, ...safeInput.outputChannels })
+      : EMPTY_IR.outputChannels;
+  const trustMeta = _isPlainObject(safeCtx.trustMeta)
+    ? _frozenObj({ ...EMPTY_IR.trustMeta, ...safeCtx.trustMeta })
+    : _isPlainObject(safeInput.trustMeta)
+      ? _frozenObj({ ...EMPTY_IR.trustMeta, ...safeInput.trustMeta })
+      : EMPTY_IR.trustMeta;
 
   const ir = {
     irVersion: IR_VERSION,
-    harness: harness,
-    harnessVersion: _strOrNull(safeInput.harnessVersion),
-    sessionId: _strOrNull(safeInput.sessionId || (safeCtx && safeCtx.sessionId)),
+    harness,
+    harnessVersion,
+    sessionId: _strOrNull(
+      safeInput.sessionId || safeInput.session_id || safeCtx.sessionId
+    ),
     toolUseId: _strOrNull(safeInput.toolUseId || safeInput.tool_use_id),
     agentIdentity: _strOrNull(
-      safeInput.agentIdentity || (safeCtx && safeCtx.agentIdentity)
+      safeInput.agentIdentity || safeCtx.agentIdentity
     ),
-    ts: _strOrNull(safeInput.ts || (safeCtx && safeCtx.ts)),
+    ts: _strOrNull(safeInput.ts || safeCtx.ts),
 
-    cwd: cwd ? path.resolve(cwd) : null,
-    projectRoot: projectRoot,
-    branch: branch,
+    cwd,
+    projectRoot,
+    branch,
     envDelta: _frozenObj(
       _isPlainObject(safeInput.envDelta) ? safeInput.envDelta : {}
     ),
 
-    tool: tool,
-    toolKind: toolKind,
-    command: command,
-    commandTokens: _frozenArr(
-      Array.isArray(safeInput.commandTokens) ? safeInput.commandTokens : []
-    ),
-    commandClass: _strOrNull(safeInput.commandClass) || "unknown",
-    argv0: argv0,
+    tool,
+    toolKind,
+    command,
+    commandTokens: _frozenArr(commandTokens),
+    commandClass,
+    argv0,
 
-    fileTargets: _frozenArr(
-      Array.isArray(safeInput.fileTargets) ? safeInput.fileTargets : []
-    ),
-    networkTargets: _frozenArr(
-      Array.isArray(safeInput.networkTargets) ? safeInput.networkTargets : []
-    ),
-    mcpServer: _strOrNull(safeInput.mcpServer),
-    skillName: _strOrNull(safeInput.skillName),
+    fileTargets: _frozenArr(fileTargets),
+    networkTargets: _frozenArr(networkTargets),
+    mcpServer,
+    skillName,
 
-    writeIntent: writeIntent,
-    destructive: destructive,
-    payloadClass: payloadClass,
+    writeIntent,
+    destructive,
+    payloadClass,
 
-    outputChannels: _isPlainObject(safeInput.outputChannels)
-      ? _frozenObj({ ...EMPTY_IR.outputChannels, ...safeInput.outputChannels })
-      : EMPTY_IR.outputChannels,
-
+    outputChannels,
     declaredGoal: _strOrNull(safeInput.declaredGoal),
     planEnvelopeId: _strOrNull(safeInput.planEnvelopeId),
 
-    trustMeta: _isPlainObject(safeInput.trustMeta)
-      ? _frozenObj({ ...EMPTY_IR.trustMeta, ...safeInput.trustMeta })
-      : EMPTY_IR.trustMeta,
+    trustMeta,
 
     rawPayloadHash: _safeRawHash(safeInput),
     irHash: null,
   };
 
+  ir.irHash = _computeIrHash(ir);
   return Object.freeze(ir);
 }
 
 // validate(ir) — structural check against EMPTY_IR shape.
 // Returns { ok: bool, reason: string|null }.
-// Cheap: confirms keys + scalar types; does not normalize.
 function validate(ir) {
   if (!_isPlainObject(ir)) return { ok: false, reason: "ir-not-object" };
 
@@ -330,7 +517,6 @@ function validate(ir) {
     return { ok: false, reason: "ir-version-mismatch" };
   }
 
-  // Every EMPTY_IR key must be present on ir (presence-only check; null OK).
   const expectedKeys = Object.keys(EMPTY_IR);
   for (let i = 0; i < expectedKeys.length; i++) {
     const k = expectedKeys[i];
@@ -406,19 +592,19 @@ function validate(ir) {
 }
 
 // canonicalize(ir) — deterministic shape-stable copy. Used by tests/parity.
-// Returns a fresh frozen object whose canonicalJson serialization is stable
-// across machines for byte-equal comparison.
+// Drops irHash so the result re-hashes deterministically.
 function canonicalize(ir) {
   const v = validate(ir);
   if (!v.ok) {
     throw new Error("canonicalize: invalid IR (" + v.reason + ")");
   }
-  // Drop irHash before re-hashing so result is reproducible.
   const copy = { ...ir, irHash: "" };
   return Object.freeze(copy);
 }
 
-// irHash(ir) — sha256 of canonicalJson(canonicalize(ir)).
+// irHash(ir) — sha256 of canonicalJson(canonicalize(ir)). Pure helper for
+// callers that want to recompute the hash explicitly (build() already sets
+// ir.irHash on its result).
 function irHash(ir) {
   const canonical = canonicalize(ir);
   return (
