@@ -3,13 +3,16 @@
 
 // journal-chain.test.js — ADR-004 PR 37A.
 //
-// Zero-dep node:assert tests that prove the hash chain detects:
+// Zero-dep node:assert tests that prove the hash chain + checkpoint detect:
 //   1. positive case: clean chain verifies
 //   2. single-entry mutation: payload tampering breaks entryHash
 //   3. entryHash mutation: forging entryHash alone breaks the link to next
 //   4. deletion: removing a middle entry breaks seq + prevHash
-//   5. reordering: swapping two entries breaks seq + prevHash
-//   6. genesis HMAC: rewriting genesis payload breaks genesisSig
+//   5. deletion: truncating the tail is detected via the signed checkpoint
+//   6. deletion: removing the checkpoint while keeping journal is detected
+//   7. deletion: forging the checkpoint without the install key fails HMAC
+//   8. reordering: swapping two entries breaks seq + prevHash
+//   9. genesis HMAC: rewriting genesis payload breaks genesisSig
 //
 // Run: node tests/runtime/journal-chain.test.js
 
@@ -129,14 +132,56 @@ test("deletion: removing a middle entry breaks chain (seq + prevHash)", (file) =
   );
 });
 
-test("deletion: truncating tail leaves remaining chain valid (length only changes)", (file) => {
+test("deletion: truncating tail is detected via the signed checkpoint", (file) => {
   const entries = seed(file, 4);
+  // Drop the last two entries from the journal but leave the checkpoint —
+  // which still records {lastSeq:4, lastHash, entryCount:5} — untouched.
   writeEntries(file, entries.slice(0, 3));
-  // A truncated tail is not detectable without an external anchor, so the
-  // remaining prefix should still verify clean. This documents the limit.
   const r = journal.verify({ file });
-  assert.strictEqual(r.ok, true, "prefix should verify");
-  assert.strictEqual(r.entryCount, 3);
+  assert.strictEqual(r.ok, false, "tail truncation must be detected");
+  assert.ok(
+    r.errors.some((e) => /^checkpoint-seq-mismatch/.test(e.reason)),
+    "expected checkpoint-seq-mismatch, got " + JSON.stringify(r.errors)
+  );
+  assert.ok(
+    r.errors.some((e) => e.reason === "checkpoint-hash-mismatch"),
+    "expected checkpoint-hash-mismatch"
+  );
+  assert.ok(
+    r.errors.some((e) => /^checkpoint-count-mismatch/.test(e.reason)),
+    "expected checkpoint-count-mismatch"
+  );
+});
+
+test("deletion: removing the checkpoint while keeping journal is detected", (file) => {
+  seed(file, 3);
+  fs.unlinkSync(journal.checkpointPath(file));
+  const r = journal.verify({ file });
+  assert.strictEqual(r.ok, false, "missing checkpoint must be detected");
+  assert.ok(
+    r.errors.some((e) => e.reason === "checkpoint-missing"),
+    "expected checkpoint-missing, got " + JSON.stringify(r.errors)
+  );
+});
+
+test("deletion: forging checkpoint without install key fails HMAC check", (file) => {
+  const entries = seed(file, 4);
+  // Attacker truncates tail AND tries to forge a matching checkpoint, but
+  // doesn't have the install key — so they can't produce a valid HMAC.
+  writeEntries(file, entries.slice(0, 3));
+  const forged = {
+    lastSeq: entries[2].seq,
+    lastHash: entries[2].entryHash,
+    entryCount: 3,
+    hmac: "hmac-sha256:" + "0".repeat(64),
+  };
+  fs.writeFileSync(journal.checkpointPath(file), JSON.stringify(forged) + "\n", { mode: 0o600 });
+  const r = journal.verify({ file });
+  assert.strictEqual(r.ok, false, "forged checkpoint must be detected");
+  assert.ok(
+    r.errors.some((e) => e.reason === "checkpoint-hmac-mismatch"),
+    "expected checkpoint-hmac-mismatch, got " + JSON.stringify(r.errors)
+  );
 });
 
 // ---------------------------------------------------------------------------

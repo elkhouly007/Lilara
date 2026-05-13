@@ -10,6 +10,13 @@
 // <stateDir>/install.key with 0600 perms (best-effort on platforms where chmod
 // is a no-op). Key bytes never appear in logs, receipts or thrown errors.
 //
+// A companion checkpoint file <chain>.checkpoint records the chain's terminal
+// {lastSeq, lastHash, entryCount} after every append, HMAC'd with the install
+// key. verify() compares the chain's terminal entry against this checkpoint so
+// that tail truncation is detected — without the checkpoint the trailing prefix
+// still verifies clean. The HMAC binds the checkpoint to the install key, so an
+// attacker who can write the journal cannot forge a matching checkpoint.
+//
 // This module is detect-and-report only in PR 37A. It does not change runtime
 // enforcement: no degraded-mode gating, no auto-snapshot. Call sites today are
 // the verify CLI and the runtime test in tests/runtime/journal-chain.test.js.
@@ -23,6 +30,7 @@ const { stateDir, ensureDir } = require("./state-paths");
 const CHAIN_FILE = "journal-chain.jsonl";
 const KEY_FILE   = "install.key";
 const KEY_BYTES  = 32;
+const CHECKPOINT_SUFFIX = ".checkpoint";
 
 function chainPath() {
   return path.join(stateDir(), CHAIN_FILE);
@@ -30,6 +38,10 @@ function chainPath() {
 
 function installKeyPath() {
   return path.join(stateDir(), KEY_FILE);
+}
+
+function checkpointPath(file) {
+  return (file || chainPath()) + CHECKPOINT_SUFFIX;
 }
 
 // Read or create the install key. Generated on first use with 32 random bytes
@@ -77,6 +89,36 @@ function computeGenesisSig(entry, key) {
     .update(canonicalJson(copy)).digest("hex");
 }
 
+// Checkpoint HMAC binds {lastSeq, lastHash, entryCount} to the install key so
+// an attacker who can write the journal cannot forge a checkpoint matching a
+// truncated tail without also reading the 0600 install.key file.
+function computeCheckpointHmac(cp, key) {
+  const copy = { ...cp };
+  delete copy.hmac;
+  return "hmac-sha256:" + crypto.createHmac("sha256", key)
+    .update(canonicalJson(copy)).digest("hex");
+}
+
+function writeCheckpoint(file, entry, count) {
+  const key = getOrCreateInstallKey();
+  const cp = { lastSeq: entry.seq, lastHash: entry.entryHash, entryCount: count };
+  cp.hmac = computeCheckpointHmac(cp, key);
+  const p = checkpointPath(file);
+  fs.writeFileSync(p, JSON.stringify(cp) + "\n", { mode: 0o600 });
+  try { fs.chmodSync(p, 0o600); } catch { /* best-effort on non-POSIX */ }
+}
+
+// Returns parsed checkpoint object, or null if missing/unreadable/malformed.
+// Treating malformed as null is intentional: verify() will then report
+// checkpoint-missing, which is itself a tamper signal.
+function readCheckpoint(file) {
+  try {
+    const raw = fs.readFileSync(checkpointPath(file), "utf8").trim();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
 function readEntries(file) {
   let raw;
   try { raw = fs.readFileSync(file, "utf8"); }
@@ -111,6 +153,7 @@ function append(type, payload, opts) {
     draft.entryHash  = computeEntryHash(draft);
     fs.appendFileSync(file, JSON.stringify(draft) + "\n", { mode: 0o600 });
     try { fs.chmodSync(file, 0o600); } catch { /* best-effort */ }
+    writeCheckpoint(file, draft, 1);
     if (type === "journal.genesis") return draft;
     return append(type, payload, opts);
   }
@@ -124,13 +167,16 @@ function append(type, payload, opts) {
   };
   entry.entryHash = computeEntryHash(entry);
   fs.appendFileSync(file, JSON.stringify(entry) + "\n", { mode: 0o600 });
+  writeCheckpoint(file, entry, entries.length + 1);
   return entry;
 }
 
 // Walk the chain. Returns { ok, entryCount, errors: [{seq, line, reason}] }.
 // Detects: malformed JSON, missing/incorrect entryHash (mutation), seq gaps
 // or non-monotonic seq (deletion/reordering), prevHash mismatch (reordering,
-// chain break), bad genesis HMAC (key swap / forgery).
+// chain break), bad genesis HMAC (key swap / forgery), and — via the
+// companion checkpoint file — tail truncation, checkpoint deletion, and
+// checkpoint forgery without the install key.
 function verify(opts) {
   const o = opts || {};
   const file = o.file || chainPath();
@@ -182,17 +228,47 @@ function verify(opts) {
       }
     }
   }
+  // Checkpoint binds the chain's terminal state to the install key. Required
+  // whenever the chain has any entries — its absence (or HMAC mismatch, or
+  // disagreement with the journal's terminal entry) means the tail has been
+  // truncated or the checkpoint has been forged without the install key.
+  const last = entries[entries.length - 1];
+  const cp = readCheckpoint(file);
+  if (!cp) {
+    errors.push({ seq: last.seq, line: entries.length, reason: "checkpoint-missing" });
+  } else {
+    let cpHmacOk = false;
+    if (key) {
+      const expected = computeCheckpointHmac(cp, key);
+      if (cp.hmac && cp.hmac === expected) cpHmacOk = true;
+    }
+    if (!cpHmacOk) {
+      errors.push({ seq: cp.lastSeq, line: null, reason: "checkpoint-hmac-mismatch" });
+    }
+    if (cp.lastSeq !== last.seq) {
+      errors.push({ seq: last.seq, line: entries.length, reason: "checkpoint-seq-mismatch expected=" + cp.lastSeq });
+    }
+    if (cp.lastHash !== last.entryHash) {
+      errors.push({ seq: last.seq, line: entries.length, reason: "checkpoint-hash-mismatch" });
+    }
+    if (cp.entryCount !== entries.length) {
+      errors.push({ seq: last.seq, line: entries.length, reason: "checkpoint-count-mismatch expected=" + cp.entryCount });
+    }
+  }
   return { ok: errors.length === 0, entryCount: entries.length, errors };
 }
 
 module.exports = {
   chainPath,
   installKeyPath,
+  checkpointPath,
   installKeyId,
   getOrCreateInstallKey,
   computeEntryHash,
   computeGenesisSig,
+  computeCheckpointHmac,
   readEntries,
+  readCheckpoint,
   append,
   verify,
 };
