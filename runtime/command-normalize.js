@@ -6,11 +6,15 @@
 // Two responsibilities:
 //
 //   1. normalizeCommand(raw)
-//      Returns an NFKC-folded, script-confusables-resolved copy of `raw`.
-//      Used by risk-score.js as the second arm of a dual-path match against
-//      every ASCII destructive-verb regex. Defeats Unicode look-alike bypasses
-//      such as Cyrillic 'рm' (U+0440 + m) or full-width 'ｒｍ' that slip past
-//      ASCII-only regexes like /\brm\b/.
+//      Returns an NFKD-folded, default-ignorable-stripped, combining-mark-
+//      stripped, script-confusables-resolved copy of `raw`. Used by
+//      risk-score.js as the second arm of a dual-path match against every
+//      ASCII destructive-verb regex. Defeats Unicode look-alike bypasses:
+//        - script confusables: Cyrillic 'рm' (U+0440 + m), Greek 'ρm'
+//        - compatibility forms: full-width 'ｒｍ'
+//        - precomposed letter+diacritic: 'ṙm' (U+1E59), 'ŕm' (U+0155)
+//        - default-ignorable insertion: 'r' + ZWJ/ZWNJ/BOM/soft-hyphen + 'm'
+//        - IPA small-capital letters: 'ʀᴍ' (U+0280 + U+1D0D)
 //
 //   2. extractCommand(input)
 //      Resolves the command field from a PreToolUse payload per the ADR-007
@@ -18,18 +22,26 @@
 //      is bounded to one level under `args`. Returns "" when every position
 //      is empty or non-string.
 //
-// Zero dependencies. Pure. Hot path — keep allocations small.
+// Zero dependencies. Pure. Hot path — keep allocations small. ASCII inputs
+// take the fast path with a single linear scan and no allocations.
+//
 // Owned by ADR-008 (Unicode + precedence defense). See
 // references/adr-008-unicode-and-precedence-defense.md.
 
 // ---------------------------------------------------------------------------
 // Confusables map: non-Latin → Latin for letters that appear in destructive
 // verbs (rm, dd, chmod, curl, wget, sudo, mkfs, kubectl, npx, DROP, git,
-// push, force, bash, sh, sudo).
+// push, force, bash, sh).
 //
-// NFKC (applied first) collapses full-width Latin (ｒ → r), small-form
-// compatibility variants, and ligatures, so this table only needs to cover
-// script-confusables NFKC leaves intact — primarily Cyrillic and Greek.
+// NFKD (applied first) decomposes precomposed letter+diacritic forms
+// (ṙ → r + U+0307, ŕ → r + U+0301, …) and collapses compatibility variants
+// (full-width ｒ → r, small-form variants, ligatures). The strip pass that
+// follows removes the resulting combining marks and any default-ignorable
+// formatting characters. This table therefore only needs to cover script
+// confusables NFKD leaves intact — primarily Cyrillic, Greek, and the IPA
+// Small Capital Latin Letters block (used by attackers spelling
+// destructive verbs in glyphs that look like Latin but have distinct
+// code points).
 //
 // Mapping convention (ADR-008 §3): when a Cyrillic or Greek letter has a
 // PHONETIC interpretation that differs from its VISUAL look-alike, we map
@@ -94,13 +106,100 @@ const CONFUSABLES = Object.freeze({
   "Τ": "T", // Τ
   "Υ": "Y", // Υ
   "Χ": "X", // Χ
+  // ── IPA / Phonetic Extensions — Latin Small Capital Letters ─────────────
+  // Visually small caps of Latin letters but encoded as distinct code points.
+  // NFKD does not fold these onto plain Latin (they are not compatibility
+  // characters), so we map them explicitly. Restricted to the destructive-
+  // verb letter set (a, b, c, d, e, f, g, h, i, k, l, m, n, o, p, r, s, t,
+  // u, v, w) — same scope rule as the Cyrillic/Greek entries.
+  "ᴀ": "a", // U+1D00  LATIN LETTER SMALL CAPITAL A
+  "ʙ": "b", // U+0299  LATIN LETTER SMALL CAPITAL B
+  "ᴄ": "c", // U+1D04  LATIN LETTER SMALL CAPITAL C
+  "ᴅ": "d", // U+1D05  LATIN LETTER SMALL CAPITAL D
+  "ᴇ": "e", // U+1D07  LATIN LETTER SMALL CAPITAL E
+  "ꜰ": "f", // U+A730  LATIN LETTER SMALL CAPITAL F
+  "ɢ": "g", // U+0262  LATIN LETTER SMALL CAPITAL G
+  "ʜ": "h", // U+029C  LATIN LETTER SMALL CAPITAL H
+  "ɪ": "i", // U+026A  LATIN LETTER SMALL CAPITAL I
+  "ᴋ": "k", // U+1D0B  LATIN LETTER SMALL CAPITAL K
+  "ʟ": "l", // U+029F  LATIN LETTER SMALL CAPITAL L
+  "ᴍ": "m", // U+1D0D  LATIN LETTER SMALL CAPITAL M
+  "ɴ": "n", // U+0274  LATIN LETTER SMALL CAPITAL N
+  "ᴏ": "o", // U+1D0F  LATIN LETTER SMALL CAPITAL O
+  "ᴘ": "p", // U+1D18  LATIN LETTER SMALL CAPITAL P
+  "ʀ": "r", // U+0280  LATIN LETTER SMALL CAPITAL R
+  "ꜱ": "s", // U+A731  LATIN LETTER SMALL CAPITAL S
+  "ᴛ": "t", // U+1D1B  LATIN LETTER SMALL CAPITAL T
+  "ᴜ": "u", // U+1D1C  LATIN LETTER SMALL CAPITAL U
+  "ᴠ": "v", // U+1D20  LATIN LETTER SMALL CAPITAL V
+  "ᴡ": "w", // U+1D21  LATIN LETTER SMALL CAPITAL W
 });
 
+// ---------------------------------------------------------------------------
+// Strip-set: Unicode default-ignorables + combining marks.
+//
+// Default-ignorable code points (Cf class — ZWJ/ZWNJ, BOM, soft hyphen,
+// directional overrides, variation selectors, etc.) defeat the regex
+// matchers by inserting zero-width characters between letters of a
+// destructive verb ('r' + ZWJ + 'm' renders identically to 'rm' but the
+// ASCII regex \brm\b sees two single-letter words).
+//
+// Combining marks (Mn/Mc) are the NFKD residue of precomposed letter+
+// diacritic forms ('ṙ' → 'r' + U+0307). Stripping them after NFKD turns
+// 'ṙm' into 'rm' for the verb-recognition arm. We use a single linear
+// String.replace pass with a precompiled regex so this stays branch-light.
+//
+// The set is curated, not the full Unicode property set — it covers the
+// ranges that NFKD on Latin letters with diacritics actually produces
+// (U+0300-U+036F) plus the directly observed attack vectors (ZWJ/ZWNJ,
+// BOM, soft hyphen, variation selectors, bidi overrides) and the wider
+// combining ranges for completeness. Restricting the strip set keeps the
+// regex small and auditable.
+const STRIP_RE = new RegExp(
+  // ── Default-ignorables (Cf / Default_Ignorable_Code_Point) ─────────────
+  "[" +
+    "\\u00AD" +              // SOFT HYPHEN
+    "\\u034F" +              // COMBINING GRAPHEME JOINER (Mn but also default-ignorable)
+    "\\u061C" +              // ARABIC LETTER MARK
+    "\\u115F\\u1160" +       // HANGUL CHOSEONG/JUNGSEONG FILLER
+    "\\u17B4\\u17B5" +       // KHMER VOWEL INHERENT AQ/AA
+    "\\u180B-\\u180E" +      // MONGOLIAN FREE VARIATION SELECTORS + VOWEL SEPARATOR
+    "\\u200B-\\u200F" +      // ZWSP, ZWNJ, ZWJ, LRM, RLM
+    "\\u202A-\\u202E" +      // LRE, RLE, PDF, LRO, RLO
+    "\\u2060-\\u206F" +      // WORD JOINER, FUNCTION APPLICATION, INVISIBLE TIMES/SEPARATOR, etc.
+    "\\u3164" +              // HANGUL FILLER
+    "\\uFE00-\\uFE0F" +      // VARIATION SELECTORS 1-16
+    "\\uFEFF" +              // ZERO WIDTH NO-BREAK SPACE (BOM)
+    "\\uFFA0" +              // HALFWIDTH HANGUL FILLER
+    "\\uFFF0-\\uFFF8" +      // unassigned / specials
+  // ── Combining marks (Mn / Mc) — main + supplementary blocks ────────────
+    "\\u0300-\\u036F" +      // COMBINING DIACRITICAL MARKS
+    "\\u0483-\\u0489" +      // Cyrillic combining marks
+    "\\u0591-\\u05BD\\u05BF\\u05C1-\\u05C2\\u05C4-\\u05C5\\u05C7" + // Hebrew
+    "\\u0610-\\u061A\\u064B-\\u065F\\u0670" +                       // Arabic
+    "\\u06D6-\\u06DC\\u06DF-\\u06E4\\u06E7-\\u06E8\\u06EA-\\u06ED" +
+    "\\u1AB0-\\u1AFF" +      // COMBINING DIACRITICAL MARKS EXTENDED
+    "\\u1DC0-\\u1DFF" +      // COMBINING DIACRITICAL MARKS SUPPLEMENT
+    "\\u20D0-\\u20FF" +      // COMBINING DIACRITICAL MARKS FOR SYMBOLS
+    "\\uFE20-\\uFE2F" +      // COMBINING HALF MARKS
+  "]" +
+  // ── Variation Selectors Supplement (U+E0100..U+E01EF) ──────────────────
+  // Encoded as the high-surrogate U+DB40 followed by a low surrogate
+  // U+DD00..U+DDEF. Default-ignorable; sometimes appended to letters in
+  // emoji/text-style modifier sequences. Strip via explicit surrogate pair
+  // match rather than the `u` flag so we keep one regex for everything.
+  "|\\uDB40[\\uDD00-\\uDDEF]",
+  "g"
+);
+
 /**
- * NFKC-normalize, then fold script-confusables onto ASCII for downstream
- * regex predicates. Returns "" when input is empty/non-string.
+ * NFKD-normalize, strip default-ignorables and combining marks, then fold
+ * script-confusables onto ASCII for downstream regex predicates. Returns ""
+ * when input is empty/non-string.
  *
- * Hot path: branch-light, no regex, single pass over the NFKC string.
+ * Hot path: branch-light. ASCII-only inputs take the fast path — one linear
+ * scan, no allocations, no regex. Non-ASCII inputs pay one NFKD, one regex
+ * replace, and one code-point loop.
  *
  * @param {string} raw
  * @returns {string}
@@ -108,24 +207,27 @@ const CONFUSABLES = Object.freeze({
 function normalizeCommand(raw) {
   if (raw === "" || raw == null) return "";
   const s = typeof raw === "string" ? raw : String(raw);
-  let nfkc;
+  let nfkd;
   try {
-    nfkc = s.normalize("NFKC");
+    nfkd = s.normalize("NFKD");
   } catch {
     // String.prototype.normalize throws RangeError on unpaired surrogates.
     // Treat the unfoldable input as raw — the dual-path matcher still tests
     // the original string against destructive-verb regexes.
-    nfkc = s;
+    nfkd = s;
   }
-  // Fast path: pure ASCII after NFKC — no folding needed.
+  // Fast path: pure ASCII after NFKD — no strip, no fold needed.
   let needsFold = false;
-  for (let i = 0; i < nfkc.length; i++) {
-    if (nfkc.charCodeAt(i) > 0x7f) { needsFold = true; break; }
+  for (let i = 0; i < nfkd.length; i++) {
+    if (nfkd.charCodeAt(i) > 0x7f) { needsFold = true; break; }
   }
-  if (!needsFold) return nfkc;
+  if (!needsFold) return nfkd;
+  // Slow path: strip default-ignorables + combining marks, then fold.
+  const stripped = nfkd.replace(STRIP_RE, "");
   let out = "";
-  // Iterate by code-point so surrogate-pair characters do not get split.
-  for (const ch of nfkc) {
+  // Iterate by code-point so any surviving surrogate-pair characters do not
+  // get split mid-glyph.
+  for (const ch of stripped) {
     const mapped = CONFUSABLES[ch];
     out += mapped !== undefined ? mapped : ch;
   }
