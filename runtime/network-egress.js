@@ -222,26 +222,34 @@ function validatePattern(pattern) {
  *   1. URL host is an IP literal (non-loopback) → "ip-literal-blocked".
  *   2. URL host explicitly in denyDomains → "deny-domain-match".
  *   3. URL host not in allowDomains (after wildcard match) → "host-not-in-allowlist".
+ *   4. (D-007) Target is plaintext http:// (or bare host) and allowPlaintext !== true → "plaintext-target-blocked".
  *
  * Backwards-compat: returns { fired: false, reason: "no-allow-domains" } when
- * the contract has no `network.allowDomains` field. This keeps existing v1/v2/v3
- * contracts (additive schema) operating unchanged.
+ * the contract carries no F18 enforcement signal (no allowDomains, no
+ * denyDomains, no allowPlaintext). This keeps existing v1/v2/v3 contracts
+ * (additive schema) operating unchanged.
  */
 function evaluate(command, networkPolicy) {
   if (!networkPolicy || typeof networkPolicy !== "object") {
     return { fired: false, reason: "no-policy" };
   }
-  if (!Array.isArray(networkPolicy.allowDomains)) {
+  const hasAllowDomains  = Array.isArray(networkPolicy.allowDomains);
+  const hasDenyDomains   = Array.isArray(networkPolicy.denyDomains);
+  const hasAllowPlaintext = typeof networkPolicy.allowPlaintext === "boolean";
+  // D-007: default-deny applies only when the contract carries an F18 signal.
+  if (!hasAllowDomains && !hasDenyDomains && !hasAllowPlaintext) {
     return { fired: false, reason: "no-allow-domains" };
   }
 
   // Normalize allow entries: strings stay as-is; object form contributes its
   // `pattern` field. Object entries with no/blank pattern are dropped (treated
   // identically to legacy filter-by-typeof-string semantics).
-  const allow = networkPolicy.allowDomains
-    .map(entryPattern)
-    .filter((p) => typeof p === "string" && p.length > 0);
-  const deny = Array.isArray(networkPolicy.denyDomains)
+  const allow = hasAllowDomains
+    ? networkPolicy.allowDomains
+        .map(entryPattern)
+        .filter((p) => typeof p === "string" && p.length > 0)
+    : [];
+  const deny = hasDenyDomains
     ? networkPolicy.denyDomains
         .map(entryPattern)
         .filter((p) => typeof p === "string" && p.length > 0)
@@ -275,9 +283,19 @@ function evaluate(command, networkPolicy) {
     // (3) Loopback hostname allowed by default
     if (isLoopback(host)) continue;
 
-    // (4) Allow list — fail closed if no match
-    if (!allow.some((p) => hostMatches(host, p))) {
+    // (4) Allow list — fail closed if no match (only when allowDomains is configured)
+    if (hasAllowDomains && !allow.some((p) => hostMatches(host, p))) {
       return { fired: true, reason: "host-not-in-allowlist", host, target: t.raw, scheme: t.scheme };
+    }
+
+    // (5) D-007 plaintext check — fires after allowlist so allow-failures use
+    // their canonical reason. Bare hosts synth `http://` in extractTargets,
+    // so `t.source === "bare-host"` is treated as plaintext.
+    if (networkPolicy.allowPlaintext !== true) {
+      const isPlaintext = t.scheme === "http" || t.source === "bare-host";
+      if (isPlaintext) {
+        return { fired: true, reason: "plaintext-target-blocked", host, target: t.raw, scheme: t.scheme || "http" };
+      }
     }
   }
 

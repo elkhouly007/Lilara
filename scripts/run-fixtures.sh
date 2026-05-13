@@ -2264,6 +2264,94 @@ _run_f18_case fc4-dns-failure-allow-flag
 _run_f18_case fc5-ip-set-match
 _run_f18_case fc5-ip-set-mismatch
 
+# ── F18 D-007 plaintext network-egress fixtures (ADR-005 / D-007) ─────────────
+# Each fixture's `.input` is a JSON payload whose optional `_contract` key
+# describes the contract scopes block to materialize in a per-fixture tmpdir.
+# The runner writes horus.contract.json there (canonical hash) and rewires the
+# payload's `cwd` to that tmpdir so the gate loads the contract from disk.
+printf '\n[F18 D-007 plaintext network-egress fixtures]\n'
+
+d007_dir="tests/fixtures/network-egress"
+d007_hook="claude/hooks/dangerous-command-gate.js"
+
+if [ ! -d "$d007_dir" ] || [ ! -f "$d007_hook" ]; then
+  skip "F18 D-007 fixtures" "dir or hook missing"
+else
+  for input_file in "$d007_dir"/*.input; do
+    [ -f "$input_file" ] || continue
+    name="$(basename "$input_file" .input)"
+    expected_exit_file="$d007_dir/$name.expected_exit"
+    expected_stderr_file="$d007_dir/$name.expected_stderr"
+
+    enforce_val="0"
+    case "$name" in *enforce*) enforce_val="1" ;; esac
+
+    tmp_proj="$(mktemp -d)"
+    tmp_state="$(mktemp -d)"
+    tmp_stderr="$(mktemp)"
+    tmp_input="$(mktemp)"
+
+    if ! node - "$input_file" "$tmp_proj" "$tmp_input" >/dev/null 2>&1 <<'NODE'
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const [, , inFile, proj, outFile] = process.argv;
+const { canonicalJson } = require(path.join(process.cwd(), 'runtime/canonical-json'));
+const raw = JSON.parse(fs.readFileSync(inFile, 'utf8'));
+const c = raw._contract;
+delete raw._contract;
+if (c && typeof c === 'object') {
+  const body = {
+    version: 3,
+    contractId: 'hap-20260513-' + crypto.randomBytes(6).toString('hex'),
+    revision: 1,
+    acceptedAt: '2026-05-13T00:00:00Z',
+    acceptedBy: 'd007-test',
+    harnessScope: ['claude'],
+    trustPosture: 'balanced',
+    scopes: Object.assign({ payloadClasses: { A: 'allow', B: 'warn', C: 'block' } }, c),
+  };
+  body.contractHash = 'sha256:' + crypto.createHash('sha256').update(canonicalJson(body), 'utf8').digest('hex');
+  fs.writeFileSync(path.join(proj, 'horus.contract.json'), JSON.stringify(body, null, 2));
+}
+raw.cwd = proj;
+fs.writeFileSync(outFile, JSON.stringify(raw));
+NODE
+    then
+      fail "$name" "input prep failed"
+      rm -rf "$tmp_proj" "$tmp_state" "$tmp_stderr" "$tmp_input"
+      continue
+    fi
+
+    actual_exit=0
+    HORUS_ENFORCE="$enforce_val" HORUS_STATE_DIR="$tmp_state" HORUS_BRANCH_OVERRIDE="feature/d007-test" \
+      node "$d007_hook" < "$tmp_input" > /dev/null 2> "$tmp_stderr" || actual_exit=$?
+
+    fixture_ok=1
+
+    if [ -f "$expected_exit_file" ]; then
+      expected_exit="$(tr -d '[:space:]' < "$expected_exit_file")"
+      if [ "$actual_exit" != "$expected_exit" ]; then
+        fail "$name" "exit $actual_exit, expected $expected_exit (stderr: $(tr '\n' ' ' < "$tmp_stderr"))"
+        fixture_ok=0
+      fi
+    fi
+
+    if [ -f "$expected_stderr_file" ]; then
+      expected_substr="$(tr -d '\n' < "$expected_stderr_file")"
+      if [ -n "$expected_substr" ] && ! grep -qF "$expected_substr" "$tmp_stderr" 2>/dev/null; then
+        fail "$name" "expected '$expected_substr' in stderr, got: $(cat "$tmp_stderr")"
+        fixture_ok=0
+      fi
+    fi
+
+    [ "$fixture_ok" -eq 1 ] && ok "$name"
+
+    rm -rf "$tmp_proj" "$tmp_state" "$tmp_stderr" "$tmp_input"
+  done
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

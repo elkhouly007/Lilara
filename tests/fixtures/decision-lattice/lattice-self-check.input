@@ -144,6 +144,14 @@
     "demotableBy": []
   },
   {
+    "id": "F18-D007",
+    "rung": 16.5,
+    "name": "plaintext-target-blocked",
+    "action": "block",
+    "source": "F18-D007",
+    "demotableBy": []
+  },
+  {
     "id": "F15",
     "rung": 17,
     "name": "execution-envelope-diverged",

@@ -124,6 +124,10 @@
             "allowOnLookupFailure": {
               "type": "boolean",
               "description": "F18 (ADR-005) FC #4 default: when true, allow outbound calls when DNS resolution fails for any allow entry that does not set its own per-entry allowOnLookupFailure. Default: false (default-deny on DNS failure)."
+            },
+            "allowPlaintext": {
+              "type": "boolean",
+              "description": "F18 (ADR-005) D-007: when true, permit plaintext http:// outbound. Default false. Default-deny applies only when the contract has any F18 enforcement signal (allowDomains present, denyDomains present, or this field present). Existing F18-unaware contracts are unchanged."
             }
           },
           "additionalProperties": false
