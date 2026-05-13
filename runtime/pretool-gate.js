@@ -23,6 +23,7 @@ const { discover }    = require("./context-discovery");
 const { build: buildEnvelope, rememberPending } = require("./envelope");
 const { scanSecrets } = require("./secret-scan");
 const { build: buildIr } = require("./action-ir");
+const { extractCommand } = require("./command-normalize");
 
 // ---------------------------------------------------------------------------
 // Dangerous pattern loading
@@ -135,7 +136,17 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     return { exitCode: 2, stderrLines: ["[Agent Runtime Guard] Kill-switch engaged — all tool calls blocked."], logAction: "BLOCK", logHitName: null };
   }
 
-  const cmd = String(command || "").trim();
+  // Primary path: the adapter resolved the command via its own extractor.
+  // Backstop (ADR-008): if the adapter handed us an empty string but the raw
+  // payload carries the command under any ADR-007 §4.2 alias (cmd,
+  // args.command, args.tool_input.command, …), recover it here so the gate
+  // cannot be silently bypassed by an adapter whose precedence ladder is
+  // incomplete. This is intentionally redundant with hook-utils.commandFrom
+  // — defense in depth, not single-point-of-truth.
+  let cmd = String(command || "").trim();
+  if (!cmd && rawInput && typeof rawInput === "object") {
+    cmd = String(extractCommand(rawInput) || "").trim();
+  }
   if (!cmd) return { exitCode: 0, stderrLines: [], logAction: null, logHitName: null };
 
   // Dangerous pattern scan — collect all hits. Hits annotate the decision

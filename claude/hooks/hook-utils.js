@@ -11,6 +11,7 @@ const os   = require("os");
 const path = require("path");
 const runtime    = require(path.join(__dirname, "..", "..", "runtime"));
 const statePaths = require(path.join(__dirname, "..", "..", "runtime", "state-paths"));
+const { extractCommand: _extractCommand } = require(path.join(__dirname, "..", "..", "runtime", "command-normalize"));
 
 const MAX_STDIN_BYTES = 5 * 1024 * 1024; // 5 MB — prevent memory exhaustion on oversized payloads
 
@@ -43,16 +44,15 @@ function readStdin() {
 
 /**
  * Extract the shell command string from a PreToolUse Bash payload.
- * Handles multiple harness payload shapes.
+ *
+ * Adapter-facing wrapper around runtime/command-normalize.extractCommand —
+ * the engine module owns the ADR-007 §4.2 precedence ladder (command, cmd,
+ * tool_input.command|cmd, input.command|cmd, args.command|cmd,
+ * args.tool_input.command|cmd, args.input.command|cmd). Keeping the public
+ * surface in hook-utils.js means existing adapters do not need to be edited.
  */
 function commandFrom(input) {
-  return String(
-    input.command ||
-    input.args?.command ||
-    input.tool_input?.command ||
-    input.input?.command ||
-    ""
-  );
+  return String(_extractCommand(input) || "");
 }
 
 /**

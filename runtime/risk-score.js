@@ -3,6 +3,7 @@
 
 const { globMatch }  = require("./glob-match");
 const { detectBypassPatterns } = require("./shell-bypass-detector");
+const { normalizeCommand }     = require("./command-normalize");
 
 function normalize(input = {}) {
   return {
@@ -27,59 +28,69 @@ function score(input = {}) {
 
   if (ctx.command) value += 1;
 
+  // Dual-path matching (ADR-008): every destructive-verb predicate is tested
+  // against BOTH the raw command and its NFKC + confusables-folded form.
+  // Defeats Unicode look-alike bypass (Cyrillic 'рm', full-width 'ｒｍ',
+  // Greek-letter substitution in 'git push', etc.) while keeping the ASCII
+  // regexes themselves unchanged for human review and historical parity.
+  const cmdRaw  = ctx.command;
+  const cmdNorm = normalizeCommand(cmdRaw);
+  const normDiffers = cmdNorm !== cmdRaw;
+  const matches = (re) => re.test(cmdRaw) || (normDiffers && re.test(cmdNorm));
+
   // Match rm with -rf/-r flags in any position (e.g. rm --no-preserve-root -rf /)
-  if (/\brm\s+(?:\S+\s+)*-[A-Za-z]*r[A-Za-z]*f\b|\brm\s+-{1,2}recursive\b|\brm\b.*--recursive\b/.test(ctx.command)) {
+  if (matches(/\brm\s+(?:\S+\s+)*-[A-Za-z]*r[A-Za-z]*f\b|\brm\s+-{1,2}recursive\b|\brm\b.*--recursive\b/)) {
     value += 6;
     reasons.push("destructive-delete-pattern");
   }
   // dd writing to a device or file is a disk-overwrite risk
-  if (/\bdd\s+/.test(ctx.command) && /\bof=/.test(ctx.command)) {
+  if (matches(/\bdd\s+/) && matches(/\bof=/)) {
     value += 8;
     reasons.push("disk-write-pattern");
   }
-  if (/\bgit\s+push\b.*(--force|-f\b|--force-with-lease\b)/.test(ctx.command)) {
+  if (matches(/\bgit\s+push\b.*(--force|-f\b|--force-with-lease\b)/)) {
     value += 6;
     reasons.push("force-push-pattern");
   }
-  if (/\bcurl\b.*\|\s*(ba)?sh\b|\bwget\b.*\|\s*(ba)?sh\b/.test(ctx.command)) {
+  if (matches(/\bcurl\b.*\|\s*(ba)?sh\b|\bwget\b.*\|\s*(ba)?sh\b/)) {
     value += 7;
     reasons.push("remote-exec-pattern");
   }
-  if (/\bnpx\s+(-y\b|--yes\b)/.test(ctx.command)) {
+  if (matches(/\bnpx\s+(-y\b|--yes\b)/)) {
     value += 4;
     reasons.push("auto-download-pattern");
   }
-  if (/\bsudo\b/.test(ctx.command)) {
+  if (matches(/\bsudo\b/)) {
     value += 3;
     reasons.push("privilege-elevation");
   }
-  if (/\b(DROP\s+(DATABASE|TABLE|SCHEMA)|TRUNCATE\s+TABLE)\b/i.test(ctx.command)) {
+  if (matches(/\b(DROP\s+(DATABASE|TABLE|SCHEMA)|TRUNCATE\s+TABLE)\b/i)) {
     value += 7;
     reasons.push("destructive-database-pattern");
   }
   // Global package install (npm/pip/gem install -g/--global) — system-wide mutation
-  if (/\b(npm|yarn)\s+(install|add|i)\b.*\s(-g|--global)\b|\b(npm|yarn)\s+(-g|--global)\s+(install|add|i)\b/.test(ctx.command) ||
-      /\b(pip3?|gem)\s+install\b.*(--user|-U)\s+/.test(ctx.command)) {
+  if (matches(/\b(npm|yarn)\s+(install|add|i)\b.*\s(-g|--global)\b|\b(npm|yarn)\s+(-g|--global)\s+(install|add|i)\b/) ||
+      matches(/\b(pip3?|gem)\s+install\b.*(--user|-U)\s+/)) {
     value += 3;
     reasons.push("global-package-install");
   }
   // Hard reset — destroys local commit history irreversibly
-  if (/\bgit\s+reset\s+--hard\b/.test(ctx.command)) {
+  if (matches(/\bgit\s+reset\s+--hard\b/)) {
     value += 4;
     reasons.push("hard-reset-pattern");
   }
   // Kubernetes resource deletion — may affect running workloads
-  if (/\bkubectl\s+(delete|remove)\b/.test(ctx.command)) {
+  if (matches(/\bkubectl\s+(delete|remove)\b/)) {
     value += 4;
     reasons.push("kubectl-delete-pattern");
   }
   // git clean -f — permanently removes untracked files
-  if (/\bgit\s+clean\b.*-[A-Za-z]*f/.test(ctx.command)) {
+  if (matches(/\bgit\s+clean\b.*-[A-Za-z]*f/)) {
     value += 3;
     reasons.push("git-clean-pattern");
   }
   // chmod with world-write or 777 — broad permission mutation
-  if (/\bchmod\b.*(777|666|o\+w|a\+w|ugo\+w)/.test(ctx.command)) {
+  if (matches(/\bchmod\b.*(777|666|o\+w|a\+w|ugo\+w)/)) {
     value += 3;
     reasons.push("broad-permission-pattern");
   }
@@ -90,7 +101,7 @@ function score(input = {}) {
   }
   // Detect filesystem root as rm target from command string (e.g. rm -rf /)
   if (!reasons.includes("filesystem-root-target") &&
-      /\brm\b/.test(ctx.command) && /(?:^|\s)\/\s*$/.test(ctx.command)) {
+      matches(/\brm\b/) && matches(/(?:^|\s)\/\s*$/)) {
     value += 4;
     reasons.push("filesystem-root-target");
   }

@@ -30,7 +30,26 @@ runtime/
 ├── state-paths.js          Single source of truth for all storage paths. HORUS_STATE_DIR override.
 ├── decision-lattice.js     HAP ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
 ├── action-ir.js            HAP ADR-007 PR-B: Canonical Action IR built on every gate call. Extracts commandTokens/Class/argv0, fileTargets (URL-filtered, sensitivity-classified), networkTargets, mcpServer, payloadClass, destructive/writeIntent; auto-computes irHash. Wired through pretool-gate as a back-compat shim; floors still read flat fields. Cross-adapter parity gated by scripts/check-action-ir-parity.sh.
+├── command-normalize.js    ADR-008: input-normalization spine. normalizeCommand() (NFKC + Cyrillic/Greek confusables fold for destructive-verb letters) + extractCommand() (ADR-007 §4.2 alias-precedence ladder). Owned by risk-score.js (dual-path matching), pretool-gate.js (re-extract backstop), hook-utils.js (adapter facade). Zero deps; pure.
 └── telemetry.js            Structured telemetry events to telemetry.jsonl. Never blocks.
+
+### Input normalization (ADR-008)
+
+Every command string is processed through two normalization passes before any
+destructive-verb regex fires. The first pass — `extractCommand()` —
+resolves which payload field is the command (`command | cmd | tool_input.* |
+input.* | args.* | args.tool_input.* | args.input.*`, first-non-empty wins,
+recursive descent bounded to one level under `args`). The second pass —
+`normalizeCommand()` — folds NFKC compatibility forms and a curated
+Cyrillic + Greek confusables map onto the destructive-verb letter set. Both
+live in `runtime/command-normalize.js`. `risk-score.js` tests each
+destructive-verb predicate against both the raw string and the normalized
+string (dual-path matching); the ASCII regexes themselves are unchanged for
+auditability. `pretool-gate.js` re-extracts via `extractCommand` as a
+backstop when an adapter hands the gate an empty command but the raw payload
+carries the command under a nested alias. See
+`references/adr-008-unicode-and-precedence-defense.md` for the rationale and
+the threat model the design defeats.
 ```
 
 Adapters (thin, ~30–70 lines each):
