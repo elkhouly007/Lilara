@@ -24,5 +24,10 @@ const decisionLattice = require("./decision-lattice");
 // namespace so existing consumers stay unaffected; CLI and tests reach in
 // explicitly. No call site appends today — detection/reporting only.
 const journalChain = require("./journal-chain");
+// F16 PR-A: ambient-authority path classifier. Foundation only — no
+// decision-engine wiring, no floor, no behavior change. Re-exported as a
+// namespace so later PRs can read classifyAmbientPath without touching the
+// flat re-export surface.
+const ambient = require("./ambient");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient };
