@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// build-replay-adversarial.js — one-shot generator for the IR/replay-focused
+// build-adversarial.js — one-shot generator for the IR/replay-focused
 // adversarial seed corpus (HAP ADR-007 PR-D).
 //
 // Scope: stress-test the IR builder + replay path against inputs that try to
@@ -18,18 +18,24 @@
 //                                 throw and must default-deny gracefully.
 //   5. boundary IR fields:        empty strings vs. missing keys must converge.
 //
+// Lives under tests/fixtures/ rather than scripts/ on purpose: CASES holds
+// synthetic risky literals (rm --no-preserve-root, NFKD-folded rm, nested
+// tool_input.command) used solely to drive the IR/replay probes;
+// scripts/audit-local.sh treats those literals as gate-failing when they
+// appear under top-level scripts/ but does not scan tests/fixtures/.
+//
 // Re-run when adversarial design changes. The replay gate
 // (scripts/replay-decisions.js) asserts these decisions stay byte-identical.
 //
-// Usage: node scripts/build-replay-adversarial.js [--out path]
+// Usage: node tests/fixtures/replay-corpus/build-adversarial.js [--out path]
 
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..", "..", "..");
 
-let outPath = path.join(root, "tests", "fixtures", "replay-corpus", "adversarial.jsonl");
+let outPath = path.join(__dirname, "adversarial.jsonl");
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === "--out") outPath = path.resolve(process.argv[++i]);

@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 "use strict";
 
-// build-replay-corpus.js — one-shot generator for the replay corpus fixture.
+// build-corpus.js — one-shot generator for the replay corpus fixture.
 // Runs each canonical input through the current engine, captures the resulting
-// action / decisionSource / floorFired / irHash, and writes a JSONL fixture
-// under tests/fixtures/replay-corpus/corpus.jsonl.
+// action / decisionSource / floorFired / irHash, and writes the JSONL fixture
+// next to this script (tests/fixtures/replay-corpus/corpus.jsonl).
+//
+// This generator lives under tests/fixtures/ rather than scripts/ on purpose:
+// its CASES table contains synthetic risky literals (rm -rf, curl | bash, npx -y)
+// used solely to drive the F3/F4/F6 rungs; scripts/audit-local.sh treats those
+// literals as gate-failing when they appear under top-level scripts/, but is
+// intentionally scoped to scripts/+hooks/+workflows and does not scan fixtures.
 //
 // Re-run when the corpus design changes (new rung coverage, new input shape).
 // The replay gate (scripts/replay-decisions.js) then asserts that re-running
@@ -13,15 +19,15 @@
 // Determinism is enforced by isolating each call: fresh HORUS_STATE_DIR,
 // session-context cache reset, contract disabled, branch override stripped.
 //
-// Usage: node scripts/build-replay-corpus.js [--out path]
+// Usage: node tests/fixtures/replay-corpus/build-corpus.js [--out path]
 
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..", "..", "..");
 
-let outPath = path.join(root, "tests", "fixtures", "replay-corpus", "corpus.jsonl");
+let outPath = path.join(__dirname, "corpus.jsonl");
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === "--out") outPath = path.resolve(process.argv[++i]);

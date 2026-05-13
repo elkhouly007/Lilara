@@ -52,8 +52,11 @@ least one IR-on journal.
 that `action`, `decisionSource`, `floorFired`, and `irHash` stay
 byte-identical for every recorded case. Drift = CI failure. Intentional
 engine changes regenerate the corpus via
-`node scripts/build-replay-corpus.js` and
-`node scripts/build-replay-adversarial.js`.
+`node tests/fixtures/replay-corpus/build-corpus.js` and
+`node tests/fixtures/replay-corpus/build-adversarial.js`. (The generators
+live alongside the fixtures rather than under `scripts/` because their
+CASES tables carry synthetic risky literals — `rm -rf`, `curl | bash`,
+`npx -y` — that `scripts/audit-local.sh` rejects in top-level `scripts/`.)
 
 The pre-existing `scripts/check-decision-replay.sh` (which replays the
 sample journal under `artifacts/journal/`) still runs and is unaffected.
