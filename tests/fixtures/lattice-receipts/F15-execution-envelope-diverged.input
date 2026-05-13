@@ -1,0 +1,36 @@
+{
+  "title": "F15 execution-envelope-diverged: pre-built envelope + diverging observed envelope",
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "rm -rf /tmp/scratch",
+    "branch": "feature/test",
+    "targetPath": "/tmp/scratch",
+    "payloadClass": "B",
+    "envelope": {
+      "hash": "sha256:envelope-hash-A",
+      "command": "rm -rf /tmp/scratch",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "harness": "claude",
+      "version": 1
+    },
+    "observedEnvelope": {
+      "hash": "sha256:envelope-hash-B",
+      "command": "rm -rf /tmp/other",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "harness": "claude",
+      "version": 1
+    }
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "execution-envelope-diverged",
+    "floorFired": "execution-envelope",
+    "rung": 17,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["execution-envelope-diverged"]
+  }
+}

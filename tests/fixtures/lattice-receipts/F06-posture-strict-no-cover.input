@@ -1,0 +1,18 @@
+{
+  "title": "F6 posture-strict-no-cover: trustPosture=strict + gated cmd, no contractAllow",
+  "input": {
+    "tool": "Bash",
+    "command": "npx -y create-react-app myapp",
+    "branch": "feature/test",
+    "targetPath": "/tmp",
+    "trustPosture": "strict"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "posture-strict-no-cover",
+    "floorFired": "posture-strict-no-cover",
+    "rung": 13,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "title": "F14 budget-exceeded: destructive-ops counter at limit",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-00000000f014",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "budget": { "maxDestructiveOps": 1 }
+    }
+  },
+  "session": {
+    "sessionId": "f14-session",
+    "destructiveOps": 5,
+    "externalBytes": 0,
+    "startTimeAgoMin": 0
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "rm /tmp/x",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "contract-floor",
+    "floorFired": "budget-exceeded",
+    "rung": 7,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["budget-exceeded"]
+  }
+}

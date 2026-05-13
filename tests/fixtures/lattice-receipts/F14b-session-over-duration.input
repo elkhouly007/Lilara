@@ -1,0 +1,37 @@
+{
+  "title": "F14b session-over-duration: session age exceeds contract.scopes.session.maxDurationMin",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-0000000014ba",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "session": { "maxDurationMin": 1 }
+    }
+  },
+  "session": {
+    "sessionId": "f14b-session",
+    "destructiveOps": 0,
+    "externalBytes": 0,
+    "startTimeAgoMin": 30
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "ls -la",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "require-review",
+    "decisionSource": "session-over-duration",
+    "floorFired": "session-over-duration",
+    "rung": 15,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

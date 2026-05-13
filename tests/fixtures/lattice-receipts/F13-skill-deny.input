@@ -1,0 +1,33 @@
+{
+  "title": "F13 skill-deny: scopes.skills[name]=block forces block",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-00000000f013",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" },
+      "skills": { "dangerous-skill": { "policy": "block" } }
+    }
+  },
+  "input": {
+    "tool": "Skill",
+    "harness": "claude",
+    "skillName": "dangerous-skill",
+    "command": "invoke",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "contract-floor",
+    "floorFired": "skill-deny",
+    "rung": 6,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["skill-deny"]
+  }
+}
