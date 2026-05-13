@@ -1,0 +1,31 @@
+{
+  "title": "F11 validity-window: outside activeHoursUtc + payloadClass=block",
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-0000000000f1",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "validity": { "computeOutOfWindow": true },
+    "scopes": { "payloadClasses": { "A": "block", "B": "block", "C": "block" } }
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "ls -la",
+    "branch": "feature/test",
+    "targetPath": "/tmp",
+    "payloadClass": "A"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "contract-floor",
+    "floorFired": "validity-window",
+    "rung": 4,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["validity-window"]
+  }
+}

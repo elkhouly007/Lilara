@@ -1,0 +1,17 @@
+{
+  "title": "F3 critical-risk: rm -rf / yields risk.level=critical",
+  "input": {
+    "tool": "Bash",
+    "command": "rm -rf /",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "risk-engine",
+    "floorFired": "critical-risk",
+    "rung": 8,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

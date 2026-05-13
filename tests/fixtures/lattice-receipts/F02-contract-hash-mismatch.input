@@ -1,0 +1,33 @@
+{
+  "title": "F2 contract-hash-mismatch under HORUS_CONTRACT_REQUIRED=1",
+  "env": { "HORUS_CONTRACT_REQUIRED": "1" },
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-0000000000f2",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": { "payloadClasses": { "A": "allow", "B": "warn", "C": "block" } },
+    "contractHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "badHash": true,
+  "acceptContract": false,
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "rm /tmp/x",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "contract-floor",
+    "floorFired": "contract-hash-mismatch",
+    "rung": 2,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["contract-hash-mismatch"]
+  }
+}

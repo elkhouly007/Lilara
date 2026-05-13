@@ -2352,6 +2352,118 @@ NODE
   done
 fi
 
+# ── floor-demotion-matrix (HAP ADR-007 PR-C) ─────────────────────────────────
+# Golden table: every (floor, attemptedSource) pair is asserted against
+# canDemote() so a future code change that bypasses the lattice's demotableBy
+# list is caught immediately.
+printf '\n[floor-demotion-matrix]\n'
+
+_fdm_input="tests/fixtures/decision-engine/floor-demotion-matrix.input"
+if [ -f "$_fdm_input" ]; then
+  _fdm_result=$(node - "$_fdm_input" <<'NODE'
+"use strict";
+const fs = require("fs");
+const path = require("path");
+const file = process.argv[2];
+const root = process.cwd();
+const { canDemote, getEntry } = require(path.join(root, "runtime/decision-lattice"));
+const fx = JSON.parse(fs.readFileSync(file, "utf8"));
+const errs = [];
+
+for (const row of fx.matrix) {
+  const entry = getEntry(row.floor);
+  if (!entry) {
+    errs.push(`unknown floor id in fixture: ${row.floor}`);
+    continue;
+  }
+  // Positive pairs: every demotableBy entry must canDemote=true
+  for (const src of row.demotableBy || []) {
+    if (!canDemote(row.floor, src)) {
+      errs.push(`positive: canDemote(${row.floor}, ${src}) === false (lattice says it must demote)`);
+    }
+  }
+  // Lattice consistency: the fixture's demotableBy must equal LATTICE's
+  // demotableBy for that floor. Catches lattice drift vs fixture drift.
+  const latticeList = (entry.demotableBy || []).slice().sort();
+  const fixtureList = (row.demotableBy || []).slice().sort();
+  if (latticeList.length !== fixtureList.length ||
+      latticeList.some((v, i) => v !== fixtureList[i])) {
+    errs.push(`lattice/fixture demotableBy mismatch for ${row.floor}: lattice=${JSON.stringify(latticeList)} fixture=${JSON.stringify(fixtureList)}`);
+  }
+  // Negative pairs: every negativeSamples entry must canDemote=false
+  for (const src of row.negativeSamples || []) {
+    if (canDemote(row.floor, src)) {
+      errs.push(`negative: canDemote(${row.floor}, ${src}) === true (lattice must reject)`);
+    }
+  }
+}
+
+// Additional assertions
+const aa = fx.additionalAssertions || {};
+if (aa.unknownFloorId && canDemote(aa.unknownFloorId.id, "anything")) {
+  errs.push(`unknown floor must return false: canDemote(${aa.unknownFloorId.id}, anything) === true`);
+}
+if (aa.emptyAttemptedSource && canDemote(aa.emptyAttemptedSource.id, aa.emptyAttemptedSource.source) !== aa.emptyAttemptedSource.expected) {
+  errs.push(`empty source: canDemote(${aa.emptyAttemptedSource.id}, "") expected ${aa.emptyAttemptedSource.expected}`);
+}
+if (aa.nullInputs && canDemote(aa.nullInputs.id, aa.nullInputs.source) !== aa.nullInputs.expected) {
+  errs.push(`null inputs: canDemote(null, null) expected ${aa.nullInputs.expected}`);
+}
+
+if (errs.length === 0) console.log("OK");
+else { console.log("FAIL:"); for (const e of errs) console.log("  " + e); process.exit(1); }
+NODE
+) || _fdm_exit=$?
+  if [ "${_fdm_exit:-0}" -eq 0 ] && [ "$_fdm_result" = "OK" ]; then
+    ok "floor-demotion-matrix"
+  else
+    fail "floor-demotion-matrix" "$_fdm_result"
+  fi
+else
+  skip "floor-demotion-matrix" "fixture missing: $_fdm_input"
+fi
+
+# ── lattice-receipts fixtures (HAP ADR-007 PR-C) ─────────────────────────────
+# Each fixture pins a stable receipt shape (irHash, floorFired, rung,
+# latticeVersion, decisionSource, action) for one floor in LATTICE.
+printf '\n[lattice-receipts]\n'
+
+_lr_tmp_out="$(mktemp)"
+trap 'rm -f "$_lr_tmp_out"' EXIT
+
+if bash scripts/check-lattice-receipts.sh > "$_lr_tmp_out" 2>&1; then
+  # Tally per-fixture lines: ok = pass, FAIL = fail
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "lattice-receipts:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "lattice-receipts:$name" "$rest"
+        ;;
+    esac
+  done < "$_lr_tmp_out"
+else
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "lattice-receipts:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "lattice-receipts:$name" "$rest"
+        ;;
+    esac
+  done < "$_lr_tmp_out"
+fi
+
+rm -f "$_lr_tmp_out"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'

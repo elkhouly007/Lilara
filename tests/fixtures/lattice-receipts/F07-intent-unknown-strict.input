@@ -1,0 +1,18 @@
+{
+  "title": "F7 intent-unknown-strict: classifier=unknown + trustPosture=strict",
+  "input": {
+    "tool": "Bash",
+    "command": "frobnicate --xyzzy /tmp",
+    "branch": "feature/test",
+    "targetPath": "/tmp",
+    "trustPosture": "strict"
+  },
+  "expected": {
+    "action": "require-review",
+    "decisionSource": "intent-unknown-strict",
+    "floorFired": "intent-unknown-strict",
+    "rung": 14,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

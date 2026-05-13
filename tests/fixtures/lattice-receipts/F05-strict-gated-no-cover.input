@@ -1,0 +1,30 @@
+{
+  "title": "F5 strict-gated-no-cover: harness not in contract.harnessScope",
+  "env": { "HORUS_CONTRACT_REQUIRED": "1" },
+  "contract": {
+    "version": 3,
+    "contractId": "hap-20260101-0000000000f5",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["opencode"],
+    "trustPosture": "balanced",
+    "scopes": { "payloadClasses": { "A": "allow", "B": "warn", "C": "block" } }
+  },
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "git push --force origin main",
+    "branch": "feature/test",
+    "targetPath": "/tmp"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "harness-out-of-scope",
+    "floorFired": "strict-gated-no-cover",
+    "rung": 3,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["harness-out-of-scope"]
+  }
+}
