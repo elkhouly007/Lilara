@@ -172,7 +172,15 @@ function run() {
   const prior = baseline[key];
   if (prior && prior.p99) {
     const baseP99 = Number(prior.p99);
-    const cap = Math.min(ceiling, baseP99 * 1.5);
+    // Variance floor for tiny baselines — mirrors scripts/bench-runtime-decision.sh.
+    // Sub-millisecond baselines collapse the 1.5× cap to sub-millisecond too,
+    // and ordinary GH runner jitter (sub-10ms macOS spikes that sit far below
+    // the 200ms ceiling) gets misread as a regression. Scale ≈10% of the
+    // ceiling as absolute headroom; p99 only fails when it exceeds BOTH the
+    // 1.5× cap AND the absolute headroom. Severe regressions still trip the
+    // platform ceiling below.
+    const headroomMs = ceiling * 0.1;
+    const cap = Math.min(ceiling, Math.max(baseP99 * 1.5, baseP99 + headroomMs));
     const baseSha = prior.commitSha || "";
     const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
     if (!baseSha) {
@@ -180,10 +188,10 @@ function run() {
     } else if (!lineageOk) {
       console.log(`  info    baseline from non-ancestor commit ${baseSha.slice(0,12)} (head ${headSha.slice(0,12) || "?"}); skipping 1.5× gate (likely rebase or stale cache from sibling branch)`);
     } else if (p99 > cap) {
-      console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds 1.5× baseline (${fmt(baseP99)}ms cap=${fmt(cap)}ms) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
+      console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds cap ${fmt(cap)}ms (baseline ${fmt(baseP99)}ms, max(1.5×, +${fmt(headroomMs)}ms headroom)) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
       regressionFailed = true;
     } else {
-      console.log(`  ok      p99 within 1.5× baseline (baseline=${fmt(baseP99)}ms cap=${fmt(cap)}ms) [baseline ${baseSha.slice(0,12)} ancestor]`);
+      console.log(`  ok      p99 within cap (baseline=${fmt(baseP99)}ms cap=${fmt(cap)}ms max(1.5×, +${fmt(headroomMs)}ms)) [baseline ${baseSha.slice(0,12)} ancestor]`);
     }
   } else {
     console.log(`  info    no baseline for ${key}; recording fresh baseline`);
