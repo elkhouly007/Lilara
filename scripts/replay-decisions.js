@@ -153,7 +153,13 @@ for (const e of entries) {
 
   let actual;
   try {
-    const ir = buildIr(e.input, { harness: "claude", cwd: "/test/cwd", tool: e.input.tool });
+    // Intentionally omit ctx.cwd: action-ir.js does path.resolve(cwd), which is
+    // platform-specific (POSIX "/test/cwd" vs. Windows "C:\\test\\cwd"), so the
+    // canonical IR hash would drift across OSes. With cwd unset, ir.cwd is null
+    // and fileTargets[].path stays as the raw extracted token (no path.resolve),
+    // which is byte-identical on Linux / macOS / Windows. Real production calls
+    // still pass a real cwd; only the replay corpus path is cwd-less.
+    const ir = buildIr(e.input, { harness: "claude", tool: e.input.tool });
     const result = decide(e.input);
     actual = {
       action: result.action,

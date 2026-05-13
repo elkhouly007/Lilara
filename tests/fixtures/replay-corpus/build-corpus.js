@@ -140,7 +140,11 @@ function isolatedDecide(input) {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-replay-"));
   process.env.HORUS_STATE_DIR = stateDir;
   try {
-    const ir = buildIr(input, { harness: "claude", cwd: "/test/cwd", tool: input.tool });
+    // No ctx.cwd: must mirror scripts/replay-decisions.js so irHash is stable
+    // across Linux / macOS / Windows. action-ir.js does path.resolve(cwd), which
+    // produces different strings per platform; with cwd unset, fileTargets stay
+    // as raw extracted tokens and ir.cwd is null — platform-independent.
+    const ir = buildIr(input, { harness: "claude", tool: input.tool });
     const result = decide(input);
     return {
       action: result.action,
