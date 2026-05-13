@@ -355,9 +355,24 @@ function decide(input = {}) {
   if (contract) {
     try {
       const netPolicy = _contractGetNetworkPolicy(contract);
-      if (netPolicy && Array.isArray(netPolicy.allowDomains)) {
+      const hasF18Signal = netPolicy && (
+        Array.isArray(netPolicy.allowDomains) ||
+        Array.isArray(netPolicy.denyDomains) ||
+        typeof netPolicy.allowPlaintext === "boolean"
+      );
+      if (hasF18Signal) {
         const ne = _evalNet(input.command || "", netPolicy);
         if (ne.fired) {
+          if (ne.reason === "plaintext-target-blocked") {
+            return buildEarlyBlock(
+              "plaintext-target-blocked",
+              enriched,
+              discovered,
+              input,
+              `network egress blocked: plaintext http:// target '${ne.host}' (set scopes.network.allowPlaintext=true to permit) (target=${ne.target})`,
+              { floorFired: "plaintext-target-blocked", decisionSource: "F18-D007" }
+            );
+          }
           const detail =
             ne.reason === "ip-literal-blocked"
               ? `IP-literal host '${ne.host}' blocked (use allowDomains hostnames; loopback exempt)`

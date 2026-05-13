@@ -1,0 +1,1 @@
+{"_contract":{"network":{"allowDomains":["example.com"]}},"tool_name":"Bash","args":{"command":"curl https://example.com/x"}}
