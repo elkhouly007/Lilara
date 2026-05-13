@@ -2464,6 +2464,30 @@ fi
 
 rm -f "$_lr_tmp_out"
 
+# ── replay-corpus fixtures (HAP ADR-007 PR-D) ────────────────────────────────
+# Each corpus pins (action, decisionSource, floorFired, irHash) for ~50 inputs
+# covering every reachable lattice rung + an adversarial IR/replay seed.
+printf '\n[replay-corpus]\n'
+
+_rc_tmp_out="$(mktemp)"
+trap 'rm -f "$_rc_tmp_out"' EXIT
+
+if bash scripts/check-replay-corpus.sh > "$_rc_tmp_out" 2>&1; then
+  while IFS= read -r line; do
+    case "$line" in
+      replay-decisions:*OK*)
+        # Format: "replay-decisions: N entries OK (no drift) — path/corpus.jsonl"
+        ok "replay-corpus:${line##*— }"
+        ;;
+    esac
+  done < "$_rc_tmp_out"
+else
+  cat "$_rc_tmp_out" >&2
+  fail "replay-corpus" "see scripts/check-replay-corpus.sh output above"
+fi
+
+rm -f "$_rc_tmp_out"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 printf '\n'
