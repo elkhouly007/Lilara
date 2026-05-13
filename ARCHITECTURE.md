@@ -29,16 +29,21 @@ runtime/
 ├── config-validator.js     Typed-field walker. Validates horus.config.json and horus.contract.json.
 ├── state-paths.js          Single source of truth for all storage paths. HORUS_STATE_DIR override.
 ├── decision-lattice.js     HAP ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
-├── action-ir.js            HAP ADR-007 PR-A: Canonical Action IR skeleton (EMPTY_IR, build, validate, irHash). Not yet wired into pretool-gate; PR-B will normalize per-adapter inputs.
+├── action-ir.js            HAP ADR-007 PR-B: Canonical Action IR built on every gate call. Extracts commandTokens/Class/argv0, fileTargets (URL-filtered, sensitivity-classified), networkTargets, mcpServer, payloadClass, destructive/writeIntent; auto-computes irHash. Wired through pretool-gate as a back-compat shim; floors still read flat fields. Cross-adapter parity gated by scripts/check-action-ir-parity.sh.
 └── telemetry.js            Structured telemetry events to telemetry.jsonl. Never blocks.
 ```
 
 Adapters (thin, ~30–70 lines each):
 ```
-claude/hooks/dangerous-command-gate.js   → createAdapter({ harness:"claude", envelopeReporting:true, ... })   (hook-utils.js)
-openclaw/hooks/adapter.js                → createAdapter({ harness:"openclaw", envelopeReporting:false, ... })  (hook-utils.js)
-opencode/hooks/adapter.js                → createAdapter({ harness:"opencode", envelopeReporting:false, ... })  (hook-utils.js)
+claude/hooks/dangerous-command-gate.js   → createAdapter({ harness:"claude",      envelopeReporting:true,  extractTrustMeta:() => loadManifest("claude")      })  (hook-utils.js)
+openclaw/hooks/adapter.js                → createAdapter({ harness:"openclaw",    envelopeReporting:false, extractTrustMeta:() => loadManifest("openclaw")    })  (hook-utils.js)
+opencode/hooks/adapter.js                → createAdapter({ harness:"opencode",    envelopeReporting:false, extractTrustMeta:() => loadManifest("opencode")    })  (hook-utils.js)
+codex/hooks/adapter.js                   → createAdapter({ harness:"codex",       envelopeReporting:false, extractTrustMeta:() => loadManifest("codex")       })  (hook-utils.js, best-effort)
+clawcode/hooks/adapter.js                → createAdapter({ harness:"clawcode",    envelopeReporting:false, extractTrustMeta:() => loadManifest("clawcode")    })  (hook-utils.js, best-effort)
+antegravity/hooks/adapter.js             → createAdapter({ harness:"antegravity", envelopeReporting:false, extractTrustMeta:() => loadManifest("antegravity") })  (hook-utils.js, best-effort)
 ```
+
+Each `<harness>/manifest.json` declares `harness`, `harnessVersion`, `envelopeReporting`, `argsFidelity`, `cwdFidelity`, `mcpInterception`, `skillInterception`, and `outputChannels` per HAP ADR-007 PR-B. Conservative defaults (`none` / `unverified` / `best-effort`) for unverified harnesses; exact/supported for claude/opencode/openclaw.
 
 ## 2. Decision Flow — Section 4.6 Precedence Matrix
 

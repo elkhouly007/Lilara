@@ -1,0 +1,24 @@
+{
+  "argv0": "git",
+  "command": "git push --force origin main",
+  "commandClass": "force-push",
+  "commandTokens": [
+    "git",
+    "push",
+    "--force",
+    "origin",
+    "main"
+  ],
+  "declaredGoal": null,
+  "destructive": true,
+  "envDelta": {},
+  "fileTargets": [],
+  "irVersion": "1",
+  "mcpServer": null,
+  "networkTargets": [],
+  "payloadClass": "A",
+  "planEnvelopeId": null,
+  "skillName": null,
+  "toolKind": "shell",
+  "writeIntent": true
+}

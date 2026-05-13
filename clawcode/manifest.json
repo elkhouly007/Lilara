@@ -1,0 +1,18 @@
+{
+  "harness": "clawcode",
+  "harnessVersion": "unverified",
+  "envelopeReporting": false,
+  "argsFidelity": "best-effort",
+  "cwdFidelity": "best-effort",
+  "mcpInterception": "unverified",
+  "skillInterception": "unverified",
+  "outputChannels": {
+    "toolOutput": "none",
+    "generatedFiles": "none",
+    "commitText": "none",
+    "prText": "none",
+    "finalMessage": "none",
+    "terminal": "none",
+    "screenshots": "none"
+  }
+}

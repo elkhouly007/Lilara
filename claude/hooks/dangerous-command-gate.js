@@ -4,16 +4,17 @@
 
 "use strict";
 
-const { createAdapter, commandFrom } = require("./hook-utils");
-
-const ADAPTER_CAPABILITIES = { envelopeReporting: true };
-void ADAPTER_CAPABILITIES;
+const { createAdapter, commandFrom, loadManifest } = require("./hook-utils");
 
 createAdapter({
-  harness:        "claude",
-  rateLimitKey:   "dangerous-command-gate",
-  extractCommand: (i) => commandFrom(i),
-  extractCwd:     (i) => String(i.cwd || i.args?.cwd || i.tool_input?.cwd || ""),
-  extractTool:    (i) => String(i.tool_name || i.tool || "Bash"),
-  envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting,
+  harness:           "claude",
+  rateLimitKey:      "dangerous-command-gate",
+  extractCommand:    (i) => commandFrom(i),
+  extractCwd:        (i) => String(i.cwd || i.args?.cwd || i.tool_input?.cwd || ""),
+  extractTool:       (i) => String(i.tool_name || i.tool || "Bash"),
+  envelopeReporting: true,
+  // HAP ADR-007 PR-B: claude/manifest.json declares envelopeReporting=true,
+  // exact arg/cwd fidelity, and supported MCP/skill interception. The IR uses
+  // these to populate trustMeta + outputChannels for downstream floors.
+  extractTrustMeta:  () => loadManifest("claude"),
 });

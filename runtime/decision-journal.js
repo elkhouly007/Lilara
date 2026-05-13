@@ -118,6 +118,13 @@ function append(entry) {
     ...(entry.floorFired    ? { floorFired: String(entry.floorFired) } : {}),
     ...(entry.taintSource   ? { taintSource: String(entry.taintSource), taintReason: String(entry.taintReason || "") } : {}),
     ...(entry.intent        ? { intent: String(entry.intent) } : {}),
+    // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
+    // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
+    // by default. Receipts already on disk continue to validate; new-format
+    // receipts gain stable cross-call identity via irHash + lattice anchors.
+    ...(entry.irHash         ? { irHash: String(entry.irHash) } : {}),
+    ...(entry.latticeVersion ? { latticeVersion: String(entry.latticeVersion) } : {}),
+    ...(entry.rung != null && Number.isFinite(Number(entry.rung)) ? { rung: Number(entry.rung) } : {}),
   };
   fs.appendFileSync(logFile, JSON.stringify(record) + "\n", { mode: 0o600 });
   return true;

@@ -272,6 +272,19 @@ const _BY_ID = Object.freeze(
   }, Object.create(null))
 );
 
+// Build a name → entry index. Floor names (e.g. "secret-class-C", "taint-floor")
+// are what decision-engine.js writes into floorFired today; the lookup lets
+// PR-B annotate journal entries with rung without first refactoring the engine
+// to use lattice ids (PR-C scope).
+const _BY_NAME = Object.freeze(
+  LATTICE.reduce((acc, entry) => {
+    if (typeof entry.name === "string" && entry.name.length > 0) {
+      acc[entry.name] = entry;
+    }
+    return acc;
+  }, Object.create(null))
+);
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -281,8 +294,23 @@ function getEntry(id) {
   return _BY_ID[id] || null;
 }
 
+function getEntryByName(name) {
+  if (typeof name !== "string") return null;
+  return _BY_NAME[name] || null;
+}
+
 function getRung(id) {
   const entry = getEntry(id);
+  return entry ? entry.rung : null;
+}
+
+// getRungByName(floorName) — convenience for journal annotation. floorName is
+// the human-readable name decision-engine writes into floorFired (e.g.
+// "taint-floor", "secret-class-C"). Returns null when no entry matches; PR-B
+// callers must tolerate null so unmapped names (e.g. "secret-class-C-demoted")
+// don't break journal append.
+function getRungByName(floorName) {
+  const entry = getEntryByName(floorName);
   return entry ? entry.rung : null;
 }
 
@@ -360,7 +388,9 @@ module.exports = {
   LATTICE,
   LATTICE_VERSION,
   getEntry,
+  getEntryByName,
   getRung,
+  getRungByName,
   getFloor,
   listFloors,
   assertOrdered,

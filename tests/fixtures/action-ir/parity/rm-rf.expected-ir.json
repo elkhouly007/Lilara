@@ -1,0 +1,28 @@
+{
+  "argv0": "rm",
+  "command": "rm -rf /data/old",
+  "commandClass": "destructive-delete",
+  "commandTokens": [
+    "rm",
+    "-rf",
+    "/data/old"
+  ],
+  "declaredGoal": null,
+  "destructive": true,
+  "envDelta": {},
+  "fileTargets": [
+    {
+      "intent": "delete",
+      "path": "/data/old",
+      "sensitivity": "low"
+    }
+  ],
+  "irVersion": "1",
+  "mcpServer": null,
+  "networkTargets": [],
+  "payloadClass": "A",
+  "planEnvelopeId": null,
+  "skillName": null,
+  "toolKind": "shell",
+  "writeIntent": true
+}
