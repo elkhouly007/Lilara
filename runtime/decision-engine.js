@@ -40,6 +40,7 @@ const _F18 = getEntry("F18");         // network-egress
 const _F18D007 = getEntry("F18-D007");// plaintext-target-blocked (D-007 Lane 4)
 const _F15 = getEntry("F15");         // execution-envelope
 const _F16 = getEntry("F16");         // ambient-authority (ADR-009 PR-B)
+const _F17 = getEntry("F17");         // cross-agent-lock (PR-A)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -96,6 +97,11 @@ const {
 // site wraps evaluation in try/catch so an unexpected runtime throw inside
 // ambient.js fails open (zero-dep / fail-open policy).
 const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
+// F17 PR-A: cross-agent-lock helper. State-dir-local; reads
+// `<HORUS_STATE_DIR>/cross-agent-locks/*.json` to detect a conflicting
+// lock owned by another agent/session for a write-like call.
+const { readLockState: _readLockState, findConflict: _findLockConflict } = require("./cross-agent-lock");
+const { stateDir: _statePathStateDir } = require("./state-paths");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -140,6 +146,14 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   // get them from `extra.ambientTouch` populated by decide().
   const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
   const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
+  // F17 PR-A: lock-detail fields surface on the receipt + journal so audit
+  // can identify the conflicting lock without leaking secrets. Owner is the
+  // identity string the lock writer chose; lockPath/lockProject/lockExpiresAt
+  // come straight from the lock record.
+  const _lockOwner       = extra.lockOwner != null ? extra.lockOwner : null;
+  const _lockPath        = extra.lockPath  != null ? extra.lockPath  : null;
+  const _lockProject     = extra.lockProject != null ? extra.lockProject : null;
+  const _lockExpiresAt   = extra.lockExpiresAt != null ? extra.lockExpiresAt : null;
   const result = {
     action: "block",
     enforcementAction: "block",
@@ -164,6 +178,10 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     context: {},
     ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
     ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+    ...(_lockOwner     != null ? { lockOwner:     _lockOwner     } : {}),
+    ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
+    ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
+    ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   try {
@@ -181,6 +199,10 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       ...(result.floorFired ? { floorFired: result.floorFired } : {}),
       ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
       ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+      ...(_lockOwner     != null ? { lockOwner:     _lockOwner     } : {}),
+      ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
+      ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
+      ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -289,6 +311,77 @@ function _evalAmbientFloor(input, discovered, contract) {
     return { fire: true, ambientClass: cls, path: raw };
   }
   return { fire: false };
+}
+
+// F17 PR-A — cross-agent-lock floor helpers. Pure decision read-side; the
+// only I/O is the per-call lock-dir scan via readLockState() against the
+// engine's stateDir (HORUS_STATE_DIR-aware). Owner identity for the current
+// call falls back through input.owner → input.sessionId → discovered.sessionId
+// so existing harness wiring needs no schema change.
+function _isWriteLikeForLock(input) {
+  if (!input) return false;
+  const t = String(input.tool || "");
+  if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(t)) return true;
+  const irT = input.ir && input.ir.fileTargets;
+  if (Array.isArray(irT)) {
+    for (const ft of irT) {
+      if (ft && (ft.intent === "write" || ft.intent === "delete")) return true;
+    }
+  }
+  return false;
+}
+function _collectLockCandidatePaths(input) {
+  const out = []; const seen = Object.create(null);
+  const push = (p) => { if (typeof p === "string" && p.length > 0 && !seen[p]) { seen[p] = true; out.push(p); } };
+  if (input && typeof input.targetPath === "string") push(input.targetPath);
+  const irT = input && input.ir && input.ir.fileTargets;
+  if (Array.isArray(irT)) for (const t of irT) if (t && (t.intent === "write" || t.intent === "delete")) push(t.path);
+  const envT = input && input.envelope && input.envelope.targets;
+  if (Array.isArray(envT)) for (const t of envT) if (t && typeof t.path === "string") push(t.path);
+  return out;
+}
+function _evalCrossAgentLockFloor(input, discovered, enriched) {
+  if (!_isWriteLikeForLock(input)) return { fire: false };
+  const owner = String(
+    (input && input.owner) ||
+    (input && input.sessionId) ||
+    (enriched && enriched.sessionId) ||
+    (discovered && discovered.sessionId) ||
+    ""
+  );
+  const projectRoot = String((discovered && discovered.projectRoot) || (input && input.projectRoot) || "");
+  const candidatePaths = _collectLockCandidatePaths(input);
+  const state = _readLockState(_statePathStateDir());
+  if (!state.ok && state.malformed && state.malformed.length > 0) {
+    return {
+      fire: true,
+      reason: "lock-state-malformed",
+      lockOwner: null,
+      lockPath: null,
+      lockProject: null,
+      lockExpiresAt: null,
+    };
+  }
+  if (!Array.isArray(state.locks) || state.locks.length === 0) return { fire: false };
+  const conflict = _findLockConflict({
+    owner,
+    projectRoot,
+    paths: candidatePaths,
+    locks: state.locks,
+    now: Date.now(),
+  });
+  if (!conflict) return { fire: false };
+  const lockedPathPick = Array.isArray(conflict.paths) && conflict.paths.length > 0
+    ? String(conflict.paths[0])
+    : null;
+  return {
+    fire: true,
+    reason: "conflicting-lock",
+    lockOwner: conflict.owner,
+    lockPath: lockedPathPick,
+    lockProject: conflict.projectRoot || null,
+    lockExpiresAt: conflict.expiresAt != null ? conflict.expiresAt : null,
+  };
 }
 
 function decide(input = {}) {
@@ -671,6 +764,34 @@ function decide(input = {}) {
         "ambient-authority-denied", enriched, discovered, input,
         `ambient-authority write blocked: class=${f16.ambientClass} path=${f16.path}`,
         { floorFired: _F16.name, decisionSource: _F16.source, ambientClass: f16.ambientClass, ambientPath: f16.path }
+      );
+    }
+  } catch { /* fail-open per zero-dep policy */ }
+
+  // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
+  // contract-allow demotion. Fires when a write-like call targets a
+  // path/project already held by a different agent's lock that is not
+  // expired. Non-demotable. Fail-CLOSED for write-like when lock state is
+  // malformed (`state.ok=false`); other unexpected throws fail open per the
+  // engine's zero-dep / fail-open policy.
+  try {
+    const f17 = _evalCrossAgentLockFloor(input, discovered, enriched);
+    if (f17 && f17.fire) {
+      const detail = f17.reason === "lock-state-malformed"
+        ? "lock state malformed — failing closed"
+        : `lock owner=${f17.lockOwner || ""} project=${f17.lockProject || ""}`;
+      return buildEarlyBlock(
+        "cross-agent-lock-denied", enriched, discovered, input,
+        `cross-agent lock blocked: ${detail}`,
+        {
+          floorFired: _F17.name,
+          decisionSource: _F17.source,
+          ambientTouch: _ambientTouch,
+          lockOwner: f17.lockOwner,
+          lockPath: f17.lockPath,
+          lockProject: f17.lockProject,
+          lockExpiresAt: f17.lockExpiresAt,
+        }
       );
     }
   } catch { /* fail-open per zero-dep policy */ }

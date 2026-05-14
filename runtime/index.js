@@ -29,5 +29,9 @@ const journalChain = require("./journal-chain");
 // namespace so later PRs can read classifyAmbientPath without touching the
 // flat re-export surface.
 const ambient = require("./ambient");
+// F17 PR-A: cross-agent-lock helper. Namespace export so future writer
+// API (acquire/release) can grow under one surface without touching the
+// flat re-exports.
+const crossAgentLock = require("./cross-agent-lock");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock };
