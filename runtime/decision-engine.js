@@ -39,6 +39,7 @@ const _F14b = getEntry("F14b");       // session-over-duration
 const _F18 = getEntry("F18");         // network-egress
 const _F18D007 = getEntry("F18-D007");// plaintext-target-blocked (D-007 Lane 4)
 const _F15 = getEntry("F15");         // execution-envelope
+const _F16 = getEntry("F16");         // ambient-authority (ADR-009 PR-B)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -91,6 +92,10 @@ const {
   evaluateDns: _evalNetDns,
   evaluateIpSet: _evalNetIpSet,
 } = require("./network-egress");
+// ADR-009 PR-B: ambient-authority classifier. Hoisted import; the F16 wiring
+// site wraps evaluation in try/catch so an unexpected runtime throw inside
+// ambient.js fails open (zero-dep / fail-open policy).
+const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -151,6 +156,9 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     envelopeVerification: extra.envelopeVerification || null,
     networkEgress: extra.networkEgress || null,
     context: {},
+    // F16 PR-B: receipt carries ambientClass/Path only on F16 fire (PR-C generalises).
+    ...(extra.ambientClass ? { ambientClass: extra.ambientClass } : {}),
+    ...(extra.ambientPath ? { ambientPath: extra.ambientPath } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   try {
@@ -166,11 +174,80 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       targetPath: input.targetPath || "",
       notes: `${result.decisionSource}:${reasonCode}`,
       ...(result.floorFired ? { floorFired: result.floorFired } : {}),
+      ...(extra.ambientClass ? { ambientClass: extra.ambientClass } : {}),
+      ...(extra.ambientPath ? { ambientPath: extra.ambientPath } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
   } catch { /* journal is best-effort */ }
   return result;
+}
+
+// F16 (ADR-009 PR-B) — ambient-authority floor helpers. Pure; zero I/O.
+// Path normalization mirrors runtime/ambient.js (backslash→slash, strip
+// `file://`, trim trailing slash); comparisons lowercase for parity with
+// case-insensitive HFS+/APFS/NTFS shapes.
+function _normAmbientPath(p) {
+  if (typeof p !== "string" || p.length === 0) return "";
+  let s = p.replace(/\\/g, "/").replace(/^file:\/\//i, "");
+  if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+  return s;
+}
+function _isInsideProject(targetPath, projectRoot) {
+  if (typeof projectRoot !== "string" || projectRoot.length === 0) return false;
+  const np = _normAmbientPath(targetPath).toLowerCase();
+  const nr = _normAmbientPath(projectRoot).toLowerCase();
+  if (!np || !nr) return false;
+  return np === nr || np.startsWith(nr + "/");
+}
+// gitConfig/ideSettings have a legitimate in-project shape; every other
+// ambient class still fires when project-local (e.g. `<proj>/.ssh/id_rsa`).
+const _PROJECT_LOCAL_AMBIENT_CLASSES = new Set(["gitConfig", "ideSettings"]);
+// Segment-aligned, case-insensitive opt-in match. pathPrefix is optional;
+// when absent the entry permits ALL paths of `class`.
+function _matchAmbientAllow(allow, ambientClass, normPath) {
+  if (!Array.isArray(allow)) return false;
+  for (const e of allow) {
+    if (!e || typeof e !== "object" || e.class !== ambientClass) continue;
+    if (e.pathPrefix == null || e.pathPrefix === "") return true;
+    const np = _normAmbientPath(e.pathPrefix).toLowerCase();
+    if (!np || normPath === np || normPath.startsWith(np + "/")) return true;
+  }
+  return false;
+}
+// Collect write-class candidate paths: flat targetPath, IR fileTargets
+// (write/delete only), envelope.targets. Deduped in insertion order.
+function _collectAmbientCandidatePaths(input) {
+  const out = []; const seen = Object.create(null);
+  const push = (p) => { if (typeof p === "string" && p.length > 0 && !seen[p]) { seen[p] = true; out.push(p); } };
+  if (input && typeof input.targetPath === "string") push(input.targetPath);
+  const irT = input && input.ir && input.ir.fileTargets;
+  if (Array.isArray(irT)) for (const t of irT) if (t && (t.intent === "write" || t.intent === "delete")) push(t.path);
+  const envT = input && input.envelope && input.envelope.targets;
+  if (Array.isArray(envT)) for (const t of envT) if (t) push(t.path);
+  return out;
+}
+function _evalAmbientFloor(input, discovered, contract) {
+  const projectRoot = (discovered && discovered.projectRoot) || (input && input.projectRoot) || "";
+  const allow = contract && contract.scopes && contract.scopes.ambient && Array.isArray(contract.scopes.ambient.allow)
+    ? contract.scopes.ambient.allow : null;
+  for (const raw of _collectAmbientCandidatePaths(input)) {
+    const cls = _classifyAmbientPath(raw);
+    if (!cls || cls === "nonAmbient") continue;
+    if (_isInsideProject(raw, projectRoot) && _PROJECT_LOCAL_AMBIENT_CLASSES.has(cls)) continue;
+    // F16 PR-B v2: defer when we cannot prove the target is OUTSIDE projectRoot
+    // — either projectRoot is unknown/empty, or the target is non-absolute and
+    // has no anchor for prefix comparison — for ambient classes with a
+    // legitimate in-project shape (.git/config, .vscode/, .claude/). Runtime
+    // CLI wiring/review lanes are the right escalation; other ambient classes
+    // (ssh, credentialHelper, shellRc, packageCache, ...) still fire.
+    const _f16Abs = /^([A-Za-z]:[\\/]|\\\\|\/)/.test(raw);
+    const _f16Shape = cls === "gitConfig" || cls === "ideSettings" || cls === "mcpConfig";
+    if (_f16Shape && (!_f16Abs || !projectRoot)) continue;
+    if (allow && _matchAmbientAllow(allow, cls, _normAmbientPath(raw).toLowerCase())) continue;
+    return { fire: true, ambientClass: cls, path: raw };
+  }
+  return { fire: false };
 }
 
 function decide(input = {}) {
@@ -532,6 +609,20 @@ function decide(input = {}) {
       );
     }
   }
+
+  // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)
+  // and before the contract-allow demotion path. Non-demotable; the only legitimate
+  // bypass is a matching `scopes.ambient.allow[]` entry. Fail-open on internal throw.
+  try {
+    const f16 = _evalAmbientFloor(input, discovered, contract);
+    if (f16 && f16.fire) {
+      return buildEarlyBlock(
+        "ambient-authority-denied", enriched, discovered, input,
+        `ambient-authority write blocked: class=${f16.ambientClass} path=${f16.path}`,
+        { floorFired: _F16.name, decisionSource: _F16.source, ambientClass: f16.ambientClass, ambientPath: f16.path }
+      );
+    }
+  } catch { /* fail-open per zero-dep policy */ }
 
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);

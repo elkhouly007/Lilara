@@ -2423,6 +2423,47 @@ else
   skip "floor-demotion-matrix" "fixture missing: $_fdm_input"
 fi
 
+# ── floor-f16 fixtures (ADR-009 PR-B) ────────────────────────────────────────
+# Suite for the ambient-authority floor. Each fixture pins (action,
+# decisionSource, floorFired, ambientClass, rung, latticeVersion) and the
+# write-class targets the floor must accept or refuse.
+printf '\n[floor-f16]\n'
+
+_f16_tmp_out="$(mktemp)"
+trap 'rm -f "$_f16_tmp_out"' EXIT
+
+if bash scripts/check-floor-f16.sh > "$_f16_tmp_out" 2>&1; then
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "floor-f16:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "floor-f16:$name" "$rest"
+        ;;
+    esac
+  done < "$_f16_tmp_out"
+else
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "floor-f16:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "floor-f16:$name" "$rest"
+        ;;
+    esac
+  done < "$_f16_tmp_out"
+fi
+
+rm -f "$_f16_tmp_out"
+
 # ── lattice-receipts fixtures (HAP ADR-007 PR-C) ─────────────────────────────
 # Each fixture pins a stable receipt shape (irHash, floorFired, rung,
 # latticeVersion, decisionSource, action) for one floor in LATTICE.

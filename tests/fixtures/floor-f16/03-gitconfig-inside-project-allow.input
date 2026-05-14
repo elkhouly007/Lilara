@@ -1,0 +1,19 @@
+{
+  "title": "F16/03: write to projectRoot/.git/config INSIDE projectRoot → ALLOW (legitimate project-local gitConfig)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/.git/config",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "{{projectRoot}}/.git/config"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

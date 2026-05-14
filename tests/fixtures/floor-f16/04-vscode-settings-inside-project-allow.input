@@ -1,0 +1,19 @@
+{
+  "title": "F16/04: write to projectRoot/.vscode/settings.json INSIDE projectRoot → ALLOW (legitimate project-local ideSettings)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/.vscode/settings.json",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "{{projectRoot}}/.vscode/settings.json"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "latticeVersion": "1",
+    "irHashPresent": true
+  }
+}

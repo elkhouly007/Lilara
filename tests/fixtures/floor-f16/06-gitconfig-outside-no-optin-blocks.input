@@ -1,0 +1,22 @@
+{
+  "title": "F16/06: write to ~/.gitconfig outside projectRoot WITHOUT opt-in → BLOCK with ambientClass=gitConfig",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "/home/user/.gitconfig",
+    "projectRoot": "{{projectRoot}}",
+    "file_path": "/home/user/.gitconfig"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "ambient-authority-denied",
+    "floorFired": "ambient-authority",
+    "ambientClass": "gitConfig",
+    "rung": 17.5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["ambient-authority-denied"]
+  }
+}
