@@ -14,5 +14,49 @@
     "finalMessage": "observe",
     "terminal": "observe",
     "screenshots": "none"
-  }
+  },
+  "capabilities": {
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
+    "exactCwd": true,
+    "exactEnv": false,
+    "argsFidelity": "exact",
+    "mcpInterception": "supported",
+    "skillInterception": "supported",
+    "finalMessageInterception": "observe",
+    "outputChannelCoverage": "broad",
+    "envelopeReporting": false
+  },
+  "negativeCapabilities": [
+    {
+      "capability": "envelopeReporting",
+      "reason": "F15 execution-envelope build/verify wiring has not landed for OpenClaw; adapter cannot prove cwd inode, git HEAD, env diff, or resolved executable path at execution time",
+      "evidence": "openclaw/hooks/adapter.js declares envelopeReporting: false; no Claude-style envelope build call in the OpenClaw adapter path"
+    },
+    {
+      "capability": "exactEnv",
+      "reason": "Without envelope reporting the adapter cannot report a verified env delta against a baseline",
+      "evidence": "envelopeReporting: false implies env diff is not collected at hook time"
+    },
+    {
+      "capability": "finalMessageInterception",
+      "reason": "OpenClaw does not expose a pre-emit hook for the assistant's final message; only post-hoc observation is possible",
+      "evidence": "outputChannels.finalMessage = observe"
+    },
+    {
+      "capability": "terminalInterception",
+      "reason": "Terminal output is observed via post-adapter but not rewritten or blocked in-line",
+      "evidence": "outputChannels.terminal = observe"
+    },
+    {
+      "capability": "screenshotInterception",
+      "reason": "OpenClaw does not surface screenshot artifacts to hooks",
+      "evidence": "outputChannels.screenshots = none"
+    }
+  ],
+  "compensatingRestrictions": [
+    "Critical-write floors (payload-class-C, protected-branch) must rely on adapter pretool blocking + post-tool secret-scan rather than envelope re-verification until F15 wiring lands",
+    "PostToolUse output is scanned for secrets (scanSecrets) and tagged as external-source for taint tracking on every tool output"
+  ],
+  "verifiedAt": null
 }

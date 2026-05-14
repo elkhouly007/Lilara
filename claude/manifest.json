@@ -14,5 +14,49 @@
     "finalMessage": "observe",
     "terminal": "observe",
     "screenshots": "none"
-  }
+  },
+  "capabilities": {
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
+    "exactCwd": true,
+    "exactEnv": true,
+    "argsFidelity": "exact",
+    "mcpInterception": "supported",
+    "skillInterception": "supported",
+    "finalMessageInterception": "observe",
+    "outputChannelCoverage": "broad",
+    "envelopeReporting": true
+  },
+  "negativeCapabilities": [
+    {
+      "capability": "finalMessageInterception",
+      "reason": "Claude Code does not expose a hook that runs before the assistant emits its final message to the user; the SessionEnd hook only observes",
+      "evidence": "claude/hooks/ contains no final-message PreToolUse equivalent; outputChannels.finalMessage = observe"
+    },
+    {
+      "capability": "terminalInterception",
+      "reason": "Terminal output flows directly to the user; ARG can observe via output-sanitizer but cannot rewrite or block in-line",
+      "evidence": "outputChannels.terminal = observe"
+    },
+    {
+      "capability": "screenshotInterception",
+      "reason": "Claude Code does not surface screenshot artifacts to hooks",
+      "evidence": "outputChannels.screenshots = none"
+    },
+    {
+      "capability": "commitTextInterception",
+      "reason": "Commit messages are observed via PostToolUse on git invocations, not intercepted pre-commit",
+      "evidence": "outputChannels.commitText = observe"
+    },
+    {
+      "capability": "prTextInterception",
+      "reason": "PR body text passes through the gh CLI tool path; ARG sees it post-hoc but cannot rewrite before publication",
+      "evidence": "outputChannels.prText = observe"
+    }
+  ],
+  "compensatingRestrictions": [
+    "PostToolUse output is scanned for secrets (scanSecrets) and tagged as external-source for taint tracking on every tool output, including final-message-adjacent channels",
+    "F15 execution envelopes are re-verified immediately before payload-class-C and protected-branch writes regardless of pretool decision"
+  ],
+  "verifiedAt": null
 }
