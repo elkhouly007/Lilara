@@ -3,6 +3,7 @@
 **Status:** ACCEPTED — Khouly 2026-05-13.
 **PR-A status:** SHIPPED (classifier + tests only).
 **PR-B status:** SHIPPED (F16 floor wired into decision-engine + `scopes.ambient.allow[]` opt-in + fixtures + tests + this doc).
+**PR-C status:** SHIPPED (receipt enrichment generalised — `ambientClass`/`ambientPath` on every decision that touches an ambient path).
 **Authors:** Khouly (scope), Claude Code (implementation).
 **Repo cross-refs:** `runtime/ambient.js`, `runtime/decision-engine.js`, `runtime/decision-lattice.js`, `runtime/index.js`, `schemas/horus.contract.schema.json`, `tests/runtime/ambient.test.js`, `tests/runtime/ambient-floor.test.js`, `tests/fixtures/floor-f16/`, `tests/fixtures/lattice-receipts/F16-ambient-authority.input`.
 
@@ -261,3 +262,79 @@ with an F16 row asserting every common demotion source is rejected
 - `scripts/check-lattice-ordering.sh` — expectedFloors list now includes
   `F16`.
 - `scripts/check-lattice-receipts.sh` — recognizes `expected.ambientClass`.
+
+## 8. PR-C contract (SHIPPED)
+
+PR-C generalises the PR-B receipt enrichment to **every** decision branch that
+touches an ambient path, not just F16 fires. Closes the audit-completeness gap
+that PR-B opened: post-hoc receipts can now distinguish ambient-touch allows
+from non-ambient allows.
+
+### 8.1 Receipt-field semantics
+
+Two optional fields are appended to the decision receipt + journal entry when
+any candidate path on the decision classifies as a non-`nonAmbient` ambient
+class:
+
+- `ambientClass` — the classifier's class id (`"ssh"`, `"gitConfig"`,
+  `"shellRc"`, `"packageCache"`, `"credentialHelper"`, `"ideSettings"`,
+  `"mcpConfig"`, `"browserProfile"`, `"osKeychain"`).
+- `ambientPath` — the raw candidate path that produced the classification.
+
+If `_collectAmbientCandidatePaths(input)` returns no candidates, OR every
+candidate classifies as `nonAmbient`, **both fields are omitted entirely**
+(not written as `null`). `null`/absent therefore means "this decision did
+not touch an ambient path."
+
+### 8.2 Where the enrichment fires
+
+The fields are populated on every receipt-emitting branch:
+
+- **F16 fire (PR-B existing behavior).** `ambientClass`/`ambientPath` reflect
+  the class/path the floor actually fired on (which may be a later candidate
+  in the iteration when an earlier one was skipped by the project-local
+  exception or `scopes.ambient.allow[]`).
+- **Allow inside `projectRoot`** for project-local-shape classes (`gitConfig`,
+  `ideSettings`, `mcpConfig`) — receipt now carries the class.
+- **Allow via `scopes.ambient.allow[]` opt-in** — receipt carries the class
+  even though F16 was permitted by the opt-in.
+- **Other early-block floors** (validity-window, mcp-deny, skill-deny,
+  budget-exceeded, network-egress, envelope-divergence, contract-hash-mismatch,
+  harness-out-of-scope, no-contract-strict) — when the decision also happened
+  to touch an ambient path, the receipt carries the ambient labels alongside
+  the floor's reason code.
+- **Baseline allow/route/escalate/require-review/require-tests** — the final
+  result + journal append carry the labels when an ambient candidate exists.
+
+### 8.3 First-match precedence
+
+`_classifyAmbientTouch(input)` iterates the same candidate set as
+`_evalAmbientFloor` — `targetPath` first, then IR write/delete fileTargets,
+then envelope.targets — and returns the FIRST candidate whose classifier
+output is non-`nonAmbient`. The function does NOT replicate F16's project-local
+exception or opt-in matching; that policy logic stays where it belongs (the
+floor predicate), and the enrichment helper is a pure read.
+
+### 8.4 Idempotency vs F16
+
+On an F16 fire, the floor's call to `buildEarlyBlock` passes
+`extra.ambientClass` + `extra.ambientPath` explicitly (PR-B behavior); PR-C's
+fallback in `buildEarlyBlock` prefers those explicit fields over
+`extra.ambientTouch.{class,path}`, so the F16-fire receipt path is
+byte-identical to PR-B. The helper is idempotent — no double write.
+
+### 8.5 Behavior invariant
+
+PR-C is **receipt-only**. Every decision continues to produce the same
+`action` and `floorFired` it produced before. The fixture sweep
+(`tests/fixtures/**/*.input`) was re-run with zero allow/block divergences;
+F16's PR-B behavior is unchanged (verified by `scripts/check-floor-f16.sh`).
+
+### 8.6 Local gates added by PR-C
+
+- `tests/runtime/ambient-receipt-enrichment.test.js` — 6 node:assert cases
+  covering the new enrichment branches (allow-inside-projectRoot, allow via
+  opt-in, F16-fire idempotency, non-ambient, nonAmbient-only candidate,
+  IR-fileTargets ambient candidate).
+- `runtime/decision-journal.js` — pass-through accepts the two new fields
+  (engine computes; journal never derives).
