@@ -141,10 +141,11 @@ const CASES = [
              targetPath: "/home/user/.gitconﬁg",
              file_path: "/home/user/.gitconﬁg" } },
 
-  // 3) projectRoot escape via `..`/%2e%2e. ssh/mcpConfig/credentialHelper/
-  //    shellRc lack the project-local exception → F16 still fires.
-  //    gitConfig/ideSettings escape past F16 (string-prefix _isInsideProject
-  //    doesn't resolve `..`) — captured as KNOWN bypasses for PR-E (§9.4).
+  // 3) projectRoot escape via `..`/%2e%2e. PR-E (ARG-PRE-D-001/002 closure):
+  //    _normAmbientPath collapses `.`/`..` and decodes %2e/%2f before the
+  //    _isInsideProject prefix compare, so the project-local exception for
+  //    gitConfig/ideSettings can no longer be defeated by `<projectRoot>/../`.
+  //    All variants now fire F16 (action=block, floor=ambient-authority).
   { tag: "f16:escape:dotdot-ssh-still-fires",
     intent: "<projectRoot>/../.ssh/id_rsa — ssh has no project-local exception, F16 still fires",
     input: { tool: "Write", harness: "claude", branch: "feature/test", projectRoot: PR,
@@ -163,30 +164,26 @@ const CASES = [
              targetPath: PR + "/../../.claude.json",
              file_path: PR + "/../../.claude.json" } },
 
-  { tag: "f16:bypass:dotdot-gitconfig-PRE-D-001",
-    intent: "KNOWN BYPASS: <projectRoot>/../.gitconfig string-matches projectRoot/ via prefix check; gitConfig is project-local-exception class → F16 skips. Locked in for future PR-E.",
-    _knownBypass: { id: "ARG-PRE-D-001", followUp: "PR-E: resolve `..` in _isInsideProject (path.normalize) before string-prefix compare; gitConfig + ideSettings PROJECT_LOCAL classes are affected." },
+  { tag: "f16:escape:dotdot-gitconfig-blocked-PRE-E",
+    intent: "PR-E (ARG-PRE-D-001 closed): <projectRoot>/../.gitconfig is collapsed to /.gitconfig before _isInsideProject prefix-compare; project-local exception for gitConfig no longer applies → F16 fires.",
     input: { tool: "Write", harness: "claude", branch: "feature/test", projectRoot: PR,
              targetPath: PR + "/../.gitconfig",
              file_path: PR + "/../.gitconfig" } },
 
-  { tag: "f16:bypass:dotdot-vscode-PRE-D-001",
-    intent: "KNOWN BYPASS: <projectRoot>/../.vscode/settings.json escapes via `..`; ideSettings is project-local-exception class → F16 skips. Locked in for future PR-E.",
-    _knownBypass: { id: "ARG-PRE-D-001", followUp: "Same as PRE-D-001; ideSettings PROJECT_LOCAL class also affected." },
+  { tag: "f16:escape:dotdot-vscode-blocked-PRE-E",
+    intent: "PR-E (ARG-PRE-D-001 closed): <projectRoot>/../.vscode/settings.json collapses past projectRoot before prefix-compare; ideSettings project-local exception no longer applies → F16 fires.",
     input: { tool: "Write", harness: "claude", branch: "feature/test", projectRoot: PR,
              targetPath: PR + "/../.vscode/settings.json",
              file_path: PR + "/../.vscode/settings.json" } },
 
-  { tag: "f16:bypass:dotdot-deep-gitconfig-PRE-D-001",
-    intent: "KNOWN BYPASS: <projectRoot>/.git/../../../etc/gitconfig string-prefixes projectRoot/; gitConfig project-local-exception applies → F16 skips.",
-    _knownBypass: { id: "ARG-PRE-D-001", followUp: "Same as PRE-D-001; covers /etc/gitconfig escape variant." },
+  { tag: "f16:escape:dotdot-deep-gitconfig-blocked-PRE-E",
+    intent: "PR-E (ARG-PRE-D-001 closed): <projectRoot>/.git/../../../etc/gitconfig collapses to /etc/gitconfig before prefix-compare; gitConfig project-local exception no longer applies → F16 fires.",
     input: { tool: "Write", harness: "claude", branch: "feature/test", projectRoot: PR,
              targetPath: PR + "/.git/../../../etc/gitconfig",
              file_path: PR + "/.git/../../../etc/gitconfig" } },
 
-  { tag: "f16:bypass:urlencoded-dotdot-gitconfig-PRE-D-002",
-    intent: "KNOWN BYPASS: <projectRoot>/%2e%2e/.gitconfig — engine does not URL-decode, but the literal still string-prefix-matches projectRoot/. F16 skips on gitConfig project-local-exception.",
-    _knownBypass: { id: "ARG-PRE-D-002", followUp: "PR-E: also URL-decode (or reject) %2e / %2f in path-normalization before classification + membership compare." },
+  { tag: "f16:escape:urlencoded-dotdot-gitconfig-blocked-PRE-E",
+    intent: "PR-E (ARG-PRE-D-002 closed): <projectRoot>/%2e%2e/.gitconfig — _normAmbientPath URL-decodes %2e/%2f BEFORE the segment walk, so the encoded escape is collapsed past projectRoot; gitConfig project-local exception no longer applies → F16 fires.",
     input: { tool: "Write", harness: "claude", branch: "feature/test", projectRoot: PR,
              targetPath: PR + "/%2e%2e/.gitconfig",
              file_path: PR + "/%2e%2e/.gitconfig" } },
