@@ -35,6 +35,14 @@ the four `expected.*` fields stay byte-identical. Drift on any case fails CI.
   nests, numeric/null/array command shapes, and boundary IR fields. Generated
   by `build-adversarial.js` in this directory.
 
+- `f16-adversarial.jsonl` — ADR-009 PR-D F16 ambient-authority adversarial
+  set: path-folding evasion (backslash, `file://`, mixed/double slashes,
+  Windows drive, UNC), NFKD/homoglyph invariants, projectRoot `..` escape
+  attempts, IR-fileTargets shapes, and multi-candidate ordering. Generated
+  by `build-f16-adversarial.js` in this directory. Cases tagged
+  `_knownBypass` record current engine behavior for gaps that ADR-009 §9.4
+  flags for a future PR-E.
+
 The two generators live alongside the JSONL fixtures (not under `scripts/`)
 because their CASES tables embed synthetic risky literals — `rm -rf`,
 `curl | bash`, `npx -y`, `--no-preserve-root` — that `scripts/audit-local.sh`
@@ -55,6 +63,7 @@ When the engine makes an intentional behavior change that breaks replay:
    ```bash
    node tests/fixtures/replay-corpus/build-corpus.js
    node tests/fixtures/replay-corpus/build-adversarial.js
+   node tests/fixtures/replay-corpus/build-f16-adversarial.js
    ```
 4. Re-run the gate; commit the refreshed fixture alongside the engine change.
 
