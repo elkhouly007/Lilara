@@ -121,6 +121,10 @@ function append(entry) {
     // ADR-009 PR-C: ambient-touch receipt fields (pass-through; engine computes).
     ...(entry.ambientClass  ? { ambientClass: String(entry.ambientClass) } : {}),
     ...(entry.ambientPath   ? { ambientPath:  String(entry.ambientPath)  } : {}),
+    // ADR-004 PR 37B: degraded-mode marker pass-through. Engine sets this
+    // when the journal hash chain has failed verify; absent otherwise so
+    // existing journals stay byte-identical for healthy chains.
+    ...(entry.degradedMode && typeof entry.degradedMode === "object" ? { degradedMode: entry.degradedMode } : {}),
     // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
     // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format

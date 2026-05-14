@@ -102,6 +102,12 @@ const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
 // lock owned by another agent/session for a write-like call.
 const { readLockState: _readLockState, findConflict: _findLockConflict } = require("./cross-agent-lock");
 const { stateDir: _statePathStateDir } = require("./state-paths");
+// ADR-004 PR 37B: degraded-mode descriptor + write-like classifier. The
+// descriptor is computed once per process from journal-chain.verify(); when
+// degraded, F4 operator-token demotion is suppressed and write-like `allow`
+// is routed to `require-review`. Every receipt + journal entry carries a
+// `degradedMode` marker so audit can distinguish degraded receipts.
+const _degradedMode = require("./degraded-mode");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -139,6 +145,12 @@ function harnessInScope(contract, harness) {
   return Array.isArray(contract?.harnessScope) && contract.harnessScope.includes(harness);
 }
 
+// ADR-004 PR 37B: degraded-mode marker default for the early-block path.
+// decide() sets this at the top of each call so every buildEarlyBlock() call
+// inherits the same marker without churning every call site's `extra`. The
+// engine is synchronous within a single decide(), so this is safe to share
+// across the floor checks that follow.
+let _earlyBlockDegradedDefault = null;
 function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   // ADR-009 PR-C: any early-block decision that touched an ambient path
   // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
@@ -154,6 +166,12 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   const _lockPath        = extra.lockPath  != null ? extra.lockPath  : null;
   const _lockProject     = extra.lockProject != null ? extra.lockProject : null;
   const _lockExpiresAt   = extra.lockExpiresAt != null ? extra.lockExpiresAt : null;
+  // ADR-004 PR 37B: degraded-mode marker — included verbatim from caller
+  // when present. Early-block path inherits the same marker decide()
+  // computed at the top so receipts on both code paths agree.
+  const _degraded        = extra.degradedMode !== undefined
+    ? extra.degradedMode
+    : _earlyBlockDegradedDefault;
   const result = {
     action: "block",
     enforcementAction: "block",
@@ -182,6 +200,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
     ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
     ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
+    ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   try {
@@ -203,6 +222,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
       ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
       ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
+      ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -431,6 +451,18 @@ function decide(input = {}) {
   // every receipt-emitting branch via `extra.ambientTouch` (early-block path)
   // and via the final result/journal spreads (non-block path).
   const _ambientTouch = _classifyAmbientTouch(input);
+
+  // ADR-004 PR 37B: degraded-mode descriptor. Memoised in the helper module
+  // for the process lifetime; tests reset via `_clearCache()`. Threaded into
+  // every receipt-emitting site via `_degradedMarker` so both the early-block
+  // path and the final return surface the same marker.
+  const _degradedState  = _degradedMode.getCached();
+  const _degradedMarker = _degradedMode.buildMarker(_degradedState);
+  const _writeLike      = _degradedMode.isWriteLike(input);
+  // Default for buildEarlyBlock() — set per-call so the early-block path
+  // (kill-switch is the one exception above; it returns before this point)
+  // sees the same marker as the final return.
+  _earlyBlockDegradedDefault = _degradedMarker;
 
   // Classify command intent for routing intelligence and journaling
   const intentResult = classifyIntent(input.command || "");
@@ -859,7 +891,11 @@ function decide(input = {}) {
       // arbiter so future drift cannot bypass the lattice.
       let f4DemoteAllowed = false;
       const demoteToken = process.env.HORUS_F4_DEMOTE_TOKEN || "";
-      if (demoteToken && canDemote(_F4.id, _DEMOTE_F4_OPERATOR_TOKEN)) {
+      // ADR-004 PR 37B: in degraded mode the F4 operator-token demotion is
+      // suppressed entirely — F4 stays a hard block even with a valid token.
+      // Token is not consumed (so the operator does not waste it during an
+      // incident); clearing degraded mode lets the next decide() honor it.
+      if (demoteToken && canDemote(_F4.id, _DEMOTE_F4_OPERATOR_TOKEN) && !_degradedState.degraded) {
         try {
           f4DemoteAllowed = _contractConsumeScopedOperatorToken(demoteToken, "class-c-review-demote");
         } catch { /* token mech unavailable — fail closed (no demotion) */ }
@@ -967,7 +1003,19 @@ function decide(input = {}) {
     if (_canDemoteF9) floorFired = null;
   }
 
-  if (source !== _LA.source && !source.startsWith("contract-allow") && risk.level !== "critical" && risk.level !== "high" && action !== "allow" && hasAutoAllowOnce(policyKey)) {
+  // ADR-004 PR 37B: skip auto-allow-once consumption entirely when we are
+  // degraded + write-like; the write-like override below would flip the
+  // resulting allow→require-review anyway, and consuming the token here
+  // would waste it during the incident the operator is investigating.
+  if (
+    source !== _LA.source &&
+    !source.startsWith("contract-allow") &&
+    risk.level !== "critical" &&
+    risk.level !== "high" &&
+    action !== "allow" &&
+    hasAutoAllowOnce(policyKey) &&
+    !(_degradedState.degraded && _writeLike)
+  ) {
     consumeAutoAllowOnce(policyKey);
     action = "allow";
     source = _AAO.source;
@@ -1000,6 +1048,28 @@ function decide(input = {}) {
     floorFired = floorFired || _F14b.name;
   }
 
+  // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
+  // chain has failed verify (or HORUS_DEGRADED_MODE=1) AND this call is
+  // write-like, any final `allow` is rerouted to `require-review`. Floors
+  // that already produced require-review / escalate / block are preserved
+  // verbatim — degraded mode never widens an allow nor weakens an existing
+  // gate. The receipt's `degradedMode.writeRouting` records the original
+  // action so audit can reconstruct the override.
+  let _degradedWriteRouted = null;
+  if (_degradedState.degraded && _writeLike && action === "allow") {
+    _degradedWriteRouted = source;
+    action = "require-review";
+  }
+  // Final marker for receipt/journal — includes writeRouting when the
+  // override fired so audit can tell the difference between "degraded
+  // chain, write-like allow rerouted" and "degraded chain, action was
+  // already require-review/block".
+  const _degradedReceiptMarker = _degradedState.degraded
+    ? _degradedMode.buildMarker(_degradedState, _degradedWriteRouted
+        ? { writeRouting: "allow-to-require-review" }
+        : null)
+    : null;
+
   const pendingSuggestion = getSuggestionForInput(enriched);
   const policyFacts = getPolicyFacts(enriched);
   const promotionState = policyFacts.acceptedSuggestion || policyFacts.dismissedSuggestion || policyFacts.pendingSuggestion || null;
@@ -1023,6 +1093,12 @@ function decide(input = {}) {
   if (skillWarning)          explanationParts.push(`skill-warn=${skillWarning.name}`);
   if (sessionDurationWarning) explanationParts.push(`session-over-duration=age:${sessionDurationWarning.ageMin}min/limit:${sessionDurationWarning.limitMin}min`);
   if (input.envelope?.hash) explanationParts.push(`envelope=${input.envelope.hash}`);
+  // ADR-004 PR 37B: surface degraded-mode + write-routing in the explanation
+  // so receipts on disk (and `horus doctor`) make the override visible.
+  if (_degradedState.degraded) {
+    explanationParts.push(`degraded-mode=${_degradedState.reason}`);
+    if (_degradedWriteRouted) explanationParts.push("degraded-write-routed=allow→require-review");
+  }
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
   const promotionGuidance = evaluate(policyFacts, risk);
@@ -1082,6 +1158,10 @@ function decide(input = {}) {
     // ADR-009 PR-C: receipt enrichment on every ambient-touch decision.
     ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
+    // ADR-004 PR 37B: degraded-mode marker on every decision while the
+    // chain has failed verify. Absent on healthy chains so existing
+    // receipts stay byte-identical.
+    ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1106,6 +1186,7 @@ function decide(input = {}) {
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
     ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
+    ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
     ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
