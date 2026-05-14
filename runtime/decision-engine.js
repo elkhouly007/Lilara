@@ -194,9 +194,33 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
 // case-insensitive HFS+/APFS/NTFS shapes.
 function _normAmbientPath(p) {
   if (typeof p !== "string" || p.length === 0) return "";
-  let s = p.replace(/\\/g, "/").replace(/^file:\/\//i, "");
+  // ARG-PRE-D-002: decode `%2e`/`%2f` BEFORE backslash fold + segment walk so
+  // URL-encoded traversal cannot string-prefix-match projectRoot. Narrow on
+  // purpose — full decodeURIComponent throws on malformed input and decodes
+  // characters we do not need to interpret here.
+  let s = p.replace(/%2e/gi, ".").replace(/%2f/gi, "/");
+  s = s.replace(/\\/g, "/").replace(/^file:\/\//i, "");
   if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-  return s;
+  // ARG-PRE-D-001: POSIX-style `.`/`..` collapse so `<projectRoot>/../foo`
+  // no longer string-prefix-matches `<projectRoot>/`. Pure string algorithm —
+  // path.resolve would inject the host cwd on relative inputs and break the
+  // _f16Abs shape detector downstream.
+  const drive = /^[A-Za-z]:\//.test(s) ? s.slice(0, 2) : "";
+  const body  = drive ? s.slice(2) : s;
+  const segs  = body.split("/");
+  const out   = [];
+  for (const seg of segs) {
+    if (seg === "" || seg === ".") {
+      if (out.length === 0 && body.startsWith("/")) out.push("");
+      continue;
+    }
+    if (seg === "..") {
+      if (out.length > 1 || (out.length === 1 && out[0] !== "")) out.pop();
+      continue;
+    }
+    out.push(seg);
+  }
+  return drive + out.join("/");
 }
 function _isInsideProject(targetPath, projectRoot) {
   if (typeof projectRoot !== "string" || projectRoot.length === 0) return false;
