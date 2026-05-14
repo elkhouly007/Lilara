@@ -118,6 +118,9 @@ function append(entry) {
     ...(entry.floorFired    ? { floorFired: String(entry.floorFired) } : {}),
     ...(entry.taintSource   ? { taintSource: String(entry.taintSource), taintReason: String(entry.taintReason || "") } : {}),
     ...(entry.intent        ? { intent: String(entry.intent) } : {}),
+    // ADR-009 PR-C: ambient-touch receipt fields (pass-through; engine computes).
+    ...(entry.ambientClass  ? { ambientClass: String(entry.ambientClass) } : {}),
+    ...(entry.ambientPath   ? { ambientPath:  String(entry.ambientPath)  } : {}),
     // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
     // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format

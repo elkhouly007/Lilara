@@ -134,6 +134,12 @@ function harnessInScope(contract, harness) {
 }
 
 function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
+  // ADR-009 PR-C: any early-block decision that touched an ambient path
+  // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
+  // explicitly via `extra.ambientClass`/`extra.ambientPath`; other floors
+  // get them from `extra.ambientTouch` populated by decide().
+  const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
+  const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
   const result = {
     action: "block",
     enforcementAction: "block",
@@ -156,9 +162,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     envelopeVerification: extra.envelopeVerification || null,
     networkEgress: extra.networkEgress || null,
     context: {},
-    // F16 PR-B: receipt carries ambientClass/Path only on F16 fire (PR-C generalises).
-    ...(extra.ambientClass ? { ambientClass: extra.ambientClass } : {}),
-    ...(extra.ambientPath ? { ambientPath: extra.ambientPath } : {}),
+    ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+    ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   try {
@@ -174,8 +179,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       targetPath: input.targetPath || "",
       notes: `${result.decisionSource}:${reasonCode}`,
       ...(result.floorFired ? { floorFired: result.floorFired } : {}),
-      ...(extra.ambientClass ? { ambientClass: extra.ambientClass } : {}),
-      ...(extra.ambientPath ? { ambientPath: extra.ambientPath } : {}),
+      ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+      ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -214,6 +219,18 @@ function _matchAmbientAllow(allow, ambientClass, normPath) {
     if (!np || normPath === np || normPath.startsWith(np + "/")) return true;
   }
   return false;
+}
+// ADR-009 PR-C: classify the first ambient touch on a decision. Independent
+// of F16's fire/skip logic (project-local exception, scopes.ambient.allow) —
+// used purely for receipt enrichment so audit can tell whether any decision
+// touched ambient state. First-match-wins on the same candidate iteration as
+// _evalAmbientFloor (targetPath → IR write/delete → envelope.targets).
+function _classifyAmbientTouch(input) {
+  for (const raw of _collectAmbientCandidatePaths(input)) {
+    const cls = _classifyAmbientPath(raw);
+    if (cls && cls !== "nonAmbient") return { class: cls, path: raw };
+  }
+  return { class: null, path: null };
 }
 // Collect write-class candidate paths: flat targetPath, IR fileTargets
 // (write/delete only), envelope.targets. Deduped in insertion order.
@@ -293,6 +310,11 @@ function decide(input = {}) {
     sessionRisk: input.sessionRisk != null ? input.sessionRisk : getSessionRisk(),
   };
 
+  // ADR-009 PR-C: classify ambient-touch ONCE per decide(); threaded into
+  // every receipt-emitting branch via `extra.ambientTouch` (early-block path)
+  // and via the final result/journal spreads (non-block path).
+  const _ambientTouch = _classifyAmbientTouch(input);
+
   // Classify command intent for routing intelligence and journaling
   const intentResult = classifyIntent(input.command || "");
 
@@ -325,7 +347,7 @@ function decide(input = {}) {
           return buildEarlyBlock(
             "contract-hash-mismatch", enriched, discovered, input,
             `contract hash mismatch (${vResult.reason}) — failing closed`,
-            { floorFired: _F2.name, decisionSource: _F2.source }
+            { floorFired: _F2.name, decisionSource: _F2.source, ambientTouch: _ambientTouch }
           );
         }
       } catch (verifyErr) {
@@ -333,7 +355,7 @@ function decide(input = {}) {
         return buildEarlyBlock(
           "contract-hash-mismatch", enriched, discovered, input,
           `contract verify error (${verifyErr instanceof Error ? verifyErr.message : "unknown"}) — failing closed`,
-          { floorFired: _F2.name, decisionSource: _F2.source }
+          { floorFired: _F2.name, decisionSource: _F2.source, ambientTouch: _ambientTouch }
         );
       }
     }
@@ -344,7 +366,7 @@ function decide(input = {}) {
       if (isGated) {
         return buildEarlyBlock("harness-out-of-scope", enriched, discovered, input,
           `harness '${harness}' not in contract harnessScope — run: horus-cli contract amend --add-harness ${harness}`,
-          { floorFired: _F5.name, decisionSource: _F5.source });
+          { floorFired: _F5.name, decisionSource: _F5.source, ambientTouch: _ambientTouch });
       }
     }
 
@@ -364,7 +386,8 @@ function decide(input = {}) {
   } else if (process.env.HORUS_CONTRACT_REQUIRED === "1" && isGated) {
     // No contract + strict mode + gated class → block
     return buildEarlyBlock("no-contract-strict", enriched, discovered, input,
-      "no accepted contract — run: horus-cli contract init && horus-cli contract accept");
+      "no accepted contract — run: horus-cli contract init && horus-cli contract accept",
+      { ambientTouch: _ambientTouch });
   }
 
   // F11: validity-window floor — contract-defined active hours/days.
@@ -384,7 +407,7 @@ function decide(input = {}) {
         return buildEarlyBlock(
           "validity-window", enriched, discovered, input,
           `contract validity inactive (${validityResult.reason}); payloadClass=${payloadClass} action=${pcAction} — failing closed`,
-          { floorFired: _F11.name, decisionSource: _F11.source }
+          { floorFired: _F11.name, decisionSource: _F11.source, ambientTouch: _ambientTouch }
         );
       }
       // Non-gated payload class outside-window → annotate, action unchanged.
@@ -401,7 +424,7 @@ function decide(input = {}) {
       if (policy === "block") {
         return buildEarlyBlock("mcp-deny", enriched, discovered, input,
           `MCP server '${serverName}' denied by contract scopes.mcp`,
-          { floorFired: _F12.name, decisionSource: _F12.source });
+          { floorFired: _F12.name, decisionSource: _F12.source, ambientTouch: _ambientTouch });
       }
       if (policy === "warn") {
         mcpWarning = { code: "policy-warn", name: serverName, policy: "warn" };
@@ -418,7 +441,7 @@ function decide(input = {}) {
       if (policy === "block") {
         return buildEarlyBlock("skill-deny", enriched, discovered, input,
           `Skill '${skillName}' denied by contract scopes.skills`,
-          { floorFired: _F13.name, decisionSource: _F13.source });
+          { floorFired: _F13.name, decisionSource: _F13.source, ambientTouch: _ambientTouch });
       }
       if (policy === "warn") {
         skillWarning = { code: "policy-warn", name: skillName, policy: "warn" };
@@ -455,13 +478,13 @@ function decide(input = {}) {
             counters.destructiveOps >= budgetCfg.maxDestructiveOps) {
           return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
             `destructive-ops budget exceeded: ${counters.destructiveOps}/${budgetCfg.maxDestructiveOps}`,
-            { floorFired: _F14.name, decisionSource: _F14.source });
+            { floorFired: _F14.name, decisionSource: _F14.source, ambientTouch: _ambientTouch });
         }
         if (Number.isFinite(budgetCfg.maxExternalBytes) &&
             counters.externalBytes >= budgetCfg.maxExternalBytes) {
           return buildEarlyBlock("budget-exceeded", enriched, discovered, input,
             `external-bytes budget exceeded: ${counters.externalBytes}/${budgetCfg.maxExternalBytes}`,
-            { floorFired: _F14.name, decisionSource: _F14.source });
+            { floorFired: _F14.name, decisionSource: _F14.source, ambientTouch: _ambientTouch });
         }
       }
     }
@@ -490,7 +513,7 @@ function decide(input = {}) {
               discovered,
               input,
               `network egress blocked: plaintext http:// target '${ne.host}' (set scopes.network.allowPlaintext=true to permit) (target=${ne.target})`,
-              { floorFired: _F18D007.name, decisionSource: _F18D007.source }
+              { floorFired: _F18D007.name, decisionSource: _F18D007.source, ambientTouch: _ambientTouch }
             );
           }
           const detail =
@@ -505,7 +528,7 @@ function decide(input = {}) {
             discovered,
             input,
             `network egress blocked: ${detail} (target=${ne.target})`,
-            { floorFired: _F18.name, decisionSource: _F18.source }
+            { floorFired: _F18.name, decisionSource: _F18.source, ambientTouch: _ambientTouch }
           );
         }
 
@@ -525,6 +548,7 @@ function decide(input = {}) {
               {
                 floorFired: _F18.name,
                 decisionSource: _F18.source,
+                ambientTouch: _ambientTouch,
                 networkEgress: {
                   failureReason: "dns_lookup_failed",
                   hostname: dnsCheck.host,
@@ -558,6 +582,7 @@ function decide(input = {}) {
               {
                 floorFired: _F18.name,
                 decisionSource: _F18.source,
+                ambientTouch: _ambientTouch,
                 networkEgress: {
                   failureReason: "ip_set_mismatch",
                   hostname: ipCheck.host,
@@ -591,6 +616,7 @@ function decide(input = {}) {
           {
             floorFired: _F15.name,
             decisionSource: _F15.source,
+            ambientTouch: _ambientTouch,
             envelopeVerification,
           }
         );
@@ -605,6 +631,7 @@ function decide(input = {}) {
         {
           floorFired: _F15.name,
           decisionSource: _F15.source,
+          ambientTouch: _ambientTouch,
         }
       );
     }
@@ -907,6 +934,9 @@ function decide(input = {}) {
     ...(mcpWarning            ? { mcpWarning }            : {}),
     ...(skillWarning          ? { skillWarning }          : {}),
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+    // ADR-009 PR-C: receipt enrichment on every ambient-touch decision.
+    ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
+    ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -929,6 +959,8 @@ function decide(input = {}) {
     ...(mcpWarning            ? { mcpWarning }            : {}),
     ...(skillWarning          ? { skillWarning }          : {}),
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+    ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
+    ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
     ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
