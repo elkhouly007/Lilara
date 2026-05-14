@@ -53,7 +53,7 @@ catch (err) { die('assertOrdered: ' + err.message); }
 step('lattice-floors-have-ids');
 const floors = listFloors();
 if (floors.length === 0) die('listFloors() returned empty');
-const expectedFloors = ['L1','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','F13','F14','F14b','F15','F16','F18'];
+const expectedFloors = ['L1','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','F13','F14','F14b','F15','F16','F17','F18'];
 for (const id of expectedFloors) {
   if (!getEntry(id)) die('expected floor missing: ' + id);
 }

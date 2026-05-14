@@ -19,6 +19,7 @@
     { "floor": "F14b","demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "auto-allow-once"] },
     { "floor": "F15", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
     { "floor": "F16", "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow", "auto-allow-once"] },
+    { "floor": "F17", "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow", "auto-allow-once"] },
     { "floor": "F18", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] }
   ],
   "additionalAssertions": {

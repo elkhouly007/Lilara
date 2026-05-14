@@ -224,12 +224,50 @@ function runFixture(fixturePath) {
       const tok = mintOperatorToken("lattice-receipts-fx", "class-c-review-demote");
       setEnv("HORUS_F4_DEMOTE_TOKEN", tok);
     }
+    // F17 PR-A: seed cross-agent-lock records under the per-fixture stateDir
+    // so the F17 fixture (and any future cross-lock fixtures) can pin the
+    // engine's lock-state read without requiring a writer API in this PR.
+    // {{projectRoot}} substitution mirrors check-floor-f16's pattern.
+    if (fx.preDecide && Array.isArray(fx.preDecide.seedCrossAgentLocks)) {
+      const lockDir = path.join(stateDir, "cross-agent-locks");
+      fs.mkdirSync(lockDir, { recursive: true, mode: 0o700 });
+      let idx = 0;
+      for (const tmpl of fx.preDecide.seedCrossAgentLocks) {
+        idx += 1;
+        const rec = JSON.parse(JSON.stringify(tmpl));
+        for (const k of Object.keys(rec)) {
+          if (typeof rec[k] === "string") rec[k] = rec[k].replace(/\{\{projectRoot\}\}/g, projectDir);
+          else if (Array.isArray(rec[k])) rec[k] = rec[k].map((v) =>
+            typeof v === "string" ? v.replace(/\{\{projectRoot\}\}/g, projectDir) : v
+          );
+        }
+        // Resolve relative expiresAt: { expiresAtRelMs: <offset-from-now> }
+        if (rec.expiresAtRelMs != null) {
+          rec.expiresAt = Date.now() + Number(rec.expiresAtRelMs);
+          delete rec.expiresAtRelMs;
+        }
+        const name = String(rec.lockId || `lock-${idx}`).replace(/[^A-Za-z0-9_.-]/g, "_") + ".json";
+        fs.writeFileSync(path.join(lockDir, name), JSON.stringify(rec, null, 2), { mode: 0o600 });
+      }
+    }
 
     // Build canonical IR from the same flat input we feed decide(). This
-    // gives the engine an `ir.irHash` to journal.
+    // gives the engine an `ir.irHash` to journal. {{projectRoot}}
+    // substitution in fx.input lets per-fixture state-dir-coupled fixtures
+    // (F17 cross-agent-lock) reference the runner's projectDir.
+    function _substInput(v) {
+      if (typeof v === "string") return v.replace(/\{\{projectRoot\}\}/g, projectDir);
+      if (Array.isArray(v)) return v.map(_substInput);
+      if (v && typeof v === "object") {
+        const o = {};
+        for (const k of Object.keys(v)) o[k] = _substInput(v[k]);
+        return o;
+      }
+      return v;
+    }
     const decideInput = Object.assign({
       projectRoot: projectDir,
-    }, fx.input || {});
+    }, _substInput(fx.input || {}));
 
     // sessionId routing: when a session fixture is present, pin sessionId so
     // decide() reads our pre-seeded counters.

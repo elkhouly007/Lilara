@@ -1,0 +1,32 @@
+{
+  "title": "F17 cross-agent-lock: write to a path locked by another agent blocks",
+  "preDecide": {
+    "seedCrossAgentLocks": [
+      {
+        "lockId": "lock-A",
+        "owner": "agent-A:session-1",
+        "projectRoot": "{{projectRoot}}",
+        "paths": ["{{projectRoot}}/src/shared.ts"],
+        "expiresAtRelMs": 60000
+      }
+    ]
+  },
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/src/shared.ts",
+    "file_path": "{{projectRoot}}/src/shared.ts",
+    "owner": "agent-B:session-2"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "cross-agent-lock-denied",
+    "floorFired": "cross-agent-lock",
+    "rung": 17.75,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["cross-agent-lock-denied"]
+  }
+}

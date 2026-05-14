@@ -257,6 +257,24 @@ const LATTICE = Object.freeze([
     predicateRef: "runtime/decision-engine.js + runtime/ambient.js",
     notes: "ADR-009 PR-B: write into ambient-authority path outside projectRoot. Demotion only via scopes.ambient.allow[<class>]=true or path-prefix entry.",
   }),
+  Object.freeze({
+    id: "F17",
+    rung: 17.75,
+    // F17 (v0.5 cross-agent-lock floor PR-A). Non-integer rung is intentional
+    // and remains strictly increasing per assertOrdered(); F16 (17.5) < F17
+    // (17.75) < D-CONTRACT-ALLOW (18). Name matches what decision-engine
+    // writes to `floorFired` ("cross-agent-lock"); the "-denied" form lives
+    // on `source`. Non-demotable: an active lock from another agent is a
+    // hard floor, and a malformed lock file fails closed for write-like
+    // calls (no contract scope can re-permit a write the runtime cannot
+    // safely characterize).
+    name: "cross-agent-lock",
+    action: "block",
+    source: "cross-agent-lock-denied",
+    demotableBy: [],
+    predicateRef: "runtime/decision-engine.js + runtime/cross-agent-lock.js",
+    notes: "F17: write-like call targets a path/project held by another live agent's lock. Fail-closed on malformed lock state.",
+  }),
   // --- demotion / promotion rungs (not floors; recorded for completeness) ---
   Object.freeze({
     id: "D-CONTRACT-ALLOW",
