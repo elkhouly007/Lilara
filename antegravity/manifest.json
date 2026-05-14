@@ -14,5 +14,75 @@
     "finalMessage": "none",
     "terminal": "none",
     "screenshots": "none"
-  }
+  },
+  "capabilities": {
+    "pretoolBlocking": "unverified",
+    "posttoolObservation": "unverified",
+    "exactCwd": false,
+    "exactEnv": false,
+    "argsFidelity": "best-effort",
+    "mcpInterception": "unverified",
+    "skillInterception": "unverified",
+    "finalMessageInterception": "none",
+    "outputChannelCoverage": "none",
+    "envelopeReporting": false
+  },
+  "negativeCapabilities": [
+    {
+      "capability": "pretoolBlocking",
+      "reason": "antegravity hook API is not publicly documented; the adapter uses a fallback chain over likely payload shapes but no integration has been verified end-to-end",
+      "evidence": "antegravity/hooks/adapter.js opening comment: 'antegravity hook API is not publicly documented. ... Test against your actual antegravity hook payload before relying on this in production'"
+    },
+    {
+      "capability": "posttoolObservation",
+      "reason": "antegravity post-tool hook surface is unverified; the post-adapter is wired but has not been confirmed to receive real tool output",
+      "evidence": "antegravity/hooks/post-adapter.js follows the same speculative shape as the pre-adapter"
+    },
+    {
+      "capability": "exactCwd",
+      "reason": "antegravity payload shape and cwd field name are not confirmed; the adapter reads cwd/workdir/working_directory/tool_input.cwd as best-effort fallbacks",
+      "evidence": "cwdFidelity: best-effort in the existing manifest"
+    },
+    {
+      "capability": "exactEnv",
+      "reason": "No envelope reporting and no documented env reporting from antegravity; env diffs cannot be proven",
+      "evidence": "envelopeReporting: false"
+    },
+    {
+      "capability": "argsFidelity",
+      "reason": "Command/args field name and quoting semantics are inferred, not confirmed",
+      "evidence": "argsFidelity: best-effort in the existing manifest"
+    },
+    {
+      "capability": "mcpInterception",
+      "reason": "Whether antegravity routes MCP tool invocations through the same hook surface is unknown",
+      "evidence": "mcpInterception: unverified in the existing manifest"
+    },
+    {
+      "capability": "skillInterception",
+      "reason": "Whether antegravity surfaces Skill invocations through the same hook surface is unknown",
+      "evidence": "skillInterception: unverified in the existing manifest"
+    },
+    {
+      "capability": "finalMessageInterception",
+      "reason": "No documented pre-emit hook for antegravity; final-message output is neither observed nor intercepted",
+      "evidence": "outputChannels.finalMessage = none"
+    },
+    {
+      "capability": "outputChannelCoverage",
+      "reason": "All output channels default to none until live antegravity integration confirms which surfaces reach the adapter",
+      "evidence": "every key in outputChannels is none"
+    },
+    {
+      "capability": "envelopeReporting",
+      "reason": "F15 envelope build/verify wiring has not landed for antegravity",
+      "evidence": "envelopeReporting: false"
+    }
+  ],
+  "compensatingRestrictions": [
+    "Decision-engine treats antegravity IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
+    "Operators wiring antegravity are expected to validate hook payload shape against antegravity/POSTTOOL_RESEARCH.md before enabling enforce mode (HORUS_ENFORCE=1)",
+    "Until pretool blocking is verified, treat antegravity as observe-only and rely on out-of-band review for destructive actions"
+  ],
+  "verifiedAt": null
 }
