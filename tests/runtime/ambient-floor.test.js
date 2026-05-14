@@ -361,6 +361,74 @@ test("pathPrefix opt-in does NOT cross class boundaries", () => {
 });
 
 // ---------------------------------------------------------------------------
+// F16 PR-B v2: defer for in-project-shape classes when projectRoot is unknown
+// or the target path is non-absolute (no anchor to prove "outside projectRoot")
+// ---------------------------------------------------------------------------
+
+test("F16 defers on ideSettings when projectRoot is unknown (relative target)", () => {
+  withSandbox({}, ({ decide }) => {
+    const r = decide({
+      tool: "Edit",
+      harness: "claude",
+      targetPath: ".vscode/settings.json",
+      file_path: ".vscode/settings.json",
+      branch: "feature/test",
+    });
+    assert.notStrictEqual(r.floorFired, "ambient-authority",
+      `F16 must defer on ideSettings when projectRoot is unknown / target is relative; got floorFired=${r.floorFired}`);
+    assert.notStrictEqual(r.decisionSource, "ambient-authority-denied");
+  });
+});
+
+test("F16 defers on gitConfig when projectRoot is unknown (relative target)", () => {
+  withSandbox({}, ({ decide }) => {
+    const r = decide({
+      tool: "Edit",
+      harness: "claude",
+      targetPath: ".gitconfig",
+      file_path: ".gitconfig",
+      branch: "feature/test",
+    });
+    assert.notStrictEqual(r.floorFired, "ambient-authority",
+      `F16 must defer on gitConfig when projectRoot is unknown / target is relative; got floorFired=${r.floorFired}`);
+  });
+});
+
+test("F16 defers on mcpConfig (.claude/) when projectRoot is unknown (relative target)", () => {
+  // The runtime CLI 'runtime explain --target .claude/settings.json' regression
+  // gate: when projectRoot is unknown and the target is a project-relative
+  // .claude/ path, the wiring lane must own the routing — F16 must defer.
+  withSandbox({}, ({ decide }) => {
+    const r = decide({
+      tool: "Edit",
+      harness: "claude",
+      targetPath: ".claude/settings.json",
+      file_path: ".claude/settings.json",
+      branch: "feature/test",
+    });
+    assert.notStrictEqual(r.floorFired, "ambient-authority",
+      `F16 must defer on mcpConfig when projectRoot is unknown / target is relative; got floorFired=${r.floorFired}`);
+  });
+});
+
+test("F16 still blocks ssh outside projectRoot regardless of projectRoot knowledge", () => {
+  // ssh has no legitimate in-project shape; "unknown projectRoot" does not
+  // weaken the floor. /etc/ssh/sshd_config is absolute and PR-A's classifier
+  // returns ssh — the floor must still fire.
+  withSandbox({}, ({ decide }) => {
+    const r = decide({
+      tool: "Write",
+      harness: "claude",
+      targetPath: "/etc/ssh/sshd_config",
+      file_path: "/etc/ssh/sshd_config",
+      branch: "feature/test",
+    });
+    assert.strictEqual(r.floorFired, "ambient-authority");
+    assert.strictEqual(r.ambientClass, "ssh");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Lattice ordering: F15 (rung 17) wins over F16 (rung 17.5)
 // ---------------------------------------------------------------------------
 

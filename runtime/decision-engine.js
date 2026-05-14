@@ -235,6 +235,15 @@ function _evalAmbientFloor(input, discovered, contract) {
     const cls = _classifyAmbientPath(raw);
     if (!cls || cls === "nonAmbient") continue;
     if (_isInsideProject(raw, projectRoot) && _PROJECT_LOCAL_AMBIENT_CLASSES.has(cls)) continue;
+    // F16 PR-B v2: defer when we cannot prove the target is OUTSIDE projectRoot
+    // — either projectRoot is unknown/empty, or the target is non-absolute and
+    // has no anchor for prefix comparison — for ambient classes with a
+    // legitimate in-project shape (.git/config, .vscode/, .claude/). Runtime
+    // CLI wiring/review lanes are the right escalation; other ambient classes
+    // (ssh, credentialHelper, shellRc, packageCache, ...) still fire.
+    const _f16Abs = /^([A-Za-z]:[\\/]|\\\\|\/)/.test(raw);
+    const _f16Shape = cls === "gitConfig" || cls === "ideSettings" || cls === "mcpConfig";
+    if (_f16Shape && (!_f16Abs || !projectRoot)) continue;
     if (allow && _matchAmbientAllow(allow, cls, _normAmbientPath(raw).toLowerCase())) continue;
     return { fire: true, ambientClass: cls, path: raw };
   }
