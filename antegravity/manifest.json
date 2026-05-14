@@ -15,6 +15,22 @@
     "terminal": "none",
     "screenshots": "none"
   },
+  "outputChannelObservability": {
+    "stdout": "not-observed",
+    "stderr": "not-observed",
+    "generatedFile": "not-observed",
+    "commitMessage": "not-observed",
+    "prText": "not-observed",
+    "finalMessage": "not-observed"
+  },
+  "outputChannelCompensations": {
+    "stdout": "antegravity post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
+    "stderr": "antegravity post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
+    "generatedFile": "antegravity file-write surfaces are unverified; F19 enforces require-review by default until live integration confirms observability.",
+    "commitMessage": "antegravity commit-text surfaces are not yet verified; F19 routes commit-message writes through require-review (compensating stricter rule).",
+    "prText": "antegravity PR-text surfaces are not yet verified; F19 routes prText writes through require-review (compensating stricter rule).",
+    "finalMessage": "antegravity final-message surfaces are not yet verified; F19 routes finalMessage writes through require-review (compensating stricter rule)."
+  },
   "capabilities": {
     "pretoolBlocking": "unverified",
     "posttoolObservation": "unverified",

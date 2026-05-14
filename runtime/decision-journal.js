@@ -125,6 +125,10 @@ function append(entry) {
     // when the journal hash chain has failed verify; absent otherwise so
     // existing journals stay byte-identical for healthy chains.
     ...(entry.degradedMode && typeof entry.degradedMode === "object" ? { degradedMode: entry.degradedMode } : {}),
+    // F19 (ADR-010): output-exfil receipt detail. Pass-through object; the
+    // engine populates it on every F19 fire (confirmed/suspicious/compensating)
+    // and absent otherwise so existing journals stay byte-identical.
+    ...(entry.f19Detail && typeof entry.f19Detail === "object" ? { f19Detail: entry.f19Detail } : {}),
     // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
     // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format

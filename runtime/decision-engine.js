@@ -41,6 +41,7 @@ const _F18D007 = getEntry("F18-D007");// plaintext-target-blocked (D-007 Lane 4)
 const _F15 = getEntry("F15");         // execution-envelope
 const _F16 = getEntry("F16");         // ambient-authority (ADR-009 PR-B)
 const _F17 = getEntry("F17");         // cross-agent-lock (PR-A)
+const _F19 = getEntry("F19");         // output-channel-exfiltration (ADR-010)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -49,6 +50,12 @@ const _TN  = getEntry("P-TRAJECTORY-NUDGE");// trajectory-nudge
 // Demotion source identifiers used with canDemote(). Format mirrors the
 // `demotableBy` strings in decision-lattice.js.
 const _DEMOTE_F4_OPERATOR_TOKEN     = "operator-token:class-c-review-demote";
+// ADR-010 F19: suspicious-severity output-channel matches demote via a one-shot
+// scoped operator token. canDemote() reads `demotableBy` from the LATTICE entry,
+// and the engine separately consumes the token via consumeScopedOperatorToken
+// against `output-exfil-review-demote` (the scope used on `mintOperatorToken`).
+const _DEMOTE_F19_SUSPICIOUS        = "operator-token-suspicious-only";
+const _DEMOTE_F19_TOKEN_SCOPE       = "output-exfil-review-demote";
 const _DEMOTE_F9_TOOL_ALLOW_MATCHED = "contract-allow:tool-allow-matched";
 const _DEMOTE_F9_TOOL_ALLOW_SCOPE   = "contract-allow:tool-allow-tool-scope";
 
@@ -172,6 +179,11 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   const _degraded        = extra.degradedMode !== undefined
     ? extra.degradedMode
     : _earlyBlockDegradedDefault;
+  // F19 (ADR-010): output-exfil detail — carried verbatim from caller when
+  // present so confirmed-severity early-blocks surface the same receipt
+  // fields (outputChannel, matchClasses, redactedSample,
+  // compensatingRestrictionApplied) as the non-block F19 path below.
+  const _f19            = extra.f19Detail || null;
   const result = {
     action: "block",
     enforcementAction: "block",
@@ -201,6 +213,12 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
     ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
     ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
+    ...(_f19          != null ? {
+      outputChannel: _f19.outputChannel || null,
+      matchClasses: Array.isArray(_f19.matchClasses) ? _f19.matchClasses : [],
+      redactedSample: typeof _f19.redactedSample === "string" ? _f19.redactedSample : "",
+      compensatingRestrictionApplied: Boolean(_f19.compensatingRestrictionApplied),
+    } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   try {
@@ -223,6 +241,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
       ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
       ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
+      ...(_f19          != null ? { f19Detail:     _f19           } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -332,6 +351,11 @@ function _evalAmbientFloor(input, discovered, contract) {
   }
   return { fire: false };
 }
+
+// F19 (ADR-010) — output-channel-exfiltration floor. Classifier + floor
+// evaluator both live in runtime/output-exfil.js; the engine only consumes
+// the `{ fire, severity, channel, … }` result and decides routing.
+const { evaluateFloor: _evalF19Floor } = require("./output-exfil");
 
 // F17 PR-A — cross-agent-lock floor helpers. Pure decision read-side; the
 // only I/O is the per-call lock-dir scan via readLockState() against the
@@ -828,6 +852,84 @@ function decide(input = {}) {
     }
   } catch { /* fail-open per zero-dep policy */ }
 
+  // F19 (ADR-010): output-channel-exfiltration floor — rung 17.875, after F17
+  // and before the contract-allow demotion rung (18). Two paths:
+  //
+  //   - `confirmed` severity → early-block via buildEarlyBlock(). Non-demotable
+  //     in the lattice (only `operator-token-suspicious-only` is listed in
+  //     demotableBy, and that path is severity-gated below).
+  //   - `suspicious` severity OR `compensating` (PreToolUse on a not-observed
+  //     channel) → set action/source/floorFired so the rest of the engine flow
+  //     sees `require-review`. Demotable to `allow` only by a one-shot scoped
+  //     operator token (scope: `output-exfil-review-demote`); contract-allow
+  //     cannot demote because action becomes `require-review` BEFORE the
+  //     contract-allow check fires.
+  //
+  // Receipt enrichment fields (outputChannel, matchClasses, redactedSample,
+  // compensatingRestrictionApplied) ride on `_f19Detail` and are spread into
+  // both the final result + journal append below.
+  let _f19Detail = null;
+  let _f19PreviewAction = null; // pre-decision action when F19 fires non-block
+  let _f19PreviewSource = null;
+  try {
+    const f19 = _evalF19Floor(input);
+    if (f19 && f19.fire) {
+      const matchClasses = (f19.matches || [])
+        .map((m) => (m && typeof m.class === "string" ? m.class : null))
+        .filter((c) => c != null);
+      const baseDetail = {
+        outputChannel: f19.channel,
+        matchClasses,
+        redactedSample: typeof f19.redactedSample === "string" ? f19.redactedSample : "",
+        compensatingRestrictionApplied: Boolean(f19.compensatingApplied),
+        compensatingRestriction: f19.compensatingRestriction || null,
+        channelObservability: f19.channelObservability,
+        severity: f19.severity,
+        phase: f19.phase,
+      };
+
+      if (f19.severity === "confirmed") {
+        return buildEarlyBlock(
+          "output-exfil-denied", enriched, discovered, input,
+          `output-channel exfiltration blocked: channel=${f19.channel} severity=confirmed classes=${matchClasses.join(",")}`,
+          {
+            floorFired: _F19.name,
+            decisionSource: _F19.source[0],
+            ambientTouch: _ambientTouch,
+            f19Detail: baseDetail,
+          }
+        );
+      }
+
+      // Severity is `suspicious` or `compensating`.
+      // Attempt operator-token demotion only when the LATTICE demotableBy
+      // explicitly authorizes it for this severity. `compensating` requires
+      // a declared compensatingRestriction to be eligible.
+      const tokenEnv = process.env.HORUS_F19_DEMOTE_TOKEN || "";
+      let demoted = false;
+      const demotionLatticed = canDemote(_F19.id, _DEMOTE_F19_SUSPICIOUS);
+      const severityEligible =
+        f19.severity === "suspicious" ||
+        (f19.severity === "compensating" && f19.compensatingRestriction);
+      if (tokenEnv && demotionLatticed && severityEligible) {
+        try {
+          demoted = _contractConsumeScopedOperatorToken(tokenEnv, _DEMOTE_F19_TOKEN_SCOPE);
+        } catch { /* token mech unavailable → fail closed (no demotion) */ }
+      }
+      if (demoted) {
+        // Demotion path: result is allow, receipt records the override.
+        // _F19.source[1] is the LATTICE-anchored demoted-variant tag.
+        _f19PreviewAction = "allow";
+        _f19PreviewSource = _F19.source[1];
+        _f19Detail = { ...baseDetail, demoted: true };
+      } else {
+        _f19PreviewAction = "require-review";
+        _f19PreviewSource = _F19.source[0];
+        _f19Detail = { ...baseDetail, demoted: false };
+      }
+    }
+  } catch { /* fail-open per zero-dep policy */ }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -1048,6 +1150,32 @@ function decide(input = {}) {
     floorFired = floorFired || _F14b.name;
   }
 
+  // F19 (ADR-010): apply the suspicious / compensating override after F14b so
+  // contract-allow / auto-allow-once / trajectory-nudge cannot silently undo
+  // an F19-tagged require-review. Demoted-to-allow (via the operator token
+  // consumed above) lands here too — but never weakens a stronger action that
+  // a higher-priority floor (F3/F4/F8/F10/F14b/etc.) already wrote.
+  if (_f19PreviewAction === "require-review") {
+    if (action !== "block" && action !== "escalate") {
+      action = "require-review";
+    }
+    source = _F19.source[0];
+    floorFired = floorFired || _F19.name;
+  } else if (_f19PreviewAction === "allow") {
+    // Operator-token demoted F19 to allow. Preserve any stronger action that
+    // an unrelated higher-priority floor produced (block/require-review/etc.).
+    if (
+      action !== "block" &&
+      action !== "require-review" &&
+      action !== "escalate" &&
+      action !== "require-tests"
+    ) {
+      action = "allow";
+      source = _F19.source[1];
+    }
+    floorFired = floorFired || _F19.name;
+  }
+
   // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
   // chain has failed verify (or HORUS_DEGRADED_MODE=1) AND this call is
   // write-like, any final `allow` is rerouted to `require-review`. Floors
@@ -1162,6 +1290,14 @@ function decide(input = {}) {
     // chain has failed verify. Absent on healthy chains so existing
     // receipts stay byte-identical.
     ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
+    // F19 (ADR-010): output-channel exfiltration detail. Present only when
+    // F19 fired (confirmed early-blocks are handled in buildEarlyBlock).
+    ...(_f19Detail ? {
+      outputChannel: _f19Detail.outputChannel || null,
+      matchClasses: Array.isArray(_f19Detail.matchClasses) ? _f19Detail.matchClasses : [],
+      redactedSample: typeof _f19Detail.redactedSample === "string" ? _f19Detail.redactedSample : "",
+      compensatingRestrictionApplied: Boolean(_f19Detail.compensatingRestrictionApplied),
+    } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1187,6 +1323,7 @@ function decide(input = {}) {
     ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
     ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
+    ...(_f19Detail ? { f19Detail: _f19Detail } : {}),
     ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });

@@ -24,6 +24,11 @@
 #          .exactCwd / capabilities.exactEnv: boolean
 #   5. all seven outputChannels keys are present (toolOutput, generatedFiles,
 #      commitText, prText, finalMessage, terminal, screenshots)
+#   5b. ADR-010 (F19): outputChannelObservability declares each of the six F19
+#       channels (stdout, stderr, generatedFile, commitMessage, prText,
+#       finalMessage) with a value in {observed, limited, not-observed}, and
+#       every not-observed channel either appears in outputChannelCompensations
+#       or is mentioned by a compensatingRestrictions string.
 #   6. every "none", "best-effort", or "unverified" capability has a matching
 #      entry in negativeCapabilities OR is mentioned by a compensating
 #      restriction string
@@ -65,6 +70,14 @@ const COVERAGE = new Set(["full", "broad", "partial", "minimal", "none"]);
 const REQUIRED_CHANNEL_KEYS = [
   "toolOutput", "generatedFiles", "commitText", "prText",
   "finalMessage", "terminal", "screenshots",
+];
+// ADR-010 (F19): output-channel exfiltration observability vocabulary. The
+// six required keys mirror the F19 IR `outputs[].channel` namespace. Values
+// must come from the F19 observability enum.
+const F19_OBSERVABILITY = new Set(["observed", "limited", "not-observed"]);
+const F19_REQUIRED_CHANNELS = [
+  "stdout", "stderr", "generatedFile", "commitMessage",
+  "prText", "finalMessage",
 ];
 
 // Values that are "weaker than verified" and therefore require an explicit
@@ -109,6 +122,7 @@ for (const harness of HARNESSES) {
     "harness", "harnessVersion", "envelopeReporting",
     "argsFidelity", "cwdFidelity", "mcpInterception", "skillInterception",
     "outputChannels",
+    "outputChannelObservability",
     "capabilities", "negativeCapabilities", "compensatingRestrictions",
   ];
   for (const k of REQUIRED) {
@@ -135,6 +149,35 @@ for (const harness of HARNESSES) {
     for (const k of REQUIRED_CHANNEL_KEYS) {
       if (!(k in m.outputChannels)) fail(harness, `outputChannels.${k} missing`);
       else if (!CHANNEL_STATE.has(m.outputChannels[k])) fail(harness, `outputChannels.${k} "${m.outputChannels[k]}" not in {intercept, observe, none}`);
+    }
+  }
+
+  // 5b. ADR-010 (F19): outputChannelObservability. Required map; each of the
+  // six F19 channels must declare a value in {observed, limited, not-observed}.
+  // Every not-observed channel must additionally either (a) appear in
+  // outputChannelCompensations with a non-empty string, or (b) be mentioned
+  // by a compensatingRestrictions string. Without either, F19 default-deny
+  // would have nothing to anchor to and the manifest is considered incomplete.
+  if (!isPlainObject(m.outputChannelObservability)) {
+    fail(harness, "outputChannelObservability must be an object");
+  } else {
+    for (const k of F19_REQUIRED_CHANNELS) {
+      if (!(k in m.outputChannelObservability)) {
+        fail(harness, `outputChannelObservability.${k} missing`);
+        continue;
+      }
+      const v = m.outputChannelObservability[k];
+      if (!F19_OBSERVABILITY.has(v)) {
+        fail(harness, `outputChannelObservability.${k} "${v}" not in {observed, limited, not-observed}`);
+      }
+    }
+    const compMap = isPlainObject(m.outputChannelCompensations) ? m.outputChannelCompensations : null;
+    for (const k of F19_REQUIRED_CHANNELS) {
+      if (m.outputChannelObservability[k] !== "not-observed") continue;
+      const hasComp = compMap && typeof compMap[k] === "string" && compMap[k].length > 0;
+      if (hasComp) continue;
+      if (hasMention(m.compensatingRestrictions, k)) continue;
+      fail(harness, `outputChannelObservability.${k}=not-observed needs an entry in outputChannelCompensations or a compensatingRestrictions mention (ADR-010 / F19)`);
     }
   }
 

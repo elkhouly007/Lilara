@@ -132,6 +132,18 @@ const EMPTY_IR = Object.freeze({
     screenshots: "none",
   }),
 
+  // 6a. F19 (ADR-010) additive output records. Both arrays are zero-length
+  // until adapters or callers populate them:
+  //   - outputs[]         — PostToolUse observed output the adapter can
+  //                         report. Shape: { channel, content, sizeBytes,
+  //                         truncated, observedBy }.
+  //   - declaredOutput[]  — PreToolUse declared output for write-to-channel
+  //                         actions (commit/PR body/etc.). Same shape as
+  //                         outputs[].
+  // Floors that don't care (F1..F18) ignore these fields; F19 reads them.
+  outputs: Object.freeze([]),
+  declaredOutput: Object.freeze([]),
+
   // 7. Declared goal (plan-envelope hookpoint)
   declaredGoal: null,
   planEnvelopeId: null,
@@ -308,6 +320,32 @@ function _extractNetworkTargets(command) {
     out.push({ host, scheme, ipLiteral, isLoopback, raw: url });
   }
   return out;
+}
+
+// F19 (ADR-010): canonical normalizer for outputs[] / declaredOutput[]
+// records. Each record is reshaped to a fixed key order so canonical-JSON
+// hashing remains byte-stable; unknown keys are dropped. Returns a deeply-
+// frozen array of frozen records. Non-array input becomes [].
+function _normalizeOutputRecords(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return Object.freeze([]);
+  const out = [];
+  for (const r of arr) {
+    if (!_isPlainObject(r)) continue;
+    const channel = typeof r.channel === "string" ? r.channel : "";
+    if (channel.length === 0) continue;
+    const content = typeof r.content === "string" ? r.content : "";
+    const sizeBytes = Number.isFinite(r.sizeBytes) ? Number(r.sizeBytes) : content.length;
+    const truncated = r.truncated === true;
+    const observedBy = typeof r.observedBy === "string" ? r.observedBy : null;
+    out.push(Object.freeze({
+      channel,
+      content,
+      sizeBytes,
+      truncated,
+      observedBy,
+    }));
+  }
+  return Object.freeze(out);
 }
 
 function _extractFileTargets(command, cwd, toolKind, commandClass, input) {
@@ -495,6 +533,16 @@ function build(input, ctx) {
     payloadClass,
 
     outputChannels,
+    // F19 additive arrays. Prefer ctx-provided records (manifest/adapter
+    // populated) over input; both reach build() as canonical shapes after
+    // _normalizeOutputRecords(). Empty by default so existing IR shapes
+    // produced by floors that pre-date F19 stay byte-identical.
+    outputs: _normalizeOutputRecords(
+      Array.isArray(safeCtx.outputs) ? safeCtx.outputs : safeInput.outputs
+    ),
+    declaredOutput: _normalizeOutputRecords(
+      Array.isArray(safeCtx.declaredOutput) ? safeCtx.declaredOutput : safeInput.declaredOutput
+    ),
     declaredGoal: _strOrNull(safeInput.declaredGoal),
     planEnvelopeId: _strOrNull(safeInput.planEnvelopeId),
 
@@ -551,6 +599,32 @@ function validate(ir) {
   }
   if (!_isPlainObject(ir.outputChannels)) {
     return { ok: false, reason: "output-channels-not-object" };
+  }
+  // F19 (ADR-010): outputs/declaredOutput must be arrays. Each record must be
+  // a plain object with a non-empty `channel` string; other fields are
+  // optional but typed when present. Empty arrays are the common case.
+  if (!Array.isArray(ir.outputs)) {
+    return { ok: false, reason: "outputs-not-array" };
+  }
+  if (!Array.isArray(ir.declaredOutput)) {
+    return { ok: false, reason: "declared-output-not-array" };
+  }
+  for (let i = 0; i < ir.outputs.length; i++) {
+    const r = ir.outputs[i];
+    if (!_isPlainObject(r)) return { ok: false, reason: "outputs-record-not-object:" + i };
+    if (typeof r.channel !== "string" || r.channel.length === 0) {
+      return { ok: false, reason: "outputs-channel-invalid:" + i };
+    }
+    if (r.content != null && typeof r.content !== "string") {
+      return { ok: false, reason: "outputs-content-not-string:" + i };
+    }
+  }
+  for (let i = 0; i < ir.declaredOutput.length; i++) {
+    const r = ir.declaredOutput[i];
+    if (!_isPlainObject(r)) return { ok: false, reason: "declared-output-record-not-object:" + i };
+    if (typeof r.channel !== "string" || r.channel.length === 0) {
+      return { ok: false, reason: "declared-output-channel-invalid:" + i };
+    }
   }
   if (!_isPlainObject(ir.trustMeta)) {
     return { ok: false, reason: "trust-meta-not-object" };
