@@ -28,6 +28,7 @@
 #   version     Print Agent Runtime Guard version.
 #   runtime     Show runtime roadmap, state, approvals, promotions, and decision explanations.
 #   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
+#   state       ADR-011 portable export/import of HAP state (export/import/doctor).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -698,6 +699,147 @@ __JOURNAL_VERIFY_EOF__
       *)
         printf '%sUnknown journal subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: verify\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── state ─────────────────────────────────────────────────────────────────
+  # ADR-011 state portability: export / import / doctor. Bundle format is a
+  # zero-dep ustar tar of HAP state under HORUS_STATE_DIR with secrets/host-
+  # local files stripped. See references/adr-011-state-portability.md.
+  state)
+    sub="${1:-doctor}"
+    shift || true
+    case "$sub" in
+      export)
+        out_path=""
+        force_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --force) force_arg="1" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh state export <out-path> [--force]\n'
+              exit 0
+              ;;
+            --*) die "Unknown flag: $1" ;;
+            *) out_path="$1" ;;
+          esac
+          shift
+        done
+        [ -n "$out_path" ] || die "Usage: horus-cli.sh state export <out-path> [--force]"
+        node - "$root" "$out_path" "$force_arg" <<'__STATE_EXPORT_EOF__'
+"use strict";
+const path = require("path");
+const sb = require(path.join(process.argv[2], "runtime/state-bundle"));
+const dj = require(path.join(process.argv[2], "runtime/decision-journal"));
+const outPath = process.argv[3];
+const force   = process.argv[4] === "1";
+try {
+  const m = sb.exportBundle({ outPath, force });
+  process.stdout.write("state export: ok\n");
+  process.stdout.write("  bundle:           " + outPath + "\n");
+  process.stdout.write("  bundleHash:       " + m.bundleHash + "\n");
+  process.stdout.write("  files:            " + m.fileCount + "\n");
+  process.stdout.write("  totalBytes:       " + m.totalBytes + "\n");
+  process.stdout.write("  journalChainTip:  " + (m.journalChainTipAt || "(none)") + "\n");
+  process.stdout.write("  hostFingerprint:  " + m.hostFingerprint + "\n");
+  if (m.excluded && m.excluded.length) {
+    process.stdout.write("  excluded:         " + m.excluded.length + " file(s) (secret-blacklist / symlink / non-regular)\n");
+  }
+  dj.append({
+    kind: "state-export", action: "state-export",
+    riskLevel: "low", riskScore: 0, reasonCodes: ["state-bundle"],
+    tool: "horus-cli", branch: "",
+    notes: "bundle=" + m.bundleHash + " files=" + m.fileCount + " chainTip=" + (m.journalChainTipAt || "none"),
+  });
+} catch (err) {
+  process.stderr.write("state export: FAIL — " + err.message + "\n");
+  process.exit(1);
+}
+__STATE_EXPORT_EOF__
+        ;;
+      import)
+        bundle_path=""
+        apply_arg=""
+        force_arg=""
+        xhost_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --apply) apply_arg="1" ;;
+            --force) force_arg="1" ;;
+            --accept-cross-host) xhost_arg="1" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]\n'
+              exit 0
+              ;;
+            --*) die "Unknown flag: $1" ;;
+            *) bundle_path="$1" ;;
+          esac
+          shift
+        done
+        [ -n "$bundle_path" ] || die "Usage: horus-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]"
+        node - "$root" "$bundle_path" "$apply_arg" "$force_arg" "$xhost_arg" <<'__STATE_IMPORT_EOF__'
+"use strict";
+const path = require("path");
+const sb = require(path.join(process.argv[2], "runtime/state-bundle"));
+const dj = require(path.join(process.argv[2], "runtime/decision-journal"));
+const { stateDir } = require(path.join(process.argv[2], "runtime/state-paths"));
+const bundlePath      = process.argv[3];
+const apply           = process.argv[4] === "1";
+const force           = process.argv[5] === "1";
+const acceptCrossHost = process.argv[6] === "1";
+const target = stateDir();
+const tipBefore = sb.readChainTip(target);
+const r = sb.importBundle(bundlePath, { apply, force, acceptCrossHost });
+if (!r.ok) {
+  process.stderr.write("state import: FAIL\n");
+  for (const p of r.problems || []) process.stderr.write("  - " + p + "\n");
+  process.exit(1);
+}
+if (r.dryRun) {
+  process.stdout.write("state import: dry-run OK (pass --apply to restore)\n");
+  process.stdout.write("  bundleHash:     " + r.manifest.bundleHash + "\n");
+  process.stdout.write("  files:          " + r.manifest.fileCount + "\n");
+  process.stdout.write("  crossHost:      " + (r.crossHost ? "yes (pass --accept-cross-host)" : "no") + "\n");
+  process.exit(0);
+}
+process.stdout.write("state import: APPLIED\n");
+process.stdout.write("  bundleHash:     " + r.manifest.bundleHash + "\n");
+process.stdout.write("  chainTipBefore: " + (tipBefore || "(none)") + "\n");
+process.stdout.write("  chainTipAfter:  " + (r.manifest.journalChainTipAt || "(none)") + "\n");
+if (r.backupPath) process.stdout.write("  backup:         " + r.backupPath + "\n");
+if (r.crossHost)  process.stdout.write("  note: cross-host restore (--accept-cross-host)\n");
+dj.append({
+  kind: "state-import", action: "state-import",
+  riskLevel: "low", riskScore: 0, reasonCodes: ["state-bundle"],
+  tool: "horus-cli", branch: "",
+  notes: "bundle=" + r.manifest.bundleHash + " files=" + r.manifest.fileCount + " before=" + (tipBefore || "none") + " after=" + (r.manifest.journalChainTipAt || "none"),
+});
+__STATE_IMPORT_EOF__
+        ;;
+      doctor)
+        node - "$root" <<'__STATE_DOCTOR_EOF__'
+"use strict";
+const path = require("path");
+const sb = require(path.join(process.argv[2], "runtime/state-bundle"));
+const { stateDir } = require(path.join(process.argv[2], "runtime/state-paths"));
+const dir = stateDir();
+const m = sb.buildExportManifest(dir);
+process.stdout.write("state doctor: " + dir + "\n");
+process.stdout.write("  includable files:    " + m.fileCount + "\n");
+process.stdout.write("  totalBytes:          " + m.totalBytes + "\n");
+process.stdout.write("  excluded:            " + m.excluded.length + "\n");
+process.stdout.write("  journalChainTipAt:   " + (m.journalChainTipAt || "(none)") + "\n");
+process.stdout.write("  hostFingerprint:     " + m.hostFingerprint + "\n");
+for (const e of m.excluded.slice(0, 10)) process.stdout.write("    [excluded] " + e.path + "  (" + e.reason + ")\n");
+if (m.excluded.length > 10) process.stdout.write("    ... and " + (m.excluded.length - 10) + " more\n");
+process.stdout.write("portability: ready (`horus-cli.sh state export <out>` to produce a bundle)\n");
+__STATE_DOCTOR_EOF__
+        ;;
+      *)
+        printf '%sUnknown state subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: export, import, doctor\n' >&2
         exit 2
         ;;
     esac
