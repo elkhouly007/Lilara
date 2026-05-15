@@ -8,6 +8,7 @@
     "sh"
   ],
   "declaredGoal": null,
+  "declaredOutput": [],
   "destructive": false,
   "envDelta": {},
   "fileTargets": [],
@@ -16,12 +17,13 @@
   "networkTargets": [
     {
       "host": "example.com",
+      "scheme": "https",
       "ipLiteral": false,
       "isLoopback": false,
-      "raw": "https://example.com/setup.sh",
-      "scheme": "https"
+      "raw": "https://example.com/setup.sh"
     }
   ],
+  "outputs": [],
   "payloadClass": "A",
   "planEnvelopeId": null,
   "skillName": null,

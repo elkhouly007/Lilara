@@ -1,0 +1,30 @@
+{
+  "title": "F19 output-channel-exfiltration: confirmed-severity match on stdout blocks",
+  "input": {
+    "tool": "Bash",
+    "harness": "claude",
+    "command": "echo build done",
+    "branch": "feature/f19",
+    "outputs": [
+      {
+        "channel": "stdout",
+        "content": "leak ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa tail",
+        "sizeBytes": 49,
+        "truncated": false,
+        "observedBy": "post-adapter"
+      }
+    ],
+    "outputChannelObservability": {
+      "stdout": "observed"
+    }
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "output-exfil-denied",
+    "floorFired": "output-channel-exfiltration",
+    "rung": 17.875,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["output-exfil-denied"]
+  }
+}

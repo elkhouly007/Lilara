@@ -15,6 +15,18 @@
     "terminal": "observe",
     "screenshots": "none"
   },
+  "outputChannelObservability": {
+    "stdout": "observed",
+    "stderr": "observed",
+    "generatedFile": "observed",
+    "commitMessage": "observed",
+    "prText": "limited",
+    "finalMessage": "limited"
+  },
+  "outputChannelCompensations": {
+    "finalMessage": "OpenCode lacks a pre-emit hook for the assistant's final message; F19 routes finalMessage hits to require-review, demotable only by the operator-token-suspicious-only sentinel.",
+    "prText": "PR text is observed post-hoc via gh-CLI invocation; suspicious-severity hits route to require-review and demotion is operator-token-suspicious-only."
+  },
   "capabilities": {
     "pretoolBlocking": "supported",
     "posttoolObservation": "supported",

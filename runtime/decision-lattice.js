@@ -262,18 +262,48 @@ const LATTICE = Object.freeze([
     rung: 17.75,
     // F17 (v0.5 cross-agent-lock floor PR-A). Non-integer rung is intentional
     // and remains strictly increasing per assertOrdered(); F16 (17.5) < F17
-    // (17.75) < D-CONTRACT-ALLOW (18). Name matches what decision-engine
-    // writes to `floorFired` ("cross-agent-lock"); the "-denied" form lives
-    // on `source`. Non-demotable: an active lock from another agent is a
-    // hard floor, and a malformed lock file fails closed for write-like
-    // calls (no contract scope can re-permit a write the runtime cannot
-    // safely characterize).
+    // (17.75) < F19 (17.875) < D-CONTRACT-ALLOW (18). Name matches what
+    // decision-engine writes to `floorFired` ("cross-agent-lock"); the
+    // "-denied" form lives on `source`. Non-demotable: an active lock from
+    // another agent is a hard floor, and a malformed lock file fails closed
+    // for write-like calls (no contract scope can re-permit a write the
+    // runtime cannot safely characterize).
     name: "cross-agent-lock",
     action: "block",
     source: "cross-agent-lock-denied",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js + runtime/cross-agent-lock.js",
     notes: "F17: write-like call targets a path/project held by another live agent's lock. Fail-closed on malformed lock state.",
+  }),
+  Object.freeze({
+    id: "F19",
+    rung: 17.875,
+    // F19 (v0.5 Stage D — ADR-010): output-channel-exfiltration guard. Sits
+    // immediately after F17 (cross-agent-lock @ 17.75) and before the
+    // contract-allow demotion rung (18) so contract scopes cannot demote it
+    // by accident. Rung 17.875 keeps the table strictly-increasing per
+    // assertOrdered() — F17 (17.75) < F19 (17.875) < D-CONTRACT-ALLOW (18).
+    //
+    // Severity model:
+    //   - `confirmed`   matches → block (non-demotable).
+    //   - `suspicious`  matches → require-review (demotable only by a
+    //                  one-shot scoped operator token bound to the
+    //                  `output-exfil-review-demote` scope — same shape as
+    //                  the F4 demotion path).
+    // No contract-allow / learned-allow path applies; both are precluded by
+    // demotableBy below. The single demotion sentinel encodes the
+    // severity-gated rule: F19 only demotes on `suspicious` matches.
+    name: "output-channel-exfiltration",
+    action: "block",
+    // source is array-shaped: index 0 is the baseline reason code emitted on
+    // confirmed / suspicious / compensating fires; index 1 is the variant
+    // tag used when a one-shot scoped operator token (scope
+    // `output-exfil-review-demote`) demotes a suspicious match to allow.
+    // Matches the F4 pattern so check-no-implicit-demotion stays anchored.
+    source: ["output-exfil-denied", "f19-demoted"],
+    demotableBy: ["operator-token-suspicious-only"],
+    predicateRef: "runtime/decision-engine.js + runtime/output-exfil.js",
+    notes: "F19: output-channel exfiltration. Confirmed matches block; suspicious matches route to require-review and are demotable only by a one-shot scoped operator token (operator-token-suspicious-only). Adapter manifests must declare outputChannelObservability and, for not-observed channels, a compensatingRestriction; default-deny otherwise.",
   }),
   // --- demotion / promotion rungs (not floors; recorded for completeness) ---
   Object.freeze({

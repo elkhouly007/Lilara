@@ -15,6 +15,22 @@
     "terminal": "none",
     "screenshots": "none"
   },
+  "outputChannelObservability": {
+    "stdout": "not-observed",
+    "stderr": "not-observed",
+    "generatedFile": "not-observed",
+    "commitMessage": "not-observed",
+    "prText": "not-observed",
+    "finalMessage": "not-observed"
+  },
+  "outputChannelCompensations": {
+    "stdout": "Claw Code post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
+    "stderr": "Claw Code post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
+    "generatedFile": "Claw Code file-write surfaces are unverified; F19 enforces require-review by default until live integration confirms observability.",
+    "commitMessage": "Claw Code commit-text surfaces are not yet verified; F19 routes commit-message writes through require-review (compensating stricter rule).",
+    "prText": "Claw Code PR-text surfaces are not yet verified; F19 routes prText writes through require-review (compensating stricter rule).",
+    "finalMessage": "Claw Code final-message surfaces are not yet verified; F19 routes finalMessage writes through require-review (compensating stricter rule)."
+  },
   "capabilities": {
     "pretoolBlocking": "unverified",
     "posttoolObservation": "unverified",

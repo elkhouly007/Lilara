@@ -8,18 +8,20 @@
     "/data/old"
   ],
   "declaredGoal": null,
+  "declaredOutput": [],
   "destructive": true,
   "envDelta": {},
   "fileTargets": [
     {
-      "intent": "delete",
       "path": "/data/old",
+      "intent": "delete",
       "sensitivity": "low"
     }
   ],
   "irVersion": "1",
   "mcpServer": null,
   "networkTargets": [],
+  "outputs": [],
   "payloadClass": "A",
   "planEnvelopeId": null,
   "skillName": null,
