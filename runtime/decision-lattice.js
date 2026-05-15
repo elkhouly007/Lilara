@@ -317,6 +317,42 @@ const LATTICE = Object.freeze([
     notes: "Demotes baseline only; never demotes a floor.",
   }),
   Object.freeze({
+    id: "F20",
+    rung: 18.5,
+    // F20 (v0.5 Stage D wave 2 — ADR-012): change-intent drift. Compares the
+    // declared-envelope (envelope.declaredIntent) against the canonical Action
+    // IR built by adapters. Out-of-intent actuals fire F20 with one of six
+    // drift classes (file-write/delete/command/command-class/network-host/
+    // policy-edit out-of-scope).
+    //
+    // Rung 18.5 sits AFTER D-CONTRACT-ALLOW (18) and BEFORE D-LEARNED-ALLOW
+    // (19). This is intentional: the brief specifies "rung 18.5" and the
+    // chosen position documents that contract-allow cannot demote F20 at
+    // `high` severity, and that the engine calls diffEnvelopeVsIr between
+    // F19's preview-action assignment and the contract-allow demotion block
+    // (the action override is applied later, after F14b, so contract-allow /
+    // auto-allow-once / trajectory-nudge cannot silently undo it).
+    //
+    // Severity model:
+    //   - `high`    → block (non-demotable by learned-allow or contract-allow).
+    //                ≥2 drift classes OR any policy-edit drift OR
+    //                ir.destructive=true + drift.
+    //   - `medium`  → require-review, demotable only via a one-shot scoped
+    //                operator token bound to `change-intent-drift-medium`.
+    //   - `low`     → receipt-only marker (no decision change).
+    //   - `none` /  → no decision change (fail-open helper exception still
+    //   fail-open    journals a degraded-mode marker; engine never throws).
+    //
+    // source[0] is the baseline reason code; source[1] is the variant tag
+    // used when an operator token demotes a `medium` match to allow.
+    name: "change-intent-drift",
+    action: "block",
+    source: ["change-intent-drift", "f20-demoted"],
+    demotableBy: ["operator-token-medium-only"],
+    predicateRef: "runtime/change-intent.js + decision-engine wiring",
+    notes: "F20: declared-envelope vs Action-IR drift. high blocks; medium routes to require-review (demotable only by a one-shot scoped operator token bound to change-intent-drift-medium); low is receipt-only. Fail-open on helper exception.",
+  }),
+  Object.freeze({
     id: "D-LEARNED-ALLOW",
     rung: 19,
     name: "learned-allow",

@@ -29,6 +29,7 @@
 #   runtime     Show runtime roadmap, state, approvals, promotions, and decision explanations.
 #   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
 #   state       ADR-011 portable export/import of HAP state (export/import/doctor).
+#   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -840,6 +841,146 @@ __STATE_DOCTOR_EOF__
       *)
         printf '%sUnknown state subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: export, import, doctor\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── envelope ──────────────────────────────────────────────────────────────
+  # ADR-012 (HAP v0.5 Stage D): declared-intent envelope. Writes the operator-
+  # supplied scope of what the agent is allowed to do — files / commands /
+  # network hosts / policy edits — to <HORUS_STATE_DIR>/envelope.json. The
+  # runtime engine reads this on each decide() and fires F20 (change-intent-
+  # drift) when actuals deviate from the declared scope.
+  envelope)
+    sub="${1:-show}"
+    shift || true
+    case "$sub" in
+      set)
+        goal=""; plan=""
+        allow_writes=""; allow_deletes=""; allow_commands=""
+        allow_classes=""; allow_hosts=""; allow_policy=""
+        source_label="cli"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --goal)            shift; goal="${1:-}" ;;
+            --goal=*)          goal="${1#--goal=}" ;;
+            --plan)            shift; plan="${1:-}" ;;
+            --plan=*)          plan="${1#--plan=}" ;;
+            --allow-writes)    shift; allow_writes="${1:-}" ;;
+            --allow-writes=*)  allow_writes="${1#--allow-writes=}" ;;
+            --allow-deletes)   shift; allow_deletes="${1:-}" ;;
+            --allow-deletes=*) allow_deletes="${1#--allow-deletes=}" ;;
+            --allow-commands)  shift; allow_commands="${1:-}" ;;
+            --allow-commands=*) allow_commands="${1#--allow-commands=}" ;;
+            --allow-classes)   shift; allow_classes="${1:-}" ;;
+            --allow-classes=*) allow_classes="${1#--allow-classes=}" ;;
+            --allow-hosts)     shift; allow_hosts="${1:-}" ;;
+            --allow-hosts=*)   allow_hosts="${1#--allow-hosts=}" ;;
+            --allow-policy)    allow_policy="1" ;;
+            --source)          shift; source_label="${1:-cli}" ;;
+            --source=*)        source_label="${1#--source=}" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh envelope set [--goal "..."] [--plan "..."] \\\n'
+              printf '         [--allow-writes "pat,pat"] [--allow-deletes "pat,pat"] \\\n'
+              printf '         [--allow-commands "ls,cat"] [--allow-classes "explore,build"] \\\n'
+              printf '         [--allow-hosts "github.com,*.example.com"] [--allow-policy] \\\n'
+              printf '         [--source "label"]\n'
+              exit 0
+              ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$goal" "$plan" "$allow_writes" "$allow_deletes" "$allow_commands" "$allow_classes" "$allow_hosts" "$allow_policy" "$source_label" <<'__ENV_SET_EOF__'
+"use strict";
+const path = require("path");
+const fs = require("fs");
+const { declaredEnvelopePath } = require(path.join(process.argv[2], "runtime/envelope"));
+const { ensureDir, stateDir } = require(path.join(process.argv[2], "runtime/state-paths"));
+function splitList(s) {
+  return String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
+}
+const writes  = splitList(process.argv[5]);
+const deletes = splitList(process.argv[6]);
+const cmds    = splitList(process.argv[7]);
+const classes = splitList(process.argv[8]);
+const hosts   = splitList(process.argv[9]);
+const policy  = process.argv[10] === "1";
+const allowedOps = {
+  fileWrites:    writes.length  ? writes  : null,
+  fileDeletes:   deletes.length ? deletes : null,
+  commands:      cmds.length    ? cmds    : null,
+  commandClasses: classes.length ? classes : null,
+  networkHosts:  hosts.length   ? hosts   : null,
+  policyEdits:   policy ? true : false,
+};
+const doc = {
+  version: 1,
+  createdAt: Date.now(),
+  declaredIntent: {
+    goal:        process.argv[3] || null,
+    planSummary: process.argv[4] || null,
+    allowedOps,
+    declaredBy:  "operator",
+    source:      process.argv[11] || "cli",
+  },
+};
+ensureDir(stateDir());
+const p = declaredEnvelopePath();
+fs.writeFileSync(p + ".tmp", JSON.stringify(doc, null, 2), { mode: 0o600 });
+fs.renameSync(p + ".tmp", p);
+process.stdout.write("envelope set: " + p + "\n");
+process.stdout.write("  goal:    " + (doc.declaredIntent.goal || "(none)") + "\n");
+process.stdout.write("  expires: 24h from now\n");
+__ENV_SET_EOF__
+        ;;
+      show)
+        node - "$root" <<'__ENV_SHOW_EOF__'
+"use strict";
+const path = require("path");
+const fs = require("fs");
+const { declaredEnvelopePath, loadDeclaredEnvelope } = require(path.join(process.argv[2], "runtime/envelope"));
+const p = declaredEnvelopePath();
+if (!fs.existsSync(p)) { process.stdout.write("No declared-intent envelope found at " + p + "\n"); process.exit(0); }
+const loaded = loadDeclaredEnvelope();
+if (!loaded) {
+  process.stdout.write("envelope: present but invalid/expired/malformed (" + p + ")\n");
+  process.exit(0);
+}
+const di = loaded.declaredIntent;
+function clip(s) { const t = String(s || ""); return t.length > 120 ? t.slice(0, 120) + "..." : t; }
+process.stdout.write("envelope: " + p + "\n");
+process.stdout.write("  createdAt:   " + (loaded.createdAt ? new Date(loaded.createdAt).toISOString() : "(unknown)") + "\n");
+process.stdout.write("  goal:        " + clip(di.goal) + "\n");
+process.stdout.write("  planSummary: " + clip(di.planSummary) + "\n");
+process.stdout.write("  declaredBy:  " + (di.declaredBy || "(unset)") + "\n");
+process.stdout.write("  source:      " + (di.source || "(unset)") + "\n");
+const a = di.allowedOps || {};
+process.stdout.write("  allowedOps:\n");
+process.stdout.write("    fileWrites:     " + JSON.stringify(a.fileWrites)     + "\n");
+process.stdout.write("    fileDeletes:    " + JSON.stringify(a.fileDeletes)    + "\n");
+process.stdout.write("    commands:       " + JSON.stringify(a.commands)       + "\n");
+process.stdout.write("    commandClasses: " + JSON.stringify(a.commandClasses) + "\n");
+process.stdout.write("    networkHosts:   " + JSON.stringify(a.networkHosts)   + "\n");
+process.stdout.write("    policyEdits:    " + JSON.stringify(a.policyEdits)    + "\n");
+__ENV_SHOW_EOF__
+        ;;
+      clear)
+        node - "$root" <<'__ENV_CLEAR_EOF__'
+"use strict";
+const path = require("path");
+const fs = require("fs");
+const { declaredEnvelopePath } = require(path.join(process.argv[2], "runtime/envelope"));
+const p = declaredEnvelopePath();
+if (!fs.existsSync(p)) { process.stdout.write("No declared-intent envelope to clear.\n"); process.exit(0); }
+fs.unlinkSync(p);
+process.stdout.write("envelope cleared: " + p + "\n");
+__ENV_CLEAR_EOF__
+        ;;
+      *)
+        printf '%sUnknown envelope subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: set, show, clear\n' >&2
         exit 2
         ;;
     esac
