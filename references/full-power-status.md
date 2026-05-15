@@ -92,6 +92,7 @@ The correct current description is:
 ## v0.5 Stage D operating infrastructure
 
 - Stress harness: 8 scenarios, nightly cron, observability-only (does not block PR merges).
+- Adversarial track: full G+Q library exercised nightly (Linux only); bypass detection auto-files high-priority issue.
 
 ## v1.0.x Runtime Sprint Highlights
 
