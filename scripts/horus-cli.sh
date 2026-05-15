@@ -31,6 +31,7 @@
 #   state       ADR-011 portable export/import of HAP state (export/import/doctor).
 #   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
 #   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
+#   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -1111,6 +1112,176 @@ __SNAP_DOCTOR_EOF__
       *)
         printf '%sUnknown snapshot subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: list, show, restore, prune, doctor\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── receipts ──────────────────────────────────────────────────────────────
+  # ADR-014 audit-grade receipts: validate / export / schema / doctor. The
+  # receipt is the journal entry shape; the schema lives at
+  # schemas/receipt.v1.json. Round-trip doctor proves exporter is its own
+  # inverse on the on-disk journal.
+  receipts)
+    sub="${1:-validate}"
+    shift || true
+    case "$sub" in
+      validate)
+        jpath=""; chain_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --journal)  shift; jpath="${1:-}" ;;
+            --journal=*) jpath="${1#--journal=}" ;;
+            --chain)    shift; chain_arg="${1:-}" ;;
+            --chain=*)  chain_arg="${1#--chain=}" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh receipts validate [--journal <path>] [--chain <path>]\n'; exit 0 ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$jpath" "$chain_arg" <<'__RV_EOF__'
+"use strict";
+const fs = require("fs"); const path = require("path");
+const root = process.argv[2]; const jArg = process.argv[3]; const cArg = process.argv[4];
+const { stateDir } = require(path.join(root, "runtime/state-paths"));
+const { validateJournalChain } = require(path.join(root, "runtime/receipt-validator"));
+const jFile = jArg || path.join(stateDir(), "decision-journal.jsonl");
+let entries = [];
+if (fs.existsSync(jFile)) {
+  for (const ln of fs.readFileSync(jFile, "utf8").split("\n").filter(Boolean)) {
+    try { entries.push(JSON.parse(ln)); } catch { /* skip */ }
+  }
+}
+const cFile = cArg || path.join(stateDir(), "journal-chain.jsonl");
+const opts = { entries };
+if (fs.existsSync(cFile)) opts.chainFile = cFile;
+const r = validateJournalChain(opts);
+process.stdout.write("receipts validate: " + (r.valid ? "OK" : "FAIL") + "\n");
+process.stdout.write("  journal:        " + jFile + "\n");
+process.stdout.write("  entries:        " + entries.length + "\n");
+process.stdout.write("  schemaErrors:   " + r.schemaErrors.length + "\n");
+if (opts.chainFile) {
+  process.stdout.write("  chain:          " + cFile + " (" + r.chainEntryCount + " entries)\n");
+  process.stdout.write("  chainErrors:    " + r.chainErrors.length + "\n");
+}
+for (const e of r.schemaErrors.slice(0, 10)) process.stdout.write("    schema  entry=" + e.entry + " path=" + e.path + " — " + e.message + "\n");
+for (const e of r.chainErrors.slice(0, 10))  process.stdout.write("    chain   seq=" + (e.seq == null ? "?" : e.seq) + " line=" + (e.line == null ? "?" : e.line) + " — " + e.reason + "\n");
+process.exit(r.valid ? 0 : 1);
+__RV_EOF__
+        ;;
+      export)
+        since=""; until_=""; fmt="jsonl"; out_path=""; sid=""; act=""; lvl=""; redact_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --since)            shift; since="${1:-}" ;;
+            --since=*)          since="${1#--since=}" ;;
+            --until)            shift; until_="${1:-}" ;;
+            --until=*)          until_="${1#--until=}" ;;
+            --format)           shift; fmt="${1:-}" ;;
+            --format=*)         fmt="${1#--format=}" ;;
+            --out)              shift; out_path="${1:-}" ;;
+            --out=*)            out_path="${1#--out=}" ;;
+            --session-id)       shift; sid="${1:-}" ;;
+            --session-id=*)     sid="${1#--session-id=}" ;;
+            --decision-action)  shift; act="${1:-}" ;;
+            --decision-action=*) act="${1#--decision-action=}" ;;
+            --risk-level)       shift; lvl="${1:-}" ;;
+            --risk-level=*)     lvl="${1#--risk-level=}" ;;
+            --redact)           redact_arg="1" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh receipts export [--since <iso>] [--until <iso>] [--format jsonl|csv]\n'
+              printf '         [--out <path>] [--session-id <id>] [--decision-action <act>] [--risk-level <lvl>] [--redact]\n'; exit 0 ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        HORUS_EXPORT_SINCE="$since" HORUS_EXPORT_UNTIL="$until_" HORUS_EXPORT_FMT="$fmt" \
+        HORUS_EXPORT_OUT="$out_path" HORUS_EXPORT_SID="$sid" HORUS_EXPORT_ACT="$act" \
+        HORUS_EXPORT_LVL="$lvl" HORUS_EXPORT_REDACT="$redact_arg" \
+        node - "$root" <<'__RE_EOF__'
+"use strict";
+const fs = require("fs"); const path = require("path");
+const root = process.argv[2];
+const { exportReceipts, buildExportManifest } = require(path.join(root, "runtime/receipt-export"));
+const filter = {};
+if (process.env.HORUS_EXPORT_SINCE) filter.since = process.env.HORUS_EXPORT_SINCE;
+if (process.env.HORUS_EXPORT_UNTIL) filter.until = process.env.HORUS_EXPORT_UNTIL;
+if (process.env.HORUS_EXPORT_SID)   filter.sessionId      = process.env.HORUS_EXPORT_SID;
+if (process.env.HORUS_EXPORT_ACT)   filter.decisionAction = process.env.HORUS_EXPORT_ACT;
+if (process.env.HORUS_EXPORT_LVL)   filter.riskLevel      = process.env.HORUS_EXPORT_LVL;
+if (process.env.HORUS_EXPORT_REDACT === "1") filter.redact = true;
+const fmt = process.env.HORUS_EXPORT_FMT || "jsonl";
+const buf = exportReceipts(filter, fmt);
+const out = process.env.HORUS_EXPORT_OUT;
+if (out) {
+  fs.writeFileSync(out, buf, { mode: 0o600 });
+  const m = buildExportManifest(buf, { format: fmt, filter, redact: Boolean(filter.redact),
+    entryCount: fmt === "jsonl" ? buf.toString("utf8").split("\n").filter(Boolean).length : Math.max(0, buf.toString("utf8").split("\n").filter(Boolean).length - 1) });
+  process.stdout.write("receipts export: ok\n");
+  process.stdout.write("  out:           " + out + "\n");
+  process.stdout.write("  format:        " + fmt + "\n");
+  process.stdout.write("  bytes:         " + m.bytes + "\n");
+  process.stdout.write("  entries:       " + m.entryCount + "\n");
+  process.stdout.write("  contentSha256: " + m.contentSha256 + "\n");
+  process.stdout.write("  bundleHash:    " + m.bundleHash + "\n");
+} else {
+  process.stdout.write(buf);
+}
+__RE_EOF__
+        ;;
+      schema)
+        print_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --print) print_arg="1" ;;
+            -h|--help) printf 'Usage: horus-cli.sh receipts schema [--print]\n'; exit 0 ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$print_arg" <<'__RS_EOF__'
+"use strict";
+const fs = require("fs"); const path = require("path"); const crypto = require("crypto");
+const root = process.argv[2]; const printAll = process.argv[3] === "1";
+const schemaPath = path.join(root, "schemas/receipt.v1.json");
+const raw = fs.readFileSync(schemaPath, "utf8");
+if (printAll) { process.stdout.write(raw); process.exit(0); }
+const h = "sha256:" + crypto.createHash("sha256").update(raw).digest("hex");
+process.stdout.write("receipts schema\n");
+process.stdout.write("  path:    " + schemaPath + "\n");
+process.stdout.write("  sha256:  " + h + "\n");
+process.stdout.write("  bytes:   " + raw.length + "\n");
+__RS_EOF__
+        ;;
+      doctor)
+        node - "$root" <<'__RD_EOF__'
+"use strict";
+const fs = require("fs"); const path = require("path");
+const root = process.argv[2];
+const { stateDir } = require(path.join(root, "runtime/state-paths"));
+const { validateJournalChain } = require(path.join(root, "runtime/receipt-validator"));
+const { exportReceipts, roundTrip } = require(path.join(root, "runtime/receipt-export"));
+const jFile = path.join(stateDir(), "decision-journal.jsonl");
+if (!fs.existsSync(jFile)) { process.stdout.write("receipts doctor: no journal at " + jFile + "\n"); process.exit(0); }
+const entries = [];
+for (const ln of fs.readFileSync(jFile, "utf8").split("\n").filter(Boolean)) {
+  try { entries.push(JSON.parse(ln)); } catch { /* skip */ }
+}
+const v = validateJournalChain({ entries });
+const exported = exportReceipts({}, "jsonl");
+const rt = roundTrip(exported, "jsonl");
+process.stdout.write("receipts doctor: " + (v.valid && rt.ok ? "OK" : "PROBLEMS") + "\n");
+process.stdout.write("  journal:        " + jFile + "\n");
+process.stdout.write("  entries:        " + entries.length + "\n");
+process.stdout.write("  schemaErrors:   " + v.schemaErrors.length + "\n");
+process.stdout.write("  roundTrip:      " + (rt.ok ? "byte-identical (" + rt.parsedCount + " entries)" : rt.reason) + "\n");
+process.exit(v.valid && rt.ok ? 0 : 1);
+__RD_EOF__
+        ;;
+      *)
+        printf '%sUnknown receipts subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: validate, export, schema, doctor\n' >&2
         exit 2
         ;;
     esac

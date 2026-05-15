@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-runtime-guard/schemas/receipt.v1.json",
+  "title": "Agent Runtime Guard — audit-grade receipt (v1)",
+  "description": "Canonical journal-entry / receipt shape for SOC2-readable audit. Matches the record written by runtime/decision-journal.js append(). Additive-only: future versions may add optional fields, never rename or retype existing ones. See references/adr-014-audit-grade-receipts.md and references/soc2-receipt-mapping.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ts",
+    "kind",
+    "action",
+    "riskLevel",
+    "riskScore",
+    "reasonCodes",
+    "tool",
+    "branch",
+    "targetPath",
+    "notes"
+  ],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the entry was journaled."
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Record kind. 'runtime-decision' is the canonical decide() receipt; other kinds (e.g. 'change-intent-envelope-error', 'state-export', 'state-import') are operator-rail entries."
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "block",
+        "escalate",
+        "require-review",
+        "require-tests",
+        "modify",
+        "route",
+        "unknown",
+        "state-export",
+        "state-import"
+      ],
+      "description": "Final decision action. 'unknown' is the safe default for non-runtime-decision kinds. 'route' and 'modify' are engine outputs for medium-risk routing."
+    },
+    "riskLevel": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical",
+        "unknown"
+      ],
+      "description": "Final risk band."
+    },
+    "riskScore": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Numeric risk score 0..10."
+    },
+    "reasonCodes": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "description": "Ordered reason codes; floor names, contract-allow tags, demotion sentinels."
+    },
+    "tool": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Adapter tool name (Bash, Edit, …)."
+    },
+    "branch": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Git branch at the time of decision; empty when unknown."
+    },
+    "targetPath": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Target path the action touches; redacted if contract requires."
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Free-text notes; redacted if contract requires. Always present (may be empty string)."
+    },
+    "redactInJournal": {
+      "const": true,
+      "description": "Marker that contract.scopes.secrets.redactInJournal was true at write time."
+    },
+    "contractId": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "contractRevision": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "scopeHit": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "floorFired": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "taintSource": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "taintReason": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "intent": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "ambientClass": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "ambientPath": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "irHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{16,64}$"
+    },
+    "latticeVersion": {
+      "type": "string",
+      "maxLength": 16
+    },
+    "rung": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "degradedMode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active",
+        "reason"
+      ],
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "writeRouting": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "suppressed": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "f19Detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputChannel",
+        "matchClasses",
+        "redactedSample",
+        "compensatingRestrictionApplied"
+      ],
+      "properties": {
+        "outputChannel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "matchClasses": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "redactedSample": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "compensatingRestrictionApplied": {
+          "type": "boolean"
+        },
+        "compensatingRestriction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "channelObservability": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "confirmed",
+            "suspicious",
+            "compensating",
+            "none"
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "pre",
+            "post"
+          ]
+        },
+        "demoted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "changeIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared",
+        "drift",
+        "classes",
+        "severity"
+      ],
+      "properties": {
+        "declared": {
+          "type": "boolean",
+          "description": "Whether the F20 evaluation found a declared-intent envelope."
+        },
+        "drift": {
+          "type": "boolean"
+        },
+        "classes": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "redactedDetails": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "class",
+              "value"
+            ],
+            "properties": {
+              "class": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 128
+              }
+            }
+          }
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "status"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "snapshotId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "paths": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bytes": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

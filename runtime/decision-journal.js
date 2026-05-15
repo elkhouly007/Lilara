@@ -144,6 +144,18 @@ function append(entry) {
     ...(entry.latticeVersion ? { latticeVersion: String(entry.latticeVersion) } : {}),
     ...(entry.rung != null && Number.isFinite(Number(entry.rung)) ? { rung: Number(entry.rung) } : {}),
   };
+  // ADR-014 dev-mode receipt validation. Off by default (production hot
+  // path skips). When HORUS_VALIDATE_RECEIPTS=1, every assembled record is
+  // schema-checked before journaling; an invalid record throws so the bug
+  // surfaces in tests instead of corrupting the audit trail.
+  if (process.env.HORUS_VALIDATE_RECEIPTS === "1") {
+    const { validateReceipt } = require("./receipt-validator");
+    const r = validateReceipt(record);
+    if (!r.valid) {
+      const first = r.errors.slice(0, 3).map((e) => e.path + ":" + e.message).join("; ");
+      throw new Error("receipt-validation-failed: " + first);
+    }
+  }
   fs.appendFileSync(logFile, JSON.stringify(record) + "\n", { mode: 0o600 });
   return true;
 }
