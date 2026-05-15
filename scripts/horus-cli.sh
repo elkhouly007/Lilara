@@ -30,6 +30,7 @@
 #   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
 #   state       ADR-011 portable export/import of HAP state (export/import/doctor).
 #   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
+#   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -981,6 +982,135 @@ __ENV_CLEAR_EOF__
       *)
         printf '%sUnknown envelope subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: set, show, clear\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── snapshot ──────────────────────────────────────────────────────────────
+  snapshot)
+    sub="${1:-list}"
+    shift || true
+    case "$sub" in
+      list)
+        node - "$root" <<'__SNAP_LIST_EOF__'
+"use strict";
+const path = require("path");
+const s = require(path.join(process.argv[2], "runtime/snapshot"));
+const items = s.listSnapshots();
+if (items.length === 0) { process.stdout.write("snapshot list: (none)\n"); process.exit(0); }
+process.stdout.write("snapshot list: " + items.length + " snapshot(s)\n");
+for (const it of items) {
+  process.stdout.write("  " + it.snapshotId + "\n");
+  process.stdout.write("    createdAt:   " + it.createdAt + "\n");
+  process.stdout.write("    sizeBytes:   " + it.sizeBytes + "\n");
+  process.stdout.write("    fileCount:   " + it.fileCount + (it.truncated ? "  (truncated)" : "") + "\n");
+  process.stdout.write("    reason:      " + it.reason + "\n");
+  process.stdout.write("    decisionKey: " + it.decisionKey + "\n");
+}
+__SNAP_LIST_EOF__
+        ;;
+      show)
+        snap_id="${1:-}"
+        [ -n "$snap_id" ] || die "Usage: horus-cli.sh snapshot show <snapshotId>"
+        node - "$root" "$snap_id" <<'__SNAP_SHOW_EOF__'
+"use strict";
+const path = require("path");
+const fs   = require("fs");
+const s = require(path.join(process.argv[2], "runtime/snapshot"));
+const dir = path.join(s.snapshotsDir(), process.argv[3]);
+const mp  = path.join(dir, "manifest.json");
+if (!fs.existsSync(mp)) { process.stderr.write("snapshot show: not found — " + process.argv[3] + "\n"); process.exit(1); }
+const m = JSON.parse(fs.readFileSync(mp, "utf8"));
+process.stdout.write("snapshot " + m.snapshotId + "\n");
+process.stdout.write("  createdAt:    " + m.createdAt + "\n");
+process.stdout.write("  reason:       " + m.reason + "\n");
+process.stdout.write("  decisionKey:  " + (m.decisionKey || "(none)") + "\n");
+process.stdout.write("  irHash:       " + (m.irHash || "(none)") + "\n");
+process.stdout.write("  truncated:    " + Boolean(m.truncated) + "\n");
+process.stdout.write("  fileCount:    " + m.fileCount + "\n");
+process.stdout.write("  totalBytes:   " + m.totalBytes + "\n");
+process.stdout.write("  manifestHash: " + (m.manifestHash || "(none)") + "\n");
+for (const e of (m.entries || [])) {
+  process.stdout.write("    " + e.path + "\n");
+  process.stdout.write("      size:   " + e.size + "\n");
+  process.stdout.write("      sha256: " + e.sha256 + "\n");
+}
+__SNAP_SHOW_EOF__
+        ;;
+      restore)
+        snap_id=""
+        apply_arg=""
+        force_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --apply)   apply_arg="1" ;;
+            --dry-run) apply_arg="" ;;
+            --force)   force_arg="1" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh snapshot restore <snapshotId> [--apply] [--force]\n'
+              printf '  Default: dry-run (print what would change). Pass --apply to actually restore.\n'
+              exit 0
+              ;;
+            --*) die "Unknown flag: $1" ;;
+            *) snap_id="$1" ;;
+          esac
+          shift
+        done
+        [ -n "$snap_id" ] || die "Usage: horus-cli.sh snapshot restore <snapshotId> [--apply] [--force]"
+        node - "$root" "$snap_id" "$apply_arg" "$force_arg" <<'__SNAP_RESTORE_EOF__'
+"use strict";
+const path = require("path");
+const s = require(path.join(process.argv[2], "runtime/snapshot"));
+const snapshotId = process.argv[3];
+const apply = process.argv[4] === "1";
+const force = process.argv[5] === "1";
+const r = s.restoreSnapshot(snapshotId, { dryRun: !apply, force });
+if (r.reason === "snapshot-not-found") { process.stderr.write("snapshot restore: not found — " + snapshotId + "\n"); process.exit(1); }
+process.stdout.write("snapshot restore: " + (apply ? "APPLIED" : "dry-run") + (force ? "  (--force)" : "") + "\n");
+process.stdout.write("  restored:  " + r.restored.length + "\n");
+for (const p of r.restored) process.stdout.write("    + " + p + "\n");
+if (r.conflicts.length > 0) {
+  process.stdout.write("  conflicts: " + r.conflicts.length + " (hash mismatch; pass --force to overwrite)\n");
+  for (const c of r.conflicts) process.stdout.write("    ! " + c.path + "\n      captured=" + c.captured + "\n      current= " + c.current + "\n");
+}
+if (r.skipped.length > 0) {
+  process.stdout.write("  skipped:   " + r.skipped.length + "\n");
+  for (const p of r.skipped) process.stdout.write("    - " + p + "\n");
+}
+if (!apply) process.stdout.write("  (no files written — pass --apply to restore)\n");
+process.exit(r.ok ? 0 : 2);
+__SNAP_RESTORE_EOF__
+        ;;
+      prune)
+        node - "$root" <<'__SNAP_PRUNE_EOF__'
+"use strict";
+const path = require("path");
+const s = require(path.join(process.argv[2], "runtime/snapshot"));
+const r = s.pruneSnapshots();
+process.stdout.write("snapshot prune: kept=" + r.kept.length + " deleted=" + r.deleted.length + "\n");
+for (const id of r.deleted) process.stdout.write("  - " + id + "\n");
+__SNAP_PRUNE_EOF__
+        ;;
+      doctor)
+        node - "$root" <<'__SNAP_DOCTOR_EOF__'
+"use strict";
+const path = require("path");
+const s = require(path.join(process.argv[2], "runtime/snapshot"));
+const r = s.doctor();
+process.stdout.write("snapshot doctor: " + (r.ok ? "OK" : "PROBLEMS") + "\n");
+process.stdout.write("  snapshots: " + r.snapshots.length + "\n");
+for (const it of r.snapshots) process.stdout.write("    " + (it.ok ? "ok" : "FAIL") + "  " + it.snapshotId + " (" + it.fileCount + " file(s))\n");
+if (r.problems.length > 0) {
+  process.stdout.write("  problems: " + r.problems.length + "\n");
+  for (const p of r.problems) process.stdout.write("    - " + p.snapshotId + ": " + p.reason + (p.path ? " path=" + p.path : "") + (p.blob ? " blob=" + p.blob : "") + "\n");
+  process.exit(1);
+}
+__SNAP_DOCTOR_EOF__
+        ;;
+      *)
+        printf '%sUnknown snapshot subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: list, show, restore, prune, doctor\n' >&2
         exit 2
         ;;
     esac

@@ -132,6 +132,10 @@ function append(entry) {
     // F20 (ADR-012): change-intent drift receipt key. Pass-through; the
     // engine populates it on every F20 evaluation (declared or not).
     ...(entry.changeIntent && typeof entry.changeIntent === "object" ? { changeIntent: entry.changeIntent } : {}),
+    // ADR-013: snapshot receipt key pass-through. Engine sets this on
+    // destructive-allow decisions; absent otherwise so existing journals
+    // stay byte-identical.
+    ...(entry.snapshot && typeof entry.snapshot === "object" ? { snapshot: entry.snapshot } : {}),
     // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
     // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format
