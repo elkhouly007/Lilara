@@ -430,6 +430,77 @@ function verify(expectedEnvelope, observedEnvelope, options = {}) {
   };
 }
 
+// ADR-012 (HAP v0.5 Stage D): declared-intent envelope read-side. The CLI
+// (scripts/horus-cli.sh `horus envelope set/show/clear`) writes a JSON file at
+// <HORUS_STATE_DIR>/envelope.json describing what the operator has authorized.
+// The engine calls loadDeclaredEnvelope() on every decide() to materialize the
+// `envelope.declaredIntent` shape consumed by runtime/change-intent.js (F20).
+//
+// Fail-open contract (HARD): absent file, malformed JSON, expired entry, or
+// any I/O error returns null without throwing. The optional `journalError`
+// callback (engine-provided) is invoked once per failure mode so the journal
+// captures a degraded-mode marker, but the engine never sees an exception.
+const DECLARED_ENVELOPE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function declaredEnvelopePath() {
+  return path.join(stateDir(), "envelope.json");
+}
+
+function _isStringArray(v) {
+  if (!Array.isArray(v)) return false;
+  for (const x of v) if (typeof x !== "string") return false;
+  return true;
+}
+
+function _normalizeDeclaredIntent(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const allowedRaw = raw.allowedOps && typeof raw.allowedOps === "object" ? raw.allowedOps : null;
+  const allowedOps = allowedRaw ? {
+    fileWrites:     _isStringArray(allowedRaw.fileWrites)     ? allowedRaw.fileWrites.slice()     : null,
+    fileDeletes:    _isStringArray(allowedRaw.fileDeletes)    ? allowedRaw.fileDeletes.slice()    : null,
+    commands:       _isStringArray(allowedRaw.commands)       ? allowedRaw.commands.slice()       : null,
+    commandClasses: _isStringArray(allowedRaw.commandClasses) ? allowedRaw.commandClasses.slice() : null,
+    networkHosts:   _isStringArray(allowedRaw.networkHosts)   ? allowedRaw.networkHosts.slice()   : null,
+    policyEdits:    typeof allowedRaw.policyEdits === "boolean" ? allowedRaw.policyEdits         : null,
+  } : null;
+  return {
+    goal:        typeof raw.goal === "string" ? raw.goal : null,
+    planSummary: typeof raw.planSummary === "string" ? raw.planSummary : null,
+    allowedOps,
+    declaredBy:  ["operator", "adapter", "fallback"].indexOf(String(raw.declaredBy || "")) >= 0
+      ? String(raw.declaredBy) : null,
+    source:      typeof raw.source === "string" ? raw.source : null,
+  };
+}
+
+function loadDeclaredEnvelope(opts) {
+  const journalError = opts && typeof opts.journalError === "function" ? opts.journalError : null;
+  const now = opts && Number.isFinite(opts.now) ? Number(opts.now) : Date.now();
+  let raw;
+  try {
+    raw = fs.readFileSync(declaredEnvelopePath(), "utf8");
+  } catch (err) {
+    if (err && err.code === "ENOENT") return null; // absent = no declared intent
+    if (journalError) { try { journalError("declared-envelope-read-error", String(err.message || err)); } catch { /* best-effort */ } }
+    return null;
+  }
+  let doc;
+  try { doc = JSON.parse(raw); }
+  catch (err) {
+    if (journalError) { try { journalError("declared-envelope-parse-error", String(err.message || err)); } catch { /* best-effort */ } }
+    return null;
+  }
+  if (!doc || typeof doc !== "object") return null;
+  const createdAt = Number(doc.createdAt);
+  if (Number.isFinite(createdAt) && (now - createdAt) > DECLARED_ENVELOPE_TTL_MS) {
+    if (journalError) { try { journalError("declared-envelope-expired", String(createdAt)); } catch { /* best-effort */ } }
+    return null;
+  }
+  const intent = _normalizeDeclaredIntent(doc.declaredIntent);
+  if (!intent) return null;
+  return { declaredIntent: intent, createdAt: Number.isFinite(createdAt) ? createdAt : null };
+}
+
 function pendingPath(toolUseId) {
   const safeId = String(toolUseId || "").replace(/[^a-zA-Z0-9_.-]/g, "_");
   return path.join(pendingDir(), `${safeId}.json`);
@@ -462,4 +533,11 @@ function loadPending(toolUseId, consume = false) {
   }
 }
 
-module.exports = { build, verify, rememberPending, loadPending };
+module.exports = {
+  build,
+  verify,
+  rememberPending,
+  loadPending,
+  loadDeclaredEnvelope,
+  declaredEnvelopePath,
+};

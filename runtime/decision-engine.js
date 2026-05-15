@@ -42,6 +42,7 @@ const _F15 = getEntry("F15");         // execution-envelope
 const _F16 = getEntry("F16");         // ambient-authority (ADR-009 PR-B)
 const _F17 = getEntry("F17");         // cross-agent-lock (PR-A)
 const _F19 = getEntry("F19");         // output-channel-exfiltration (ADR-010)
+const _F20 = getEntry("F20");         // change-intent-drift (ADR-012)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -56,6 +57,11 @@ const _DEMOTE_F4_OPERATOR_TOKEN     = "operator-token:class-c-review-demote";
 // against `output-exfil-review-demote` (the scope used on `mintOperatorToken`).
 const _DEMOTE_F19_SUSPICIOUS        = "operator-token-suspicious-only";
 const _DEMOTE_F19_TOKEN_SCOPE       = "output-exfil-review-demote";
+// ADR-012 F20: medium-severity change-intent drift may be demoted via a
+// one-shot scoped operator token bound to `change-intent-drift-medium`.
+// `high` is non-demotable; `low` is receipt-only (no demotion required).
+const _DEMOTE_F20_MEDIUM            = "operator-token-medium-only";
+const _DEMOTE_F20_TOKEN_SCOPE       = "change-intent-drift-medium";
 const _DEMOTE_F9_TOOL_ALLOW_MATCHED = "contract-allow:tool-allow-matched";
 const _DEMOTE_F9_TOOL_ALLOW_SCOPE   = "contract-allow:tool-allow-tool-scope";
 
@@ -356,6 +362,11 @@ function _evalAmbientFloor(input, discovered, contract) {
 // evaluator both live in runtime/output-exfil.js; the engine only consumes
 // the `{ fire, severity, channel, … }` result and decides routing.
 const { evaluateFloor: _evalF19Floor } = require("./output-exfil");
+
+// F20 (ADR-012) — change-intent drift evaluator. Pure helper; declared-intent
+// envelope read-side lives in runtime/envelope.js (loadDeclaredEnvelope).
+const { diffEnvelopeVsIr: _diffChangeIntent } = require("./change-intent");
+const { loadDeclaredEnvelope: _loadDeclaredEnvelope } = require("./envelope");
 
 // F17 PR-A — cross-agent-lock floor helpers. Pure decision read-side; the
 // only I/O is the per-call lock-dir scan via readLockState() against the
@@ -930,6 +941,92 @@ function decide(input = {}) {
     }
   } catch { /* fail-open per zero-dep policy */ }
 
+  // F20 (ADR-012): change-intent drift — rung 18.5. Compares the declared-
+  // envelope (envelope.declaredIntent) against the canonical Action IR built
+  // by adapters. Engine wiring sits between F19's evaluation and the contract-
+  // allow demotion block; the action override is applied later (after F14b)
+  // so contract-allow / auto-allow-once / trajectory-nudge cannot silently
+  // undo a `high` block or `medium` require-review.
+  //
+  // Envelope source priority: input.envelope.declaredIntent (test/harness-
+  // supplied) takes precedence over the on-disk envelope file loaded via
+  // runtime/envelope.loadDeclaredEnvelope(). File-read failures fail-open and
+  // are journaled via the `journalError` callback below.
+  let _changeIntent = null;          // receipt payload (always present once evaluated)
+  let _f20PreviewAction = null;      // pre-decision action when F20 fires non-block
+  let _f20PreviewSource = null;
+  try {
+    let declaredEnv = null;
+    const harnessEnv = input.envelope && typeof input.envelope === "object" ? input.envelope : null;
+    if (harnessEnv && harnessEnv.declaredIntent) {
+      declaredEnv = harnessEnv;
+    } else {
+      const loaded = _loadDeclaredEnvelope({
+        journalError: (code, msg) => {
+          try {
+            append({ kind: "change-intent-envelope-error", error: `${code}:${String(msg).slice(0, 120)}` });
+          } catch { /* journal best-effort */ }
+        },
+      });
+      if (loaded && loaded.declaredIntent) declaredEnv = loaded;
+    }
+
+    const ir = input && input.ir;
+    const declared = Boolean(declaredEnv && declaredEnv.declaredIntent);
+    const diff = declared && ir
+      ? _diffChangeIntent(declaredEnv, ir)
+      : { drift: false, classes: [], details: [], severity: "none" };
+
+    if (diff && diff.error) {
+      try { append({ kind: "change-intent-helper-error", error: String(diff.error).slice(0, 120) }); } catch { /* best-effort */ }
+    }
+
+    // Build redacted-details snapshot — first 5 entries, value truncated to
+    // 64 chars (the helper enforces both; this guards against shape drift).
+    const redactedDetails = Array.isArray(diff && diff.details) && diff.details.length > 0
+      ? diff.details.slice(0, 5).map((d) => ({
+          class: typeof d.class === "string" ? d.class : "",
+          value: typeof d.value === "string" ? d.value.slice(0, 64) : "",
+        }))
+      : null;
+
+    _changeIntent = {
+      declared,
+      drift:    Boolean(diff && diff.drift),
+      classes:  Array.isArray(diff && diff.classes) ? diff.classes.slice() : [],
+      severity: diff && typeof diff.severity === "string" ? diff.severity : "none",
+      redactedDetails,
+    };
+
+    if (declared && diff && diff.drift) {
+      if (diff.severity === "high") {
+        _f20PreviewAction = "block";
+        _f20PreviewSource = _F20.source[0];
+      } else if (diff.severity === "medium") {
+        const tokenEnv = process.env.HORUS_F20_DEMOTE_TOKEN || "";
+        let demoted = false;
+        if (tokenEnv && canDemote(_F20.id, _DEMOTE_F20_MEDIUM)) {
+          try {
+            demoted = _contractConsumeScopedOperatorToken(tokenEnv, _DEMOTE_F20_TOKEN_SCOPE);
+          } catch { /* token mech unavailable → fail closed (no demotion) */ }
+        }
+        if (demoted) {
+          _f20PreviewAction = "allow";
+          _f20PreviewSource = _F20.source[1];
+        } else {
+          _f20PreviewAction = "require-review";
+          _f20PreviewSource = _F20.source[0];
+        }
+      }
+      // severity === "low" → receipt-only marker, no action override.
+    }
+  } catch (err) {
+    // F20 must never throw out to the engine. Journal the error and leave
+    // _changeIntent at null (no receipt enrichment) / no action override.
+    try { append({ kind: "change-intent-engine-error", error: String((err && err.message) || err).slice(0, 120) }); }
+    catch { /* journal best-effort */ }
+  }
+
   const learnedAllow = isLearnedAllowed(enriched);
   const risk = score(enriched);
   const policyKey = fineKey(enriched);
@@ -1176,6 +1273,34 @@ function decide(input = {}) {
     floorFired = floorFired || _F19.name;
   }
 
+  // F20 (ADR-012): change-intent drift override. Applied AFTER F14b + F19
+  // so contract-allow / auto-allow-once / trajectory-nudge cannot silently
+  // undo a high-severity block or a medium-severity require-review. A
+  // medium-severity demoted-to-allow path never weakens a stronger action
+  // an unrelated higher-priority floor already produced.
+  if (_f20PreviewAction === "block") {
+    action = "block";
+    source = _F20.source[0];
+    floorFired = floorFired || _F20.name;
+  } else if (_f20PreviewAction === "require-review") {
+    if (action !== "block" && action !== "escalate") {
+      action = "require-review";
+    }
+    source = _F20.source[0];
+    floorFired = floorFired || _F20.name;
+  } else if (_f20PreviewAction === "allow") {
+    if (
+      action !== "block" &&
+      action !== "require-review" &&
+      action !== "escalate" &&
+      action !== "require-tests"
+    ) {
+      action = "allow";
+      source = _F20.source[1];
+    }
+    floorFired = floorFired || _F20.name;
+  }
+
   // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
   // chain has failed verify (or HORUS_DEGRADED_MODE=1) AND this call is
   // write-like, any final `allow` is rerouted to `require-review`. Floors
@@ -1298,6 +1423,10 @@ function decide(input = {}) {
       redactedSample: typeof _f19Detail.redactedSample === "string" ? _f19Detail.redactedSample : "",
       compensatingRestrictionApplied: Boolean(_f19Detail.compensatingRestrictionApplied),
     } : {}),
+    // F20 (ADR-012): change-intent drift receipt key. Emitted on every F20
+    // evaluation (drift or not); absent only when an earlier floor short-
+    // circuited via buildEarlyBlock OR the F20 try-block itself threw.
+    ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1324,6 +1453,7 @@ function decide(input = {}) {
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
     ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
     ...(_f19Detail ? { f19Detail: _f19Detail } : {}),
+    ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
     ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
