@@ -121,6 +121,10 @@ const { stateDir: _statePathStateDir } = require("./state-paths");
 // is routed to `require-review`. Every receipt + journal entry carries a
 // `degradedMode` marker so audit can distinguish degraded receipts.
 const _degradedMode = require("./degraded-mode");
+// ADR-013: auto-snapshot before destructive-allow. Side-effect rail only —
+// snapshot creation NEVER changes a decision; failures fail open. The
+// receipt key is additive (only present on destructive-allow decisions).
+const _snapshot = require("./snapshot");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -1374,6 +1378,23 @@ function decide(input = {}) {
 
   const workflowRoute = recommend(action, enriched, risk, discovered);
 
+  // ADR-013: snapshot fires AFTER all floors decide AND BEFORE the
+  // engine returns `allow`, gated on `ir.destructive === true`. Failure
+  // marks the receipt `failed-fail-open` and proceeds — never promotes to
+  // block, never weakens a stronger action.
+  let _snapshotReceipt = null;
+  if (process.env.HORUS_AUTO_SNAPSHOT !== "0" && action === "allow" && input.ir && input.ir.destructive === true) {
+    try {
+      const _sScope = _snapshot.planSnapshotScope(input.ir, { reason: input.ir.commandClass || "destructive" });
+      const _sR = _snapshot.createSnapshot(_sScope, null, { decisionKey: policyKey, irHash: input.ir.irHash || null });
+      _snapshotReceipt = { attempted: true, status: _sR.status, snapshotId: _sR.snapshotId || null,
+        paths: _sR.manifest ? _sR.manifest.fileCount : 0, bytes: _sR.bytes || 0, reason: _sR.reason || null };
+    } catch (err) {
+      _snapshotReceipt = { attempted: true, status: "failed-fail-open", snapshotId: null,
+        paths: 0, bytes: 0, reason: err && err.message ? String(err.message) : "snapshot-error" };
+    }
+  }
+
   const result = {
     action,
     enforcementAction: ["block", "escalate", "require-review", "require-tests"].includes(action) ? "block" : "warn",
@@ -1427,6 +1448,8 @@ function decide(input = {}) {
     // evaluation (drift or not); absent only when an earlier floor short-
     // circuited via buildEarlyBlock OR the F20 try-block itself threw.
     ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
+    // ADR-013: additive snapshot receipt key on destructive-allow only.
+    ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1454,6 +1477,10 @@ function decide(input = {}) {
     ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
     ...(_f19Detail ? { f19Detail: _f19Detail } : {}),
     ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
+    // ADR-013: additive snapshot receipt key passes through the journal
+    // entry verbatim. Absent on non-destructive / non-allow decisions so
+    // existing journals stay byte-identical.
+    ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
     ...(irExtras || {}),
     redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
   });
