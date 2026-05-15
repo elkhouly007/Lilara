@@ -32,6 +32,7 @@
 #   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
 #   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
 #   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
+#   notify      ADR-015 notification routing (test/show/history).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -1329,6 +1330,128 @@ EOF
       *)
         printf '%sUnknown telemetry subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: report, clear\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── notify ────────────────────────────────────────────────────────────────
+  # ADR-015 notification routing (Discord / Slack / email). Default disabled.
+  notify)
+    sub="${1:-show}"
+    shift || true
+    case "$sub" in
+      test)
+        channel=""
+        url=""
+        dry_run=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --channel)   shift; channel="${1:-}" ;;
+            --channel=*) channel="${1#--channel=}" ;;
+            --url)       shift; url="${1:-}" ;;
+            --url=*)     url="${1#--url=}" ;;
+            --dry-run)   dry_run="1" ;;
+            -h|--help)
+              printf 'Usage: horus-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]\n'
+              exit 0
+              ;;
+            --*) die "Unknown flag: $1" ;;
+            *) die "Unexpected arg: $1" ;;
+          esac
+          shift
+        done
+        [ -n "$channel" ] || die "Usage: horus-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]"
+        node - "$root" "$channel" "$url" "$dry_run" <<'__NOTIFY_TEST_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const channel = process.argv[3];
+const url = process.argv[4] || "";
+const dry = process.argv[5] === "1";
+const notify = require(path.join(root, "runtime/notify"));
+const event = {
+  kind: "approval-request", severity: "info", decisionKey: "cli-test:" + Date.now(),
+  summary: "horus-cli notify test", scrubbedReceipt: notify.scrubForNotify({ action: "require-review", riskLevel: "low", reasonCodes: ["cli-test"], floorFired: null, decisionKey: "cli-test", timestamp: new Date().toISOString() }),
+  timestamp: new Date().toISOString(),
+};
+let transport;
+try { transport = require(path.join(root, "runtime/notify", channel)); }
+catch { process.stderr.write("notify test: unknown channel: " + channel + "\n"); process.exit(2); }
+const payload = transport.buildPayload ? transport.buildPayload(event) : transport.buildMessage(event, "to@example.com", "from@example.com");
+if (dry) {
+  process.stdout.write("notify test (dry-run): channel=" + channel + "\n");
+  process.stdout.write(JSON.stringify(payload, null, 2) + "\n"); process.exit(0);
+}
+const ch = channel === "email" ? { type: "email", to: process.env.HORUS_SMTP_TO || "ops@example.com", events: ["*"] }
+  : { type: channel, webhookUrl: url, events: ["*"] };
+(async () => {
+  const r = await transport.send(ch, event);
+  process.stdout.write("notify test: " + JSON.stringify(r) + "\n");
+  process.exit(r.ok ? 0 : 1);
+})();
+__NOTIFY_TEST_EOF__
+        ;;
+      show)
+        node - "$root" <<'__NOTIFY_SHOW_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const { load } = require(path.join(root, "runtime/contract"));
+const { loadNotifyConfig } = require(path.join(root, "runtime/notify"));
+const doc = load(process.cwd());
+const cfg = loadNotifyConfig(doc);
+process.stdout.write("notify show:\n");
+process.stdout.write("  enabled:       " + cfg.enabled + "\n");
+process.stdout.write("  severityFloor: " + cfg.severityFloor + "\n");
+process.stdout.write("  channels:      " + cfg.channels.length + "\n");
+for (const c of cfg.channels) {
+  const events = (c.events || ["*"]).join(",");
+  const dest = c.webhookUrl ? "<webhook>" : (c.to || "");
+  process.stdout.write("    - type=" + c.type + "  events=[" + events + "]  dest=" + dest + "\n");
+}
+__NOTIFY_SHOW_EOF__
+        ;;
+      history)
+        limit="20"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit)   shift; limit="${1:-20}" ;;
+            --limit=*) limit="${1#--limit=}" ;;
+            -h|--help) printf 'Usage: horus-cli.sh notify history [--limit N]\n'; exit 0 ;;
+            *) die "Unexpected arg: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$limit" <<'__NOTIFY_HISTORY_EOF__'
+"use strict";
+const path = require("path");
+const fs = require("fs");
+const root = process.argv[2];
+const limit = Math.max(1, Math.min(1000, parseInt(process.argv[3] || "20", 10) || 20));
+const { journalPaths } = require(path.join(root, "runtime/decision-journal"));
+const { logFile } = journalPaths();
+if (!fs.existsSync(logFile)) { process.stdout.write("notify history: (journal empty)\n"); process.exit(0); }
+const lines = fs.readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean);
+const entries = [];
+for (let i = lines.length - 1; i >= 0 && entries.length < limit; i--) {
+  let r; try { r = JSON.parse(lines[i]); } catch { continue; }
+  if (r.kind === "notify" || r.notifyAttempted === true) entries.push(r);
+}
+entries.reverse();
+if (entries.length === 0) { process.stdout.write("notify history: (no notify entries)\n"); process.exit(0); }
+process.stdout.write("notify history: " + entries.length + " entry/entries\n");
+for (const r of entries) {
+  process.stdout.write("  " + (r.ts || "") + "  kind=" + (r.action || "") + "  severity=" + (r.riskLevel || "") + "\n");
+  if (Array.isArray(r.notifyResult)) for (const x of r.notifyResult) {
+    process.stdout.write("    -> " + x.channel + " ok=" + x.ok + " status=" + x.status + (x.error ? " err=" + x.error : "") + "\n");
+  }
+}
+__NOTIFY_HISTORY_EOF__
+        ;;
+      *)
+        printf '%sUnknown notify subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: test, show, history\n' >&2
         exit 2
         ;;
     esac

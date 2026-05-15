@@ -136,6 +136,10 @@ function append(entry) {
     // destructive-allow decisions; absent otherwise so existing journals
     // stay byte-identical.
     ...(entry.snapshot && typeof entry.snapshot === "object" ? { snapshot: entry.snapshot } : {}),
+    // ADR-015 PR-η: notification result pass-through. notify.js writes a
+    // dedicated `kind:"notify"` entry per event; absent on every other path
+    // so existing journals stay byte-identical.
+    ...(Array.isArray(entry.notifyResult) ? { notifyResult: entry.notifyResult } : {}),
     // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
     // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format
