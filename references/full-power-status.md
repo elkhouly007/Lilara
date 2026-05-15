@@ -89,11 +89,29 @@ The correct current description is:
 
 > **Agent Runtime Guard is a purpose-built, all-original agentic policy and amplification framework with a verified runtime decisioning layer, comprehensive rule coverage across 12 languages, and 249 passing integration fixtures.**
 
-## v0.5 Stage D operating infrastructure
+## v0.5 milestone — closed 2026-05-15 (released as 3.1.0)
 
+Stages A–D delivered across PRs #37–#53. Master green; 30 local CI gates pass; 371 fixtures + 12 replay entries with 0 divergences; p99 1.2ms.
+
+**Floors added (engine-baked, non-demotable):**
+- F16 ambient-authority (rung 17.5) — denies writes touching ssh / shellRc / packageCache / credentialHelper / mcpConfig / browserProfile / osKeychain unless `scopes.ambient.allow[]` opts in. ADR-009.
+- F17 cross-agent lock (rung 17.75) — blocks writes when another agent holds an unexpired exclusive lock on the path / project.
+- F19 output-channel exfiltration guard (rung 17.875) — blocks confirmed-class secrets on stdout / generated files / commit messages / PR text; compensating-rule for `not-observed` channels. ADR-010.
+- F20 change-intent drift (rung 18.5) — blocks IR actions outside the declared envelope's file targets / commands / command-classes / network hosts / policy paths. ADR-012.
+
+**Operational infrastructure:**
+- ADR-004 tamper-evident hash-chained journal core + verify CLI; degraded-mode wiring routes write-like allows through require-review when `HORUS_DEGRADED=1`.
+- ADR-011 portable state export / import bundle (`horus state {export,import,doctor}`) with manifest sha256.
+- ADR-013 auto-snapshot before destructive ops (`horus snapshot {list,show,restore,prune,doctor}`).
+- ADR-014 audit-grade receipts: JSON Schema for journal entries, exporter (jsonl / CSV, deterministic), optional redact mode, SOC2 informal mapping. `horus receipts {validate,export,schema,doctor}`.
+- ADR-015 notification routing (wave-4): opt-in Discord / Slack / email transports, fire-and-forget hook, allowlist PII scrub. Default disabled; absent `notifications` block keeps receipts byte-identical.
+- G4 adapter capability manifests: every adapter declares positive + negative capabilities + `outputChannelObservability` map; CI-gated.
+
+**Test infrastructure (added in Stage D):**
 - Stress harness: 8 scenarios, nightly cron, observability-only (does not block PR merges).
 - Adversarial track: full G+Q library exercised nightly (Linux only); bypass detection auto-files high-priority issue.
-- ADR-015 notification routing (wave-4): opt-in Discord / Slack / email transports, fire-and-forget hook, allowlist PII scrub. Default disabled; absent `notifications` block keeps receipts byte-identical.
+
+**What's intentionally not in 0.5 (deferred to v1.0 / v1.5 / M9):** multi-channel approval handshake, Telegram / mobile-push / voice notifications, skill-orchestration runtime, public open-source release prep. See `workstreams/agent-runtime-guard-plan.md` §4.2–§4.6.
 
 ## v1.0.x Runtime Sprint Highlights
 
