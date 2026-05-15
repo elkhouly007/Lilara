@@ -93,6 +93,7 @@ The correct current description is:
 
 - Stress harness: 8 scenarios, nightly cron, observability-only (does not block PR merges).
 - Adversarial track: full G+Q library exercised nightly (Linux only); bypass detection auto-files high-priority issue.
+- ADR-015 notification routing (wave-4): opt-in Discord / Slack / email transports, fire-and-forget hook, allowlist PII scrub. Default disabled; absent `notifications` block keeps receipts byte-identical.
 
 ## v1.0.x Runtime Sprint Highlights
 

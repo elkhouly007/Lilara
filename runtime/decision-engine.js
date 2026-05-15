@@ -125,6 +125,17 @@ const _degradedMode = require("./degraded-mode");
 // snapshot creation NEVER changes a decision; failures fail open. The
 // receipt key is additive (only present on destructive-allow decisions).
 const _snapshot = require("./snapshot");
+// ADR-015 (PR-η): notification router. Fire-and-forget side-effect rail; the
+// hook NEVER blocks the engine return path and notification failure NEVER
+// changes a decision. require()d lazily inside the hook so a malformed
+// module can't impact the decide() hot path startup.
+let _notifyModule = null;
+function _getNotify() {
+  if (_notifyModule) return _notifyModule;
+  try { _notifyModule = require("./notify"); } catch { _notifyModule = null; }
+  return _notifyModule;
+}
+let _notifyDegradedSeen = false; // process-lifetime de-dup for "degraded-mode-entered"
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -168,6 +179,9 @@ function harnessInScope(contract, harness) {
 // engine is synchronous within a single decide(), so this is safe to share
 // across the floor checks that follow.
 let _earlyBlockDegradedDefault = null;
+// ADR-015: notify hook reads the active contract on early-block returns so a
+// kill-switch fire still sends. Populated by decide() at the top of each call.
+let _earlyBlockContract = null;
 function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   // ADR-009 PR-C: any early-block decision that touched an ambient path
   // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
@@ -256,6 +270,10 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
   } catch { /* journal is best-effort */ }
+  // ADR-015: fire-and-forget notify hook. `_earlyBlockContract` is set by
+  // decide() at top of call so kill-switch / contract-mismatch early blocks
+  // can still emit a notification when the contract enables it.
+  try { _fireNotifyHook(result, _earlyBlockContract, result.policyKey || null); } catch { /* */ }
   return result;
 }
 
@@ -443,9 +461,53 @@ function _evalCrossAgentLockFloor(input, discovered, enriched) {
   };
 }
 
+// ADR-015: derive the notification event from a finalized decision result.
+// Returns null when the decision is not one of the four wave-4 trigger kinds
+// (so the hook stays a no-op). Severity mapping matches the brief: kill-switch
+// and adversarial-bypass are critical; require-review is info; degraded-mode
+// is warning. Adversarial-bypass keys on a G-series floor producing `block` —
+// currently a forward-compatible no-op since no G-floor ships yet.
+function _classifyNotifyEvent(result) {
+  if (!result) return null;
+  const ff = String(result.floorFired || "");
+  if (ff === _F1.name || ff === "kill-switch") return { kind: "kill-switch-fire", severity: "critical" };
+  if (/^G/.test(ff) && result.action === "block") return { kind: "adversarial-bypass-detected", severity: "critical" };
+  if (result.degradedMode && typeof result.degradedMode === "object" && !_notifyDegradedSeen) {
+    _notifyDegradedSeen = true;
+    return { kind: "degraded-mode-entered", severity: "warning" };
+  }
+  if (result.action === "require-review") return { kind: "approval-request", severity: "info" };
+  return null;
+}
+
+// Fire-and-forget notification hook. NEVER awaited; NEVER throws; NEVER
+// mutates the decision. Sets `result.notifyAttempted = true` only if the
+// hook actually invoked notify() (contract enabled + matching event).
+function _fireNotifyHook(result, contract, decisionKey) {
+  try {
+    const mod = _getNotify();
+    if (!mod) return;
+    const cfg = mod.loadNotifyConfig(contract);
+    if (!cfg.enabled) return;
+    const ev = _classifyNotifyEvent(result);
+    if (!ev) return;
+    result.notifyAttempted = true;
+    const payload = {
+      kind: ev.kind,
+      severity: ev.severity,
+      decisionKey: decisionKey || result.policyKey || null,
+      summary: result.explanation || `${ev.kind}:${result.action || ""}`,
+      scrubbedReceipt: mod.scrubForNotify(result),
+      timestamp: new Date().toISOString(),
+    };
+    const p = mod.notify(payload, { contract });
+    if (p && typeof p.catch === "function") p.catch(() => { /* swallow */ });
+  } catch { /* notify hook must never block engine */ }
+}
+
 function decide(input = {}) {
   if (process.env.HORUS_KILL_SWITCH === "1") {
-    return {
+    const killResult = {
       action: "block",
       enforcementAction: "block",
       floorFired: _F1.name,
@@ -465,6 +527,11 @@ function decide(input = {}) {
       trajectoryNudge: null,
       context: {},
     };
+    // ADR-015: even a kill-switched return can notify if a contract is
+    // present and enables notifications. Best-effort contract load so a
+    // bad/missing contract doesn't change kill-switch behaviour.
+    try { _fireNotifyHook(killResult, getContract(process.cwd()), killResult.policyKey); } catch { /* */ }
+    return killResult;
   }
 
   const discovered = discover(input);
@@ -508,6 +575,9 @@ function decide(input = {}) {
 
   // ── Section 4.6 precedence matrix: contract verification (Steps 2 + 5) ──
   const contract    = getContract(discovered.projectRoot || process.cwd());
+  // ADR-015: thread the active contract to the early-block return path so
+  // kill-switch / contract-mismatch fires can still emit a notification.
+  _earlyBlockContract = contract;
 
   // B2 commit 2: contextTrust per-branch posture override.
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
@@ -1497,6 +1567,12 @@ function decide(input = {}) {
       _recordDestructiveOp({ sessionId: enriched.sessionId || discovered.sessionId });
     }
   } catch { /* session-budget unavailable → no-op */ }
+
+  // ADR-015 PR-η: notification hook. Fire-and-forget — invoked AFTER receipt
+  // assembly + journal append, BEFORE return. NEVER awaited; NEVER changes
+  // the decision; sets `result.notifyAttempted = true` only when an event
+  // matched and the transport call was kicked off.
+  _fireNotifyHook(result, contract, policyKey);
 
   return result;
 }
