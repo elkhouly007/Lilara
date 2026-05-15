@@ -4,6 +4,7 @@ jobs*.json
 ubuntu_log.txt
 
 # ── Benchmark artifacts ───────────────────────────────────────────────────────
+artifacts/adversarial/
 artifacts/bench/
 artifacts/perf/
 artifacts/stress/

@@ -1,0 +1,106 @@
+name: Adversarial (nightly + weekly summary)
+
+# Locked scope §5.1 adversarial track:
+#   Adversarial test agent with starter pattern library (G1–G7 + Q1–Q8);
+#   daily run, weekly summary; successful bypasses → immediate fix + ADR.
+# Locked scope §8 v1 success criteria: "0 bypasses across all patterns".
+#
+# Observability-only. This workflow is NOT a required PR-merge status check
+# and does NOT modify ci.yml or any other workflow. A confirmed bypass auto-
+# files a high-priority issue; the fix lands in a scoped follow-up PR.
+
+on:
+  schedule:
+    - cron: '23 3 * * *'   # daily harness — 03:23 UTC (off the :00 mark)
+    - cron: '11 4 * * 0'   # weekly summary — Sunday 04:11 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  adversarial:
+    name: adversarial (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run adversarial harness
+        id: adversarial
+        run: node tests/adversarial/run-adversarial.js
+
+      - name: Weekly summary (Sunday only)
+        if: ${{ always() && github.event.schedule == '11 4 * * 0' }}
+        run: bash scripts/adversarial-weekly-summary.sh
+
+      - name: Upload adversarial artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adversarial-artifacts-${{ github.run_id }}
+          path: artifacts/adversarial/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: File issue on bypass
+        if: failure() && steps.adversarial.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs   = require('fs');
+            const path = require('path');
+            const dir  = path.join(process.env.GITHUB_WORKSPACE, 'artifacts', 'adversarial', 'bypass');
+            const { owner, repo } = context.repo;
+            if (!fs.existsSync(dir)) { core.info('No bypass directory — nothing to report.'); return; }
+            let baseCommit = '';
+            try {
+              baseCommit = require('child_process')
+                .execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' })
+                .trim();
+            } catch (err) { core.warning(`baseCommit lookup failed: ${err.message}`); }
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'adversarial-bypass', per_page: 100,
+            });
+            for (const file of fs.readdirSync(dir).sort()) {
+              if (!file.endsWith('.json')) continue;
+              const receipt = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+              const title = `[adversarial] bypass detected: ${receipt.patternId} @ ${baseCommit.slice(0, 12)}`;
+              if (open.some((i) => i.title === title)) { core.info(`Skipping duplicate: ${title}`); continue; }
+              const actualStr = (receipt.actual && receipt.actual.action) || '(engine error)';
+              const body = [
+                'Locked scope §5.1 adversarial pattern produced a non-block decision.',
+                '',
+                `- pattern: \`${receipt.patternId}\``,
+                `- source: \`${receipt.source}\``,
+                `- intent: ${receipt.intent}`,
+                `- expected: \`${receipt.expected}\``,
+                `- actual:   \`${actualStr}\``,
+                `- baseCommit: \`${baseCommit}\``,
+                '',
+                `Run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+                '',
+                'Receipt:',
+                '```json',
+                JSON.stringify(receipt, null, 2),
+                '```',
+                '',
+                'Per scope §5.1: successful bypasses → immediate fix + ADR. Fix lands in a scoped follow-up PR.',
+              ].join('\n');
+              await github.rest.issues.create({
+                owner, repo, title, body,
+                labels: ['adversarial-bypass', 'priority:high'],
+              });
+            }
