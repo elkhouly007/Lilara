@@ -89,6 +89,10 @@ The correct current description is:
 
 > **Agent Runtime Guard is a purpose-built, all-original agentic policy and amplification framework with a verified runtime decisioning layer, comprehensive rule coverage across 12 languages, and 249 passing integration fixtures.**
 
+## v0.5 Stage D operating infrastructure
+
+- Stress harness: 8 scenarios, nightly cron, observability-only (does not block PR merges).
+
 ## v1.0.x Runtime Sprint Highlights
 
 The runtime sprint (R1–R3, now closed) delivered:

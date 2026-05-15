@@ -1,0 +1,72 @@
+name: Stress + graceful-degradation (nightly)
+
+# Locked plan §5.1 cadence: nightly run + 8+ scenarios.
+# Observability-only: this workflow does NOT block PR merges. It runs on a
+# cron + manual dispatch, uploads per-scenario artifacts on both pass and
+# fail (so the journal can be diffed over time), and comments on the most
+# recent open PR labeled `stress-watch` only when a scenario fails.
+
+on:
+  schedule:
+    # 02:17 UTC — off the :00 mark to spread cron load.
+    - cron: '17 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stress:
+    name: stress (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run stress harness
+        id: stress
+        run: node tests/stress/run-stress.js
+
+      - name: Upload stress artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-artifacts-${{ github.run_id }}
+          path: artifacts/stress/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Comment on stress-watch PR on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prs = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 50 });
+            const target = prs.data.find((p) => (p.labels || []).some((l) => l.name === 'stress-watch'));
+            if (!target) {
+              core.info('No open PR with label stress-watch — skipping comment.');
+              return;
+            }
+            const body = [
+              '⚠️ Nightly stress harness FAILED.',
+              '',
+              `Run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              '',
+              'See workflow artifacts (`stress-artifacts-${{ github.run_id }}`) for per-scenario receipts and journals.',
+              'This workflow is observability-only and does NOT block merges.',
+            ].join('\n');
+            await github.rest.issues.createComment({ owner, repo, issue_number: target.number, body });
