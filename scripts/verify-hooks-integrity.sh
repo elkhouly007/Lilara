@@ -3,7 +3,7 @@
 #
 # How it works:
 #   1. Computes the SHA-256 hash of each hook file.
-#   2. Compares against a stored baseline in scripts/hooks-baseline.sha256.
+#   2. Compares against a stored baseline in artifacts/hooks-baseline.sha256.
 #   3. Reports NEW hooks (not in baseline), CHANGED hooks, and MISSING hooks.
 #
 # Usage:
@@ -16,7 +16,7 @@
 set -eu
 
 HOOKS_DIR="claude/hooks"
-BASELINE="scripts/hooks-baseline.sha256"
+BASELINE="artifacts/hooks-baseline.sha256"
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
