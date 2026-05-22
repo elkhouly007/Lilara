@@ -89,3 +89,116 @@ so baseline drift cannot accidentally land in PRs).
 Each PR can be reverted in isolation. To temporarily disable just the
 journal extras without reverting code, set `HORUS_IR_JOURNAL=0` in the
 operator environment.
+
+---
+
+## v0.5 Stage A–D — Operator-Facing Notes
+
+All Stage A–D changes (PRs #34–#54, v3.1.0) are additive. No contract
+schema break since v3.0.0. The notes below describe new opt-in / opt-out
+knobs, new state-directory subdirs, and new CLI surfaces that operators
+should know about. None require action to stay on the upgrade path.
+
+### ADR-009 — F16 ambient-authority (opt-in)
+
+`scopes.ambient.allow` is a new optional contract array. Commands that
+touch an `ambient`-classified path require an explicit entry; absent the
+entry, F16 fires. Default behaviour for contracts that do not declare
+`scopes.ambient` is unchanged. Receipts gain `ambientClass` on every
+ambient-touch decision.
+
+### F18 D-007 — plaintext network (opt-out)
+
+`scopes.network.allowPlaintext` is a new optional contract boolean. When
+the contract carries any F18 signal (`allowDomains`, `denyDomains`, or
+`allowPlaintext`), a plaintext (`http://…`) target is blocked unless
+`allowPlaintext === true`. Loopback is exempt. Contracts that do not
+carry any F18 signal are unaffected.
+
+### ADR-011 — state portability
+
+New CLI: `horus-cli.sh state export <path>` writes a self-contained
+bundle of `~/.horus/` (learned-policy, journal, instincts, snapshots,
+session-budget, locks). `horus-cli.sh state import <path>` restores it.
+Useful for migrating between machines or moving from a test box to
+production. Implemented in `runtime/state-bundle.js`.
+
+### ADR-013 — auto-snapshot before destructive ops
+
+New state subdir: `~/.horus/snapshots/`. When a destructive action is
+allowed/routed, `runtime/snapshot.js` captures pre-action state and
+attaches the snapshot ref to the receipt. Disk usage grows with
+destructive-op volume; prune with `horus-cli.sh snapshot prune` (or
+remove files older than your retention threshold manually). No
+configuration is required for the feature to be active.
+
+### ADR-014 — audit-grade receipts
+
+New CLI: `horus-cli.sh receipt export <session-id>` produces a canonical
+receipt JSON for auditors. `scripts/redact-payload.sh` is an offline
+audit tool that strips sensitive fields from an exported receipt; it is
+NOT in the runtime path. CI gate: `scripts/check-receipt-schema.sh`.
+
+### ADR-015 — notification routing (opt-in)
+
+New optional contract section: `notifications`. Set
+`notifications.enabled === true` to activate. Each transport has its own
+keys:
+
+- `notifications.discord.webhookUrl` — Discord incoming-webhook URL.
+- `notifications.slack.webhookUrl` — Slack incoming-webhook URL.
+- `notifications.email.{to, from?}` — email recipient(s). SMTP
+  credentials live in the environment only: `HORUS_SMTP_HOST`,
+  `HORUS_SMTP_PORT`, `HORUS_SMTP_USER`, `HORUS_SMTP_PASS`,
+  `HORUS_SMTP_FROM`. Never stored in the contract or any state file.
+
+The hook is fire-and-forget: transport failures do not change a
+decision. Receipts gain an additive `notifyAttempted: true` ONLY when
+the hook actually fires (contract enabled + matching event). Installs
+without `notifications.enabled === true` produce byte-identical receipts
+to v3.0.0.
+
+Triggers:
+
+- `approval-request` (severity `info`) when `action === "require-review"`.
+- `kill-switch-fire` (`critical`) when F1 fires.
+- `degraded-mode-entered` (`warning`) on the first process-lifetime
+  `decide()` with a degraded marker.
+- `adversarial-bypass-detected` (`critical`) when a G-series floor
+  produces `block` (forward-compatible no-op until G-series ships).
+
+PII scrubber is allowlist-only — only the explicitly listed keys ever
+reach a transport.
+
+### ADR-004 — degraded-mode + hash-chained journal
+
+The decision journal is now hash-chained. `scripts/verify-decision-journal.sh`
+walks the chain and exits non-zero on tamper. No operator action is
+required; existing journals continue to append and verify cleanly.
+
+If the runtime detects unhealthy state (store / chain / locks), it
+emits a `degraded-mode-entered` marker on the first process-lifetime
+fire. Operators see this as a stderr notice and (if notifications are
+enabled) a `warning` event.
+
+### Floor count
+
+`ARCHITECTURE.md` §2 enumerates the implemented floors. As of v3.1.0:
+F1–F14, F14b, F15, F16, F17, F18, F18-D007, F19, F20. Twenty floors
+total. All additive to v3.0.0; no decision flips outcome under an
+existing v3 contract that does not opt into the new scopes.
+
+### Rollback for this batch
+
+Each ADR ships behind a contract field or an env switch. To roll back a
+single feature without reverting code:
+
+| Feature | Opt-out |
+|---|---|
+| F16 ambient | omit `scopes.ambient` from the contract |
+| F18 network-egress | omit `scopes.network.allowDomains` (and `denyDomains`, `allowPlaintext`) |
+| F19 output-exfil | (no opt-out; lattice floor) |
+| F20 change-intent | (no opt-out; lattice floor) |
+| Auto-snapshot (ADR-013) | (no env flag yet; remove `~/.horus/snapshots/` to reclaim disk) |
+| Notifications (ADR-015) | omit `notifications` from the contract, or set `notifications.enabled` to `false` |
+| Journal hash-chain (ADR-004) | (no opt-out; backwards-compatible append format) |

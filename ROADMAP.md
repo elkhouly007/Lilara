@@ -1,20 +1,18 @@
 # Roadmap — Agent Runtime Guard
 
-This document tracks forward-looking work only. For the implemented architecture, see [ARCHITECTURE.md](ARCHITECTURE.md). For the contract specification, see [CONTRACT.md](CONTRACT.md). For shipped changes, see [CHANGELOG.md](CHANGELOG.md).
+This document tracks forward-looking work only. For the implemented architecture, see [ARCHITECTURE.md](ARCHITECTURE.md). For the contract specification, see [CONTRACT.md](CONTRACT.md). For shipped changes, see [CHANGELOG.md](CHANGELOG.md). For the formal decision log, see [DECISIONS.md](DECISIONS.md).
 
 ---
 
 ## Executive Summary
 
-ARG aims to become an adaptive, safety-bounded operating layer for AI agents. The destination is an intelligent runtime substrate that decides which capability should run for an intent, on which harness, within which scope; learns reviewed local defaults from operator-approved patterns; and enforces hard safety floors that no contract or learning step can demote.
-
-ECC — the upfront-contract model — is the foundation we build on, not the finished product.
+ARG is a zero-dep Node runtime guard for AI coding agents. It pairs an explicit upfront contract (`horus.contract.json`) with a single enforcement spine and hard safety floors that no contract or learning step can demote. The current product milestone — v0.5 "Incremental Hardened Daily" — is closed; the runtime is in soak.
 
 ### Three horizons
 
-**Today — what runs.** A single enforcement spine across Claude Code, OpenCode, and OpenClaw; contract verification including acceptance, hash-checking, and schema validation; learned-allow with project-scoped fineKey; session trajectory nudges; workflow-shaped actions; a JSONL audit trail; an `HORUS_KILL_SWITCH=1` emergency block; an amplification surface of agents, rules, and skills, plus a unified CLI. Cross-harness secret-scan parity (all harnesses call `scanSecrets()` and upgrade payloadClass to C on a hit); post-tool output sanitization (`output-sanitizer.js` PostToolUse hook); protected-branch glob matching (`release/*` patterns now match in `risk-score.js`); telemetry aggregation (`horus-cli telemetry report`). 183 fixture pairs, 13 hooks. A post-ship audit (v2.1.1) closed gaps in the contract acceptance path and verification scripts.
+**Today — what runs (v3.1.0).** A single enforcement spine across Claude Code, OpenCode, and OpenClaw, plus best-effort adapters for Codex / ClawCode / Antegravity. Eighteen engine-baked floors (F1–F18) anchored in `runtime/decision-lattice.js` and consumed by `runtime/decision-engine.js`. Canonical Action IR (`runtime/action-ir.js`) normalises every adapter's raw payload before floors run. Receipts carry `irHash`, `rung`, `latticeVersion`, and floor-source tags. Tamper-evident hash-chained decision journal with verify CLI. Auto-snapshot before destructive ops. Audit-grade receipts schema with exporter and offline redactor. Notification routing to Discord / Slack / email (zero-dep, fire-and-forget). State portability (export/import bundle). F19 output-channel exfiltration guard. F20 change-intent diffing. v3 contract schema with backwards-compatible v1→v2→v3 migration scripts and CI gates. 371 fixtures plus 12 replay-corpus entries. 30 local CI gates. Runtime p99 1.2ms against a 10ms ceiling. Stress harness (8 graceful-degradation scenarios, nightly) and full adversarial G+Q library nightly with weekly summary.
 
-**In flight — what we are building now.** All three "in flight" items (contract schema v2 evolution, legacy 4-part key removal, scope-defined contract CI gate) are now closed — see `[Unreleased]` in CHANGELOG.md.
+**In flight — what we are building now.** Nothing. v3.1.0 is in soak; no PRs are open and `state/active-acp-runs.json` is empty.
 
 **Target state — where this is going.** Intent-aware routing across skills, agents, rules, and checks; outcome-driven policy suggestions derived from the local decision journal; behavioral verification with autonomy and false-block metrics; canary / progressive rollout; cross-session learning aggregated locally by the operator, never by us.
 
@@ -24,103 +22,68 @@ See `references/runtime-autonomy-roadmap.md` for the longer arc and per-sprint h
 
 ## [Unreleased]
 
-Cross-harness and post-tool hardening batch: secret-scan parity across all harnesses; PostToolUse output sanitization; protected-branch glob matching; enforce-mode fixture classification correction; 183 fixture pairs, 13 hooks. See [CHANGELOG.md](CHANGELOG.md) for the full diff.
-
-Correctness hardening batch (H1–H3 + doc sync):
-
-- **H1 — Hermetic fixture state**: `scripts/run-fixtures.sh` now exports `HORUS_STATE_DIR=$(mktemp -d)` at suite level and uses a per-fixture `HORUS_STATE_DIR` for each hook invocation, preventing trajectory state from accumulating across fixtures. Also adds `require-tests` to the `enforcementAction` block set in `runtime/decision-engine.js` so high-risk destructive-delete commands block (not just warn) under HORUS_ENFORCE=1. Fixture count: 158 pass, 0 fail.
-- **H2 — Bench platform detection + baseline reset**: `scripts/bench-runtime-decision.sh` now detects Windows via `OS=Windows_NT`, MinGW/MSYS/Cygwin, and WSL-on-`/mnt/`; passes a `slow_fs` flag to Node; keys the baseline by `platformKey` (`win32-slowfs` on Windows, `linux` on real Linux CI) instead of raw `process.platform`. Added a 3× sanity guard to prevent overwriting the baseline when the filesystem context is wrong. `artifacts/bench/baseline.json` reset: the prior `"linux"` entry contained Windows-magnitude p99=178.876ms (~30–50× real Linux latency), written during a WSL-on-`/mnt/c` session where `process.platform === "linux"` but FS IO was Windows-class.
-- **H3 — Fail-closed under HORUS_ENFORCE=1 when decide() throws**: `runtime/pretool-gate.js` catch block now blocks (exit 2) under enforce when any non-trivial signal is present: a dangerous-pattern hit at any severity, a secret-bearing payload, or a high-sensitivity path. Previously only critical/high pattern hits triggered fail-closed; medium patterns, secret-only payloads, and sensitive-path signals were silently allowed.
-- **H4 — OpenCode PostToolUse parity**: deferred. In-repo wiring (`opencode/WIRING_PLAN.md`) documents PreToolUse only; no confirmed upstream PostToolUse support. See `Post-v2.1 Candidates` below.
-- **H5 — Doc sync**: `SECURITY_MODEL.md` documents the decide()-throw fail-closed semantics. `references/owasp-agentic-coverage.md` updated: ASI05 now reflects the Claude Code `output-sanitizer.js` implementation and honest deferral status for OpenCode and OpenClaw.
+Empty. v3.1.0 in soak; next-wave items are listed under "Post-v3.1 candidates" below.
 
 ---
 
-## v2.1.1 — Shipped (2026-04-25)
+## v0.5 milestone — Closed (2026-05-15, cut at v3.1.0)
 
-Post-implementation reality audit: contract accept/verify broken by integer-type validator bug (fixed); two check scripts were structurally vacuous (fixed); docs drifted from behavior (fixed). See [CHANGELOG.md](CHANGELOG.md) for the full diff.
+Stages A–D delivered (PRs #37–#54). Highlights:
 
----
+- **Stage A — ADR-007 canonical Action IR + explicit decision lattice** (PRs #34, #35, #36): `runtime/decision-lattice.js` + `runtime/action-ir.js`; adapter parity fixtures; lattice-anchored floor source tags; replay corpus + IR perf gate; sentinel pin to stop master CI drift.
+- **Stage B — F16 ambient-authority floor** (PRs #38, #39, #40, #41): path classifier; `scopes.ambient.allow` opt-in; receipt enrichment with `ambientClass`; adversarial corpus + replay fixtures; unicode + path-traversal bypasses closed.
+- **Stage C — F17 cross-agent-lock + g4 adapter capability manifests** (PRs #43, #44): per-action mutual-exclusion lock floor; adapter capability manifests hardened.
+- **Stage D wave 1 — ADR-011 state portability + ADR-004 degraded-mode + tamper-evident journal** (PRs #45, #46, #37): export/import bundle; degraded-mode enforcement wiring + receipts; hash-chained journal core + verify CLI.
+- **Stage D wave 2 — F19 + F20** (PRs #47, #48): ADR-010 output-channel exfiltration guard (F19); ADR-012 change-intent diffing (F20 declared-envelope vs IR drift).
+- **Stage D wave 3 — auto-snapshot + audit-grade receipts** (PRs #49, #50, #51): ADR-013 auto-snapshot before destructive ops; stress harness with 8 graceful-degradation scenarios + nightly cron; ADR-014 audit-grade receipts schema + exporter + offline redactor.
+- **Stage D wave 4 — full adversarial library + notification routing** (PRs #52, #53): nightly G+Q exercise + weekly summary; ADR-015 notification routing (Discord / Slack / email, zero-dep transports).
+- **Milestone close** (PR #54): CHANGELOG cut `[Unreleased]` → `[3.1.0]`; `VERSION` 3.0.0 → 3.1.0; `references/full-power-status.md` v0.5 section rewritten to list all eleven Stage D items.
 
-## v2.1.0 — Shipped (2026-04-25)
-
-Phase D hardening: macOS CI required, bench baseline persisted via `actions/cache`, three new best-effort adapters (codex, clawcode, antegravity), telemetry aggregation (`horus-cli telemetry report`).
-
----
-
-## v2.0.1 — Shipped (2026-04-25)
-
-Security hotfix. Seven enforcement gaps found by post-ship audit. See [CHANGELOG.md](CHANGELOG.md) for the full diff.
-
-Key fixes:
-- `decide()` now runs on **every** tool call — previously bypassed for commands with no dangerous-pattern match (C1)
-- `blockResult` undefined reference in strict-mode hash-mismatch path fixed — was silently allowing tampered contracts (C2)
-- Kill-switch is now `exit 2` (block) across all 10 PreToolUse hooks — was `exit 0` (silent allow) (C3, C4)
-- `scopeMatch()` uses multi-target `arg-extractor` with symlink/escape protection — was single `targetPath` string (C5, C6)
-- `fineKey` (5-part, project-scoped) now used for learned-allow — closes cross-project allow loophole (C7)
-- `session-risk >= 3` is now a true escalate floor before `contract-allow` can demote (C8)
-- Learned-allow narrowed to `destructive-delete` at high risk only; medium-risk actions no longer demotable (C9)
-- `require-review` (protected-branch floor) protected from `contract-allow` demotion (C10)
-- `floorFired` field written to all journal entries (C11)
-- `contract amend` is a real implementation — no longer a print stub (C12)
-- `GATED_CLASSES` unified: single export from `contract.js`, imported by `decision-engine.js` (C13)
-- `auto-download` reads `remoteExecAllow` — was always denying regardless of contract (C14)
-- `hard-reset`, `destructive-db`, `disk-write` now handled in `scopeMatch()` via `destructiveAllow` by class (C15)
-- 59 scripts, 12 hooks, 49 agents, 22 skills, 174 fixture pairs
+See `CHANGELOG.md` `[3.1.0]` and `DECISIONS.md` D49+ for the full record.
 
 ---
 
-## v2.0.0 — Shipped (2026-04-25)
+## Earlier shipped lines (summary)
 
-The upfront security contract model. All fourteen structural weaknesses (W1–W14) from the v2.0 plan audit are addressed.
-
-Key deliverables:
-- Upfront `horus.contract.json` pre-agrees all permissions before agent work starts
-- Single enforcement spine (`runtime/pretool-gate.js`) for all harnesses
-- Session-id partitioning for correct `session-risk` floors
-- `HORUS_CONTRACT_REQUIRED=1` strict mode gates by capability class
-- `HORUS_READONLY_CONTRACT=1` read-only mode for CI/review runs
-- macOS added to CI matrix
-- 57 scripts, 12 hooks, 49 agents, 22 skills, 130 fixture pairs
+- **v3.0.0 — 2026-04-27.** Brand rename (`ECC_*` → `HORUS_*`, contract / config / state path renames, `arg-` → `hap-` contractId prefix). Phase 1 closed W1–W14 structural weaknesses; Phase 3 added autonomous routing foundation (`intent-classifier.js`, `route-resolver.js`).
+- **v2.1.x — 2026-04-25.** Cross-harness secret-scan parity; PostToolUse output sanitization (Claude); enforce-mode fixture corrections; protected-branch glob matching; legacy 4-part learned-allow key removed; correctness hardening (hermetic fixtures, bench platform detection, fail-closed under HORUS_ENFORCE=1); telemetry aggregation.
+- **v2.0.x — 2026-04-25.** Upfront security contract model. All fourteen W-series structural weaknesses addressed. Single enforcement spine, session-id partitioning, strict/readonly modes.
+- **v1.x and v0.x — 2026-04-19 → 2026-04-25.** Pre-contract era. See CHANGELOG.
 
 ---
 
-## Post-v2.1 Candidates
+## Post-v3.1 candidates
 
-These are real gaps, ordered by security impact. None are on a fixed timeline.
+Real gaps, ordered by security and operability impact. None are on a fixed timeline.
 
-### High Priority
+### High priority
 
-~~**Cross-harness secret scanning parity**~~ — CLOSED. `pretool-gate.js` now calls `scanSecrets()` for all harnesses and upgrades `payloadClass` to C on a hit. The enrichment path (user-facing hints) is now also in the shared spine.
+**F15 manifest publication across non-Claude adapters.**
+`{codex, clawcode, openclaw, opencode, antegravity}/hooks/post-adapter.js:6` each carry a `TODO(F15/Task0.6)` to publish the harness manifest via `<harness>/manifest.json` so envelope reporting is auto-discoverable rather than relying on factory wiring. Mechanical, additive, but touches all five adapter dirs at once.
 
-~~**Post-tool output sanitization**~~ — CLOSED. `claude/hooks/output-sanitizer.js` PostToolUse hook scans tool output for the same 23-pattern set and warns when a credential is echoed.
+**OpenCode PostToolUse output-sanitizer parity.**
+`claude/hooks/output-sanitizer.js` scans tool output for the 23-pattern secret set. OpenCode is a Claude Code fork and very likely supports the same `PostToolUse` event, but in-repo wiring (`opencode/WIRING_PLAN.md`) documents PreToolUse only. Extension deferred until a contributor confirms upstream PostToolUse support and documents the wiring path. ASI04 in `references/owasp-agentic-coverage.md` honestly records this as PARTIAL.
 
-~~**Enforce fixture coverage gap**~~ — CLOSED for classification parity. Fixtures now correctly distinguish: commands that score critical/escalate block (exit 2), commands that score medium warn (exit 0) even in enforce mode. Wrong expected_exit values in opencode/openclaw hard-reset and npx-y fixtures were corrected; claude gains matching enforce fixtures.
+**ASI04 runtime redaction.**
+`scripts/redact-payload.sh` is an offline audit tool, not wired into hook execution. The runtime control is `secret-warning.js`. Closing this gap would mean either renaming the offline tool to make its scope obvious, or porting its logic into the runtime path. Documented honestly in `references/owasp-agentic-coverage.md`.
 
-### Medium Priority
+### Medium priority
 
-~~**Scope-defined contract CI gate**~~ — CLOSED. `scripts/check-decision-replay.sh` ships a sample journal (`artifacts/journal/sample-journal.jsonl`, 12 representative entries covering allow/route/modify/require-tests/escalate/block) and replays it through the current decision engine in CI. The step runs in `.github/workflows/check.yml` with `HORUS_CONTRACT_ENABLED=0 HORUS_TRAJECTORY_WINDOW_MIN=0` for deterministic replay. Exit 1 on any action divergence. Regenerate the sample journal when the risk model or decision routing changes.
+**Codex / ClawCode / Antegravity adapter verification.**
+Three of the six listed harnesses are best-effort stubs with broad input-shape fallback chains. Once a contributor confirms the actual hook payload shape for any of these harnesses, the adapter can be tightened and the harness promoted from "NOT YET SUPPORTED" to "Supported". Per-adapter `POSTTOOL_RESEARCH.md` and `COMPATIBILITY_NOTES.md` already exist as the staging surface.
 
-~~**Contract schema v2 evolution**~~ — CLOSED. `schemas/horus.contract.schema.json` now accepts `version: 2` and adds three optional top-level sections: `validity` (UTC time-windows, day-of-week), `contextTrust` (per-branch trust posture overrides), and `scopes.tools` (per-tool commandGlobs/pathGlobs allowlists). `scripts/migrateV1ToV2.js` upgrades a v1 contract in-place: bumps version and revision, recomputes `contractHash`, validates the result. `scripts/check-migrate-v1-v2.sh` verifies round-trip correctness in CI.
+**OpenClaw PostToolUse parity.**
+Same deferral as OpenCode but for the OpenClaw harness; PostToolUse event model is unverified upstream.
 
-~~**Protected-branch glob matching**~~ — CLOSED. `risk-score.js` now uses `globMatch()` from `runtime/glob-match.js`; `release/*` patterns correctly match `release/1.2` and similar branch names.
+### Low priority
 
-~~**Legacy 4-part learned-allow key removal**~~ — CLOSED. `policy-store.js` now reads only the 5-part `fineKey` in `isLearnedAllowed()`, `getApprovalCount()`, `recordApproval()`, `getSuggestionForInput()`, and `getPolicyFacts()`. The legacy 4-part read fallback (shipped for one-release compat in v2.0.1) is removed.
-
-### Low Priority
-
-**Codex / ClawCode / Antegravity adapter verification**
-Best-effort adapters shipped in v2.1.0 (`codex/hooks/adapter.js`, etc.) using a broad input-shape fallback chain. Not yet verified against real hook payloads. Once a contributor confirms the actual hook format for any of these harnesses, the adapter can be tightened and the harness status promoted from "NOT YET SUPPORTED" to "Supported".
-
-**OpenCode PostToolUse output-sanitizer parity**
-`claude/hooks/output-sanitizer.js` scans tool output for the 23-pattern set and warns when a credential is echoed. OpenCode is a Claude Code fork and likely supports the same PostToolUse hook event model, but in-repo wiring (`opencode/WIRING_PLAN.md`) documents PreToolUse only. Extension deferred until a contributor confirms upstream OpenCode PostToolUse support and documents the wiring path.
-
-~~**Telemetry aggregation**~~ — CLOSED. `horus-cli.sh telemetry report` prints event summary by type with count and lastSeen. `telemetry clear` removes the local log.
-
-~~**Phase 3 entry condition (D24)**~~ — CLEARED 2026-05-07. `MASTER_PLAN.md` §7 (Component Inventory) and §8 (Host Compatibility Matrix) are authored and substantive; Phase 3 (Three-Mode UX) planning is unblocked. See `DECISIONS.md` D24.
+**D23 — trademark clearance for "Horus Agentic Power".**
+OPEN. Pre-launch blocker. USPTO TESS / EUIPO / WIPO Madrid searches in classes 42 and 9 plus domain availability. If a conflict is found, the rebrand ripples through CLI name, `HORUS_*` env vars, `hap-` contractId prefix, and all docs.
 
 ---
 
-## Closed — Archived
+## Closed — archived
 
-`IMPROVEMENT_PLAN.md` and `references/unified-master-plan.md` tracked historical parity work (Phases 0–3 from the pre-v2.0 era). Those files are deleted; this roadmap supersedes them.
+- v0.5 milestone (this page, "Closed" section above).
+- `IMPROVEMENT_PLAN.md` and `references/unified-master-plan.md` tracked historical parity work (Phases 0–3 from the pre-v2.0 era); deleted in v3.0.0, superseded by this roadmap.
+- Pre-implementation planning artifacts (MASTER_PLAN.md, AMPLIFICATION_PLAN.md, ENHANCEMENT_PLAN.md, MASTER_PLAN_PROMPT.md, OVERNIGHT_PROGRESS.md, OVERNIGHT_REPORT_2/3/4.md, CLAUDE_CODE_HANDOFF.md) live under `references/archive/2026-05-09-bootstrap/` from this PR onwards. They are frozen historical context, superseded by DECISIONS.md / CHANGELOG.md / references/adr-*.

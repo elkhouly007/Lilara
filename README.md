@@ -101,7 +101,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 85 files
+### Scripts (`scripts/`) — 84 files
 
 | Script | Purpose |
 |--------|---------|
@@ -162,7 +162,8 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `check-decision-replay.sh` | CI gate: replay the shipped sample journal through the current decision engine; exit 1 on any action divergence |
 | `migrateV1ToV2.js` | Upgrade an horus.contract.json from schema version 1 to version 2 (bumps revision, recomputes hash, validates result) |
 | `check-migrate-v1-v2.sh` | Verify the v1→v2 migration: version bumps, revision increments, hash recomputes, schema validates, idempotency |
-| `hooks-baseline.sha256` | SHA-256 baseline for hook integrity checks |
+
+The SHA-256 hook integrity baseline lives at `artifacts/hooks-baseline.sha256` (data artifact, not a script) and is consumed by `verify-hooks-integrity.sh`.
 
 ### Documentation
 

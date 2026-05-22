@@ -80,7 +80,7 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | Notification pack | `modules/notification-pack/` | reviewed-only | Restores notification capability through local-first and reviewed external patterns. |
 | Daemon pack | `modules/daemon-pack/` | optional-local-only | Optional scoped background helpers: file watcher, health checker, upstream monitor. Local variants auto; supervised variants require approval. |
 
-## Runtime Autonomy Layer (v1.0.0)
+## Runtime Autonomy Layer (v3.1.0)
 
 | Module | Path | Purpose |
 | --- | --- | --- |
@@ -113,7 +113,31 @@ Agent Runtime Guard is a runtime decision spine and amplification surface. ECC (
 | `telemetry.js`        | `runtime/telemetry.js`        | Structured event sink to `telemetry.jsonl`; never blocks. |
 | `pretool-gate.js`     | `runtime/pretool-gate.js`     | Single enforcement spine called by all harness adapters; exports `runPreToolGate()`. Builds/report F15 envelopes when the adapter supports it and re-checks critical writes immediately before execution. |
 
-All runtime modules write only to `HORUS_STATE_DIR` (or `~/.horus/`). No network access. No package manager invocations. State files are created with mode 0700 directories and 0600 files.
+### Stage A–D additions (v0.5 milestone, PRs #34–#54)
+
+| Module | Path | Purpose |
+| --- | --- | --- |
+| `action-ir.js` | `runtime/action-ir.js` | Canonical Action IR (ADR-007 PR-A). Normalises every adapter's raw payload into one IR shape before floors run. Exports `build()`, `validate()`, `irHash()`, `EMPTY_IR`. Frozen, zero-dep. |
+| `decision-lattice.js` | `runtime/decision-lattice.js` | Explicit decision lattice table (ADR-007 PR-A). Single source of truth for floor rung, action, demotability, and source tag. Strictly-increasing rungs, unique ids, frozen at module load; `scripts/check-lattice-ordering.sh` enforces invariants in CI. |
+| `command-normalize.js` | `runtime/command-normalize.js` | Shared command-shape canonicaliser used by `action-ir.js` and IR-consuming floors so adapters cannot drift on whitespace/quoting/separators. |
+| `ambient.js` | `runtime/ambient.js` | F16 ambient-authority floor (ADR-009). Path classifier + `scopes.ambient.allow` opt-in gate. Receipts gain `ambientClass` on every ambient-touch decision. Unicode + path-traversal bypasses closed via adversarial corpus. |
+| `cross-agent-lock.js` | `runtime/cross-agent-lock.js` | F17 cross-agent-lock floor (PR-A). Per-action mutual-exclusion lock; prevents two harnesses driving the same destructive action concurrently. |
+| `output-exfil.js` | `runtime/output-exfil.js` | F19 output-channel exfiltration guard (ADR-010). Inspects outbound channels for taint-class payloads and blocks/escalates per lattice rung. |
+| `change-intent.js` | `runtime/change-intent.js` | F20 change-intent diffing (ADR-012). Detects drift between the declared envelope and the resolved IR; floors fire when the realised action diverges from what the contract pre-agreed. |
+| `network-egress.js` | `runtime/network-egress.js` | Plaintext-network default-deny (`network.allowPlaintext` opt-out). Default-deny `http://` outbound; allowlist via contract. |
+| `degraded-mode.js` | `runtime/degraded-mode.js` | ADR-004 degraded-mode enforcement. Detects state-store / chain / lock-floor health degradation; emits `degraded-mode` receipts and triggers `degraded-mode-entered` notification. |
+| `journal-chain.js` | `runtime/journal-chain.js` | ADR-004 tamper-evident hash-chained decision journal. Each entry chains to the prior hash; `scripts/verify-decision-journal.sh` CLI verifies the chain. |
+| `snapshot.js` | `runtime/snapshot.js` | ADR-013 auto-snapshot before destructive ops. Captures pre-action state under `~/.horus/snapshots/`; receipts carry the snapshot ref. |
+| `state-bundle.js` | `runtime/state-bundle.js` | ADR-011 state portability — export/import bundle for `~/.horus/` (learned-policy, journal, instincts, snapshots). Used by `scripts/horus-cli.sh state export|import`. |
+| `receipt-export.js` | `runtime/receipt-export.js` | ADR-014 audit-grade receipts exporter. Canonical receipt JSON with stable field order, `irHash`, `rung`, `latticeVersion`, floor source. |
+| `receipt-validator.js` | `runtime/receipt-validator.js` | ADR-014 receipt validator. Schema-validates exported receipts; powers `scripts/check-receipt-schema.sh`. |
+| `notify.js` | `runtime/notify.js` | ADR-015 notification router. Fire-and-forget hook called by `decision-engine.js` AFTER receipt + journal append, NEVER awaited. Allowlist-only PII scrubber (`scrubForNotify`). Four trigger kinds: `approval-request`, `kill-switch-fire`, `degraded-mode-entered`, `adversarial-bypass-detected`. Receipts gain additive `notifyAttempted: true` only when the hook fires. |
+| `notify/discord.js` | `runtime/notify/discord.js` | Discord webhook transport (pure `node:https`, no `axios`, no third-party HTTP). 5s timeout, exponential backoff `[200, 1000, 5000]` ms, max 3 retries, 4xx no-retry. |
+| `notify/slack.js` | `runtime/notify/slack.js` | Slack webhook transport, same constraints as Discord transport. |
+| `notify/email.js` | `runtime/notify/email.js` | SMTP transport (pure `node:net` / `node:tls`, no `nodemailer`). Credentials via env only: `HORUS_SMTP_HOST/PORT/USER/PASS/FROM`. |
+| `post-adapter-factory.js` | `runtime/post-adapter-factory.js` | Shared factory used by all six harness adapters' `hooks/post-adapter.js`. Calls `scanSecrets()` and `recordExternalRead()`; consumes any reported F15 envelopes. Keeps the six adapter files near-identical. |
+
+All runtime modules write only to `HORUS_STATE_DIR` (or `~/.horus/`). No network access from the decision path. The notification transports under `runtime/notify/` are the only outbound surface; they are fire-and-forget, never awaited by the engine, and gated by `notifications.enabled === true` in the contract.
 
 ## PostToolUse Adapters (A3 — cross-harness parity)
 
