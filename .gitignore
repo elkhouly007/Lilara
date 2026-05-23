@@ -32,6 +32,9 @@ Thumbs.db
 
 # ── Node ──────────────────────────────────────────────────────────────────────
 node_modules/
+# Zero-dep project — npm auto-generates this even when there are no deps;
+# never commit it.
+package-lock.json
 
 # ── Editor ────────────────────────────────────────────────────────────────────
 .vscode/settings.json

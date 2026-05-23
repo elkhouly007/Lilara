@@ -2,9 +2,24 @@
 // post-adapter.js — OpenCode PostToolUse adapter (D38: delegates to createPostAdapter).
 "use strict";
 
+const path = require("path");
 const { createPostAdapter } = require("../../runtime/post-adapter-factory");
-// TODO(F15/Task0.6): publish this via opencode/manifest.json. Until then,
-// treat OpenCode as envelopeReporting: false.
-const ADAPTER_CAPABILITIES = { envelopeReporting: false };
-void ADAPTER_CAPABILITIES;
-createPostAdapter({ harnessName: "opencode", rateLimitKey: "opencode-post-adapter", envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting });
+
+// Capabilities are sourced from opencode/manifest.json so the hook and the
+// published capability manifest cannot drift. If the manifest is unreadable
+// at hook load (e.g. partial install), fall back to the conservative
+// envelopeReporting=false default — never assume more capability than the
+// manifest declares.
+let envelopeReporting = false;
+try {
+  const manifest = require(path.join(__dirname, "..", "manifest.json"));
+  envelopeReporting = manifest.envelopeReporting === true;
+} catch (_) {
+  // keep conservative default
+}
+
+createPostAdapter({
+  harnessName: "opencode",
+  rateLimitKey: "opencode-post-adapter",
+  envelopeReporting,
+});

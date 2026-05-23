@@ -8,6 +8,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **F15 manifest publication across all six adapters.** Resolves the five `TODO(F15/Task0.6)` markers in `{codex, clawcode, openclaw, opencode, antegravity}/hooks/post-adapter.js` and aligns Claude's `output-sanitizer.js` with the same pattern. Each PostToolUse adapter now sources `envelopeReporting` from its own `<harness>/manifest.json` at hook load (via `require(path.join(__dirname, "..", "manifest.json"))`) instead of carrying a hard-coded local constant. The published manifest becomes the single source of truth; the hook and the manifest cannot drift. If the manifest is unreadable at hook load (e.g. partial install), the adapter falls back to the conservative `envelopeReporting=false` default — never assumes more capability than the manifest declares. Behaviour change: none for installed setups today, since every manifest already declares the same value the previous local constant carried (Claude: true; others: false). Going forward, bumping a manifest's `envelopeReporting` to `true` automatically activates F15 envelope reporting on that harness without a parallel hook edit.
+
+- `artifacts/hooks-baseline.sha256` regenerated for `claude/hooks/output-sanitizer.js` (the only file in the integrity baseline whose hash changed; the five non-Claude post-adapters live outside the Claude-hooks baseline scope).
+
 ## [3.1.0] — 2026-05-15
 
 **Product milestone:** v0.5 "Incremental Hardened Daily" closed. Stages A–D delivered (PRs #37–#53). Master green across Ubuntu / macOS / Windows; all 30 local CI gates pass; 371 fixtures + 12 replay-corpus entries with 0 divergences; runtime p99 1.2ms (10ms ceiling); 13 hooks kill-switch clean. No schema-breaking change since 3.0.0 — every floor and every receipt field added in this window is additive.
