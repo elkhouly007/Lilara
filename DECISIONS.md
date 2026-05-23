@@ -482,3 +482,60 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 **Blocker for:** F15/F16/F18 receipts, output-channel exfiltration guard, change-intent diffing, replay harness, audit-grade receipts. PR-B unblocks adapter parity fixtures; PR-C unblocks lattice-anchored receipts; PR-D unblocks replay + adversarial gates.
 
 **See also:** `references/adr-007-canonical-action-ir.md` (repo-level reference doc), `agent-runtime-guard-scope.md` §4.1, `agent-runtime-guard-plan.md` §4.1 + §6, `lilara-adr-007-claude-plan.md` (full implementation plan).
+
+---
+
+## D-016: State migration — clean break (no dual-read fallback)
+
+**Date:** 2026-05-24
+
+**Context:** Rebranding from Horus Agentic Power (HAP) v3.1.0 to Lilara v0.1.0. Choice: clean break vs. dual-read fallback (read both `HORUS_*` and `LILARA_*` env vars; read both `~/.horus/` and `~/.lilara/` state dirs during a transition window).
+
+**Decision:** Clean break. No `HORUS_*` aliases. No dual-read. VERSION resets to 0.1.0. Operators (currently only Khouly) must `mv ~/.horus ~/.lilara` and update env vars manually. Existing `hap-` prefixed contracts require re-acceptance.
+
+**Rationale:** There is exactly one operator today. Dual-read complexity would persist in the codebase indefinitely, adding test surface and confusion without serving any actual user. v3.x history stays in CHANGELOG for continuity. Lilara starts clean at 0.1.0.
+
+**Owner:** Khouly. Blocker resolved: D23.
+
+---
+
+## D-017: PR shape — single mega-PR
+
+**Date:** 2026-05-24
+
+**Context:** Should the Lilara rebrand land as one large PR (~150 files) or as a sequence of smaller PRs?
+
+**Decision:** Single mega-PR, matching the ECC→Horus v3.0.0 precedent (`d2c5ea1`, ~95 files). Six ordered commits inside the branch preserve review granularity; the PR merges as a merge-commit so `git bisect` can step through them.
+
+**Rationale:** Mechanical renames are atomic — splitting them across PRs creates intermediate broken states where some files say Lilara and others say Horus. The v3.0.0 precedent worked; the lessons-learned fixes (self-exclusion, cross-platform sed, verify mode) are baked into `scripts/lilara-rebrand.sh`.
+
+**Owner:** Khouly.
+
+---
+
+## D-018: Soak timing — Khouly-override during v3.1.0 soak
+
+**Date:** 2026-05-24
+
+**Context:** v3.1.0 is in a 30-day soak window (through ~2026-06-14). Policy normally forbids non-critical merges during soak.
+
+**Decision:** Khouly explicitly overrides the soak rule for the rebrand PR. The soak counter resets at merge; a new 30-day window begins after the rebrand lands (~ending 2026-06-23). The rebrand is mechanical (no semantic behavior change) but large enough that daily-use validation should restart from a stable surface.
+
+**Owner:** Khouly.
+
+---
+
+## D-019: GitHub repo rename — agent-runtime-guard → lilara
+
+**Date:** 2026-05-24
+
+**Context:** The GitHub repo is currently named `agent-runtime-guard`. Domain selection (`lilara.dev` vs `.ai`) is a separate M9 decision.
+
+**Decision:** Rename the GitHub repo `agent-runtime-guard` → `lilara` at the same time as the rebrand PR merges. Domain decision deferred to M9 commercial track. GitHub auto-redirects old URLs for ~12 months.
+
+**Operator action after merge:**
+```bash
+git remote set-url origin git@github.com:elkhouly007/lilara.git
+```
+
+**Owner:** Khouly (GitHub admin action).

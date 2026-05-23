@@ -7,6 +7,80 @@ schema migrations (contract v1→v2, v2→v3) are documented in
 
 ---
 
+## v3.1.0 (HAP / Agent Runtime Guard) → v0.1.0 (Lilara) — clean-break upgrade
+
+**Decision D-016:** Clean break. No dual-read fallback. No `HORUS_*` aliases.
+
+### 1. Stop any running hooks
+
+Close all Claude Code / OpenCode / OpenClaw / Codex / Antegravity sessions
+before migrating. Running hooks will crash or silently fail once the env vars
+and state dir are renamed.
+
+### 2. Migrate state directory
+
+```bash
+mv ~/.horus ~/.lilara
+```
+
+If you want to keep both side-by-side during a trial period, wipe `~/.horus`
+and start fresh — the only operator today is Khouly, so blast radius is one
+person.
+
+### 3. Migrate environment variables
+
+Remove all `HORUS_*` entries from your shell rc files (`.bashrc`, `.zshrc`,
+etc.) and replace with `LILARA_*` equivalents:
+
+| Old | New |
+|-----|-----|
+| `HORUS_ENFORCE` | `LILARA_ENFORCE` |
+| `HORUS_KILL_SWITCH` | `LILARA_KILL_SWITCH` |
+| `HORUS_STATE_DIR` | `LILARA_STATE_DIR` |
+| `HORUS_CONTRACT_ENABLED` | `LILARA_CONTRACT_ENABLED` |
+| `HORUS_TRAJECTORY_WINDOW_MIN` | `LILARA_TRAJECTORY_WINDOW_MIN` |
+| `HORUS_BENCH_P99_MS` | `LILARA_BENCH_P99_MS` |
+| `HORUS_PERF_P99_MS` | `LILARA_PERF_P99_MS` |
+| (all others follow the same pattern) | |
+
+### 4. Re-accept your contracts
+
+Existing accepted contracts carry a `contractId` with the `hap-` prefix.
+That prefix no longer matches the schema regex `^lilara-...`. They are
+invalid and will be ignored.
+
+```bash
+# Accept a fresh contract
+bash scripts/lilara-cli.sh accept-contract ./lilara.contract.json
+
+# Verify
+bash scripts/lilara-cli.sh check
+bash scripts/lilara-cli.sh state stats
+```
+
+### 5. Update wire-hook snippets
+
+If your hooks file (e.g. `.claude/settings.json`) references `horus-cli.sh`,
+update to `lilara-cli.sh`. Re-run `bash scripts/install.sh` to pick up the
+renamed scripts automatically.
+
+### 6. Verify
+
+```bash
+bash scripts/lilara-cli.sh check
+bash scripts/lilara-cli.sh state stats   # journal/policy/snapshots intact
+```
+
+### Local git remote (after GitHub repo rename)
+
+```bash
+git remote set-url origin git@github.com:elkhouly007/lilara.git
+```
+
+GitHub auto-redirects old `agent-runtime-guard` URLs for ~12 months.
+
+---
+
 ## ADR-007 — Canonical Action IR + Decision Lattice (PR-A → PR-D)
 
 **Status:** additive. No operator action required.
