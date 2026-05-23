@@ -6,6 +6,8 @@
 #
 # Allowlist (paths/files that legitimately retain old brand tokens):
 #   CHANGELOG.md              — historical [3.x.x] entries preserve old names verbatim
+#   MIGRATION.md              — migration guide FROM old brand; references old tokens intentionally
+#   DECISIONS.md              — decision records reference old brand for historical context
 #   references/archive/       — frozen pre-rebrand planning docs
 #   scripts/lilara-rebrand-history.sh  — the old ECC→Horus rename script, kept as docs
 #   scripts/lilara-rebrand.sh — uses concatenated tokens as search targets
@@ -46,6 +48,8 @@ _EXCL_DIRS=(
 )
 _EXCL_FILES=(
   --exclude="CHANGELOG.md"
+  --exclude="MIGRATION.md"
+  --exclude="DECISIONS.md"
   --exclude="check-no-horus.sh"
   --exclude="lilara-rebrand.sh"
   --exclude="lilara-rebrand-history.sh"

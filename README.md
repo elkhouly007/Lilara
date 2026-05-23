@@ -2,7 +2,7 @@
 
 **Lilara** is a local-first runtime layer for AI coding agents. ECC — the upfront-contract model — is the foundation. The longer arc is broader: an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how.
 
-> Formerly **Horus Agentic Power (HAP) / Agent Runtime Guard**. See [MIGRATION.md](MIGRATION.md) for the v3.1.0 → v0.1.0 upgrade runbook.
+> Formerly known as **Agent Runtime Guard** (v3.x). See [MIGRATION.md](MIGRATION.md) for the v3.1.0 → v0.1.0 upgrade runbook and [CHANGELOG.md](CHANGELOG.md) for brand history.
 
 The goal is **more capability with less silent risk**:
 
