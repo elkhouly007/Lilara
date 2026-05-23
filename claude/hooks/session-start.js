@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * session-start.js — Horus Agentic Power  (SessionStart hook)
+ * session-start.js — Lilara  (SessionStart hook)
  *
  * Fires when a new Claude Code session begins.
  * Shows a brief instinct status summary so Ahmed knows what's pending review.
@@ -11,7 +11,7 @@
  * - Summary printed to stderr only (visible to user, not to model).
  * - No file writes during session-start.
  * - No external packages, no network calls.
- * - Read-only: only reads ~/.horus/instincts/pending.json and confident.json.
+ * - Read-only: only reads ~/.lilara/instincts/pending.json and confident.json.
  */
 
 "use strict";
@@ -32,7 +32,7 @@ readStdin()
   .then((raw) => {
     // Always echo input unchanged.
     process.stdout.write(raw || "");
-    if (process.env.HORUS_KILL_SWITCH === "1") return;
+    if (process.env.LILARA_KILL_SWITCH === "1") return;
 
     // Write a fresh session ID so all decisions this session are partitioned.
     try { startSession(); } catch { /* non-critical */ }

@@ -8,7 +8,7 @@ const zlib = require("zlib");
 const { stateDir }    = require("./state-paths");
 const { redact } = require("./secret-scan");
 
-// Maximum size before rotation. Override with HORUS_JOURNAL_MAX_MB (integer MB).
+// Maximum size before rotation. Override with LILARA_JOURNAL_MAX_MB (integer MB).
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_GENERATIONS   = 3;               // keep .1.jsonl, .2.jsonl.gz, .3.jsonl.gz
 
@@ -28,7 +28,7 @@ function ensureBaseDir() {
 }
 
 function maxBytes() {
-  const mb = Number(process.env.HORUS_JOURNAL_MAX_MB);
+  const mb = Number(process.env.LILARA_JOURNAL_MAX_MB);
   return Number.isFinite(mb) && mb > 0 ? mb * 1024 * 1024 : DEFAULT_MAX_BYTES;
 }
 
@@ -86,10 +86,10 @@ function redactText(text) {
 }
 
 function append(entry) {
-  if (process.env.HORUS_DECISION_JOURNAL === "0") return false;
-  if (process.env.HORUS_READONLY_CONTRACT === "1") return false;
+  if (process.env.LILARA_DECISION_JOURNAL === "0") return false;
+  if (process.env.LILARA_READONLY_CONTRACT === "1") return false;
   if (process.env.ARG_DECISION_JOURNAL === "0") {
-    process.stderr.write("[ARG_DECISION_JOURNAL] deprecated — use HORUS_DECISION_JOURNAL=0 instead\n");
+    process.stderr.write("[ARG_DECISION_JOURNAL] deprecated — use LILARA_DECISION_JOURNAL=0 instead\n");
     return false;
   }
   ensureBaseDir();
@@ -140,8 +140,8 @@ function append(entry) {
     // dedicated `kind:"notify"` entry per event; absent on every other path
     // so existing journals stay byte-identical.
     ...(Array.isArray(entry.notifyResult) ? { notifyResult: entry.notifyResult } : {}),
-    // HAP ADR-007 PR-B: additive IR fields. decision-engine only forwards
-    // these when HORUS_IR_JOURNAL=1 so existing receipts stay byte-identical
+    // Lilara ADR-007 PR-B: additive IR fields. decision-engine only forwards
+    // these when LILARA_IR_JOURNAL=1 so existing receipts stay byte-identical
     // by default. Receipts already on disk continue to validate; new-format
     // receipts gain stable cross-call identity via irHash + lattice anchors.
     ...(entry.irHash         ? { irHash: String(entry.irHash) } : {}),
@@ -149,10 +149,10 @@ function append(entry) {
     ...(entry.rung != null && Number.isFinite(Number(entry.rung)) ? { rung: Number(entry.rung) } : {}),
   };
   // ADR-014 dev-mode receipt validation. Off by default (production hot
-  // path skips). When HORUS_VALIDATE_RECEIPTS=1, every assembled record is
+  // path skips). When LILARA_VALIDATE_RECEIPTS=1, every assembled record is
   // schema-checked before journaling; an invalid record throws so the bug
   // surfaces in tests instead of corrupting the audit trail.
-  if (process.env.HORUS_VALIDATE_RECEIPTS === "1") {
+  if (process.env.LILARA_VALIDATE_RECEIPTS === "1") {
     const { validateReceipt } = require("./receipt-validator");
     const r = validateReceipt(record);
     if (!r.valid) {

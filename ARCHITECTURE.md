@@ -13,7 +13,7 @@ runtime/
 ├── policy-store.js         Learned-allow, auto-allow-once, approval counts. Atomic tmp+rename writes.
 ├── session-context.js      Per-session risk tracking. Session-id partitioning. Atomic writes.
 ├── decision-journal.js     JSONL append-only log with 5 MB rotation, 3-generation retention.
-├── project-policy.js       Reads horus.config.json; falls back to defaults; validates via config-validator.
+├── project-policy.js       Reads lilara.config.json; falls back to defaults; validates via config-validator.
 ├── context-discovery.js    Git branch + project markers discovery. Git calls time-bounded at 1500 ms.
 ├── promotion-guidance.js   6-stage promotion lifecycle. Deterministic.
 ├── workflow-router.js      Recommends CI, PR, or review workflow based on action + risk.
@@ -26,10 +26,10 @@ runtime/
 ├── canonical-json.js       Deterministic JSON stringify (keys sorted) for contract hashing.
 ├── envelope.js             F15 execution envelope build/verify helpers + pending-envelope persistence.
 ├── network-egress.js       F18 outbound URL/host extractor + allowDomains/denyDomains evaluator (ADR-005).
-├── config-validator.js     Typed-field walker. Validates horus.config.json and horus.contract.json.
-├── state-paths.js          Single source of truth for all storage paths. HORUS_STATE_DIR override.
-├── decision-lattice.js     HAP ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
-├── action-ir.js            HAP ADR-007 PR-B: Canonical Action IR built on every gate call. Extracts commandTokens/Class/argv0, fileTargets (URL-filtered, sensitivity-classified), networkTargets, mcpServer, payloadClass, destructive/writeIntent; auto-computes irHash. Wired through pretool-gate as a back-compat shim; floors still read flat fields. Cross-adapter parity gated by scripts/check-action-ir-parity.sh.
+├── config-validator.js     Typed-field walker. Validates lilara.config.json and lilara.contract.json.
+├── state-paths.js          Single source of truth for all storage paths. LILARA_STATE_DIR override.
+├── decision-lattice.js     Lilara ADR-007 PR-A: frozen LATTICE table + assertOrdered helper. Source of truth for floor rung/precedence/demotability. Pure data; no I/O.
+├── action-ir.js            Lilara ADR-007 PR-B: Canonical Action IR built on every gate call. Extracts commandTokens/Class/argv0, fileTargets (URL-filtered, sensitivity-classified), networkTargets, mcpServer, payloadClass, destructive/writeIntent; auto-computes irHash. Wired through pretool-gate as a back-compat shim; floors still read flat fields. Cross-adapter parity gated by scripts/check-action-ir-parity.sh.
 ├── command-normalize.js    ADR-008: input-normalization spine. normalizeCommand() (NFKC + Cyrillic/Greek confusables fold for destructive-verb letters) + extractCommand() (ADR-007 §4.2 alias-precedence ladder). Owned by risk-score.js (dual-path matching), pretool-gate.js (re-extract backstop), hook-utils.js (adapter facade). Zero deps; pure.
 ├── ambient.js              F16 ambient-authority floor (ADR-009). Path classifier + scopes.ambient.allow opt-in. Receipts gain ambientClass on every ambient-touch decision.
 ├── cross-agent-lock.js     F17 cross-agent-lock floor. Per-action mutual-exclusion lock; prevents two harnesses driving the same destructive action concurrently.
@@ -37,8 +37,8 @@ runtime/
 ├── change-intent.js        F20 change-intent diffing (ADR-012). Detects drift between the declared envelope and the resolved IR; fires when realised action diverges from contract pre-agreement.
 ├── degraded-mode.js        ADR-004 degraded-mode enforcement. Detects state-store / chain / lock-floor health degradation; emits degraded-mode receipts.
 ├── journal-chain.js        ADR-004 tamper-evident hash-chained journal. Each entry chains to prior hash; scripts/verify-decision-journal.sh verifies the chain.
-├── snapshot.js             ADR-013 auto-snapshot before destructive ops. Captures pre-action state under ~/.horus/snapshots/; receipts carry the snapshot ref.
-├── state-bundle.js         ADR-011 state portability — export/import bundle for ~/.horus/.
+├── snapshot.js             ADR-013 auto-snapshot before destructive ops. Captures pre-action state under ~/.lilara/snapshots/; receipts carry the snapshot ref.
+├── state-bundle.js         ADR-011 state portability — export/import bundle for ~/.lilara/.
 ├── receipt-export.js       ADR-014 canonical receipt exporter (stable field order, irHash, rung, latticeVersion, floor source).
 ├── receipt-validator.js    ADR-014 receipt validator. Powers scripts/check-receipt-schema.sh.
 ├── notify.js               ADR-015 notification router. Fire-and-forget; never awaited by the engine. Allowlist-only PII scrubber. Triggers: approval-request, kill-switch-fire, degraded-mode-entered, adversarial-bypass-detected.
@@ -75,18 +75,18 @@ clawcode/hooks/adapter.js                → createAdapter({ harness:"clawcode",
 antegravity/hooks/adapter.js             → createAdapter({ harness:"antegravity", envelopeReporting:false, extractTrustMeta:() => loadManifest("antegravity") })  (hook-utils.js, best-effort)
 ```
 
-Each `<harness>/manifest.json` declares `harness`, `harnessVersion`, `envelopeReporting`, `argsFidelity`, `cwdFidelity`, `mcpInterception`, `skillInterception`, and `outputChannels` per HAP ADR-007 PR-B. Conservative defaults (`none` / `unverified` / `best-effort`) for unverified harnesses; exact/supported for claude/opencode/openclaw.
+Each `<harness>/manifest.json` declares `harness`, `harnessVersion`, `envelopeReporting`, `argsFidelity`, `cwdFidelity`, `mcpInterception`, `skillInterception`, and `outputChannels` per Lilara ADR-007 PR-B. Conservative defaults (`none` / `unverified` / `best-effort`) for unverified harnesses; exact/supported for claude/opencode/openclaw.
 
 ## 2. Decision Flow — Section 4.6 Precedence Matrix
 
-> **HAP ADR-007 (PR-A) note:** the rung/source/demotability columns below are now mirrored as data in `runtime/decision-lattice.js` (`LATTICE`). PR-A introduces the table + an `assertOrdered()` self-check (`scripts/check-lattice-ordering.sh`); PR-C will switch `decision-engine.js` to read floor labels from `LATTICE` constants instead of inline string literals so this prose and the code can never drift again. See `references/adr-007-canonical-action-ir.md`.
+> **Lilara ADR-007 (PR-A) note:** the rung/source/demotability columns below are now mirrored as data in `runtime/decision-lattice.js` (`LATTICE`). PR-A introduces the table + an `assertOrdered()` self-check (`scripts/check-lattice-ordering.sh`); PR-C will switch `decision-engine.js` to read floor labels from `LATTICE` constants instead of inline string literals so this prose and the code can never drift again. See `references/adr-007-canonical-action-ir.md`.
 
 Every `decide()` call walks this fixed ladder. Each rung can only make things more restrictive, except step 11 (contract-allow), which is the single demotion rung and cannot override a floor set above it.
 
 ```
 Step  Rung                                  Can demote?  Can promote?  Floor-bound?
 ──────────────────────────────────────────────────────────────────────────────────
-1     kill-switch (HORUS_KILL_SWITCH=1)        no           to block      yes (F1)
+1     kill-switch (LILARA_KILL_SWITCH=1)        no           to block      yes (F1)
 2     contract-hash-mismatch (strict mode)   no           to block      yes (F2)
 3     critical-risk (score >= 8)             no           to block      yes (F3)
 4     secret-class-C payload                 no           to block      yes (F4)
@@ -117,7 +117,7 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 ```
 
 **Demotion rules:**
-- Twenty floors are implemented: F1 (kill-switch, `decision-engine.js:82`), F2 (contract-hash-mismatch, `decision-engine.js:136`), F3 (critical-risk, `decision-engine.js:192`), F4 (secret-class-C, `decision-engine.js:222`), F5 (strict+gated+no-cover, `decision-engine.js:157`), F6 (posture-strict-no-cover, `decision-engine.js:268`), F7 (intent-unknown-strict, `decision-engine.js:285`), F8 (protected-branch, `decision-engine.js:196`), F9 (session-risk, `decision-engine.js:260`), F10 (taint-floor, `decision-engine.js:240`), F11 (validity-window, `decision-engine.js:298`), F12 (mcp-deny, `decision-engine.js`), F13 (skill-deny, `decision-engine.js`), F14 (budget-exceeded, `decision-engine.js`), F14b (session-over-duration → require-review, D47), F18 (network-egress, ADR-005, `decision-engine.js` + `runtime/network-egress.js`). F2 and F5 fire only when `HORUS_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F10 fires only for write/exec-class tools (read-only tools such as Read/Grep/Glob are exempt — see D37). F4 fires when `payloadClass === "C"` or `scanSecrets()` detects a class-C pattern; cannot be demoted by contract-allow (D26). F6 fires when `trustPosture === "strict"` + gated class + `!contractAllow`; does not fire in balanced or relaxed posture (D26). F7 fires when `intent === "unknown"` + `trustPosture === "strict"`; does not fire in balanced or relaxed posture (D26). B2 Phase 1 added F11. B2 Phase 2 commit 1 adds F12/F13; commit 2 adds F14/F14b and `runtime/session-budget.js`. F15 adds an execution-envelope divergence floor: when an adapter reports an observed execution envelope and `runtime/envelope.verify()` finds drift, `decide()` fails closed with `decisionSource="execution-envelope-diverged"`, `floorFired="execution-envelope"`. Critical writes (payload-class-C and protected-branch writes) are re-checked immediately before execution. F18 adds a network-egress floor (ADR-005): when `contract.scopes.network.allowDomains` is present, `runtime/network-egress.evaluate()` extracts URL/host targets from the command (HTTP(S)/FTP/WS(S)/SSH/etc. URLs plus bare-host curl/wget args) and `decide()` fails closed via `buildEarlyBlock("network-egress-denied", ...)` when a target host is an IP literal (loopback exempt), explicitly in `denyDomains`, or absent from the allowlist after wildcard match. Wildcards are leading-dot only (`*.github.com` matches subdomains but not the apex). Backwards-compat: contracts without `allowDomains` are unaffected. D-007 adds a sibling rung `F18-D007` (lattice rung 16.5): when the contract carries any F18 signal (`allowDomains`, `denyDomains`, or `allowPlaintext`), a plaintext target (`http://…` or bare-host curl/wget arg synthesized as plaintext) is blocked with `floorFired="plaintext-target-blocked"` / `decisionSource="F18-D007"` unless `scopes.network.allowPlaintext === true`; loopback remains exempt. F16 (ambient-authority, ADR-009) fires when a command touches an `ambient`-classified path without `scopes.ambient.allow` opt-in; receipts gain `ambientClass`. F17 (cross-agent-lock) fires when an action under a destructive class is already locked by another harness for the same target; prevents concurrent destructive drives. F19 (output-channel exfiltration, ADR-010) fires when an outbound channel carries a taint-class payload that violates lattice rules. F20 (change-intent diffing, ADR-012) fires when the resolved IR diverges from the declared envelope shape the contract pre-agreed.
+- Twenty floors are implemented: F1 (kill-switch, `decision-engine.js:82`), F2 (contract-hash-mismatch, `decision-engine.js:136`), F3 (critical-risk, `decision-engine.js:192`), F4 (secret-class-C, `decision-engine.js:222`), F5 (strict+gated+no-cover, `decision-engine.js:157`), F6 (posture-strict-no-cover, `decision-engine.js:268`), F7 (intent-unknown-strict, `decision-engine.js:285`), F8 (protected-branch, `decision-engine.js:196`), F9 (session-risk, `decision-engine.js:260`), F10 (taint-floor, `decision-engine.js:240`), F11 (validity-window, `decision-engine.js:298`), F12 (mcp-deny, `decision-engine.js`), F13 (skill-deny, `decision-engine.js`), F14 (budget-exceeded, `decision-engine.js`), F14b (session-over-duration → require-review, D47), F18 (network-egress, ADR-005, `decision-engine.js` + `runtime/network-egress.js`). F2 and F5 fire only when `LILARA_CONTRACT_REQUIRED=1`. F9 carries a narrow `tool-allow-matched` carve-out (W11 intentional). F10 fires only for write/exec-class tools (read-only tools such as Read/Grep/Glob are exempt — see D37). F4 fires when `payloadClass === "C"` or `scanSecrets()` detects a class-C pattern; cannot be demoted by contract-allow (D26). F6 fires when `trustPosture === "strict"` + gated class + `!contractAllow`; does not fire in balanced or relaxed posture (D26). F7 fires when `intent === "unknown"` + `trustPosture === "strict"`; does not fire in balanced or relaxed posture (D26). B2 Phase 1 added F11. B2 Phase 2 commit 1 adds F12/F13; commit 2 adds F14/F14b and `runtime/session-budget.js`. F15 adds an execution-envelope divergence floor: when an adapter reports an observed execution envelope and `runtime/envelope.verify()` finds drift, `decide()` fails closed with `decisionSource="execution-envelope-diverged"`, `floorFired="execution-envelope"`. Critical writes (payload-class-C and protected-branch writes) are re-checked immediately before execution. F18 adds a network-egress floor (ADR-005): when `contract.scopes.network.allowDomains` is present, `runtime/network-egress.evaluate()` extracts URL/host targets from the command (HTTP(S)/FTP/WS(S)/SSH/etc. URLs plus bare-host curl/wget args) and `decide()` fails closed via `buildEarlyBlock("network-egress-denied", ...)` when a target host is an IP literal (loopback exempt), explicitly in `denyDomains`, or absent from the allowlist after wildcard match. Wildcards are leading-dot only (`*.github.com` matches subdomains but not the apex). Backwards-compat: contracts without `allowDomains` are unaffected. D-007 adds a sibling rung `F18-D007` (lattice rung 16.5): when the contract carries any F18 signal (`allowDomains`, `denyDomains`, or `allowPlaintext`), a plaintext target (`http://…` or bare-host curl/wget arg synthesized as plaintext) is blocked with `floorFired="plaintext-target-blocked"` / `decisionSource="F18-D007"` unless `scopes.network.allowPlaintext === true`; loopback remains exempt. F16 (ambient-authority, ADR-009) fires when a command touches an `ambient`-classified path without `scopes.ambient.allow` opt-in; receipts gain `ambientClass`. F17 (cross-agent-lock) fires when an action under a destructive class is already locked by another harness for the same target; prevents concurrent destructive drives. F19 (output-channel exfiltration, ADR-010) fires when an outbound channel carries a taint-class payload that violates lattice rules. F20 (change-intent diffing, ADR-012) fires when the resolved IR diverges from the declared envelope shape the contract pre-agreed.
 - `contract-allow` demotes baseline only. Never demotes a floor.
 - Project default `trustPosture` is overridden per-branch by `contract.contextTrust[]` (first-match-wins, schema-defined order) before risk scoring; affects risk score only, not scopes or floors (B2 commit 2).
 - Step 11 per-tool source distinction: when contract scope-allow matches via `scopes.tools.perToolAllow`, source is `contract-allow-tool-scope` (not `contract-allow`). Both share the W11 escalate-demotion carve-out (B2 commit 3).
@@ -130,19 +130,19 @@ Step  Rung                                  Can demote?  Can promote?  Floor-bou
 See [CONTRACT.md](CONTRACT.md) for full field reference.
 
 Key flow:
-1. `horus-cli.sh contract init` — writes `horus.contract.json.draft`
+1. `lilara-cli.sh contract init` — writes `lilara.contract.json.draft`
 2. Human reviews and edits the draft
-3. `horus-cli.sh contract accept` — hashes, writes final `horus.contract.json`, records in `~/.horus/accepted-contracts.json`
+3. `lilara-cli.sh contract accept` — hashes, writes final `lilara.contract.json`, records in `~/.lilara/accepted-contracts.json`
 4. Every `decide()` recomputes the hash and verifies against the accepted record
 
 Self-accept guard: `contract accept` refuses when harness session environment variables are detected (`CLAUDE_CODE_SESSION_ID`, etc.).
 
 ## 4. Storage Layout
 
-All paths go through `runtime/state-paths.js`. Override with `HORUS_STATE_DIR`.
+All paths go through `runtime/state-paths.js`. Override with `LILARA_STATE_DIR`.
 
 ```
-~/.horus/
+~/.lilara/
 ├── decision-journal.jsonl          Append-only decision log
 ├── decision-journal.1.jsonl        Rotation generation 1 (most recent overflow)
 ├── decision-journal.2.jsonl.gz     Rotation generation 2
@@ -160,9 +160,9 @@ All paths go through `runtime/state-paths.js`. Override with `HORUS_STATE_DIR`.
 └── telemetry.jsonl                 Structured telemetry events (never blocks decisions)
 
 <projectRoot>/
-├── horus.contract.json               Accepted contract for this project
-├── horus.contract.json.draft         Draft (output of `contract init` / `contract amend`)
-└── horus.config.json                 Per-project config (validated against schemas/horus.config.schema.json)
+├── lilara.contract.json               Accepted contract for this project
+├── lilara.contract.json.draft         Draft (output of `contract init` / `contract amend`)
+└── lilara.config.json                 Per-project config (validated against schemas/lilara.config.schema.json)
 
 artifacts/bench/
 └── baseline.json                   p50/p95/p99 per platform; used for 1.5× regression check
@@ -172,17 +172,17 @@ artifacts/bench/
 
 | Variable | Default | Effect |
 |---|---|---|
-| `HORUS_KILL_SWITCH` | `0` | `1` = PreToolUse hooks exit 2 (block all tool calls unconditionally); informational hooks (PostToolUse/SessionStart/Stop) pass stdin through unchanged |
-| `HORUS_ENFORCE` | `0` | `1` = hooks exit 2 on block (enforcement mode for adapters) |
-| `HORUS_CONTRACT_ENABLED` | `1` | `0` = skip contract loading entirely (opt-out) |
-| `HORUS_CONTRACT_REQUIRED` | `0` | `1` = gated capability classes blocked without valid accepted contract |
-| `HORUS_READONLY_CONTRACT` | `0` | `1` = decisions proceed but zero writes to policy/session/journal (CI/review mode) |
-| `HORUS_STATE_DIR` | `~/.horus` | Override storage directory |
-| `HORUS_TRAJECTORY_THRESHOLD` | `3` | Escalation count triggering trajectory nudge |
-| `HORUS_TRAJECTORY_WINDOW_MIN` | `30` | Lookback window in minutes for trajectory nudge |
-| `HORUS_JOURNAL_MAX_MB` | `5` | Rotate decision journal when it exceeds this size |
-| `HORUS_BENCH_P99_MS` | platform-auto | Override bench p99 ceiling (ms) |
-| `HORUS_DECISION_JOURNAL` | `1` | `0` = disable journal writes |
+| `LILARA_KILL_SWITCH` | `0` | `1` = PreToolUse hooks exit 2 (block all tool calls unconditionally); informational hooks (PostToolUse/SessionStart/Stop) pass stdin through unchanged |
+| `LILARA_ENFORCE` | `0` | `1` = hooks exit 2 on block (enforcement mode for adapters) |
+| `LILARA_CONTRACT_ENABLED` | `1` | `0` = skip contract loading entirely (opt-out) |
+| `LILARA_CONTRACT_REQUIRED` | `0` | `1` = gated capability classes blocked without valid accepted contract |
+| `LILARA_READONLY_CONTRACT` | `0` | `1` = decisions proceed but zero writes to policy/session/journal (CI/review mode) |
+| `LILARA_STATE_DIR` | `~/.lilara` | Override storage directory |
+| `LILARA_TRAJECTORY_THRESHOLD` | `3` | Escalation count triggering trajectory nudge |
+| `LILARA_TRAJECTORY_WINDOW_MIN` | `30` | Lookback window in minutes for trajectory nudge |
+| `LILARA_JOURNAL_MAX_MB` | `5` | Rotate decision journal when it exceeds this size |
+| `LILARA_BENCH_P99_MS` | platform-auto | Override bench p99 ceiling (ms) |
+| `LILARA_DECISION_JOURNAL` | `1` | `0` = disable journal writes |
 
 ## 6. Harness Adapter Contract
 
@@ -190,7 +190,7 @@ Each adapter must:
 1. Read all stdin before exiting (prevents broken-pipe in the harness).
 2. Echo raw stdin to stdout **unchanged**.
 3. Write human-readable notices to stderr only.
-4. Exit 0 to allow the action; exit 2 to block (when `HORUS_ENFORCE=1` and decision is block/escalate/require-review).
+4. Exit 0 to allow the action; exit 2 to block (when `LILARA_ENFORCE=1` and decision is block/escalate/require-review).
 5. Never modify the JSON passed to the model.
 
 `runtime/pretool-gate.js` implements steps 3–5 for all harnesses. Adapters provide only the harness-specific stdin parsing plus an `envelopeReporting` capability bit. In this run, only Claude reports full F15 envelopes; other adapters stay explicitly stubbed off.
@@ -211,12 +211,12 @@ After `decide()` returns, the engine assembles the decision result and runs a fi
 
 1. **Lattice anchoring (ADR-007).** Floor source/rung/demotability are read from `runtime/decision-lattice.js` constants, not inline strings. Receipts carry `irHash`, `rung`, `latticeVersion`, `floorFired`.
 2. **Hash-chained journal append (ADR-004).** `runtime/journal-chain.js` appends the entry with `prevHash` → `entryHash`. `scripts/verify-decision-journal.sh` walks the chain end-to-end.
-3. **Auto-snapshot (ADR-013).** If the action is destructive and the decision is allow/route, `runtime/snapshot.js` captures pre-action state under `~/.horus/snapshots/` and records the snapshot ref on the receipt.
+3. **Auto-snapshot (ADR-013).** If the action is destructive and the decision is allow/route, `runtime/snapshot.js` captures pre-action state under `~/.lilara/snapshots/` and records the snapshot ref on the receipt.
 4. **Receipt export (ADR-014).** `runtime/receipt-export.js` produces a canonical receipt with stable field order. `runtime/receipt-validator.js` schema-validates exports (CI: `scripts/check-receipt-schema.sh`). Offline redactor: `scripts/redact-payload.sh`.
 5. **Notification routing (ADR-015).** `runtime/notify.js` is invoked as a fire-and-forget hook AFTER receipt + journal append. The engine NEVER awaits the resulting Promise; transport failure or latency can NEVER change a decision. Triggers: `approval-request`, `kill-switch-fire`, `degraded-mode-entered`, `adversarial-bypass-detected`. Allowlist-only PII scrubber. Transports under `runtime/notify/`.
 6. **Degraded-mode guard (ADR-004).** If state-store / journal-chain / lock-floor health is degraded, `runtime/degraded-mode.js` emits a `degraded-mode-entered` receipt marker (process-lifetime first-fire only).
 
-State portability (ADR-011): `runtime/state-bundle.js` + `horus-cli.sh state export|import` produce a self-contained bundle of `~/.horus/` (learned-policy, journal, instincts, snapshots) for migration between machines.
+State portability (ADR-011): `runtime/state-bundle.js` + `lilara-cli.sh state export|import` produce a self-contained bundle of `~/.lilara/` (learned-policy, journal, instincts, snapshots) for migration between machines.
 
 ## 9. Nightly Harnesses
 

@@ -40,7 +40,7 @@ It does not overwrite existing OpenClaw workspace files or global OpenClaw confi
 **Modes:**
 
 - Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export HORUS_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+- Block mode: `export LILARA_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
 
 **Fixtures:** `tests/fixtures/openclaw/` — 19 fixtures covering dangerous commands (rm -rf, force-push, curl|sh, DROP TABLE, npx -y, git reset --hard), enforce mode (dd, force-push, hard-reset, npx -y, rm --no-preserve-root, rm -rf), safe pass-through (git log, git push, ls, npm install), and borderline sudo.
 

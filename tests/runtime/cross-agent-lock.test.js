@@ -62,14 +62,14 @@ function withSandbox(setup, body) {
     try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = "0";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = "0";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
 
     if (typeof setup === "function") setup({ stateDir, projectDir });
 

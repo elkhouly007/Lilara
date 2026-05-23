@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-lattice-ordering.sh — Assert runtime/decision-lattice.js invariants.
 #
-# Invariants (HAP ADR-007 / scope §4.1 invariant 10):
+# Invariants (Lilara ADR-007 / scope §4.1 invariant 10):
 #   1. LATTICE is a non-empty array of frozen entries.
 #   2. Rungs are strictly increasing.
 #   3. Every entry has a unique `id`.

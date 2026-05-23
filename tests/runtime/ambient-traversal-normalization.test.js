@@ -112,12 +112,12 @@ function withSandbox(body) {
     try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = "0";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = "0";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
     for (const key of Object.keys(require.cache)) {
       if (key.startsWith(path.join(ROOT, "runtime") + path.sep)) {
         delete require.cache[key];

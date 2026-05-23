@@ -39,7 +39,7 @@ function detectProjectShape(projectRoot = "") {
     .map(([, marker]) => marker);
 
   const shape = {
-    hasConfig: fs.existsSync(path.join(root, "horus.config.json")),
+    hasConfig: fs.existsSync(path.join(root, "lilara.config.json")),
     markers: [...new Set(markers)],
     primaryStack: markers[0] || null,
   };
@@ -78,7 +78,7 @@ function discover(input = {}) {
   const projectRoot = configPath ? path.dirname(configPath) : (rawProjectRoot || inferredRoot);
   const gitRoot = safeGit(["rev-parse", "--show-toplevel"], projectRoot) || projectRoot;
   const branch = String(input.branch || "").trim()
-    || String(process.env.HORUS_BRANCH_OVERRIDE || "").trim()
+    || String(process.env.LILARA_BRANCH_OVERRIDE || "").trim()
     || safeGit(["symbolic-ref", "--short", "HEAD"], gitRoot)
     || safeGit(["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
 

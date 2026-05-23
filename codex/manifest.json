@@ -97,7 +97,7 @@
   ],
   "compensatingRestrictions": [
     "Decision-engine treats Codex IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
-    "Operators wiring Codex are expected to validate hook payload shape against codex/POSTTOOL_RESEARCH.md before enabling enforce mode (HORUS_ENFORCE=1)",
+    "Operators wiring Codex are expected to validate hook payload shape against codex/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
     "Until pretool blocking is verified, treat Codex as observe-only and rely on out-of-band review for destructive actions"
   ],
   "verifiedAt": null

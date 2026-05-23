@@ -24,22 +24,22 @@ grep -Fq '"typescript"' "$workdir/generated.stdout.json" || fail 'generate-confi
 grep -Fq '"golang"' "$workdir/generated.stdout.json" || fail 'generate-config stdout includes golang'
 pass 'generate-config stdout'
 
-bash "$root/scripts/generate-config.sh" "$sample_repo" --output "$sample_repo/horus.config.json" >/dev/null
-check_file "$sample_repo/horus.config.json" 'generate-config file output'
-grep -Fq '"profile": "full"' "$sample_repo/horus.config.json" || fail 'generate-config default profile is full'
-grep -Fq '"runtime": {' "$sample_repo/horus.config.json" || fail 'generate-config includes runtime block'
-grep -Fq '"trust_posture": "balanced"' "$sample_repo/horus.config.json" || fail 'generate-config runtime trust posture present'
+bash "$root/scripts/generate-config.sh" "$sample_repo" --output "$sample_repo/lilara.config.json" >/dev/null
+check_file "$sample_repo/lilara.config.json" 'generate-config file output'
+grep -Fq '"profile": "full"' "$sample_repo/lilara.config.json" || fail 'generate-config default profile is full'
+grep -Fq '"runtime": {' "$sample_repo/lilara.config.json" || fail 'generate-config includes runtime block'
+grep -Fq '"trust_posture": "balanced"' "$sample_repo/lilara.config.json" || fail 'generate-config runtime trust posture present'
 pass 'generate-config file output'
 
-# 2. install-local consumes horus.config.json automatically
+# 2. install-local consumes lilara.config.json automatically
 install_target="$workdir/config-install"
 mkdir -p "$install_target"
-cp "$sample_repo/horus.config.json" "$install_target/horus.config.json"
+cp "$sample_repo/lilara.config.json" "$install_target/lilara.config.json"
 bash "$root/scripts/install-local.sh" "$install_target" >/dev/null
 check_file "$install_target/rules/typescript/coding-style.md" 'config-driven install includes typescript rules'
 check_file "$install_target/rules/golang/coding-style.md" 'config-driven install includes golang rules'
 check_missing "$install_target/rules/python/coding-style.md" 'config-driven install omits unconfigured python rules'
-pass 'install-local consumes horus.config.json languages'
+pass 'install-local consumes lilara.config.json languages'
 
 # 3. wire-hooks --check detects stale placeholder in a controlled HOME
 fake_home="$workdir/home"
@@ -64,7 +64,7 @@ grep -Fq '/ABS_PATH/' /tmp/ecc-wire-check.err || fail 'wire-hooks --check report
 pass 'wire-hooks --check detects stale placeholder'
 
 # 4. runtime config affects runtime decisions
-cat > "$sample_repo/horus.config.json" <<'EOF'
+cat > "$sample_repo/lilara.config.json" <<'EOF'
 {
   "profile": "full",
   "languages": ["common"],
@@ -79,7 +79,7 @@ cat > "$sample_repo/horus.config.json" <<'EOF'
   }
 }
 EOF
-HORUS_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
+LILARA_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const repo = require('path').resolve(process.argv[3]);
@@ -99,7 +99,7 @@ console.log('project-aware-runtime: ok');
 NODE
 pass 'project config influences runtime decisions'
 
-cat > "$sample_repo/horus.config.json" <<'EOF'
+cat > "$sample_repo/lilara.config.json" <<'EOF'
 {
   "profile": "full",
   "languages": ["common", "golang"],
@@ -113,7 +113,7 @@ cat > "$sample_repo/horus.config.json" <<'EOF'
   }
 }
 EOF
-HORUS_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
+LILARA_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const repo = require('path').resolve(process.argv[3]);

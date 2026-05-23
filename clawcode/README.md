@@ -14,12 +14,12 @@ CI: `scripts/check-clawcode-adapter.sh` runs assertions covering both the legacy
 
 ## Verified scope (v3.x)
 
-- **PreToolUse blocking:** supported. Adapter emits `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"..."}}` on `HORUS_ENFORCE=1` block; ClawCode aborts the tool call with the supplied reason.
+- **PreToolUse blocking:** supported. Adapter emits `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"..."}}` on `LILARA_ENFORCE=1` block; ClawCode aborts the tool call with the supplied reason.
 - **PostToolUse observation:** supported via `runtime/post-adapter-factory.js`. Secret scanning + taint recording on every PostToolUse fire.
 - **Args fidelity:** exact. ClawCode passes the LLM's full `tool_input` dict to the hook payload.
 - **Cwd fidelity:** opaque. ClawCode does NOT include `cwd` in the payload — the working directory is passed to the hook subprocess via `cwd=working_directory` (`clawcode/plugin/hooks.py:259-260`) but not as a JSON field. ARG falls back to context-discovery (git branch detection, project markers) for routing decisions.
 - **Envelope reporting:** none. ClawCode does not expose execution-time env baselines; F15 envelope verify can't be wired without harness-side cooperation.
-- **Kill switch:** `HORUS_KILL_SWITCH=1` blocks unconditionally with the ClawCode-native deny JSON.
+- **Kill switch:** `LILARA_KILL_SWITCH=1` blocks unconditionally with the ClawCode-native deny JSON.
 
 ## Not yet verified
 

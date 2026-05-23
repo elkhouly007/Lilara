@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// hook-utils.js — shared utilities for all Horus Agentic Power hooks.
+// hook-utils.js — shared utilities for all Lilara hooks.
 //
 // Usage in each hook:
 //   const { readStdin, commandFrom, collectText, ENFORCE, hookLog } = require("./hook-utils");
@@ -70,26 +70,26 @@ function collectText(value, depth = 0) {
 }
 
 /**
- * Whether HORUS_ENFORCE=1 is set in the environment.
+ * Whether LILARA_ENFORCE=1 is set in the environment.
  * When true, hooks should exit with code 2 to block the tool call instead of just warning.
  */
-const ENFORCE = process.env.HORUS_ENFORCE === "1";
+const ENFORCE = process.env.LILARA_ENFORCE === "1";
 
 /**
  * Append-only hook event log.
- * Only writes when HORUS_HOOK_LOG=1 is set.
+ * Only writes when LILARA_HOOK_LOG=1 is set.
  *
  * Records METADATA ONLY — never payload content, commands, file paths, or secrets.
  * Fields: iso timestamp, hook name, event type, detection label.
  *
- * Log location: ~/.horus/hook-events.log
+ * Log location: ~/.lilara/hook-events.log
  *
  * @param {string} hookName   — e.g. "dangerous-command-gate"
  * @param {string} eventType  — e.g. "WARN" | "BLOCK" | "PASS" | "SKIP"
  * @param {string} label      — short description e.g. "rm-rf" or "anthropic-key"
  */
 function hookLog(hookName, eventType, label) {
-  if (process.env.HORUS_HOOK_LOG !== "1") return;
+  if (process.env.LILARA_HOOK_LOG !== "1") return;
 
   try {
     const eccDir  = statePaths.hookStateDir();
@@ -121,7 +121,7 @@ function hookLog(hookName, eventType, label) {
  * command — each hook runs in its own process.
  *
  * Solution: token-bucket rate limiter backed by a small JSON file in
- * ~/.horus/rate-<hookName>.json.
+ * ~/.lilara/rate-<hookName>.json.
  *
  * The bucket refills at `refillRate` tokens per second; each call consumes one
  * token. If the bucket is empty the hook returns false immediately (caller
@@ -130,7 +130,7 @@ function hookLog(hookName, eventType, label) {
  * Default: 60 tokens, refill 30/s — allows short bursts while capping sustained
  * load to ~30 hook invocations per second per hook type.
  *
- * Set HORUS_RATE_LIMIT=0 to disable rate limiting (e.g. in CI or tests).
+ * Set LILARA_RATE_LIMIT=0 to disable rate limiting (e.g. in CI or tests).
  *
  * @param {string} hookName    — used as the bucket file key, e.g. "dangerous-command-gate"
  * @param {number} capacity    — maximum token count (default: 60)
@@ -138,7 +138,7 @@ function hookLog(hookName, eventType, label) {
  * @returns {boolean}          — true = proceed, false = skip this invocation
  */
 function rateLimitCheck(hookName, capacity = 60, refillRate = 30) {
-  if (process.env.HORUS_RATE_LIMIT === "0") return true;
+  if (process.env.LILARA_RATE_LIMIT === "0") return true;
 
   try {
     const eccDir    = statePaths.hookStateDir();
@@ -305,7 +305,7 @@ function runtimeContext(input) {
 /**
  * loadManifest(harness) — read <harness>/manifest.json and project it into the
  * shape `runPreToolGate` consumes. Cached per process so repeated adapter
- * invocations do not re-read disk. HAP ADR-007 PR-B publishes one manifest per
+ * invocations do not re-read disk. Lilara ADR-007 PR-B publishes one manifest per
  * harness declaring envelopeReporting, args/cwd fidelity, mcp/skill
  * interception, and outputChannels. Missing manifest → null (gate falls back
  * to EMPTY_IR conservative defaults).
@@ -353,7 +353,7 @@ function loadManifest(harness) {
  * @param {function} opts.extractTool   — (input) → tool name string
  * @param {boolean}  [opts.envelopeReporting=false] — adapter can report F15 execution envelopes
  * @param {function} [opts.extractTrustMeta] — (input) → manifest snapshot used by
- *   action-ir to populate trustMeta + outputChannels. HAP ADR-007 PR-B; pass
+ *   action-ir to populate trustMeta + outputChannels. Lilara ADR-007 PR-B; pass
  *   `() => loadManifest("<harness>")` for the standard manifest-backed adapter.
  */
 function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false, extractTrustMeta = null, harnessOutput = "echo" }) {

@@ -10,7 +10,7 @@ hostage.") and §5.1 ("State portability (export / import)").
 
 §4.3 elevates operator state portability to an invariant. §8 v1 success
 criteria require "State export/import round-trips with zero data loss". Prior
-to this PR, HAP state under `~/.horus` (or `HORUS_STATE_DIR`) had no documented
+to this PR, Lilara state under `~/.lilara` (or `LILARA_STATE_DIR`) had no documented
 export/import path — operators wanting to migrate machines, back up state, or
 exercise their GDPR "right to portability" had to hand-copy directories and
 hope. That is not a baseline this project is willing to ship.
@@ -27,7 +27,7 @@ import path that refuses on a broken journal chain.
 
 Regular files only — symlinks, sockets, FIFOs, and directories are not encoded
 as tar entries. The hand-rolled writer/reader stays under the LOC budget
-(~110 LOC) and avoids any new dependency, preserving the HAP zero-deps
+(~110 LOC) and avoids any new dependency, preserving the Lilara zero-deps
 invariant verified by `scripts/check-zero-deps.sh`. (Alternative considered:
 a hand-rolled zip container around `zlib.deflateRawSync`. Rejected — tar
 without compression has fewer moving parts, the same byte-stability story,
@@ -52,7 +52,7 @@ and a simpler header.)
 
 **Bundle policy.**
 
-- **Included.** Everything under `HORUS_STATE_DIR` not on the blacklist: the
+- **Included.** Everything under `LILARA_STATE_DIR` not on the blacklist: the
   decision journal (and rotated generations), the journal hash chain
   (`journal-chain.jsonl`) and its checkpoint, the learned policy store,
   project-policy registrations, accepted contracts, session/budget state,
@@ -121,13 +121,13 @@ verification land on encrypted bundles in a follow-up (see §7).
 
 ## 5. CLI surface
 
-`scripts/horus-cli.sh` gains `state` with three subcommands:
+`scripts/lilara-cli.sh` gains `state` with three subcommands:
 
-- `horus-cli.sh state export <out-path> [--force]` — writes a bundle.
+- `lilara-cli.sh state export <out-path> [--force]` — writes a bundle.
   Refuses to overwrite without `--force`. Emits a `state-export` receipt
   through `decision-journal` carrying `bundleHash`, `fileCount`, and the
   chain tip.
-- `horus-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]`
+- `lilara-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]`
   — dry-run by default (validation only); `--apply` actually restores.
   Refuses to apply on top of a non-empty target dir without `--force`.
   Refuses cross-host restore without `--accept-cross-host`. Stage-then-swap
@@ -138,7 +138,7 @@ verification land on encrypted bundles in a follow-up (see §7).
   target is restored from the backup — the import is atomic from the
   caller's perspective. Emits a `state-import` receipt carrying
   `chain-tip-before` and `chain-tip-after`.
-- `horus-cli.sh state doctor` — runs `buildExportManifest` and prints the
+- `lilara-cli.sh state doctor` — runs `buildExportManifest` and prints the
   includable file count, total bytes, excluded files (with reasons), the
   current chain tip, and the host fingerprint. The "is my state importable
   elsewhere?" pre-flight.
@@ -147,7 +147,7 @@ verification land on encrypted bundles in a follow-up (see §7).
 
 §4.3 invariant: *operator can always export and wipe.* This PR delivers the
 export side and matches the wipe side already present (operator can `rm -rf
-$HORUS_STATE_DIR` on any machine — nothing on disk is held under DRM, the
+$LILARA_STATE_DIR` on any machine — nothing on disk is held under DRM, the
 runtime regenerates state on next decide). Together they form the v0.5
 GDPR portability baseline: a single zero-dep CLI command produces a
 portable copy of every piece of operator-owned state, a single shell

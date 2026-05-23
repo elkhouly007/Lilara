@@ -3,9 +3,9 @@
 
 // cross-agent-lock.js — F17 cross-agent-lock floor helper (PR-A).
 //
-// First enforcement slice for HAP v0.5 cross-agent-lock floor. The runtime
+// First enforcement slice for Lilara v0.5 cross-agent-lock floor. The runtime
 // reads lock records that live under
-// `<HORUS_STATE_DIR>/cross-agent-locks/*.json` — one record per file. A
+// `<LILARA_STATE_DIR>/cross-agent-locks/*.json` — one record per file. A
 // lock with a DIFFERENT owner that is not expired and overlaps the current
 // decision's write-target path (or projectRoot, for project-scope locks)
 // causes F17 to fire (block).
@@ -34,7 +34,7 @@
 //     + a non-empty `state.malformed[]`.
 //
 // Zero dependencies. Pure file I/O (fs only). No process.env reads (caller
-// supplies stateDir so HORUS_STATE_DIR can be honored externally).
+// supplies stateDir so LILARA_STATE_DIR can be honored externally).
 
 const fs   = require("fs");
 const path = require("path");

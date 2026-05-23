@@ -2,7 +2,7 @@
 "use strict";
 
 // build-adversarial.js — one-shot generator for the IR/replay-focused
-// adversarial seed corpus (HAP ADR-007 PR-D).
+// adversarial seed corpus (Lilara ADR-007 PR-D).
 //
 // Scope: stress-test the IR builder + replay path against inputs that try to
 // bend the gate via shapes the decision engine has historically missed. These
@@ -42,18 +42,18 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (a.startsWith("--out=")) outPath = path.resolve(a.slice(6));
 }
 
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 // Mirror scripts/replay-decisions.js: pin a synthetic non-protected branch
 // sentinel so the boundary cases below (empty/missing `branch`) do not pick
 // up the generator host's actual git branch via context-discovery's
 // `git symbolic-ref` fallback. Keeps the generated fixture identical whether
 // build-adversarial is run on master, a feature branch, or a worktree.
-process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
+process.env.LILARA_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
@@ -111,7 +111,7 @@ const CASES = [
 function isolatedDecide(input) {
   resetCache();
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-replay-adv-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   try {
     // No ctx.cwd: must mirror scripts/replay-decisions.js so irHash is stable
     // across Linux / macOS / Windows. action-ir.js does path.resolve(cwd), which

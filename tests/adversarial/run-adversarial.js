@@ -30,13 +30,13 @@ const BYPASS    = path.join(OUT, "bypass");
 // Match replay-decisions.js isolation: pin a non-protected branch sentinel so
 // entries with empty/missing `branch` do not inherit the worktree's actual
 // branch via context-discovery's `git symbolic-ref` fallback.
-process.env.HORUS_CONTRACT_ENABLED      = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT            = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
-process.env.HORUS_BRANCH_OVERRIDE = "adversarial/isolated-context";
+process.env.LILARA_CONTRACT_ENABLED      = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT            = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
+process.env.LILARA_BRANCH_OVERRIDE = "adversarial/isolated-context";
 
 const { decide }     = require(path.join(ROOT, "runtime", "decision-engine"));
 const { resetCache } = require(path.join(ROOT, "runtime", "session-context"));
@@ -60,7 +60,7 @@ function isoStamp() {
 function runOne(pattern) {
   resetCache();
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-adv-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   let actual = null, error = null;
   try {
     const r = decide(pattern.action);

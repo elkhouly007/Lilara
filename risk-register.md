@@ -2,7 +2,7 @@
 
 | Risk | Default status | Mitigation |
 | --- | --- | --- |
-| Secrets pasted into prompts | warning / block | `secret-warning.js` scans prompt text and warns (or blocks with `HORUS_ENFORCE=1`). Externalized patterns in `secret-patterns.json`. |
+| Secrets pasted into prompts | warning / block | `secret-warning.js` scans prompt text and warns (or blocks with `LILARA_ENFORCE=1`). Externalized patterns in `secret-patterns.json`. |
 | Accidental push before review | warning / block | `git-push-reminder.js` reminds before push; blocks force-push in enforce mode. |
 | Build/test output ignored | warning only | `build-reminder.js` reminds after local build/test commands. |
 | Dangerous shell commands (rm -rf, DROP TABLE, curl\|sh, etc.) | warning / block | `dangerous-command-gate.js` — 17 patterns by severity. Blocks critical/high in enforce mode. |

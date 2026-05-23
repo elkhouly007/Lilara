@@ -5,7 +5,7 @@
 # harness-specific fields (harness, harnessVersion, tool name case,
 # manifest-derived trustMeta/outputChannels, raw-payload-hash, irHash).
 #
-# HAP ADR-007 PR-B acceptance gate: closes the cross-adapter parity gap that
+# Lilara ADR-007 PR-B acceptance gate: closes the cross-adapter parity gap that
 # has been leaking semantic differences into floors and receipts since v0.4.
 #
 # Reads:
@@ -27,8 +27,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-action-ir-parity.sh (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-action-ir-parity.sh (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-action-ir-parity.sh requires Node.js\n' >&2

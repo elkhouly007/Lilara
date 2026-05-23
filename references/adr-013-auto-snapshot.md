@@ -8,7 +8,7 @@ before destructive operations + restore command") and §8 v1 success criteria
 
 ## 1. Why this exists
 
-§5.1 requires HAP to capture an undo bundle for every destructive file-tree
+§5.1 requires Lilara to capture an undo bundle for every destructive file-tree
 operation before it runs, and a restore command to roll the tree back. The
 Canonical Action IR already classifies destructiveness (`destructive: true`,
 `commandClass: "destructive-delete"`, `fileTargets[]` with absolute paths),
@@ -81,7 +81,7 @@ eliminate. Operators see the failure on the receipt and in the journal.
 hashes modulo the timestamp. Idempotency case (§7) verifies this.
 
 **Blob layout.** Snapshots live at
-`<HORUS_STATE_DIR>/snapshots/<snapshotId>/`:
+`<LILARA_STATE_DIR>/snapshots/<snapshotId>/`:
 
 ```
 <snapshotId>/
@@ -94,7 +94,7 @@ Node + `node:zlib` only — no shell-out to `tar`/`zip`, no third-party
 dependency, verified by `check-zero-deps.sh`.
 
 **Restore atomicity contract.** `restoreSnapshot(id, opts)` writes each
-captured file to a sibling `*.horus-restore-<pid>-<ts>` tempfile under the
+captured file to a sibling `*.lilara-restore-<pid>-<ts>` tempfile under the
 target's directory and atomically `rename()`s it into place. Per-file
 atomicity is the strongest guarantee a portable filesystem helper can
 offer; the operation as a whole is best-effort (partial restores are
@@ -136,7 +136,7 @@ satisfying the additive-only contract from ADR-007 PR-C / ADR-010.
 
 ## 3. CLI surface
 
-`scripts/horus-cli.sh` gains a `snapshot` subcommand family:
+`scripts/lilara-cli.sh` gains a `snapshot` subcommand family:
 
 - `horus snapshot list` — snapshots with id, createdAt, size, reason, decisionKey.
 - `horus snapshot show <id>` — manifest contents (paths + sha256 + sizes, no file contents).
@@ -150,7 +150,7 @@ satisfying the additive-only contract from ADR-007 PR-C / ADR-010.
   that touched the network, a database, or any external service. A snapshot
   captures the on-disk state that existed at decision time. If the agent
   ran `aws s3 rm s3://...` or `psql -c 'DROP TABLE ...'`, the snapshot
-  cannot recover that state. Operators must combine HAP snapshots with
+  cannot recover that state. Operators must combine Lilara snapshots with
   service-specific backups for non-file rollback. (Out-of-scope: SaaS-API
   state, DB rollback, container/VM state.)
 
@@ -165,7 +165,7 @@ satisfying the additive-only contract from ADR-007 PR-C / ADR-010.
   files passes through cleanly).
 
 - **No encryption at rest.** Snapshots inherit the `0700` mode of
-  `HORUS_STATE_DIR`. Encrypted snapshots are deferred to a separate PR or
+  `LILARA_STATE_DIR`. Encrypted snapshots are deferred to a separate PR or
   to v1.0.
 
 - **No cross-machine sync.** Snapshots are local. Cross-host portability
@@ -180,8 +180,8 @@ on every `createSnapshot` and on every explicit `horus snapshot prune`.
 Eviction order: age first (a 31-day-old snapshot is gone regardless of
 count or size), then count (drop oldest until ≤ 50), then total bytes
 (drop oldest until ≤ 4 GiB). Operators who need longer-tail retention
-should copy snapshots out of `~/.horus/snapshots/` to their own backup
-location — HAP intentionally does not promise indefinite retention.
+should copy snapshots out of `~/.lilara/snapshots/` to their own backup
+location — Lilara intentionally does not promise indefinite retention.
 
 ## 6. Alternatives considered
 

@@ -76,14 +76,14 @@ function runFixture(fixturePath) {
   const envSnapshot = Object.assign({}, process.env);
 
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = fx.contract ? "1" : "0";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = fx.contract ? "1" : "0";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
     if (fx.env) for (const [k, v] of Object.entries(fx.env)) process.env[k] = String(v);
 
     freshRequireCache();
@@ -107,7 +107,7 @@ function runFixture(fixturePath) {
       } else if (typeof doc.contractHash !== "string") {
         doc.contractHash = "sha256:" + "0".repeat(64);
       }
-      fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
       const shouldAccept = fx.acceptContract != null ? fx.acceptContract : !fx.badHash;
       if (shouldAccept) {
         const acceptedKey = path.resolve(projectDir);
@@ -131,7 +131,7 @@ function runFixture(fixturePath) {
     }
     if (fx.preDecide && fx.preDecide.mintF4DemoteToken) {
       const { mintOperatorToken } = require(path.join(root, "runtime/contract"));
-      process.env.HORUS_F4_DEMOTE_TOKEN = mintOperatorToken("schema-gen", "class-c-review-demote");
+      process.env.LILARA_F4_DEMOTE_TOKEN = mintOperatorToken("schema-gen", "class-c-review-demote");
     }
     if (fx.preDecide && Array.isArray(fx.preDecide.seedCrossAgentLocks)) {
       const lockDir = path.join(stateDir, "cross-agent-locks");

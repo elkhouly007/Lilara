@@ -3,7 +3,7 @@
 
 // decision-lattice.js — Declarative precedence lattice for decision-engine.
 //
-// HAP ADR-007 / scope §4.1 invariant 10: every floor declares its rung,
+// Lilara ADR-007 / scope §4.1 invariant 10: every floor declares its rung,
 // action, demotability, and source tag in one place. This file is the
 // source of truth for ORDERING + DEMOTABILITY + FIXTURE IDENTITY of the
 // floors that decision-engine.js implements imperatively. PR-A introduced
@@ -15,7 +15,7 @@
 // Pure data + tiny helpers. Zero I/O. Zero external dependencies.
 //
 // Rung 0 is reserved for the Hard Ethical Core (Layer 1) which lands in
-// HAP v1.0; the entry exists here so the table position is stable, but
+// Lilara v1.0; the entry exists here so the table position is stable, but
 // `predicateRef: "reserved"` documents that no engine code consumes it yet.
 //
 // The rung numbers reflect CODE REALITY in decision-engine.js as of
@@ -49,7 +49,7 @@ const LATTICE = Object.freeze([
     source: "hard-ethical-core",
     demotableBy: [],
     predicateRef: "reserved",
-    notes: "Reserved for HAP v1.0 ethical core; not yet engine-baked.",
+    notes: "Reserved for Lilara v1.0 ethical core; not yet engine-baked.",
   }),
   Object.freeze({
     id: "F1",
@@ -58,8 +58,8 @@ const LATTICE = Object.freeze([
     action: "block",
     source: "kill-switch",
     demotableBy: [],
-    predicateRef: "runtime/decision-engine.js:decide(HORUS_KILL_SWITCH)",
-    notes: "Fires unconditionally when HORUS_KILL_SWITCH=1.",
+    predicateRef: "runtime/decision-engine.js:decide(LILARA_KILL_SWITCH)",
+    notes: "Fires unconditionally when LILARA_KILL_SWITCH=1.",
   }),
   Object.freeze({
     id: "F2",
@@ -69,7 +69,7 @@ const LATTICE = Object.freeze([
     source: "contract-floor",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(contract.verify)",
-    notes: "Strict mode only (HORUS_CONTRACT_REQUIRED=1).",
+    notes: "Strict mode only (LILARA_CONTRACT_REQUIRED=1).",
   }),
   Object.freeze({
     id: "F5",
@@ -148,7 +148,7 @@ const LATTICE = Object.freeze([
     action: "block",
     source: ["secret-class-C", "f4-class-c-demoted"],
     // demotableBy: ADR-002 Option B — F4 (this floor) grants a one-shot scoped
-    // operator token (HORUS_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
+    // operator token (LILARA_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
     // authority to demote `block` → `require-review`. No other source qualifies.
     demotableBy: ["operator-token:class-c-review-demote"],
     predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets)",
@@ -471,7 +471,7 @@ function canDemote(currentFloorId, attemptedSource) {
 
 // assertOrdered() — enforces the table invariants. Throws Error on first
 // violation. Used by tests + by the lattice-ordering CI script. Cheap to
-// call; safe to invoke at module load when HORUS_LATTICE_SELFTEST=1.
+// call; safe to invoke at module load when LILARA_LATTICE_SELFTEST=1.
 function assertOrdered(table) {
   const t = table || LATTICE;
   if (!Array.isArray(t)) {
@@ -522,7 +522,7 @@ function assertOrdered(table) {
 
 // Optional self-test on module load. Off by default to keep the cold-load
 // path a pure data import; opt in via env for tests/CI.
-if (process.env.HORUS_LATTICE_SELFTEST === "1") {
+if (process.env.LILARA_LATTICE_SELFTEST === "1") {
   assertOrdered(LATTICE);
 }
 

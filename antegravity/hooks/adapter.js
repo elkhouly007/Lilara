@@ -5,7 +5,7 @@
 // possible fallback chain to cover likely input shapes. Test against your
 // actual antegravity hook payload before relying on this in production.
 //
-// To enable block mode: export HORUS_ENFORCE=1
+// To enable block mode: export LILARA_ENFORCE=1
 
 "use strict";
 
@@ -17,7 +17,7 @@ createAdapter({
   extractCommand:    (i) => String(i.command || i.cmd || i.tool_input?.command || i.input?.command || i.args?.command || i.params?.command || ""),
   extractCwd:        (i) => String(i.cwd || i.workdir || i.working_directory || i.tool_input?.cwd || i.input?.cwd || i.args?.cwd || ""),
   extractTool:       (i) => String(i.tool_name || i.tool || i.type || "Bash"),
-  // HAP ADR-007 PR-B: antegravity/manifest.json declares best-effort args/cwd
+  // Lilara ADR-007 PR-B: antegravity/manifest.json declares best-effort args/cwd
   // fidelity and unverified MCP/skill interception.
   envelopeReporting: false,
   extractTrustMeta:  () => loadManifest("antegravity"),

@@ -172,7 +172,7 @@ Non-demotability:
   lattice entry's `demotableBy` only lists
   `operator-token-suspicious-only`.
 * `suspicious` matches are **demotable only by a one-shot scoped operator
-  token** (`HORUS_F19_DEMOTE_TOKEN`, scope `output-exfil-review-demote`).
+  token** (`LILARA_F19_DEMOTE_TOKEN`, scope `output-exfil-review-demote`).
   The engine routes the demotion through `canDemote(F19.id,
   operator-token-suspicious-only)` + `consumeScopedOperatorToken()` so
   drift cannot bypass the lattice.
@@ -225,7 +225,7 @@ brief) and are tracked for follow-up.
 * No demotability path of any existing floor.
 * No contract schema change (the new fields live on adapter manifests,
   not on the user-signed contract).
-* No HAP enforcement wiring into Claude Code / OpenClaw runtime — F19
+* No Lilara enforcement wiring into Claude Code / OpenClaw runtime — F19
   evaluates in `decide()` only; adapters propagate observability via the
   input/IR shape.
 * No fixture-runner changes — only one new lattice-receipt fixture and

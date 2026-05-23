@@ -5,18 +5,18 @@ function checksCommandForStack(primaryStack = "") {
   switch (String(primaryStack || "").trim().toLowerCase()) {
     case "node":
     case "typescript":
-      return "horus-cli.sh check && npm test";
+      return "lilara-cli.sh check && npm test";
     case "python":
-      return "horus-cli.sh check && pytest";
+      return "lilara-cli.sh check && pytest";
     case "golang":
-      return "horus-cli.sh check && go test ./...";
+      return "lilara-cli.sh check && go test ./...";
     case "rust":
-      return "horus-cli.sh check && cargo test";
+      return "lilara-cli.sh check && cargo test";
     case "java":
     case "kotlin":
-      return "horus-cli.sh check && ./gradlew test";
+      return "lilara-cli.sh check && ./gradlew test";
     default:
-      return "horus-cli.sh check";
+      return "lilara-cli.sh check";
   }
 }
 
@@ -45,8 +45,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
     out.lane = "verification";
     out.reason = "Risky change should flow through test/verification before continuing.";
     out.suggestedSurface = "checks";
-    out.suggestedTarget = "horus-cli.check";
-    out.suggestedCommand = "horus-cli.sh check";
+    out.suggestedTarget = "lilara-cli.check";
+    out.suggestedCommand = "lilara-cli.sh check";
     return out;
   }
 
@@ -73,8 +73,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
       out.reason = branch ? `Protected or sensitive work on branch ${branch} should route through review.` : "Sensitive work should route through review.";
     }
     out.suggestedSurface = "review";
-    out.suggestedTarget = "horus-cli.review";
-    out.suggestedCommand = "horus-cli.sh review";
+    out.suggestedTarget = "lilara-cli.review";
+    out.suggestedCommand = "lilara-cli.sh review";
     return out;
   }
 
@@ -82,8 +82,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
     out.lane = "narrow";
     out.reason = "The runtime wants a safer or narrower form before execution.";
     out.suggestedSurface = "runtime-explain";
-    out.suggestedTarget = "horus-cli.runtime.explain";
-    out.suggestedCommand = "horus-cli.sh runtime explain --tool <tool> --command '<cmd>' --target <path>";
+    out.suggestedTarget = "lilara-cli.runtime.explain";
+    out.suggestedCommand = "lilara-cli.sh runtime explain --tool <tool> --command '<cmd>' --target <path>";
     return out;
   }
 
@@ -100,8 +100,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
     out.lane = "blocked";
     out.reason = "Action is blocked by runtime policy. No workflow route is available — resolve the policy concern first.";
     out.suggestedSurface = "runtime-explain";
-    out.suggestedTarget = "horus-cli.runtime.explain";
-    out.suggestedCommand = "horus-cli.sh runtime explain --tool <tool> --command '<cmd>' --target <path>";
+    out.suggestedTarget = "lilara-cli.runtime.explain";
+    out.suggestedCommand = "lilara-cli.sh runtime explain --tool <tool> --command '<cmd>' --target <path>";
     return out;
   }
 
@@ -112,7 +112,7 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
         ? `This looks like a low-risk verification workflow for a ${primaryStack} project.`
         : "This looks like a low-risk verification workflow.";
       out.suggestedSurface = "checks";
-      out.suggestedTarget = "horus-cli.check";
+      out.suggestedTarget = "lilara-cli.check";
       out.suggestedCommand = checksCommandForStack(primaryStack);
       return out;
     }
@@ -121,8 +121,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
       out.lane = "review";
       out.reason = "Class C payloads should route through explicit review before any other low-risk workflow choice.";
       out.suggestedSurface = "review";
-      out.suggestedTarget = "horus-cli.review";
-      out.suggestedCommand = "horus-cli.sh review <file>";
+      out.suggestedTarget = "lilara-cli.review";
+      out.suggestedCommand = "lilara-cli.sh review <file>";
       return out;
     }
 
@@ -130,8 +130,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
       out.lane = "payload";
       out.reason = "Class B payloads should go through payload tooling before direct continuation.";
       out.suggestedSurface = "payload-tools";
-      out.suggestedTarget = "horus-cli.review";
-      out.suggestedCommand = "horus-cli.sh review <file>";
+      out.suggestedTarget = "lilara-cli.review";
+      out.suggestedCommand = "lilara-cli.sh review <file>";
       return out;
     }
 
@@ -146,8 +146,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
             ? `This target looks like source code on protected branch ${branch}, so direct edits should route through review first.`
             : `This target looks like source code on protected branch ${branch}, so it should route through review first.`);
         out.suggestedSurface = "review";
-        out.suggestedTarget = "horus-cli.review";
-        out.suggestedCommand = "horus-cli.sh review";
+        out.suggestedTarget = "lilara-cli.review";
+        out.suggestedCommand = "lilara-cli.sh review";
         return out;
       }
 
@@ -160,7 +160,7 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
           ? "This target looks like source code, so direct edits should route through local checks first."
           : "This target looks like source code, so the safest default route is through local checks.");
       out.suggestedSurface = "checks";
-      out.suggestedTarget = "horus-cli.check";
+      out.suggestedTarget = "lilara-cli.check";
       out.suggestedCommand = checksCommandForStack(primaryStack);
       return out;
     }
@@ -170,15 +170,15 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
       out.reason = "This looks like payload review/redaction work.";
       out.suggestedSurface = "payload-tools";
       out.suggestedTarget = /redact/.test(command)
-        ? "horus-cli.redact"
+        ? "lilara-cli.redact"
         : /review/.test(command)
-          ? "horus-cli.review"
-          : "horus-cli.classify";
+          ? "lilara-cli.review"
+          : "lilara-cli.classify";
       out.suggestedCommand = /redact/.test(command)
-        ? "horus-cli.sh redact <file>"
+        ? "lilara-cli.sh redact <file>"
         : /review/.test(command)
-          ? "horus-cli.sh review <file>"
-          : "horus-cli.sh classify <file>  # or horus-cli.sh redact <file>";
+          ? "lilara-cli.sh review <file>"
+          : "lilara-cli.sh classify <file>  # or lilara-cli.sh redact <file>";
       return out;
     }
 
@@ -186,8 +186,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
       out.lane = "review";
       out.reason = "This looks like a review or audit workflow.";
       out.suggestedSurface = "review";
-      out.suggestedTarget = "horus-cli.review";
-      out.suggestedCommand = "horus-cli.sh review";
+      out.suggestedTarget = "lilara-cli.review";
+      out.suggestedCommand = "lilara-cli.sh review";
       return out;
     }
 
@@ -201,12 +201,12 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
           ? "This looks like install or setup workflow work with project config already present."
           : "This looks like install or setup workflow work.";
       out.suggestedSurface = "setup";
-      out.suggestedTarget = shouldGenerateConfig ? "horus-cli.generate-config" : (/setup/.test(command) ? "horus-cli.setup" : "horus-cli.install");
+      out.suggestedTarget = shouldGenerateConfig ? "lilara-cli.generate-config" : (/setup/.test(command) ? "lilara-cli.setup" : "lilara-cli.install");
       out.suggestedCommand = shouldGenerateConfig
         ? (projectRoot
-          ? `bash scripts/generate-config.sh ${projectRoot} --output ${projectRoot}/horus.config.json`
-          : "bash scripts/generate-config.sh <project-root> --output <project-root>/horus.config.json")
-        : (/setup/.test(command) ? "horus-cli.sh setup" : "horus-cli.sh install <target> --auto");
+          ? `bash scripts/generate-config.sh ${projectRoot} --output ${projectRoot}/lilara.config.json`
+          : "bash scripts/generate-config.sh <project-root> --output <project-root>/lilara.config.json")
+        : (/setup/.test(command) ? "lilara-cli.sh setup" : "lilara-cli.sh install <target> --auto");
       return out;
     }
 
@@ -217,8 +217,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
           ? "This looks like hook or settings work, and strict trust posture prefers review before wiring changes continue."
           : `This looks like hook or settings work on protected branch ${branch}, so it should route through review before wiring changes continue.`;
         out.suggestedSurface = "review";
-        out.suggestedTarget = "horus-cli.review";
-        out.suggestedCommand = "horus-cli.sh review";
+        out.suggestedTarget = "lilara-cli.review";
+        out.suggestedCommand = "lilara-cli.sh review";
         return out;
       }
 
@@ -227,8 +227,8 @@ function recommend(action, input = {}, risk = {}, discovered = {}) {
         ? "This looks like direct hook or settings editing, so route through wiring guidance first."
         : "This looks like hook or tool wiring work.";
       out.suggestedSurface = "wiring";
-      out.suggestedTarget = "horus-cli.wire";
-      out.suggestedCommand = "horus-cli.sh wire <target>";
+      out.suggestedTarget = "lilara-cli.wire";
+      out.suggestedCommand = "lilara-cli.sh wire <target>";
       return out;
     }
 

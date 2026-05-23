@@ -16,7 +16,7 @@
 # harness settings file (e.g. ~/.claude/settings.json → "hooks" section).
 #
 # State files (learned-policy, session-context, decision-journal) live in
-# ~/.horus/ and are never touched by this script.
+# ~/.lilara/ and are never touched by this script.
 
 set -eu
 
@@ -192,19 +192,19 @@ install_args="$target --profile $profile"
 bash "${root}/scripts/install-local.sh" $install_args >/dev/null
 ok "Files installed (profile: $profile)"
 
-# ── generate horus.config.json if not present ───────────────────────────────────
+# ── generate lilara.config.json if not present ───────────────────────────────────
 
-config_path="$target/horus.config.json"
+config_path="$target/lilara.config.json"
 if [ ! -f "$config_path" ]; then
   if command -v node >/dev/null 2>&1 && [ -f "${root}/scripts/generate-config.sh" ]; then
     bash "${root}/scripts/generate-config.sh" "$target" --output "$config_path" >/dev/null 2>&1 && \
-      ok "Generated horus.config.json" || \
-      warn "Could not auto-generate horus.config.json — copy horus.config.json.example manually"
+      ok "Generated lilara.config.json" || \
+      warn "Could not auto-generate lilara.config.json — copy lilara.config.json.example manually"
   else
-    warn "horus.config.json not found. Copy $target/horus.config.json.example to $target/horus.config.json and edit it."
+    warn "lilara.config.json not found. Copy $target/lilara.config.json.example to $target/lilara.config.json and edit it."
   fi
 else
-  ok "horus.config.json already present — not overwritten"
+  ok "lilara.config.json already present — not overwritten"
 fi
 
 # Copy VERSION into installed dir so upgrade.sh can read it
@@ -241,5 +241,5 @@ printf '  Profile  : %s\n' "$profile"
 printf '\n'
 printf '  To upgrade later: bash %s/scripts/upgrade.sh "%s"\n' "$root" "$target"
 printf '  To verify:        bash %s/scripts/wire-hooks.sh --verify\n' "$root"
-printf '  To check health:  bash %s/scripts/horus-cli.sh check\n' "$root"
+printf '  To check health:  bash %s/scripts/lilara-cli.sh check\n' "$root"
 printf '\n'

@@ -9,7 +9,7 @@ produce an exportable, SOC2-readable receipt").
 
 ## 1. Why this exists
 
-§5.1 says every HAP decision must produce an audit receipt that an external
+§5.1 says every Lilara decision must produce an audit receipt that an external
 SOC2 auditor can consume as-is. The runtime already journals rich content
 through `runtime/decision-journal.js` (action, riskLevel, reasonCodes,
 contractId, journal hash chain via ADR-004, ambient-touch, F19 output-channel
@@ -27,7 +27,7 @@ receipts continue to validate byte-identical; new fields are additive only.
 
 **The receipt is the journal entry.** The canonical "receipt" for audit is
 the record `runtime/decision-journal.js` writes to
-`<HORUS_STATE_DIR>/decision-journal.jsonl`. The decide() return value carries
+`<LILARA_STATE_DIR>/decision-journal.jsonl`. The decide() return value carries
 additional ephemeral fields (e.g. `context`, `actionPlan`) that are not
 journaled because they are runtime routing aids, not audit material.
 
@@ -46,7 +46,7 @@ top-level keys actually emitted, and fails if any key is absent from the
 schema. So a future change that adds a journal field but forgets the schema
 is caught in CI. The schema itself is byte-stable on canonical re-serialisation.
 
-**Dev-mode validation.** `HORUS_VALIDATE_RECEIPTS=1` makes
+**Dev-mode validation.** `LILARA_VALIDATE_RECEIPTS=1` makes
 `decision-journal.append()` run every assembled record through
 `validateReceipt()` and throw on failure. Off by default — the production
 hot path remains the same `JSON.stringify + appendFileSync` pair. Tests
@@ -96,7 +96,7 @@ pivot analysis. Object-valued fields are serialised as canonical-JSON
 inside the CSV cell, which keeps the column count fixed and the row
 shape uniform.
 
-**CLI surface.** `scripts/horus-cli.sh receipts` exposes `validate`,
+**CLI surface.** `scripts/lilara-cli.sh receipts` exposes `validate`,
 `export`, `schema [--print]`, and `doctor`. The doctor runs validate +
 round-trip on the local journal and is the one-command "is my audit
 trail healthy?" check.
@@ -104,7 +104,7 @@ trail healthy?" check.
 ## 3. Where this stops
 
 - This is **not** a SOC2 attestation. It is an informal mapping that pre-
-  reads as the auditor's checklist for HAP's runtime logs.
+  reads as the auditor's checklist for Lilara's runtime logs.
   `references/soc2-receipt-mapping.md` is labelled accordingly.
 - This is **not** an SIEM. The exporter is a one-shot dump; integration
   with Splunk / Elastic / Datadog is downstream tooling that consumes
@@ -122,7 +122,7 @@ trail healthy?" check.
 - Auditor-facing web dashboard (Phase 6.2+).
 - Schema migration tool (v1 is the first published schema; no v0 to
   migrate from).
-- Wiring HAP enforcement into Claude Code or OpenClaw runtimes.
+- Wiring Lilara enforcement into Claude Code or OpenClaw runtimes.
 
 ## 5. Acceptance evidence
 

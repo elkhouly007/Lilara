@@ -1,6 +1,6 @@
 # decision-lattice fixtures
 
-Baseline fixtures for `runtime/decision-lattice.js` (HAP ADR-007 PR-A).
+Baseline fixtures for `runtime/decision-lattice.js` (Lilara ADR-007 PR-A).
 
 `scripts/check-lattice-ordering.sh` validates the table at runtime — these
 fixtures are reference snapshots only. PR-C will add per-floor receipt

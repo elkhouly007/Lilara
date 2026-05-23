@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * strategic-compact.js — Horus Agentic Power  (PostToolUse hook)
+ * strategic-compact.js — Lilara  (PostToolUse hook)
  *
  * Fires after every tool use. Tracks a lightweight call counter and suggests
  * /compact when the context window may be filling up.
@@ -12,7 +12,7 @@
  * - No external packages, no network calls, no file content access.
  * - Silent fail on errors.
  *
- * Counter file is stored under ~/.horus/ (not /tmp/) to avoid the Linux
+ * Counter file is stored under ~/.lilara/ (not /tmp/) to avoid the Linux
  * /tmp symlink attack: any local user can pre-create a symlink at a known
  * /tmp path and redirect writes to an arbitrary file.
  */
@@ -25,14 +25,14 @@ const { readStdin, hookLog } = require("./hook-utils");
 const { hookStateDir }       = require("../../runtime/state-paths");
 
 // User-private directory — not world-writable like /tmp.
-const HORUS_DIR      = hookStateDir();
-const COUNTER_FILE = path.join(HORUS_DIR, "session-counter.json");
+const LILARA_DIR      = hookStateDir();
+const COUNTER_FILE = path.join(LILARA_DIR, "session-counter.json");
 
 const EXPENSIVE_TOOLS = new Set(["Agent", "WebFetch", "WebSearch"]);
 
 function ensureDir() {
   try {
-    fs.mkdirSync(HORUS_DIR, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(LILARA_DIR, { recursive: true, mode: 0o700 });
   } catch {
     // Already exists or permission denied — handled silently below.
   }
@@ -73,7 +73,7 @@ readStdin()
   .then((raw) => {
     // Always echo input unchanged first.
     process.stdout.write(raw || "");
-    if (process.env.HORUS_KILL_SWITCH === "1") return;
+    if (process.env.LILARA_KILL_SWITCH === "1") return;
 
     try {
       const input    = JSON.parse(raw || "{}");

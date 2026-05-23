@@ -16,7 +16,7 @@
 // The replay gate (scripts/replay-decisions.js) then asserts that re-running
 // the recorded inputs against the live engine yields byte-identical outputs.
 //
-// Determinism is enforced by isolating each call: fresh HORUS_STATE_DIR,
+// Determinism is enforced by isolating each call: fresh LILARA_STATE_DIR,
 // session-context cache reset, contract disabled, branch override stripped.
 //
 // Usage: node tests/fixtures/replay-corpus/build-corpus.js [--out path]
@@ -34,19 +34,19 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (a.startsWith("--out=")) outPath = path.resolve(a.slice(6));
 }
 
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 // Mirror scripts/replay-decisions.js: pin a synthetic non-protected branch
 // sentinel so any case lacking an explicit `branch` would not pick up the
 // generator host's actual git branch via context-discovery's
 // `git symbolic-ref` fallback. Every current case sets `branch` explicitly,
 // but the sentinel future-proofs the generator the same way the replay gate
 // is hardened.
-process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
+process.env.LILARA_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
@@ -144,7 +144,7 @@ const CASES = [
 function isolatedDecide(input) {
   resetCache();
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-replay-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   try {
     // No ctx.cwd: must mirror scripts/replay-decisions.js so irHash is stable
     // across Linux / macOS / Windows. action-ir.js does path.resolve(cwd), which

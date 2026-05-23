@@ -29,7 +29,7 @@ function test(name, fn) {
 
 function freshStateDir(label) {
   const p = fs.mkdtempSync(path.join(os.tmpdir(), "arg-rx-" + label + "-"));
-  process.env.HORUS_STATE_DIR = p;
+  process.env.LILARA_STATE_DIR = p;
   // Reset the runtime cache so receipt-export rebinds to the new state dir.
   for (const k of Object.keys(require.cache)) {
     if (k.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[k];
@@ -137,11 +137,11 @@ test("exportManifest is stable across re-export of identical content", () => {
 
 test("end-to-end: 50 decide() receipts → export jsonl → re-import → byte-identical", () => {
   const sd = freshStateDir("e2e");
-  process.env.HORUS_CONTRACT_ENABLED = "0";
-  process.env.HORUS_DECISION_JOURNAL = "1";
-  process.env.HORUS_RATE_LIMIT       = "0";
-  delete process.env.HORUS_KILL_SWITCH;
-  delete process.env.HORUS_VALIDATE_RECEIPTS;
+  process.env.LILARA_CONTRACT_ENABLED = "0";
+  process.env.LILARA_DECISION_JOURNAL = "1";
+  process.env.LILARA_RATE_LIMIT       = "0";
+  delete process.env.LILARA_KILL_SWITCH;
+  delete process.env.LILARA_VALIDATE_RECEIPTS;
 
   for (const k of Object.keys(require.cache)) {
     if (k.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[k];
@@ -181,10 +181,10 @@ test("end-to-end: 50 decide() receipts → export jsonl → re-import → byte-i
   }
 });
 
-test("HORUS_VALIDATE_RECEIPTS=1 dev-mode throws on invalid append", () => {
+test("LILARA_VALIDATE_RECEIPTS=1 dev-mode throws on invalid append", () => {
   const sd = freshStateDir("validate-flag");
-  process.env.HORUS_VALIDATE_RECEIPTS = "1";
-  process.env.HORUS_DECISION_JOURNAL  = "1";
+  process.env.LILARA_VALIDATE_RECEIPTS = "1";
+  process.env.LILARA_DECISION_JOURNAL  = "1";
   delete require.cache[require.resolve(path.join(root, "runtime/decision-journal"))];
   const dj = require(path.join(root, "runtime/decision-journal"));
   let threw = false;
@@ -194,7 +194,7 @@ test("HORUS_VALIDATE_RECEIPTS=1 dev-mode throws on invalid append", () => {
   } catch (e) {
     threw = /receipt-validation-failed/.test(e.message);
   }
-  delete process.env.HORUS_VALIDATE_RECEIPTS;
+  delete process.env.LILARA_VALIDATE_RECEIPTS;
   assert.strictEqual(threw, true, "expected receipt-validation-failed throw");
 });
 

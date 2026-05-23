@@ -127,14 +127,14 @@ test("every lattice-receipts fixture replay validates against the schema", () =>
     const fx = JSON.parse(fs.readFileSync(path.join(fxRoot, f), "utf8"));
 
     const envSnapshot = Object.assign({}, process.env);
-    process.env.HORUS_STATE_DIR        = fxStateDir;
-    process.env.HORUS_CONTRACT_ENABLED = fx.contract ? "1" : "0";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = fxStateDir;
+    process.env.LILARA_CONTRACT_ENABLED = fx.contract ? "1" : "0";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
     if (fx.env) for (const [k, v] of Object.entries(fx.env)) process.env[k] = String(v);
 
     for (const k of Object.keys(require.cache)) {
@@ -159,7 +159,7 @@ test("every lattice-receipts fixture replay validates against the schema", () =>
       } else if (typeof doc.contractHash !== "string") {
         doc.contractHash = "sha256:" + "0".repeat(64);
       }
-      fs.writeFileSync(path.join(fxProject, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(fxProject, "lilara.contract.json"), JSON.stringify(doc, null, 2));
       const shouldAccept = fx.acceptContract != null ? fx.acceptContract : !fx.badHash;
       if (shouldAccept) {
         const acceptedKey = path.resolve(fxProject);
@@ -183,7 +183,7 @@ test("every lattice-receipts fixture replay validates against the schema", () =>
     }
     if (fx.preDecide && fx.preDecide.mintF4DemoteToken) {
       const { mintOperatorToken } = require(path.join(root, "runtime/contract"));
-      process.env.HORUS_F4_DEMOTE_TOKEN = mintOperatorToken("receipt-schema-fx", "class-c-review-demote");
+      process.env.LILARA_F4_DEMOTE_TOKEN = mintOperatorToken("receipt-schema-fx", "class-c-review-demote");
     }
     if (fx.preDecide && Array.isArray(fx.preDecide.seedCrossAgentLocks)) {
       const lockDir = path.join(fxStateDir, "cross-agent-locks");
@@ -244,7 +244,7 @@ test("validateJournalChain detects a tampered hash-chain entry", () => {
   // Build a chain of 3 entries in a hermetic state-dir, then flip one byte
   // of the second payload to break entryHash + prevHash linkage.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "arg-rs-tamper-"));
-  process.env.HORUS_STATE_DIR = tmp;
+  process.env.LILARA_STATE_DIR = tmp;
   for (const k of Object.keys(require.cache)) {
     if (k.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[k];
   }

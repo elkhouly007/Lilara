@@ -48,16 +48,16 @@ function isolatedDecide(input) {
     for (const k of Object.keys(process.env)) if (!(k in envSnap)) delete process.env[k];
     for (const [k, v] of Object.entries(envSnap)) process.env[k] = v;
   };
-  process.env.HORUS_CONTRACT_ENABLED      = "0";
-  process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-  process.env.HORUS_RATE_LIMIT            = "0";
-  process.env.HORUS_BRANCH_OVERRIDE       = "replay/isolated-context";
-  delete process.env.HORUS_KILL_SWITCH;
-  delete process.env.HORUS_CONTRACT_REQUIRED;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
+  process.env.LILARA_CONTRACT_ENABLED      = "0";
+  process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+  process.env.LILARA_RATE_LIMIT            = "0";
+  process.env.LILARA_BRANCH_OVERRIDE       = "replay/isolated-context";
+  delete process.env.LILARA_KILL_SWITCH;
+  delete process.env.LILARA_CONTRACT_REQUIRED;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
 
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-f16-adv-test-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
 
   // Fresh runtime/* cache so each decide sees pristine module state.
   for (const key of Object.keys(require.cache)) {
@@ -159,18 +159,18 @@ function withSandbox(opts, body) {
     try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = o.contract ? "1" : "0";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = o.contract ? "1" : "0";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
 
     if (o.contract) {
       const doc = JSON.parse(JSON.stringify(o.contract));
       doc.contractHash = hashContract(doc);
-      fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
       const acceptedPath = path.join(stateDir, "accepted-contracts.json");
       const acceptedKey  = path.resolve(projectDir);
       fs.writeFileSync(acceptedPath, JSON.stringify({
@@ -198,7 +198,7 @@ function withSandbox(opts, body) {
 
 function classOnlyAllow(cls, reason) {
   return {
-    version: 3, contractId: "hap-20260101-0000000fad0d", revision: 1,
+    version: 3, contractId: "lilara-20260101-0000000fad0d", revision: 1,
     acceptedAt: "2026-01-01T00:00:00Z", harnessScope: ["claude"],
     trustPosture: "balanced",
     scopes: {
@@ -210,7 +210,7 @@ function classOnlyAllow(cls, reason) {
 
 function pathPrefixAllow(cls, prefix, reason) {
   return {
-    version: 3, contractId: "hap-20260101-0000000fad0e", revision: 1,
+    version: 3, contractId: "lilara-20260101-0000000fad0e", revision: 1,
     acceptedAt: "2026-01-01T00:00:00Z", harnessScope: ["claude"],
     trustPosture: "balanced",
     scopes: {

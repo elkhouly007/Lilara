@@ -2,7 +2,7 @@
 "use strict";
 
 // tests/runtime/change-intent.test.js — F20 change-intent-drift test suite
-// (HAP ADR-012, v0.5 Stage D wave 2).
+// (Lilara ADR-012, v0.5 Stage D wave 2).
 //
 // Coverage: helper unit cases, engine integration, fail-open, idempotency,
 // receipt pin.
@@ -39,13 +39,13 @@ function envRestore(snap) {
 function withIsolatedState(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-change-intent-"));
   const snap = envSnapshot();
-  process.env.HORUS_STATE_DIR = dir;
-  process.env.HORUS_CONTRACT_ENABLED = "0";
-  process.env.HORUS_DECISION_JOURNAL = "1";
-  delete process.env.HORUS_KILL_SWITCH;
-  delete process.env.HORUS_CONTRACT_REQUIRED;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
-  delete process.env.HORUS_F20_DEMOTE_TOKEN;
+  process.env.LILARA_STATE_DIR = dir;
+  process.env.LILARA_CONTRACT_ENABLED = "0";
+  process.env.LILARA_DECISION_JOURNAL = "1";
+  delete process.env.LILARA_KILL_SWITCH;
+  delete process.env.LILARA_CONTRACT_REQUIRED;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
+  delete process.env.LILARA_F20_DEMOTE_TOKEN;
   clearRuntimeCache();
   try {
     return fn(dir);
@@ -156,8 +156,8 @@ test("change-intent: policy-edit-not-declared escalates to high", () => {
   const { diffEnvelopeVsIr } = require(path.join(REPO_ROOT, "runtime/change-intent"));
   const env = { declaredIntent: { allowedOps: { fileWrites: ["**"], policyEdits: false } } };
   const ir = {
-    fileTargets: [{ path: "/proj/horus.contract.json", intent: "write" }],
-    networkTargets: [], command: "echo x > horus.contract.json", argv0: "echo",
+    fileTargets: [{ path: "/proj/lilara.contract.json", intent: "write" }],
+    networkTargets: [], command: "echo x > lilara.contract.json", argv0: "echo",
   };
   const out = diffEnvelopeVsIr(env, ir);
   assert.equal(out.drift, true);
@@ -219,7 +219,7 @@ test("change-intent: details capped at 5, value truncated to 64 chars", () => {
 
 // ---------------------------------------------------------------------------
 // Engine integration: high-block, medium-token-demote, low-receipt-only,
-// none-no-op. Each isolates HORUS_STATE_DIR so journal entries don't leak.
+// none-no-op. Each isolates LILARA_STATE_DIR so journal entries don't leak.
 // ---------------------------------------------------------------------------
 
 test("engine: F20 high severity → block, non-demotable", () => {
@@ -314,7 +314,7 @@ test("engine: F20 medium severity → require-review, demotable by operator-toke
     // Mint a scoped operator token; demote.
     const { mintOperatorToken } = require(path.join(REPO_ROOT, "runtime/contract"));
     const tok = mintOperatorToken("f20-test", "change-intent-drift-medium");
-    process.env.HORUS_F20_DEMOTE_TOKEN = tok;
+    process.env.LILARA_F20_DEMOTE_TOKEN = tok;
     const { decide: decide2 } = require(path.join(REPO_ROOT, "runtime/decision-engine"));
     const r2 = decide2({ tool: "Edit", command: "", ir, envelope: baseEnv });
     assert.equal(r2.action, "allow");
@@ -483,7 +483,7 @@ test("envelope file: loadDeclaredEnvelope honours absence, expiry, malformed inp
 
 test("engine: F20 receipt pins rung 18.5 + latticeVersion in journal", () => {
   withIsolatedState((dir) => {
-    process.env.HORUS_IR_JOURNAL = "1";
+    process.env.LILARA_IR_JOURNAL = "1";
     const { decide } = require(path.join(REPO_ROOT, "runtime/decision-engine"));
     const ir = buildIr({ command: "rm /etc/passwd", tool: "Bash" });
     const augmented = {

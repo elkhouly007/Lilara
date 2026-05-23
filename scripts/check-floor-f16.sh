@@ -35,8 +35,8 @@ cd "$root"
 fixture_dir="$root/tests/fixtures/floor-f16"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-floor-f16 (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-floor-f16 (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-floor-f16.sh requires Node.js\n' >&2
@@ -100,14 +100,14 @@ function runFixture(fixturePath) {
   };
 
   try {
-    setEnv("HORUS_STATE_DIR",       stateDir);
-    setEnv("HORUS_CONTRACT_ENABLED", fx.contract ? "1" : "0");
-    setEnv("HORUS_DECISION_JOURNAL", "1");
-    setEnv("HORUS_RATE_LIMIT",       "0");
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    setEnv("LILARA_STATE_DIR",       stateDir);
+    setEnv("LILARA_CONTRACT_ENABLED", fx.contract ? "1" : "0");
+    setEnv("LILARA_DECISION_JOURNAL", "1");
+    setEnv("LILARA_RATE_LIMIT",       "0");
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
 
     if (fx.env && typeof fx.env === "object") {
       for (const [k, v] of Object.entries(fx.env)) setEnv(k, v);
@@ -120,7 +120,7 @@ function runFixture(fixturePath) {
       } else if (typeof doc.contractHash !== "string") {
         doc.contractHash = "sha256:" + "0".repeat(64);
       }
-      fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
 
       const shouldAccept = fx.acceptContract != null ? fx.acceptContract : !fx.badHash;
       if (shouldAccept) {

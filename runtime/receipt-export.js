@@ -2,7 +2,7 @@
 "use strict";
 
 // receipt-export.js — ADR-014 audit-grade receipt exporter. Pure, zero-dep.
-// Reads `<HORUS_STATE_DIR>/decision-journal.jsonl`, filters, applies optional
+// Reads `<LILARA_STATE_DIR>/decision-journal.jsonl`, filters, applies optional
 // redaction, and emits canonical-JSON jsonl or deterministic CSV. The export
 // bundle manifest sha256s the canonical content so two byte-stable exports of
 // the same filtered slice produce the same bundleHash.

@@ -63,9 +63,9 @@ Current status:
 - repeated approvals now generate pending learned-policy suggestions
 - initial rolling session-risk scaffold added
 - first hook integration started in `claude/hooks/dangerous-command-gate.js`
-- local state can now be inspected and suggestions can be accepted, promoted, or dismissed through `horus-cli.sh runtime ...`
-- explicit approval recording and decision explanation flows now exist through `horus-cli.sh runtime record-approval ...` and `horus-cli.sh runtime explain ...`
-- per-project runtime config is now wired into decisions through `horus.config.json` runtime settings
+- local state can now be inspected and suggestions can be accepted, promoted, or dismissed through `lilara-cli.sh runtime ...`
+- explicit approval recording and decision explanation flows now exist through `lilara-cli.sh runtime record-approval ...` and `lilara-cli.sh runtime explain ...`
+- per-project runtime config is now wired into decisions through `lilara.config.json` runtime settings
 - project root and git branch can now be auto-discovered locally for decision context
 - bounded workflow actions now include `require-review`, `require-tests`, and `modify`
 - workflow actions now carry action plans so hooks and CLI surfaces can suggest concrete next steps
@@ -102,8 +102,8 @@ Sprint R3 opener delivered:
 - `check-runtime-core.sh` extended with three new cases: escalate lane routes correctly, payloadClass C routes to review, sessionRisk bump is reflected in explanation
 
 Sprint R3 completion delivered:
-- one-time opt-in auto-allow (`auto_allow_once` counter in `policy-store.js`): once a pattern reaches eligible stage (pending suggestion), operator may grant a single-use bypass via `horus-cli.sh runtime auto-allow-once '<key>'`; the token is consumed by `runtime.decide()` and emits `auto-allow-once=consumed` in explanation; only eligible-stage (pending) policies may receive a grant
-- session-trajectory-driven routing (`getSessionTrajectory()` in `session-context.js`): when `recentEscalations >= HORUS_TRAJECTORY_THRESHOLD` (default 3) within `HORUS_TRAJECTORY_WINDOW_MIN` (default 30 min), `runtime.decide()` nudges the action up one step (allow→route, route→require-review, require-review→escalate) and sets `source=trajectory-nudge`; learned-allow and auto-allow-once sources are exempt; nudge is surfaced in explanation and `trajectoryNudge` result field
+- one-time opt-in auto-allow (`auto_allow_once` counter in `policy-store.js`): once a pattern reaches eligible stage (pending suggestion), operator may grant a single-use bypass via `lilara-cli.sh runtime auto-allow-once '<key>'`; the token is consumed by `runtime.decide()` and emits `auto-allow-once=consumed` in explanation; only eligible-stage (pending) policies may receive a grant
+- session-trajectory-driven routing (`getSessionTrajectory()` in `session-context.js`): when `recentEscalations >= LILARA_TRAJECTORY_THRESHOLD` (default 3) within `LILARA_TRAJECTORY_WINDOW_MIN` (default 30 min), `runtime.decide()` nudges the action up one step (allow→route, route→require-review, require-review→escalate) and sets `source=trajectory-nudge`; learned-allow and auto-allow-once sources are exempt; nudge is surfaced in explanation and `trajectoryNudge` result field
 
 Acceptance:
 - repeated approvals can become one-time opt-in auto-allows — DONE
@@ -144,6 +144,6 @@ Ship these first:
 1. runtime risk scoring
 2. runtime decision engine
 3. structured local decision journal
-4. runtime-core checks in `horus-cli.sh check`
+4. runtime-core checks in `lilara-cli.sh check`
 
 This sprint does not aim to complete autonomy. It lays the decision substrate that later automation will rely on.

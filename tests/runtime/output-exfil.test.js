@@ -15,7 +15,7 @@
 //   - The lattice-receipt fixture is shipped separately so the
 //     check-lattice-receipts.sh harness picks it up.
 //
-// Per-test sandbox: HORUS_STATE_DIR is isolated, contract loader disabled,
+// Per-test sandbox: LILARA_STATE_DIR is isolated, contract loader disabled,
 // runtime/* require cache cleared before each engine call so lazy caches
 // (contract, taint, session-context) start fresh — same pattern as
 // ambient-floor.test.js.
@@ -59,15 +59,15 @@ function withSandbox(opts, body) {
     try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = "0";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_F19_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = "0";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_F19_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
 
     if (o.env) {
       for (const [k, v] of Object.entries(o.env)) process.env[k] = String(v);
@@ -229,7 +229,7 @@ test("engine: PreToolUse on not-observed channel + clean content → compensatin
 test("engine: PreToolUse observable channel + suspicious + operator-token → demoted to allow", () => {
   withSandbox({}, ({ decide, contract, projectDir }) => {
     const token = contract.mintOperatorToken("test-f19-suspicious", "output-exfil-review-demote");
-    process.env.HORUS_F19_DEMOTE_TOKEN = token;
+    process.env.LILARA_F19_DEMOTE_TOKEN = token;
     const r = decide({
       tool: "Bash",
       harness: "claude",
@@ -243,7 +243,7 @@ test("engine: PreToolUse observable channel + suspicious + operator-token → de
       }],
       outputChannelObservability: { commitMessage: "observed" },
     });
-    delete process.env.HORUS_F19_DEMOTE_TOKEN;
+    delete process.env.LILARA_F19_DEMOTE_TOKEN;
     assert.strictEqual(r.action, "allow");
     assert.strictEqual(r.decisionSource, "f19-demoted");
     assert.strictEqual(r.outputChannel, "commitMessage");
@@ -279,7 +279,7 @@ test("engine: confirmed match is NOT demotable even with operator token", () => 
   // ignores any token presented.
   withSandbox({}, ({ decide, contract, projectDir }) => {
     const token = contract.mintOperatorToken("test-f19-confirmed", "output-exfil-review-demote");
-    process.env.HORUS_F19_DEMOTE_TOKEN = token;
+    process.env.LILARA_F19_DEMOTE_TOKEN = token;
     const r = decide({
       tool: "Bash",
       harness: "claude",
@@ -293,7 +293,7 @@ test("engine: confirmed match is NOT demotable even with operator token", () => 
       }],
       outputChannelObservability: { stdout: "observed" },
     });
-    delete process.env.HORUS_F19_DEMOTE_TOKEN;
+    delete process.env.LILARA_F19_DEMOTE_TOKEN;
     assert.strictEqual(r.action, "block",
       `confirmed-severity F19 must stay block with an operator token; got ${r.action}`);
     assert.strictEqual(r.floorFired, "output-channel-exfiltration");

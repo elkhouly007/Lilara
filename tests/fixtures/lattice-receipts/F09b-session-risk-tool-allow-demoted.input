@@ -2,7 +2,7 @@
   "title": "F9 demoted via W11 tool-allow (canDemote(F9.id, contract-allow:tool-allow-matched))",
   "contract": {
     "version": 3,
-    "contractId": "hap-20260101-00000000f09b",
+    "contractId": "lilara-20260101-00000000f09b",
     "revision": 1,
     "acceptedAt": "2026-01-01T00:00:00Z",
     "acceptedBy": "fixture",

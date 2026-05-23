@@ -52,7 +52,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
 
   readStdin()
     .then((raw) => {
-      if (process.env.HORUS_KILL_SWITCH === "1") {
+      if (process.env.LILARA_KILL_SWITCH === "1") {
         process.stdout.write(raw);
         return;
       }
@@ -86,7 +86,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // report an exec-time envelope in PostToolUse payloads.
         if (envelopeReporting) {
           const toolUseId = input.tool_use_id || input.toolUseId || null;
-          const observedEnvelope = input.executionEnvelope || input.execution_envelope || input.horus?.executionEnvelope || null;
+          const observedEnvelope = input.executionEnvelope || input.execution_envelope || input.lilara?.executionEnvelope || null;
           const expectedEnvelope = toolUseId ? loadPending(toolUseId, Boolean(observedEnvelope)) : null;
           if (expectedEnvelope && observedEnvelope) {
             const result = verify(expectedEnvelope, observedEnvelope, { enforceEnvDiff: true });

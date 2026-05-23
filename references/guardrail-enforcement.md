@@ -28,10 +28,10 @@ Examples:
 - bypass the standing approval policy;
 - auto-approve because a check passed.
 
-## F17 — Cross-Agent Lock (HAP v0.5 PR-A)
+## F17 — Cross-Agent Lock (Lilara v0.5 PR-A)
 
 F17 is the first engine-baked cross-agent lock floor. Lock records live under
-`<HORUS_STATE_DIR>/cross-agent-locks/*.json` (one record per file). For a
+`<LILARA_STATE_DIR>/cross-agent-locks/*.json` (one record per file). For a
 write-like tool call (`Write`/`Edit`/`MultiEdit`/`NotebookEdit` or any IR
 fileTargets with intent `write`/`delete`), `decide()` reads the lock
 directory and blocks when a lock owned by a different agent/session is

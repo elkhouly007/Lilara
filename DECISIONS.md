@@ -18,7 +18,7 @@ Trusted external prompts, agents, MCP, and browser tools are allowed when the ex
 
 ## D5: Hooks Have Two Modes: Warn (default) and Enforce (opt-in)
 
-Gate-class hooks (dangerous-command-gate, secret-warning, git-push-reminder) print reminders and echo stdin unchanged by default (`HORUS_ENFORCE=0`). When `HORUS_ENFORCE=1`, these hooks exit 2 to block the tool call. Informational hooks (session-start, session-end, quality-gate, strategic-compact, output-sanitizer) always exit 0 regardless of enforce mode. The two-mode design preserves a safe non-disruptive default while enabling active enforcement when the operator opts in via their harness config.
+Gate-class hooks (dangerous-command-gate, secret-warning, git-push-reminder) print reminders and echo stdin unchanged by default (`LILARA_ENFORCE=0`). When `LILARA_ENFORCE=1`, these hooks exit 2 to block the tool call. Informational hooks (session-start, session-end, quality-gate, strategic-compact, output-sanitizer) always exit 0 regardless of enforce mode. The two-mode design preserves a safe non-disruptive default while enabling active enforcement when the operator opts in via their harness config.
 
 ## D6: Installer Copies, It Does Not Configure
 
@@ -58,7 +58,7 @@ Decision output should include a compact explanation with action, risk, source, 
 
 ## D15: Runtime Policy Should Be Project-Aware
 
-Local learned policy is useful, but final runtime behavior should also honor per-project configuration. Trust posture, protected branch names, and sensitive path patterns belong in `horus.config.json` so different repositories can operate under different safety assumptions without forking the runtime.
+Local learned policy is useful, but final runtime behavior should also honor per-project configuration. Trust posture, protected branch names, and sensitive path patterns belong in `lilara.config.json` so different repositories can operate under different safety assumptions without forking the runtime.
 
 ## D16: Context Discovery Should Be Automatic Where Safe
 
@@ -88,14 +88,14 @@ Promotion lifecycle data is useful only if operators can inspect it quickly. The
 
 ECC — the upfront-contract model — is the foundation, not the whole destination. The project's longer-term direction is an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how; learns reviewed local defaults from operator-approved patterns; routes intent to the right skill, agent, rule, or check; and improves over time. Security floors remain non-negotiable and engine-baked. The framing shift matters because it shapes which capabilities get built: operational intelligence, context-aware routing, and amplification of what agents can do well are first-class goals alongside enforcement.
 
-## D23: Trademark Check For "Horus Agentic Power" Is Required Before Public Launch
+## D23: Trademark Check For "Lilara" Is Required Before Public Launch
 
 **Status: OPEN — manual action required by Khouly.**
 
-Before any public announcement, press release, or marketplace listing under the brand "Horus Agentic Power" / "HAP" / "horus-cli" / "horusagentic", a trademark clearance search must be conducted. This is a pre-launch blocker, not a post-launch best-effort item.
+Before any public announcement, press release, or marketplace listing under the brand "Lilara" / "Lilara" / "lilara-cli" / "horusagentic", a trademark clearance search must be conducted. This is a pre-launch blocker, not a post-launch best-effort item.
 
 **Scope of check:**
-- USPTO TESS for "Horus", "Horus Agentic", "Horus Agentic Power" in classes 42 (software services) and 9 (software products)
+- USPTO TESS for "Horus", "Horus Agentic", "Lilara" in classes 42 (software services) and 9 (software products)
 - EUIPO for the same terms
 - WIPO Madrid Protocol for international coverage
 - Domain availability: `horusagentic.dev`, `horusagentic.com`, `horusai.dev`
@@ -142,9 +142,9 @@ Sample-journal replay: 0 divergences — all 12 entries are payloadClass=A, bala
 
 `runtime/provenance-correlator.js:correlate()` checks whether shell command tokens appear verbatim in the provenance window (recent external reads). Exact-match first, then per-token. Token filter: `length >= minTokenLength && not a flag (-x / --foo)`.
 
-**Minimum token length:** configurable via `horus.config.json` key `taint.minTokenLength` (integer, range 4–32, default 6). Read by `project-policy.js:loadProjectPolicy()` and passed into `correlate()` via `taint.js:correlateCommand()`. Operators in high-FP token-overlap environments (e.g., reading package docs then installing that package) can raise this threshold without code changes.
+**Minimum token length:** configurable via `lilara.config.json` key `taint.minTokenLength` (integer, range 4–32, default 6). Read by `project-policy.js:loadProjectPolicy()` and passed into `correlate()` via `taint.js:correlateCommand()`. Operators in high-FP token-overlap environments (e.g., reading package docs then installing that package) can raise this threshold without code changes.
 
-**Recommended path:** set `"taint": { "minTokenLength": 10 }` in `horus.config.json` to reduce false-positives in doc-heavy workflows.
+**Recommended path:** set `"taint": { "minTokenLength": 10 }` in `lilara.config.json` to reduce false-positives in doc-heavy workflows.
 
 **Known gap (D37):** tool-class gate not yet implemented — F10 fires on any tool, not just Bash/Edit/Write/WebFetch. Tracked as D37.
 
@@ -154,7 +154,7 @@ Sample-journal replay: 0 divergences — all 12 entries are payloadClass=A, bala
 
 **Status: CLOSED — implemented in commit 3, feat/wave2-cleanup.**
 
-`runtime/taint.js:correlateCommand()` now accepts a `toolName` parameter. If the tool is in `taintSafeToolClasses` (default: `["Read","Grep","Glob","LS","NotebookRead"]`), it returns `{ tainted: false }` immediately. The safe-class list is configurable per-project via `taint.safeToolClasses` in `horus.config.json`. `decision-engine.js` passes `input.tool` as the third argument. Fixtures: `taint:d37-grep-safe-class-no-f10` and `taint:d37-bash-write-class-f10-fires`.
+`runtime/taint.js:correlateCommand()` now accepts a `toolName` parameter. If the tool is in `taintSafeToolClasses` (default: `["Read","Grep","Glob","LS","NotebookRead"]`), it returns `{ tainted: false }` immediately. The safe-class list is configurable per-project via `taint.safeToolClasses` in `lilara.config.json`. `decision-engine.js` passes `input.tool` as the third argument. Fixtures: `taint:d37-grep-safe-class-no-f10` and `taint:d37-bash-write-class-f10-fires`.
 
 ---
 
@@ -224,7 +224,7 @@ O_EXCL lockfile wraps the full read-modify-write cycle of `consumeOperatorToken(
 
 **Status: CLOSED — implemented in commit 2, feat/wave2-cleanup.**
 
-`horus-cli.sh operator-token list` prints id-prefix + label + status, never the full secret. `operator-token revoke <id>` atomically marks the token consumed (revokedAt field) via tmp+rename. Fixtures: `d45-list-shows-label-not-secret`, `d45-revoke-then-consume-false`.
+`lilara-cli.sh operator-token list` prints id-prefix + label + status, never the full secret. `operator-token revoke <id>` atomically marks the token consumed (revokedAt field) via tmp+rename. Fixtures: `d45-list-shows-label-not-secret`, `d45-revoke-then-consume-false`.
 
 ---
 
@@ -308,7 +308,7 @@ Three choices locked the taint correlator design:
 
 2. **20-entry cap** — prevents unbounded disk growth in long sessions with many external reads. Oldest entries are dropped when the cap is reached. 20 is large enough for a realistic agentic web-research session.
 
-3. **Mode 0600** — provenance window is stored at `~/.horus/provenance-window.json`. 0600 limits read access to the owner, consistent with all other Horus state files.
+3. **Mode 0600** — provenance window is stored at `~/.lilara/provenance-window.json`. 0600 limits read access to the owner, consistent with all other Horus state files.
 
 4. **Best-effort, never blocking** — the taint floor fires on `require-review` (not `block`). `correlateCommand` and `recordExternalRead` are wrapped in try/catch at every call site. A file I/O failure in the provenance window cannot break a PreToolUse hook call.
 
@@ -396,17 +396,17 @@ B3 branch bench (same session, `feat/b3-accept-gate-hardening`): p99=56.895ms �
 
 **Decision:** Replace the env-var allowlist with a **positive operator signal**. Two paths are valid:
 1. `stdin.isTTY` is true — caller is in an interactive terminal.
-2. `HORUS_OPERATOR_TOKEN` is set to a valid unconsumed one-shot token from `~/.horus/operator-tokens.jsonl`.
+2. `LILARA_OPERATOR_TOKEN` is set to a valid unconsumed one-shot token from `~/.lilara/operator-tokens.jsonl`.
 
 Any other caller (piped stdin, no token, or expired/consumed token) receives a hard error with remediation instructions.
 
-**One-shot token semantics:** tokens are 32-byte random hex, stored as JSONL records `{token, label, createdAt, usedAt}`. `usedAt` is null until the first successful `accept()`. Second use is rejected. Tokens are minted via `horus-cli.sh operator-token mint [label]`.
+**One-shot token semantics:** tokens are 32-byte random hex, stored as JSONL records `{token, label, createdAt, usedAt}`. `usedAt` is null until the first successful `accept()`. Second use is rejected. Tokens are minted via `lilara-cli.sh operator-token mint [label]`.
 
 **Alternatives considered:**
 - Keep and grow the allowlist — rejected; allowlist will always lag novel harnesses.
 - Require a password/passphrase — rejected; adds friction without a meaningful security gain over TTY check.
 
-**Impact:** breaking change for any automation that used `accept()` in a non-TTY context without `HORUS_OPERATOR_TOKEN`. Remediation: pre-mint a token and pass it. The `CHANGELOG.md` entry for B3 documents the migration path.
+**Impact:** breaking change for any automation that used `accept()` in a non-TTY context without `LILARA_OPERATOR_TOKEN`. Remediation: pre-mint a token and pass it. The `CHANGELOG.md` entry for B3 documents the migration path.
 
 **Owner:** Khouly
 **Blocker for:** nothing (no other item depends on the old allowlist).
@@ -447,9 +447,9 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 
 **Date:** 2026-05-08
 
-**Context:** `scripts/migrateV2ToV3.js` needs a safe, pipeline-friendly migration UX. Two questions: (a) should it ever overwrite the live `horus.contract.json`? (b) what should it do on v3 input?
+**Context:** `scripts/migrateV2ToV3.js` needs a safe, pipeline-friendly migration UX. Two questions: (a) should it ever overwrite the live `lilara.contract.json`? (b) what should it do on v3 input?
 
-**Decision:** (a) Never — always writes to `horus.contract.json.draft`. Refuses to overwrite an existing draft. (b) Exits 0 with "already version 3, no migration needed" on stderr; writes no output.
+**Decision:** (a) Never — always writes to `lilara.contract.json.draft`. Refuses to overwrite an existing draft. (b) Exits 0 with "already version 3, no migration needed" on stderr; writes no output.
 
 **Rationale (a):** Never-overwrites-live ensures the operator reviews the draft before `contract accept` finalizes. A partial migration failure (schema validation fails on the draft) would otherwise corrupt the live contract.
 
@@ -460,11 +460,11 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 
 ---
 
-## D49: HAP ADR-007 — Canonical Action IR + Explicit Decision Lattice (PR-A skeleton)
+## D49: Lilara ADR-007 — Canonical Action IR + Explicit Decision Lattice (PR-A skeleton)
 
 **Date:** 2026-05-10
 
-**Context:** HAP scope (`agent-runtime-guard-scope.md`) §4.1 invariants 9 and 10 require (9) every adapter to normalize raw harness payloads into one canonical action representation before floors run, and (10) every floor to declare its rung, action, demotability, and source tag in one explicit table — with no implicit precedence and no hidden demotion paths. Today the precedence ladder lives in prose in `ARCHITECTURE.md` §2 and in inline string literals (`source = "..."`, `floorFired = "..."`) scattered across `runtime/decision-engine.js`; adapter parity is by convention rather than schema. This is the single-failure-point HAP product plan §6 calls out as the precondition for clean F15/F16/F18 receipts, replay, output-channel exfiltration guards, and audit-grade fixtures.
+**Context:** Lilara scope (`agent-runtime-guard-scope.md`) §4.1 invariants 9 and 10 require (9) every adapter to normalize raw harness payloads into one canonical action representation before floors run, and (10) every floor to declare its rung, action, demotability, and source tag in one explicit table — with no implicit precedence and no hidden demotion paths. Today the precedence ladder lives in prose in `ARCHITECTURE.md` §2 and in inline string literals (`source = "..."`, `floorFired = "..."`) scattered across `runtime/decision-engine.js`; adapter parity is by convention rather than schema. This is the single-failure-point Lilara product plan §6 calls out as the precondition for clean F15/F16/F18 receipts, replay, output-channel exfiltration guards, and audit-grade fixtures.
 
 **Decision (Option C — IR-first, lattice-declarative, floors stay in code):** Land the foundation in four sequential PRs on `feat/adr-007-canonical-action-ir`. **PR-A (this decision)** ships the documented ADR + the lattice table (`runtime/decision-lattice.js`) + the Canonical Action IR module skeleton (`runtime/action-ir.js`) with **zero behavior change**. `decision-engine.js` is unchanged; `pretool-gate.js` is unchanged. PR-B wires `actionIr.build()` into adapters as a back-compat shim and adds cross-adapter parity fixtures. PR-C switches `decision-engine.js` source/floor labels to read from `LATTICE` constants and adds `irHash`/`rung`/`latticeVersion` to receipts (additive). PR-D adds replay + adversarial seed + perf gates.
 
@@ -472,13 +472,13 @@ Any other caller (piped stdin, no token, or expired/consumed token) receives a h
 
 **Constraints honored in PR-A:**
 - Zero runtime dependencies (`runtime/decision-lattice.js` and `runtime/action-ir.js` use Node builtins + local `runtime/` requires only).
-- Schema additive: `schemas/horus.contract.schema.json` byte-unchanged.
+- Schema additive: `schemas/lilara.contract.schema.json` byte-unchanged.
 - Hard Ethical Core untouched. Rung 0 (`L1`) is reserved with `predicateRef: "reserved"`; no engine code consumes it yet.
 - No floor predicate, ordering, or outcome changes.
-- No HAP enforcement wired into Claude Code or OpenClaw. Adapter manifests + IR consumption are PR-B work.
+- No Lilara enforcement wired into Claude Code or OpenClaw. Adapter manifests + IR consumption are PR-B work.
 - New script `scripts/check-lattice-ordering.sh` validates the table at runtime (frozen, strictly-increasing rungs, unique ids, required fields) plus the IR skeleton (frozen `EMPTY_IR`, `build()` returns frozen IR, `validate()` accepts/rejects shapes, `irHash()` is canonical-stable).
 
 **Owner:** Khouly (sponsor) / Misk (scope) / Claude Code (implementation).
 **Blocker for:** F15/F16/F18 receipts, output-channel exfiltration guard, change-intent diffing, replay harness, audit-grade receipts. PR-B unblocks adapter parity fixtures; PR-C unblocks lattice-anchored receipts; PR-D unblocks replay + adversarial gates.
 
-**See also:** `references/adr-007-canonical-action-ir.md` (repo-level reference doc), `agent-runtime-guard-scope.md` §4.1, `agent-runtime-guard-plan.md` §4.1 + §6, `hap-adr-007-claude-plan.md` (full implementation plan).
+**See also:** `references/adr-007-canonical-action-ir.md` (repo-level reference doc), `agent-runtime-guard-scope.md` §4.1, `agent-runtime-guard-plan.md` §4.1 + §6, `lilara-adr-007-claude-plan.md` (full implementation plan).

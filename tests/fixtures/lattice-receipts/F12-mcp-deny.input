@@ -2,7 +2,7 @@
   "title": "F12 mcp-deny: scopes.mcp[server]=block forces block",
   "contract": {
     "version": 3,
-    "contractId": "hap-20260101-00000000f012",
+    "contractId": "lilara-20260101-00000000f012",
     "revision": 1,
     "acceptedAt": "2026-01-01T00:00:00Z",
     "acceptedBy": "fixture",

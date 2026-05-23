@@ -2,7 +2,7 @@
 "use strict";
 
 // build-f16-adversarial.js — F16 ambient-authority adversarial corpus
-// (HAP ADR-009 PR-D). Coverage classes documented in ADR-009 §9.2:
+// (Lilara ADR-009 PR-D). Coverage classes documented in ADR-009 §9.2:
 // path-folding evasion, NFKD/homoglyphs, projectRoot escape, IR-fileTargets
 // shapes, multi-candidate ordering. Replay-stable, zero-dep, pure data.
 //
@@ -27,13 +27,13 @@ for (let i = 2; i < process.argv.length; i++) {
 
 // Isolation harness mirrors build-adversarial.js — see that file for the
 // branch-sentinel rationale (replay/isolated-context).
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
-process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
+process.env.LILARA_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
@@ -241,7 +241,7 @@ const CASES = [
 function isolatedDecide(input) {
   resetCache();
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-f16-adv-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   try {
     const ir = buildIr(input, { harness: "claude", tool: input.tool });
     const result = decide(input);

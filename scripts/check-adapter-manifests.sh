@@ -45,8 +45,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-adapter-manifests.sh (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-adapter-manifests.sh (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-adapter-manifests.sh requires Node.js\n' >&2

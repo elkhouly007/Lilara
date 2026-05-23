@@ -1,6 +1,6 @@
 {
   "_comment": "Dangerous shell command patterns for dangerous-command-gate.js. Add project-specific patterns here. Each entry has: name (display label), pattern (JS regex string), severity (critical|high|medium), reason (why it is dangerous). The hook checks the Bash command against these patterns in order and stops at the first match.",
-  "_enforce_note": "Set HORUS_ENFORCE=1 to activate block mode. In warn mode (default) the hook prints a warning to stderr and lets the command proceed. In block mode the hook exits with code 2 and aborts the tool call.",
+  "_enforce_note": "Set LILARA_ENFORCE=1 to activate block mode. In warn mode (default) the hook prints a warning to stderr and lets the command proceed. In block mode the hook exits with code 2 and aborts the tool call.",
 
   "patterns": [
 

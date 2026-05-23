@@ -2,7 +2,7 @@
 
 Frozen JSONL corpora of historical-shape decisions that the current engine
 must reproduce byte-identically. Used by `scripts/replay-decisions.js` and the
-`scripts/check-replay-corpus.sh` CI gate (HAP ADR-007 PR-D).
+`scripts/check-replay-corpus.sh` CI gate (Lilara ADR-007 PR-D).
 
 Each line is a single decision case:
 
@@ -67,7 +67,7 @@ When the engine makes an intentional behavior change that breaks replay:
    ```
 4. Re-run the gate; commit the refreshed fixture alongside the engine change.
 
-The generators isolate each call (fresh `HORUS_STATE_DIR`, `resetCache()`,
+The generators isolate each call (fresh `LILARA_STATE_DIR`, `resetCache()`,
 contract disabled) so generated outputs do not depend on the order of cases.
 
 ## Rungs NOT covered here

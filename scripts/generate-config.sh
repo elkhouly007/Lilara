@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# generate-config.sh — Probe a project directory and generate a starter horus.config.json.
+# generate-config.sh — Probe a project directory and generate a starter lilara.config.json.
 #
 # Usage:
 #   ./scripts/generate-config.sh                  # probe current directory
@@ -7,7 +7,7 @@
 #   ./scripts/generate-config.sh <dir> --output <file>  # write to file instead of stdout
 #
 # The generated config can be passed to install-local.sh:
-#   ./scripts/generate-config.sh myproject --output myproject/horus.config.json
+#   ./scripts/generate-config.sh myproject --output myproject/lilara.config.json
 #   ./scripts/install-local.sh myproject/horus
 
 set -eu

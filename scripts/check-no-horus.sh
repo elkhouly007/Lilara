@@ -54,13 +54,13 @@ _EXCL_FILES=(
 check_token() {
   local token="$1" label="$2"
   local count
-  count=$(grep -r "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
-    -- "$token" . 2>/dev/null | wc -l || echo 0)
+  count=$( { grep -rF "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
+    -- "$token" . 2>/dev/null || true; } | wc -l | tr -d ' \r')
   if [ "${count:-0}" -eq 0 ]; then
     pass "$label: clean"
   else
     fail "$label: ${count} occurrence(s) remain"
-    grep -r "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
+    grep -rF "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
       -l -- "$token" . 2>/dev/null | head -15 >&2 || true
   fi
 }
@@ -73,12 +73,12 @@ check_token "$T_PROD" "Horus Agentic Power brand string"
 # HAP acronym — word-boundary match to avoid false positives (HAPPY, HAPPEN, etc.)
 if command -v grep >/dev/null 2>&1 && echo "" | grep -qP "" 2>/dev/null; then
   # Perl regex available
-  hap_count=$(grep -rP "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
-    '\bHAP\b' . 2>/dev/null | wc -l || echo 0)
+  hap_count=$( { grep -rP "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
+    '\bHAP\b' . 2>/dev/null || true; } | wc -l | tr -d ' \r')
 else
   # Fallback: extended regex with explicit word-boundary approximation
-  hap_count=$(grep -rE "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
-    '(^|[^A-Za-z])HAP([^A-Za-z]|$)' . 2>/dev/null | wc -l || echo 0)
+  hap_count=$( { grep -rE "${_INCS[@]}" "${_EXCL_DIRS[@]}" "${_EXCL_FILES[@]}" \
+    '(^|[^A-Za-z])HAP([^A-Za-z]|$)' . 2>/dev/null || true; } | wc -l | tr -d ' \r')
 fi
 if [ "${hap_count:-0}" -eq 0 ]; then
   pass "HAP acronym: clean"

@@ -13,17 +13,17 @@
 #   2 — fatal: node not found or corpus not found
 #
 # Environment:
-#   HORUS_EVAL_MAX_FP_PCT  — max acceptable false-positive percentage (default: 10)
-#   HORUS_EVAL_MAX_FN_PCT  — max acceptable false-negative percentage (default: 20)
-#   HORUS_DECISION_JOURNAL — set to 0 to suppress journal writes during eval
-#   HORUS_STATE_DIR        — set to a temp dir to avoid polluting live state
+#   LILARA_EVAL_MAX_FP_PCT  — max acceptable false-positive percentage (default: 10)
+#   LILARA_EVAL_MAX_FN_PCT  — max acceptable false-negative percentage (default: 20)
+#   LILARA_DECISION_JOURNAL — set to 0 to suppress journal writes during eval
+#   LILARA_STATE_DIR        — set to a temp dir to avoid polluting live state
 
 set -eu
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 corpus="${root}/tests/eval-corpus.json"
-max_fp_pct="${HORUS_EVAL_MAX_FP_PCT:-10}"
-max_fn_pct="${HORUS_EVAL_MAX_FN_PCT:-20}"
+max_fp_pct="${LILARA_EVAL_MAX_FP_PCT:-10}"
+max_fn_pct="${LILARA_EVAL_MAX_FN_PCT:-20}"
 verbose=0
 
 while [ $# -gt 0 ]; do
@@ -55,7 +55,7 @@ fi
 eval_tmp="$(mktemp -d)"
 trap 'rm -r -f "$eval_tmp"' EXIT
 
-HORUS_DECISION_JOURNAL=0 HORUS_STATE_DIR="$eval_tmp" node - "$corpus" "$max_fp_pct" "$max_fn_pct" "$verbose" <<'NODEJS'
+LILARA_DECISION_JOURNAL=0 LILARA_STATE_DIR="$eval_tmp" node - "$corpus" "$max_fp_pct" "$max_fn_pct" "$verbose" <<'NODEJS'
 "use strict";
 
 const fs = require("fs");
@@ -68,7 +68,7 @@ const verbose    = process.argv[5] === "1";
 
 // Disable trajectory nudge so entries are evaluated in isolation.
 // Without this, session risk / recentEscalations from earlier entries contaminate later ones.
-process.env.HORUS_TRAJECTORY_THRESHOLD = "9999";
+process.env.LILARA_TRAJECTORY_THRESHOLD = "9999";
 
 // Locate runtime from script directory (this heredoc runs from the repo root).
 // __dirname inside a heredoc stdin is the process cwd, so resolve from argv[2] location.

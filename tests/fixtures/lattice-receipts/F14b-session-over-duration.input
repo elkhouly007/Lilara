@@ -2,7 +2,7 @@
   "title": "F14b session-over-duration: session age exceeds contract.scopes.session.maxDurationMin",
   "contract": {
     "version": 3,
-    "contractId": "hap-20260101-0000000014ba",
+    "contractId": "lilara-20260101-0000000014ba",
     "revision": 1,
     "acceptedAt": "2026-01-01T00:00:00Z",
     "acceptedBy": "fixture",

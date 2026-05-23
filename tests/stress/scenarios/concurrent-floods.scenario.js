@@ -1,6 +1,6 @@
 "use strict";
 
-// concurrent-floods — 200 decide() calls (Promise.all) on shared HORUS_STATE_DIR
+// concurrent-floods — 200 decide() calls (Promise.all) on shared LILARA_STATE_DIR
 // with an F17 lock conflict. Assert: no crashes, 200 journal entries, chain
 // clean, bounded wall-clock (no deadlock).
 

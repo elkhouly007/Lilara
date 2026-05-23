@@ -1,4 +1,4 @@
-# Contract Reference — horus.contract.json
+# Contract Reference — lilara.contract.json
 
 The contract pre-agrees all security permissions before agent work begins. It is the machine-readable answer to: "what is this agent allowed to do in this project?"
 
@@ -6,29 +6,29 @@ The contract pre-agrees all security permissions before agent work begins. It is
 
 ```bash
 # 1. Generate a draft (inspects project, languages, branches)
-horus-cli.sh contract init
+lilara-cli.sh contract init
 
-# 2. Review and edit horus.contract.json.draft
+# 2. Review and edit lilara.contract.json.draft
 
 # 3. Accept — computes hash, writes final file
-horus-cli.sh contract accept
+lilara-cli.sh contract accept
 
 # 4. Verify at any time
-horus-cli.sh contract verify
+lilara-cli.sh contract verify
 
 # 5. See what's in the contract
-horus-cli.sh contract show
+lilara-cli.sh contract show
 
 # 6. Amend (bumps revision, requires re-accept)
-horus-cli.sh contract amend
-horus-cli.sh contract accept
+lilara-cli.sh contract amend
+lilara-cli.sh contract accept
 ```
 
 ## Full Schema
 
 ```jsonc
 {
-  "$schema": "schemas/horus.contract.schema.json",
+  "$schema": "schemas/lilara.contract.schema.json",
   "version": 1,
 
   // Unique ID: "arg-" + YYYYMMDD + "-" + 12 random hex chars
@@ -44,7 +44,7 @@ horus-cli.sh contract accept
   "expiresAt": null,
 
   // Which harnesses this contract covers.
-  // In strict mode (HORUS_CONTRACT_REQUIRED=1), unlisted harnesses are blocked for gated classes.
+  // In strict mode (LILARA_CONTRACT_REQUIRED=1), unlisted harnesses are blocked for gated classes.
   "harnessScope": ["claude", "opencode", "openclaw"],
 
   // relaxed | balanced | strict
@@ -128,7 +128,7 @@ horus-cli.sh contract accept
 
 ## Gated Capability Classes
 
-When `HORUS_CONTRACT_REQUIRED=1`, these command classes are blocked unless the contract explicitly allows them:
+When `LILARA_CONTRACT_REQUIRED=1`, these command classes are blocked unless the contract explicitly allows them:
 
 | Class | Examples |
 |---|---|
@@ -148,7 +148,7 @@ Low-risk read and safe-write operations proceed without a contract even in stric
 ## Hash Verification
 
 On every `decide()` call:
-1. Load `horus.contract.json`
+1. Load `lilara.contract.json`
 2. Look up `accepted-contracts.json` for the current `projectRoot`
 3. Recompute `sha256(canonicalJson(contractWithoutHash))`
 4. If hash mismatches the accepted record → block gated classes (strict) or log warning (default)
@@ -170,7 +170,7 @@ These actions are engine-baked and cannot be demoted by any contract-allow:
 
 | Floor | Action |
 |---|---|
-| `HORUS_KILL_SWITCH=1` | block (unconditional) |
+| `LILARA_KILL_SWITCH=1` | block (unconditional) |
 | Critical risk (score 10) | block |
 | Secret payload class C | block |
 | Contract hash mismatch (strict) | block |
@@ -180,24 +180,24 @@ These actions are engine-baked and cannot be demoted by any contract-allow:
 | Protected branch write | require-review |
 | Session risk ≥ 3 | escalate |
 
-Attempting to set a floor to a weaker action in `horus.contract.json` fails schema validation.
+Attempting to set a floor to a weaker action in `lilara.contract.json` fails schema validation.
 
 ## Amend Flow
 
-1. `horus-cli.sh contract amend` — copies accepted contract to a new draft, bumps `revision`
+1. `lilara-cli.sh contract amend` — copies accepted contract to a new draft, bumps `revision`
 2. Edit the draft
-3. `horus-cli.sh contract accept` — re-hashes, verifies revision is higher than current, writes and records
+3. `lilara-cli.sh contract accept` — re-hashes, verifies revision is higher than current, writes and records
 4. Previous contract stays in force during the draft window
 
 Downgrade (lower `revision`) is rejected. Every amend bumps monotonically.
 
 ## Operator Token Flow (B3)
 
-`horus-cli.sh contract accept` requires a **positive operator signal** to run. Without one the command errors immediately. Two paths:
+`lilara-cli.sh contract accept` requires a **positive operator signal** to run. Without one the command errors immediately. Two paths:
 
 ### (a) Interactive terminal (default)
 
-Run `horus-cli.sh contract accept` from an interactive shell. `stdin.isTTY` is true → gate passes.
+Run `lilara-cli.sh contract accept` from an interactive shell. `stdin.isTTY` is true → gate passes.
 
 ### (b) Non-interactive / CI context
 
@@ -205,22 +205,22 @@ Mint a one-shot token from an interactive session first, then pass it to the non
 
 ```bash
 # In your interactive terminal:
-horus-cli.sh operator-token mint ci-deploy
+lilara-cli.sh operator-token mint ci-deploy
 # → Token: <64-hex-chars>
-# → Usage: HORUS_OPERATOR_TOKEN=<token> horus-cli.sh contract accept
+# → Usage: LILARA_OPERATOR_TOKEN=<token> lilara-cli.sh contract accept
 
 # In CI / automation:
-HORUS_OPERATOR_TOKEN=<token> horus-cli.sh contract accept
+LILARA_OPERATOR_TOKEN=<token> lilara-cli.sh contract accept
 ```
 
-Tokens are stored in `~/.horus/operator-tokens.jsonl` (mode 0600). Each token is consumed on first use; a second use returns "invalid or already consumed" and the accept call fails.
+Tokens are stored in `~/.lilara/operator-tokens.jsonl` (mode 0600). Each token is consumed on first use; a second use returns "invalid or already consumed" and the accept call fails.
 
 ### Token management
 
 | Command | Description |
 |---|---|
-| `horus-cli.sh operator-token mint [label]` | Mint a fresh one-shot token (with optional label) |
-| `horus-cli.sh operator-token verify <token>` | Check validity without consuming |
+| `lilara-cli.sh operator-token mint [label]` | Mint a fresh one-shot token (with optional label) |
+| `lilara-cli.sh operator-token verify <token>` | Check validity without consuming |
 
 ### Security rationale
 
@@ -251,13 +251,13 @@ not in `activeDays`:
 ## v2 — ContextTrust Per-Branch Override
 
 `contextTrust` is an array of `{branchPattern, trustPosture}` entries. Order semantics
-quoted verbatim from `schemas/horus.contract.schema.json`:
+quoted verbatim from `schemas/lilara.contract.schema.json`:
 
 > *"v2: Per-branch trust posture overrides. Entries are evaluated in order; first match wins.
 > Falls back to top-level trustPosture if no entry matches."*
 
 The first entry whose glob matches the current branch overrides the project-default
-trust posture (`horus.config.json` `runtime.trust_posture`). Affects risk-score posture
+trust posture (`lilara.config.json` `runtime.trust_posture`). Affects risk-score posture
 adjustment only — does not modify scopes or floors.
 
 **Authors must order entries from most-specific to least-specific.** The runtime evaluates
@@ -352,7 +352,7 @@ Session duration limit. When the session age exceeds `maxDurationMin`, the decis
 }
 ```
 
-- Session age is computed from `startTime` in `~/.horus/session-budget/<session-id>.json`. The first `getCounters` call for a session persists `startTime = Date.now()`.
+- Session age is computed from `startTime` in `~/.lilara/session-budget/<session-id>.json`. The first `getCounters` call for a session persists `startTime = Date.now()`.
 - When age > limit: `action = "require-review"`, `source = "session-over-duration"`. `sessionDurationWarning` annotation is also attached (`{ code, ageMin, limitMin }`).
 - The escalation is asserted **after** all demotion blocks (contract-allow, auto-allow-once, trajectory-nudge), so it cannot be silently undone. Same pattern as F10 taint-floor.
 - This is not a hard block — the operator reviews and decides. Use `scopes.budget.maxDestructiveOps` if you need a hard stop.
@@ -372,7 +372,7 @@ Hard caps on session-scoped quantities. When either counter equals or exceeds it
 
 - `maxDestructiveOps` — incremented after each `allow` on a `destructive-delete`-class command. Checked at the start of the next `decide()` call.
 - `maxExternalBytes` — incremented via `recordExternalBytes(bytes, { sessionId })`. Not yet wired to an automatic source; operators or future work can call this API directly.
-- Counters live at `~/.horus/session-budget/<session-id>.json` (mode 0600, atomic writes).
+- Counters live at `~/.lilara/session-budget/<session-id>.json` (mode 0600, atomic writes).
 
 **Edge cases:**
 - Counters are per-session-id. If `sessionId` is absent from the input, F14 silently no-ops (no counter read or write).
@@ -387,10 +387,10 @@ Hard caps on session-scoped quantities. When either counter equals or exceeds it
 node scripts/migrateV2ToV3.js [input] [output.draft]
 ```
 
-- `input` defaults to `horus.contract.json` in the current directory.
-- `output` defaults to `horus.contract.json.draft` in the current directory.
+- `input` defaults to `lilara.contract.json` in the current directory.
+- `output` defaults to `lilara.contract.json.draft` in the current directory.
 - The tool validates the input as v1 or v2, sets `version: 3`, recomputes `contractHash`, and writes the draft.
-- **Never overwrites the live `horus.contract.json`**. Refuses to overwrite an existing `.draft` file.
+- **Never overwrites the live `lilara.contract.json`**. Refuses to overwrite an existing `.draft` file.
 - **Idempotent**: running on a v3 file exits 0 with "already version 3, no migration needed" on stderr and writes no output.
 - The draft leaves `scopes.mcp`, `scopes.skills`, `scopes.session`, and `scopes.budget` absent — opt in by editing the draft before accepting.
 
@@ -398,11 +398,11 @@ After migration:
 
 ```bash
 # 1. Review the draft
-cat horus.contract.json.draft
+cat lilara.contract.json.draft
 
 # 2. Edit to add v3 fields as desired (optional)
 # ...
 
 # 3. Accept to finalize
-horus-cli.sh contract accept
+lilara-cli.sh contract accept
 ```

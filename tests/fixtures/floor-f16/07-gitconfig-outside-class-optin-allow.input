@@ -2,7 +2,7 @@
   "title": "F16/07: write to ~/.gitconfig outside projectRoot WITH scopes.ambient.allow=[{class:gitConfig}] → ALLOW (class-only opt-in)",
   "contract": {
     "version": 3,
-    "contractId": "hap-20260101-00000000f016",
+    "contractId": "lilara-20260101-00000000f016",
     "revision": 1,
     "acceptedAt": "2026-01-01T00:00:00Z",
     "acceptedBy": "fixture",

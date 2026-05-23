@@ -26,7 +26,7 @@ const workerPath = path.join(__dirname, "worker.js");
 // refillRate=0 prevents token refill during process-startup delay, keeping the test deterministic.
 const procs = Array.from({ length: N }, () =>
   spawn(process.execPath, [workerPath, tmpDir, String(capacity), "0"], {
-    env: { ...process.env, HORUS_HOOK_STATE_DIR: tmpDir, HORUS_RATE_LIMIT: "1" },
+    env: { ...process.env, LILARA_HOOK_STATE_DIR: tmpDir, LILARA_RATE_LIMIT: "1" },
     stdio: "pipe",
   })
 );

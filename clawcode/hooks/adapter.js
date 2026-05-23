@@ -17,7 +17,7 @@
 // consistency. Operators wiring this hook into Claude-Code-style harnesses
 // that read exit codes still get the expected behaviour.
 //
-// To enable block mode: export HORUS_ENFORCE=1
+// To enable block mode: export LILARA_ENFORCE=1
 // See clawcode/WIRING_PLAN.md for the verified wiring path.
 
 "use strict";
@@ -30,7 +30,7 @@ createAdapter({
   extractCommand:    (i) => String(i.tool_input?.command || i.command || i.cmd || i.input?.command || i.args?.command || i.params?.command || ""),
   extractCwd:        (i) => String(i.tool_input?.cwd || i.cwd || i.workdir || i.working_directory || i.input?.cwd || i.args?.cwd || ""),
   extractTool:       (i) => String(i.tool_name || i.tool || i.type || "Bash"),
-  // HAP ADR-007 PR-B: clawcode/manifest.json declares verified hook protocol
+  // Lilara ADR-007 PR-B: clawcode/manifest.json declares verified hook protocol
   // (exact args, exact cwd, best-effort env). Envelope reporting NOT supported
   // — ClawCode hook surface does not expose execution-time env baselines.
   envelopeReporting: false,

@@ -12,7 +12,7 @@
  * Zero external dependencies.
  */
 
-const MIN_TOKEN_LENGTH = 6; // default; overridable via horus.config.json taint.minTokenLength
+const MIN_TOKEN_LENGTH = 6; // default; overridable via lilara.config.json taint.minTokenLength
 
 /**
  * Correlate a shell command against a list of external read records.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 "use strict";
-// migrateV1ToV2.js — Upgrade an horus.contract.json from schema version 1 to version 2.
+// migrateV1ToV2.js — Upgrade an lilara.contract.json from schema version 1 to version 2.
 //
 // What changes:
 //   - version: 1 → 2
@@ -15,7 +15,7 @@
 // Usage:
 //   node scripts/migrateV1ToV2.js [--input <path>] [--output <path>] [--dry-run]
 //
-//   --input   path to horus.contract.json (default: horus.contract.json in cwd)
+//   --input   path to lilara.contract.json (default: lilara.contract.json in cwd)
 //   --output  destination path          (default: same as input — in-place upgrade)
 //   --dry-run print the migrated contract without writing
 
@@ -29,7 +29,7 @@ const root = path.join(__dirname, "..");
 // Argument parsing
 // ---------------------------------------------------------------------------
 
-let inputPath  = path.join(process.cwd(), "horus.contract.json");
+let inputPath  = path.join(process.cwd(), "lilara.contract.json");
 let outputPath = null;
 let dryRun     = false;
 
@@ -135,4 +135,4 @@ console.log(`\nOptional v2 fields (add to contract as needed):`);
 console.log(`  validity       — UTC time-windows (activeHoursUtc, activeDays)`);
 console.log(`  contextTrust   — per-branch trust posture overrides`);
 console.log(`  scopes.tools   — per-tool commandGlobs / pathGlobs allowlists`);
-console.log(`\nRun 'horus-cli contract show' to review the migrated contract.`);
+console.log(`\nRun 'lilara-cli contract show' to review the migrated contract.`);

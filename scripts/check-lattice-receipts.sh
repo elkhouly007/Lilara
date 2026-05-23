@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-lattice-receipts.sh — HAP ADR-007 PR-C fixture sweep.
+# check-lattice-receipts.sh — Lilara ADR-007 PR-C fixture sweep.
 #
 # Runs every `tests/fixtures/lattice-receipts/*.input` fixture through
 # `runtime/decision-engine.decide()` (with a per-fixture pre-built IR) and
@@ -11,7 +11,7 @@
 #   {
 #     "title": "...",
 #     "env":     { "...": "..." },        # extra env vars (default: none)
-#     "contract": { ... } | null,         # written to projectRoot/horus.contract.json
+#     "contract": { ... } | null,         # written to projectRoot/lilara.contract.json
 #     "acceptContract": true|false,       # also accept it via accepted-contracts.json
 #     "session": {                        # session counter pre-state (F9/F14/F14b)
 #       "sessionId": "test", "destructiveOps": N, "externalBytes": N, "startTimeAgoMin": N
@@ -42,8 +42,8 @@ cd "$root"
 fixture_dir="$root/tests/fixtures/lattice-receipts"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-lattice-receipts (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-lattice-receipts (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-lattice-receipts.sh requires Node.js\n' >&2
@@ -124,14 +124,14 @@ function runFixture(fixturePath) {
   try {
     // Base env: isolated state, contract enabled by default for fixtures
     // that ship one, otherwise disabled so no real contract leaks in.
-    setEnv("HORUS_STATE_DIR",       stateDir);
-    setEnv("HORUS_CONTRACT_ENABLED", fx.contract ? "1" : "0");
-    setEnv("HORUS_DECISION_JOURNAL", "1");
-    setEnv("HORUS_RATE_LIMIT",       "0");
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL; // exercise the PR-C default (= "1")
+    setEnv("LILARA_STATE_DIR",       stateDir);
+    setEnv("LILARA_CONTRACT_ENABLED", fx.contract ? "1" : "0");
+    setEnv("LILARA_DECISION_JOURNAL", "1");
+    setEnv("LILARA_RATE_LIMIT",       "0");
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL; // exercise the PR-C default (= "1")
 
     if (fx.env && typeof fx.env === "object") {
       for (const [k, v] of Object.entries(fx.env)) setEnv(k, v);
@@ -166,7 +166,7 @@ function runFixture(fixturePath) {
       } else if (typeof doc.contractHash !== "string") {
         doc.contractHash = "sha256:" + "0".repeat(64);
       }
-      fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
 
       // accept-record optional (default: accept unless badHash).
       const shouldAccept = fx.acceptContract != null ? fx.acceptContract : !fx.badHash;
@@ -222,7 +222,7 @@ function runFixture(fixturePath) {
     if (fx.preDecide && fx.preDecide.mintF4DemoteToken) {
       const { mintOperatorToken } = require(path.join(root, "runtime/contract"));
       const tok = mintOperatorToken("lattice-receipts-fx", "class-c-review-demote");
-      setEnv("HORUS_F4_DEMOTE_TOKEN", tok);
+      setEnv("LILARA_F4_DEMOTE_TOKEN", tok);
     }
     // F17 PR-A: seed cross-agent-lock records under the per-fixture stateDir
     // so the F17 fixture (and any future cross-lock fixtures) can pin the

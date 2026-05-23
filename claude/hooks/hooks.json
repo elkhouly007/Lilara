@@ -3,7 +3,7 @@
 
   "_install_check": "node /ABS_PATH/session-start.js < /dev/null   # should print nothing or a memory summary",
 
-  "_enforce_mode": "Set HORUS_ENFORCE=1 in your environment to activate block mode across all supporting hooks. secret-warning.js blocks when a secret pattern is detected. dangerous-command-gate.js blocks critical/high-severity shell commands. git-push-reminder.js blocks force pushes. Default is warn-only (non-blocking). Recommended: always run with HORUS_ENFORCE=1.",
+  "_enforce_mode": "Set LILARA_ENFORCE=1 in your environment to activate block mode across all supporting hooks. secret-warning.js blocks when a secret pattern is detected. dangerous-command-gate.js blocks critical/high-severity shell commands. git-push-reminder.js blocks force pushes. Default is warn-only (non-blocking). Recommended: always run with LILARA_ENFORCE=1.",
 
   "hooks": {
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // git-push-reminder.js — PreToolUse hook for the Bash tool.
 //
-// Warns before any `git push` command. In enforce mode (HORUS_ENFORCE=1)
+// Warns before any `git push` command. In enforce mode (LILARA_ENFORCE=1)
 // blocks force-pushes entirely; a regular push still proceeds with a reminder.
 //
 // Enforce levels:
-//   HORUS_ENFORCE=1  →  block mode: git push --force / --force-with-lease aborted.
+//   LILARA_ENFORCE=1  →  block mode: git push --force / --force-with-lease aborted.
 //   Default        →  warn mode:  all git push commands print a reminder, none are blocked.
 
 "use strict";
@@ -18,7 +18,7 @@ const MAIN_BRANCH = /\b(main|master|production|prod|release)\b/;
 
 readStdin()
   .then((raw) => {
-    if (process.env.HORUS_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
+    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
     if (!rateLimitCheck("git-push-reminder")) {
       process.stdout.write(raw);
       return;
@@ -67,14 +67,14 @@ readStdin()
           }
 
           if (ENFORCE) {
-            console.error("[Agent Runtime Guard] BLOCKED — HORUS_ENFORCE=1 is active. Force push aborted.");
+            console.error("[Agent Runtime Guard] BLOCKED — LILARA_ENFORCE=1 is active. Force push aborted.");
             console.error("[Agent Runtime Guard] To proceed: get explicit approval, then run the command manually.");
             try { hookLog("git-push-reminder", "BLOCK", "force-push"); } catch { /* log I/O is non-fatal */ }
             process.exit(2);
           }
 
           try { hookLog("git-push-reminder", "WARN", "force-push"); } catch { /* log I/O is non-fatal */ }
-          console.error("[Agent Runtime Guard] Proceeding in warn mode. Set HORUS_ENFORCE=1 to block force pushes.");
+          console.error("[Agent Runtime Guard] Proceeding in warn mode. Set LILARA_ENFORCE=1 to block force pushes.");
         } else {
           try { hookLog("git-push-reminder", "WARN", "git-push"); } catch { /* log I/O is non-fatal */ }
           console.error("[Agent Runtime Guard] Before pushing: review branch, remote, staged files, and diff.");

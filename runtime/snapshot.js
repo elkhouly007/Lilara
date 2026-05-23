@@ -3,7 +3,7 @@
 
 // snapshot.js — ADR-013 pre-destructive-op file-tree snapshot helper.
 // Zero-dep. Pure Node + node:zlib. Writes a bundle under
-// `<HORUS_STATE_DIR>/snapshots/<snapshotId>/` containing a canonical-JSON
+// `<LILARA_STATE_DIR>/snapshots/<snapshotId>/` containing a canonical-JSON
 // manifest plus one gzip blob per captured file. Side-effect rail only —
 // snapshot decisions NEVER change a decision-engine action; failures
 // fail-open. See references/adr-013-auto-snapshot.md.
@@ -211,7 +211,7 @@ function restoreSnapshot(snapshotId, opts) {
     if (dryRun) { restored.push(target); continue; }
     try {
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      const tmp = target + ".horus-restore-" + process.pid + "-" + Date.now();
+      const tmp = target + ".lilara-restore-" + process.pid + "-" + Date.now();
       fs.writeFileSync(tmp, data, { mode: e.mode != null ? Number(e.mode) : 0o644 });
       fs.renameSync(tmp, target);
       restored.push(target);

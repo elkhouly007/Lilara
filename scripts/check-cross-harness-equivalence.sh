@@ -15,8 +15,8 @@ set -eu
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping cross-harness equivalence check (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping cross-harness equivalence check (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-cross-harness-equivalence.sh requires Node.js\n' >&2
@@ -39,12 +39,12 @@ const { resetCache } = require("./runtime/session-context");
 // Use a throwaway state dir so this check never touches real session state
 // and so each harness call starts with a clean in-process cache.
 const tmpStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-xh-"));
-process.env.HORUS_STATE_DIR         = tmpStateDir;
-process.env.HORUS_ENFORCE           = "0";
-process.env.HORUS_CONTRACT_ENABLED  = "0";
-// HORUS_READONLY_CONTRACT prevents disk writes, so each harness call within an
+process.env.LILARA_STATE_DIR         = tmpStateDir;
+process.env.LILARA_ENFORCE           = "0";
+process.env.LILARA_CONTRACT_ENABLED  = "0";
+// LILARA_READONLY_CONTRACT prevents disk writes, so each harness call within an
 // iteration sees identical (empty) state regardless of call order.
-process.env.HORUS_READONLY_CONTRACT = "1";
+process.env.LILARA_READONLY_CONTRACT = "1";
 
 // Load commands from tests/fixtures/cross-harness/*.input if they exist;
 // fall back to the inline baseline so the check works without the fixture dir.

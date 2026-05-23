@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// action-ir.js — Canonical Action IR (HAP ADR-007 PR-A skeleton + PR-B builders).
+// action-ir.js — Canonical Action IR (Lilara ADR-007 PR-A skeleton + PR-B builders).
 //
 // The Canonical Action IR is the single normalized shape that every adapter
 // produces before floors run (scope §4.1 invariant 9). Floors then read the

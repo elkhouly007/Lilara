@@ -7,6 +7,6 @@ const tmpDir    = process.argv[2];
 const capacity  = parseInt(process.argv[3] || "60",  10);
 const refillRate = parseInt(process.argv[4] || "30", 10);
 if (!tmpDir) { process.stderr.write("usage: worker.js <hookStateDir> [capacity] [refillRate]\n"); process.exit(2); }
-process.env.HORUS_HOOK_STATE_DIR = tmpDir;
+process.env.LILARA_HOOK_STATE_DIR = tmpDir;
 const { rateLimitCheck } = require(require("path").join(__dirname, "../../../claude/hooks/hook-utils"));
 process.exit(rateLimitCheck("test-hook", capacity, refillRate) ? 0 : 1);

@@ -6,7 +6,7 @@
 **PR-C status:** SHIPPED (receipt enrichment generalised — `ambientClass`/`ambientPath` on every decision that touches an ambient path).
 **PR-D status:** SHIPPED (F16 adversarial corpus + replay fixtures; no engine LOC change; documents two known pre-D bypasses for a future PR-E to flip).
 **Authors:** Khouly (scope), Claude Code (implementation).
-**Repo cross-refs:** `runtime/ambient.js`, `runtime/decision-engine.js`, `runtime/decision-lattice.js`, `runtime/index.js`, `schemas/horus.contract.schema.json`, `tests/runtime/ambient.test.js`, `tests/runtime/ambient-floor.test.js`, `tests/fixtures/floor-f16/`, `tests/fixtures/lattice-receipts/F16-ambient-authority.input`.
+**Repo cross-refs:** `runtime/ambient.js`, `runtime/decision-engine.js`, `runtime/decision-lattice.js`, `runtime/index.js`, `schemas/lilara.contract.schema.json`, `tests/runtime/ambient.test.js`, `tests/runtime/ambient-floor.test.js`, `tests/fixtures/floor-f16/`, `tests/fixtures/lattice-receipts/F16-ambient-authority.input`.
 
 ---
 
@@ -116,7 +116,7 @@ preserves the runtime's single-responsibility module convention.
 - No `decision-engine.js` change. Floor predicates, ordering, source
   tags, lattice rungs: byte-unchanged.
 - No `pretool-gate.js` change. Adapter inputs flow unchanged.
-- No contract schema field. `schemas/horus.contract.schema.json`
+- No contract schema field. `schemas/lilara.contract.schema.json`
   byte-unchanged.
 - No new fixture / hook / agent / rule / skill. Test lives at
   `tests/runtime/ambient.test.js` (mirrors the existing
@@ -139,7 +139,7 @@ preserves the runtime's single-responsibility module convention.
   / script counts unchanged.
 - `bash scripts/check-status-docs.sh` — parity matrix unchanged.
 - `bash scripts/audit-local.sh` — no risky patterns introduced.
-- `HORUS_HERMETIC_TEST=1 bash scripts/run-fixtures.sh` — unchanged
+- `LILARA_HERMETIC_TEST=1 bash scripts/run-fixtures.sh` — unchanged
   fixture behavior.
 
 ## 7. PR-B contract (SHIPPED)
@@ -201,7 +201,7 @@ trim trailing slash, case-insensitive).
 
 ### 7.4 Schema — `scopes.ambient.allow[]`
 
-Additive opt-in extension to `schemas/horus.contract.schema.json`. Shape:
+Additive opt-in extension to `schemas/lilara.contract.schema.json`. Shape:
 
 ```jsonc
 "scopes": {

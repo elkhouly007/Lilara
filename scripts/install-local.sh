@@ -37,7 +37,7 @@ EOF
 }
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-target="./.horus"
+target="./.lilara"
 profile="minimal"
 auto_detect=0
 list_only=0
@@ -75,8 +75,8 @@ done
 
 [ -n "$target" ] || { usage; exit 2; }
 
-# ── horus.config.json loading ───────────────────────────────────────────────────
-# If horus.config.json exists in the target directory, read profile and languages
+# ── lilara.config.json loading ───────────────────────────────────────────────────
+# If lilara.config.json exists in the target directory, read profile and languages
 # from it. CLI flags always override config file values.
 
 config_profile=""
@@ -89,7 +89,7 @@ load_ecc_config() {
   local cfg="$1"
   [ -f "$cfg" ] || return 0
   if ! command -v node >/dev/null 2>&1; then
-    printf 'NOTE: node not found — skipping horus.config.json.\n' >&2
+    printf 'NOTE: node not found — skipping lilara.config.json.\n' >&2
     return 0
   fi
   # Use node to safely parse JSON — no external npm packages required.
@@ -115,13 +115,13 @@ JSEOF
   )" || return 0
 
   eval "$parsed" 2>/dev/null || true
-  [ -n "$config_profile" ] && printf 'horus.config.json: profile=%s\n' "$config_profile"
-  [ -n "$config_langs"   ] && printf 'horus.config.json: languages=%s\n' "$config_langs"
+  [ -n "$config_profile" ] && printf 'lilara.config.json: profile=%s\n' "$config_profile"
+  [ -n "$config_langs"   ] && printf 'lilara.config.json: languages=%s\n' "$config_langs"
   return 0
 }
 
 # Look for config in the target directory (where the project is)
-config_file="$target/horus.config.json"
+config_file="$target/lilara.config.json"
 [ -f "$config_file" ] && load_ecc_config "$config_file"
 
 # Apply config values if not overridden by CLI flags
@@ -231,7 +231,7 @@ skills_files() {
 # ── build file list ───────────────────────────────────────────────────────────
 
 # Determine which languages to include for rule profiles.
-# Priority: --auto flag > horus.config.json languages > all languages.
+# Priority: --auto flag > lilara.config.json languages > all languages.
 if [ "$auto_detect" -eq 1 ] && [ -d "$target" ]; then
   langs="$(detect_languages "$target")"
 elif [ "$auto_detect" -eq 1 ]; then
@@ -244,10 +244,10 @@ elif [ "$auto_detect" -eq 1 ]; then
     langs="$(detect_languages "$(pwd)")"
   fi
 elif [ -n "$config_langs" ]; then
-  # Use languages from horus.config.json
+  # Use languages from lilara.config.json
   langs="$config_langs common infrastructure"
   langs="$(printf '%s\n' $langs | sort -u | tr '\n' ' ')"
-  printf 'Using languages from horus.config.json: %s\n' "$langs"
+  printf 'Using languages from lilara.config.json: %s\n' "$langs"
 else
   # All languages
   langs="$(ls "$root/rules/" | grep -v README | tr '\n' ' ')"

@@ -5,7 +5,7 @@
 //
 // Asserts the degraded-mode helper + decision-engine wiring honors ADR-004:
 //   - evaluate() detects tamper via journal-chain.verify()
-//   - HORUS_DEGRADED_MODE env var forces the descriptor either way
+//   - LILARA_DEGRADED_MODE env var forces the descriptor either way
 //   - isWriteLike() classifies write-class tool / IR / command inputs
 //   - decide() under degraded:
 //       * F4 operator-token demotion is suppressed (token not consumed)
@@ -23,12 +23,12 @@ const os     = require("node:os");
 const path   = require("node:path");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "horus-degraded-mode-"));
-process.env.HORUS_STATE_DIR = tmp;
+process.env.LILARA_STATE_DIR = tmp;
 process.env.HOME            = tmp;
 // Decision journal must be on so we can re-read appended records.
-process.env.HORUS_DECISION_JOURNAL = "1";
-delete process.env.HORUS_CONTRACT_ENABLED;
-delete process.env.HORUS_CONTRACT_REQUIRED;
+process.env.LILARA_DECISION_JOURNAL = "1";
+delete process.env.LILARA_CONTRACT_ENABLED;
+delete process.env.LILARA_CONTRACT_REQUIRED;
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const journal      = require(path.join(ROOT, "runtime", "journal-chain"));
@@ -42,8 +42,8 @@ let failed = 0;
 function test(name, fn) {
   // Reset between cases. Each test runs against a fresh chain file.
   degraded._clearCache();
-  delete process.env.HORUS_DEGRADED_MODE;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
+  delete process.env.LILARA_DEGRADED_MODE;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
   const file = path.join(tmp, "chain-" + Math.random().toString(36).slice(2) + ".jsonl");
   try {
     fn(file);
@@ -95,26 +95,26 @@ test("evaluate: tampered chain → degraded with reason", (file) => {
   assert.ok(typeof r.reason === "string" && r.reason.length > 0, "expected reason");
 });
 
-test("evaluate: HORUS_DEGRADED_MODE=1 forces degraded regardless of chain", (file) => {
+test("evaluate: LILARA_DEGRADED_MODE=1 forces degraded regardless of chain", (file) => {
   for (let i = 0; i < 2; i++) journal.append("decision.allow", { i }, { file });
-  process.env.HORUS_DEGRADED_MODE = "1";
+  process.env.LILARA_DEGRADED_MODE = "1";
   const r = degraded.evaluate({ file });
   assert.strictEqual(r.degraded, true);
   assert.strictEqual(r.source, "env");
   assert.strictEqual(r.reason, "env-override");
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
 });
 
-test("evaluate: HORUS_DEGRADED_MODE=0 forces non-degraded even with tamper", (file) => {
+test("evaluate: LILARA_DEGRADED_MODE=0 forces non-degraded even with tamper", (file) => {
   for (let i = 0; i < 3; i++) journal.append("decision.allow", { i }, { file });
   const entries = journal.readEntries(file);
   entries[1].payload.note = "X";
   fs.writeFileSync(file, entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
-  process.env.HORUS_DEGRADED_MODE = "0";
+  process.env.LILARA_DEGRADED_MODE = "0";
   const r = degraded.evaluate({ file });
   assert.strictEqual(r.degraded, false);
   assert.strictEqual(r.source, "env");
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
 });
 
 test("evaluate: missing chain → not degraded (entryCount=0 ok)", (file) => {
@@ -170,7 +170,7 @@ function resetState() {
 test("decide: degraded + write-like allow → require-review with degradedMode.writeRouting", () => {
   resetState();
   degraded._clearCache();
-  process.env.HORUS_DEGRADED_MODE = "1";
+  process.env.LILARA_DEGRADED_MODE = "1";
   // Edit tool on a low-risk path would normally allow.
   const r = decide({
     tool: "Edit",
@@ -179,7 +179,7 @@ test("decide: degraded + write-like allow → require-review with degradedMode.w
     branch: "feature/test",
     sessionRisk: 0,
   });
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
   assert.strictEqual(r.action, "require-review", `expected require-review, got ${r.action}`);
   assert.ok(r.degradedMode && r.degradedMode.active === true, "expected degradedMode.active");
   assert.strictEqual(r.degradedMode.writeRouting, "allow-to-require-review");
@@ -194,7 +194,7 @@ test("decide: degraded + write-like allow → require-review with degradedMode.w
 test("decide: degraded + non-write-like allow → action unchanged (still allow), receipt marked", () => {
   resetState();
   degraded._clearCache();
-  process.env.HORUS_DEGRADED_MODE = "1";
+  process.env.LILARA_DEGRADED_MODE = "1";
   const r = decide({
     tool: "Read",
     command: "",
@@ -202,7 +202,7 @@ test("decide: degraded + non-write-like allow → action unchanged (still allow)
     branch: "feature/test",
     sessionRisk: 0,
   });
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
   assert.strictEqual(r.action, "allow", `expected allow, got ${r.action}`);
   assert.ok(r.degradedMode && r.degradedMode.active === true);
   assert.strictEqual(r.degradedMode.writeRouting, undefined,
@@ -213,8 +213,8 @@ test("decide: degraded + F4 operator-token → demotion suppressed (still block)
   resetState();
   degraded._clearCache();
   const token = mintOperatorToken("degraded-mode-test", "class-c-review-demote");
-  process.env.HORUS_F4_DEMOTE_TOKEN = token;
-  process.env.HORUS_DEGRADED_MODE   = "1";
+  process.env.LILARA_F4_DEMOTE_TOKEN = token;
+  process.env.LILARA_DEGRADED_MODE   = "1";
   const r = decide({
     tool: "Bash",
     command: "cat incident.pdf",
@@ -223,8 +223,8 @@ test("decide: degraded + F4 operator-token → demotion suppressed (still block)
     branch: "feature/test",
     sessionRisk: 0,
   });
-  delete process.env.HORUS_DEGRADED_MODE;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
+  delete process.env.LILARA_DEGRADED_MODE;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
   assert.strictEqual(r.action, "block", `expected block, got ${r.action}`);
   assert.strictEqual(r.floorFired, "secret-class-C");
   // Demoted source ("f4-class-c-demoted") must NOT appear under degraded —
@@ -239,8 +239,8 @@ test("decide: F4 demote token outside degraded mode still works (regression guar
   resetState();
   degraded._clearCache();
   const token = mintOperatorToken("non-degraded-control", "class-c-review-demote");
-  process.env.HORUS_F4_DEMOTE_TOKEN = token;
-  process.env.HORUS_DEGRADED_MODE   = "0";
+  process.env.LILARA_F4_DEMOTE_TOKEN = token;
+  process.env.LILARA_DEGRADED_MODE   = "0";
   const r = decide({
     tool: "Bash",
     command: "cat incident.pdf",
@@ -249,8 +249,8 @@ test("decide: F4 demote token outside degraded mode still works (regression guar
     branch: "feature/test",
     sessionRisk: 0,
   });
-  delete process.env.HORUS_DEGRADED_MODE;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
+  delete process.env.LILARA_DEGRADED_MODE;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
   assert.strictEqual(r.action, "require-review",
     `expected require-review when not degraded, got ${r.action}`);
   assert.strictEqual(r.decisionSource, "f4-class-c-demoted");
@@ -272,9 +272,9 @@ test("decide: degraded + write-like + learned-allow destructive-delete → requi
     sessionRisk: 0,
   };
   policyStore.setLearnedAllow(learnedInput, true);
-  process.env.HORUS_DEGRADED_MODE = "1";
+  process.env.LILARA_DEGRADED_MODE = "1";
   const r = decide({ ...learnedInput });
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
   assert.strictEqual(r.action, "require-review",
     `expected require-review under degraded, got ${r.action}`);
   assert.ok(r.degradedMode && r.degradedMode.writeRouting === "allow-to-require-review");
@@ -283,7 +283,7 @@ test("decide: degraded + write-like + learned-allow destructive-delete → requi
 test("decide: degraded + F6 strict-posture-no-cover still fires (block)", () => {
   resetState();
   degraded._clearCache();
-  process.env.HORUS_DEGRADED_MODE = "1";
+  process.env.LILARA_DEGRADED_MODE = "1";
   // Sudo command + strict posture + no contract → F6.
   const r = decide({
     tool: "Bash",
@@ -293,7 +293,7 @@ test("decide: degraded + F6 strict-posture-no-cover still fires (block)", () => 
     sessionRisk: 0,
     trustPosture: "strict",
   });
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
   assert.strictEqual(r.action, "block", `expected F6 block, got ${r.action}`);
   assert.strictEqual(r.floorFired, "posture-strict-no-cover");
   assert.ok(r.degradedMode && r.degradedMode.active === true);
@@ -302,7 +302,7 @@ test("decide: degraded + F6 strict-posture-no-cover still fires (block)", () => 
 test("decide: not degraded + write-like allow → unchanged allow, no marker", () => {
   resetState();
   degraded._clearCache();
-  process.env.HORUS_DEGRADED_MODE = "0";
+  process.env.LILARA_DEGRADED_MODE = "0";
   const r = decide({
     tool: "Edit",
     command: "",
@@ -310,7 +310,7 @@ test("decide: not degraded + write-like allow → unchanged allow, no marker", (
     branch: "feature/test",
     sessionRisk: 0,
   });
-  delete process.env.HORUS_DEGRADED_MODE;
+  delete process.env.LILARA_DEGRADED_MODE;
   assert.strictEqual(r.action, "allow", `expected allow, got ${r.action}`);
   assert.strictEqual(r.degradedMode, undefined, "no marker when not degraded");
 });

@@ -4,7 +4,7 @@
 // Delegates all scanning logic to runtime/secret-scan.js so the same
 // patterns are applied consistently across all harnesses.
 //
-// To enable block mode:  export HORUS_ENFORCE=1
+// To enable block mode:  export LILARA_ENFORCE=1
 
 "use strict";
 
@@ -13,7 +13,7 @@ const { scanSecrets } = require("../../runtime/secret-scan");
 
 readStdin()
   .then((raw) => {
-    if (process.env.HORUS_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
+    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
 
     if (!rateLimitCheck("secret-warning")) {
       process.stdout.write(raw);
@@ -51,7 +51,7 @@ readStdin()
         }
 
         if (ENFORCE) {
-          process.stderr.write("[Agent Runtime Guard] BLOCKED — HORUS_ENFORCE=1 is active. Tool call aborted.\n");
+          process.stderr.write("[Agent Runtime Guard] BLOCKED — LILARA_ENFORCE=1 is active. Tool call aborted.\n");
           try { hookLog("secret-warning", "BLOCK", hit.name); } catch { /* log I/O is non-fatal */ }
           process.stdout.write(raw);
           process.exit(2);

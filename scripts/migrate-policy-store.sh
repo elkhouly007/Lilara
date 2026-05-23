@@ -56,10 +56,10 @@ const dryRun = process.argv[3] === "1";
 
 process.chdir(root);
 
-const stateDir = process.env.HORUS_STATE_DIR ||
+const stateDir = process.env.LILARA_STATE_DIR ||
   (() => {
     const home = process.env.HOME || os.homedir();
-    return path.join(home.replace(/\\/g, "/"), ".horus");
+    return path.join(home.replace(/\\/g, "/"), ".lilara");
   })();
 
 const policyFile = path.join(stateDir, "learned-policy.json");

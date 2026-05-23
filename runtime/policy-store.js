@@ -59,7 +59,7 @@ function loadPolicy() {
 }
 
 function savePolicy(policy) {
-  if (process.env.HORUS_READONLY_CONTRACT === "1") { _policyCache = policy; return; }
+  if (process.env.LILARA_READONLY_CONTRACT === "1") { _policyCache = policy; return; }
   _policyCache = null;
   try {
     ensureBaseDir();

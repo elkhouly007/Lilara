@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * session-end.js — Horus Agentic Power  (Stop hook)
+ * session-end.js — Lilara  (Stop hook)
  *
  * Fires when Claude Code signals the session is stopping.
  * Captures METADATA ONLY — never session content, prompts, or payloads.
@@ -9,7 +9,7 @@
  * - Reads JSON from stdin.
  * - Echoes original input to stdout UNCHANGED.
  * - Writes observations to stderr only (visible to user, not to model).
- * - Writes one candidate instinct to ~/.horus/instincts/pending.json.
+ * - Writes one candidate instinct to ~/.lilara/instincts/pending.json.
  * - No external packages, no network calls, no access to file content.
  * - Does NOT auto-promote. Ahmed must manually promote via /instinct-status.
  *
@@ -55,7 +55,7 @@ readStdin()
   .then((raw) => {
     // Always echo input unchanged — harness requires this.
     process.stdout.write(raw || "");
-    if (process.env.HORUS_KILL_SWITCH === "1") return;
+    if (process.env.LILARA_KILL_SWITCH === "1") return;
 
     let input = {};
     try {

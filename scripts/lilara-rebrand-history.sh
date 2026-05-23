@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# scripts/horus-rebrand.sh — one-time rename: ECC_* → HORUS_*, ecc.* → horus.*.
-# NOTE: This script self-modified during the rebrand run (ECC_ → HORUS_ in comments).
+# scripts/lilara-rebrand-history.sh — one-time rename: ECC_* → LILARA_*, ecc.* → horus.*.
+# NOTE: This script self-modified during the rebrand run (ECC_ → LILARA_ in comments).
 # The rebrand has been applied. This file is retained as historical documentation.
 #
 # Usage:
-#   bash scripts/horus-rebrand.sh           # preview (dry run, default)
-#   bash scripts/horus-rebrand.sh --apply   # apply changes
-#   bash scripts/horus-rebrand.sh --verify  # check remaining old-brand refs
+#   bash scripts/lilara-rebrand-history.sh           # preview (dry run, default)
+#   bash scripts/lilara-rebrand-history.sh --apply   # apply changes
+#   bash scripts/lilara-rebrand-history.sh --verify  # check remaining old-brand refs
 #
 # What this script applied:
-#   1. Content: ECC_ env-var prefix → HORUS_ in all tracked source files
+#   1. Content: ECC_ env-var prefix → LILARA_ in all tracked source files
 #   2. Content: ecc.{config,contract}.json → horus.{config,contract}.json refs
 #   3. Content: ecc.*.schema.json → horus.*.schema.json refs
-#   4. Content: ecc-cli.sh / ecc-cli → horus-cli.sh / horus-cli refs
-#   5. Content: .openclaw/agent-runtime-guard → .horus  (primary state dir)
-#   6. Content: .openclaw/ecc-safe-plus → .horus  (legacy hook state dir)
+#   4. Content: ecc-cli.sh / ecc-cli → lilara-cli.sh / lilara-cli refs
+#   5. Content: .openclaw/agent-runtime-guard → .lilara  (primary state dir)
+#   6. Content: .openclaw/ecc-safe-plus → .lilara  (legacy hook state dir)
 #   7. Content: contractId prefix arg- → hap- in contract.js and schema
 #   8. File renames: schemas/ecc.*.json → schemas/horus.*.json
-#   9. File renames: scripts/ecc-cli.sh → scripts/horus-cli.sh
-#  10. File renames: scripts/ecc-diff-decisions.sh → scripts/horus-diff-decisions.sh
+#   9. File renames: scripts/ecc-cli.sh → scripts/lilara-cli.sh
+#  10. File renames: scripts/ecc-diff-decisions.sh → scripts/lilara-diff-decisions.sh
 #  11. File renames: ecc.*.example → horus.*.example
-#  12. Code: state-paths.js default paths → ~/.horus
+#  12. Code: state-paths.js default paths → ~/.lilara
 
 set -euo pipefail
 
@@ -107,45 +107,45 @@ rename_file() {
 # ── Phase 0: Verify mode ────────────────────────────────────────────────────────
 
 if [[ "${1:-}" == "--verify" ]]; then
-  printf '\n=== Verification: remaining HORUS_ references ===\n'
-  count=$(grep -r "HORUS_" --include="*.js" --include="*.sh" --include="*.json" \
+  printf '\n=== Verification: remaining LILARA_ references ===\n'
+  count=$(grep -r "LILARA_" --include="*.js" --include="*.sh" --include="*.json" \
     --include="*.md" --include="*.jsonc" \
     --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir=".claude" \
     . 2>/dev/null | wc -l || echo 0)
-  printf 'HORUS_ occurrences remaining: %s\n' "$count"
-  ecc_files=$(grep -rl "HORUS_" --include="*.js" --include="*.sh" --include="*.json" \
+  printf 'LILARA_ occurrences remaining: %s\n' "$count"
+  ecc_files=$(grep -rl "LILARA_" --include="*.js" --include="*.sh" --include="*.json" \
     --include="*.md" --include="*.jsonc" \
     --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir=".claude" \
     . 2>/dev/null | wc -l || echo 0)
-  printf 'Files with HORUS_ remaining: %s\n' "$ecc_files"
+  printf 'Files with LILARA_ remaining: %s\n' "$ecc_files"
   [ "$count" -eq 0 ] && printf 'Rebrand complete.\n' || printf 'Rebrand incomplete — run with --apply.\n'
   exit 0
 fi
 
-# ── Phase 1: Bulk env-var prefix replacement (HORUS_ → HORUS_) ──────────────────
+# ── Phase 1: Bulk env-var prefix replacement (LILARA_ → LILARA_) ──────────────────
 
-printf '\n=== Phase 1: env-var prefix HORUS_ → HORUS_ ===\n'
+printf '\n=== Phase 1: env-var prefix LILARA_ → LILARA_ ===\n'
 
 if [ "$DRY_RUN" -eq 1 ]; then
-  ecc_files=$(grep -rl "HORUS_" --include="*.js" --include="*.sh" --include="*.json" \
+  ecc_files=$(grep -rl "LILARA_" --include="*.js" --include="*.sh" --include="*.json" \
     --include="*.md" --include="*.jsonc" --include="*.yaml" --include="*.yml" \
     --include="*.txt" --include="*.example" \
     --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir=".claude" \
     --exclude-dir="artifacts" \
     . 2>/dev/null || true)
   for f in $ecc_files; do
-    changed "would replace HORUS_ → HORUS_ in ${f#./}"
+    changed "would replace LILARA_ → LILARA_ in ${f#./}"
   done
 else
-  # Apply HORUS_ → HORUS_ across all tracked source files.
-  grep -rl "HORUS_" --include="*.js" --include="*.sh" --include="*.json" \
+  # Apply LILARA_ → LILARA_ across all tracked source files.
+  grep -rl "LILARA_" --include="*.js" --include="*.sh" --include="*.json" \
     --include="*.md" --include="*.jsonc" --include="*.yaml" --include="*.yml" \
     --include="*.txt" --include="*.example" \
     --exclude-dir=".git" --exclude-dir="node_modules" --exclude-dir=".claude" \
     --exclude-dir="artifacts" \
     . 2>/dev/null | while IFS= read -r f; do
-    sed -i 's/HORUS_/HORUS_/g' "$f"
-    changed "HORUS_ → HORUS_ in ${f#./}"
+    sed -i 's/LILARA_/LILARA_/g' "$f"
+    changed "LILARA_ → LILARA_ in ${f#./}"
   done
 fi
 
@@ -153,29 +153,29 @@ fi
 
 printf '\n=== Phase 2: file name references ===\n'
 
-# horus.contract.json.draft/.example before horus.contract.json to avoid partial match
-bulk_replace "ecc\.contract\.json\.draft" 'ecc\.contract\.json\.draft' 'horus.contract.json.draft'
-bulk_replace "ecc\.contract\.json\.example" 'ecc\.contract\.json\.example' 'horus.contract.json.example'
-bulk_replace "ecc\.contract\.json" 'ecc\.contract\.json' 'horus.contract.json'
-bulk_replace "ecc\.config\.json" 'ecc\.config\.json' 'horus.config.json'
-bulk_replace "ecc\.contract\.schema\.json" 'ecc\.contract\.schema\.json' 'horus.contract.schema.json'
-bulk_replace "ecc\.config\.schema\.json" 'ecc\.config\.schema\.json' 'horus.config.schema.json'
+# lilara.contract.json.draft/.example before lilara.contract.json to avoid partial match
+bulk_replace "ecc\.contract\.json\.draft" 'ecc\.contract\.json\.draft' 'lilara.contract.json.draft'
+bulk_replace "ecc\.contract\.json\.example" 'ecc\.contract\.json\.example' 'lilara.contract.json.example'
+bulk_replace "ecc\.contract\.json" 'ecc\.contract\.json' 'lilara.contract.json'
+bulk_replace "ecc\.config\.json" 'ecc\.config\.json' 'lilara.config.json'
+bulk_replace "ecc\.contract\.schema\.json" 'ecc\.contract\.schema\.json' 'lilara.contract.schema.json'
+bulk_replace "ecc\.config\.schema\.json" 'ecc\.config\.schema\.json' 'lilara.config.schema.json'
 
 # CLI script references (longest match first)
-bulk_replace "horus-cli\.sh" 'horus-cli\.sh' 'horus-cli.sh'
-bulk_replace "horus-cli" 'horus-cli' 'horus-cli'
+bulk_replace "lilara-cli\.sh" 'lilara-cli\.sh' 'lilara-cli.sh'
+bulk_replace "lilara-cli" 'lilara-cli' 'lilara-cli'
 
-# horus-diff-decisions references
-bulk_replace "horus-diff-decisions" 'horus-diff-decisions' 'horus-diff-decisions'
+# lilara-diff-decisions references
+bulk_replace "lilara-diff-decisions" 'lilara-diff-decisions' 'lilara-diff-decisions'
 
 # ── Phase 3: State directory paths ─────────────────────────────────────────────
 
 printf '\n=== Phase 3: state directory paths ===\n'
 
 # Longest/most specific patterns first to avoid double-replacement.
-bulk_replace '\.horus' '\.horus' '.horus'
-bulk_replace '\.horus' '\.horus' '.horus'
-bulk_replace '\.horus/instincts' '\.horus/instincts' '.horus/instincts'
+bulk_replace '\.lilara' '\.lilara' '.lilara'
+bulk_replace '\.lilara' '\.lilara' '.lilara'
+bulk_replace '\.lilara/instincts' '\.lilara/instincts' '.lilara/instincts'
 
 # ── Phase 4: contractId prefix arg- → hap- ─────────────────────────────────────
 
@@ -183,10 +183,10 @@ printf '\n=== Phase 4: contractId prefix arg- → hap- ===\n'
 
 # Only in specific files where arg- means a contractId prefix, not a CLI argument.
 # contract.js: the newContractId() function
-# horus.contract.schema.json (already renamed to horus.contract.schema.json after phase 2/8)
-# horus.contract.json.example (already renamed)
+# lilara.contract.schema.json (already renamed to lilara.contract.schema.json after phase 2/8)
+# lilara.contract.json.example (already renamed)
 
-for f in runtime/contract.js schemas/horus.contract.schema.json horus.contract.json.example; do
+for f in runtime/contract.js schemas/lilara.contract.schema.json lilara.contract.json.example; do
   [ -f "$f" ] || continue
   if grep -qF 'arg-' "$f" 2>/dev/null; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -229,9 +229,9 @@ if [ -f "runtime/state-paths.js" ]; then
       changed "would update default paths in runtime/state-paths.js"
     else
       sed -i \
-        -e 's/path\.join(os\.homedir(), "\.openclaw", "agent-runtime-guard")/path.join(os.homedir(), ".horus")/g' \
-        -e 's/path\.join(os\.homedir(), "\.openclaw", "ecc-safe-plus")/path.join(os.homedir(), ".horus")/g' \
-        -e 's/path\.join(os\.homedir(), "\.openclaw", "instincts")/path.join(os.homedir(), ".horus", "instincts")/g' \
+        -e 's/path\.join(os\.homedir(), "\.openclaw", "agent-runtime-guard")/path.join(os.homedir(), ".lilara")/g' \
+        -e 's/path\.join(os\.homedir(), "\.openclaw", "ecc-safe-plus")/path.join(os.homedir(), ".lilara")/g' \
+        -e 's/path\.join(os\.homedir(), "\.openclaw", "instincts")/path.join(os.homedir(), ".lilara", "instincts")/g' \
         runtime/state-paths.js
       changed "updated default paths in runtime/state-paths.js"
     fi
@@ -242,18 +242,18 @@ fi
 
 printf '\n=== Phase 6: file renames ===\n'
 
-rename_file "schemas/horus.config.schema.json"    "schemas/horus.config.schema.json"
-rename_file "schemas/horus.contract.schema.json"  "schemas/horus.contract.schema.json"
-rename_file "scripts/horus-cli.sh"                "scripts/horus-cli.sh"
-rename_file "scripts/horus-diff-decisions.sh"     "scripts/horus-diff-decisions.sh"
-rename_file "horus.config.json.example"           "horus.config.json.example"
-rename_file "horus.contract.json.example"         "horus.contract.json.example"
+rename_file "schemas/lilara.config.schema.json"    "schemas/lilara.config.schema.json"
+rename_file "schemas/lilara.contract.schema.json"  "schemas/lilara.contract.schema.json"
+rename_file "scripts/lilara-cli.sh"                "scripts/lilara-cli.sh"
+rename_file "scripts/lilara-diff-decisions.sh"     "scripts/lilara-diff-decisions.sh"
+rename_file "lilara.config.json.example"           "lilara.config.json.example"
+rename_file "lilara.contract.json.example"         "lilara.contract.json.example"
 
 # ── Phase 7: Update schema $id fields ──────────────────────────────────────────
 
 printf '\n=== Phase 7: schema \$id fields ===\n'
 
-for schema in schemas/horus.config.schema.json schemas/horus.contract.schema.json; do
+for schema in schemas/lilara.config.schema.json schemas/lilara.contract.schema.json; do
   [ -f "$schema" ] || continue
   if grep -qF '"ecc.' "$schema" 2>/dev/null; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -275,6 +275,6 @@ else
   printf 'Rebrand applied: %d changes, %d skipped.\n' "$changed" "$skipped"
   printf 'Next steps:\n'
   printf '  1. Run: bash scripts/run-fixtures.sh\n'
-  printf '  2. If fixtures pass: git add -A && git commit -m "chore(rebrand): HORUS_ → HORUS_, rename ecc.* files"\n'
-  printf '  3. Run: bash scripts/horus-rebrand.sh --verify\n'
+  printf '  2. If fixtures pass: git add -A && git commit -m "chore(rebrand): LILARA_ → LILARA_, rename ecc.* files"\n'
+  printf '  3. Run: bash scripts/lilara-rebrand-history.sh --verify\n'
 fi

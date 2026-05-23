@@ -7,7 +7,7 @@
 // an optional suggested target (script, review gate, etc.).
 //
 // The routing table is static by default and can be overridden per-project
-// via horus.config.json (intentRoutes key). Custom tables are merged with the
+// via lilara.config.json (intentRoutes key). Custom tables are merged with the
 // defaults: custom entries win; unspecified intents fall back to defaults.
 //
 // Lanes:
@@ -38,22 +38,22 @@ const DEFAULT_ROUTING_TABLE = {
   build: {
     lane:      "verification",
     rationale: "Build and test operations should be verified before continuing work.",
-    target:    "scripts/horus-cli.sh check",
+    target:    "scripts/lilara-cli.sh check",
   },
   deploy: {
     lane:      "review",
     rationale: "Deployment operations mutate production or shared state — human review required.",
-    target:    "scripts/horus-cli.sh review",
+    target:    "scripts/lilara-cli.sh review",
   },
   modify: {
     lane:      "verification",
     rationale: "File modifications should be verified (lint, tests) before continuing.",
-    target:    "scripts/horus-cli.sh check",
+    target:    "scripts/lilara-cli.sh check",
   },
   configure: {
     lane:      "verification",
     rationale: "Package installs should be checked for supply-chain safety before use.",
-    target:    "scripts/horus-cli.sh check",
+    target:    "scripts/lilara-cli.sh check",
   },
   cleanup: {
     lane:      "review",

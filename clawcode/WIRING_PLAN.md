@@ -107,8 +107,8 @@ For PostToolUse parity (secret-scan + taint recording on tool output), add:
 ## Modes
 
 - **Warn mode** (default): exits 0 with stderr warning; stdout `{}`. Tool call proceeds.
-- **Enforce mode** (`HORUS_ENFORCE=1`): on block decisions, stdout carries the deny JSON; ClawCode aborts the tool call with the supplied reason. Exit 2 is also emitted for cross-harness consistency.
-- **Kill switch** (`HORUS_KILL_SWITCH=1`): stdout deny + exit 2 for every command.
+- **Enforce mode** (`LILARA_ENFORCE=1`): on block decisions, stdout carries the deny JSON; ClawCode aborts the tool call with the supplied reason. Exit 2 is also emitted for cross-harness consistency.
+- **Kill switch** (`LILARA_KILL_SWITCH=1`): stdout deny + exit 2 for every command.
 
 ## Hook timeout
 

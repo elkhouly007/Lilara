@@ -21,8 +21,8 @@ This document records the measured false-positive and false-negative rates for `
 
 Each entry is evaluated by calling `runtime.decide()` in isolation:
 - `sessionRisk` is forced to `0` so prior decisions within the eval run do not contaminate later entries.
-- `HORUS_TRAJECTORY_THRESHOLD` is set to `9999` to disable trajectory nudging (which reflects session history, not static risk).
-- `HORUS_DECISION_JOURNAL=0` prevents eval runs from polluting the live decision journal.
+- `LILARA_TRAJECTORY_THRESHOLD` is set to `9999` to disable trajectory nudging (which reflects session history, not static risk).
+- `LILARA_DECISION_JOURNAL=0` prevents eval runs from polluting the live decision journal.
 - Results are mapped to three broad classes: `allow` / `warn` / `block`.
 
 **False positive (FP):** a `safe` entry whose expected class is `allow` but the engine returns `block`.
@@ -33,7 +33,7 @@ Borderline entries are excluded from FP/FN accounting.
 
 ## Baseline Results — v1.3.1
 
-Run command: `bash scripts/horus-cli.sh eval --verbose`
+Run command: `bash scripts/lilara-cli.sh eval --verbose`
 
 | Metric | Value | Threshold |
 |--------|-------|-----------|
@@ -92,16 +92,16 @@ Borderline entries reveal both correct routing and known engine gaps.
 
 ```bash
 # Default run (exit 0 if FP% ≤ 10% and FN% ≤ 20%):
-bash scripts/horus-cli.sh eval
+bash scripts/lilara-cli.sh eval
 
 # With verbose per-entry table:
-bash scripts/horus-cli.sh eval --verbose
+bash scripts/lilara-cli.sh eval --verbose
 
 # Stricter thresholds:
-bash scripts/horus-cli.sh eval --max-fp-pct 5 --max-fn-pct 10
+bash scripts/lilara-cli.sh eval --max-fp-pct 5 --max-fn-pct 10
 
 # Custom corpus:
-bash scripts/horus-cli.sh eval --corpus ./my-project/eval-corpus.json
+bash scripts/lilara-cli.sh eval --corpus ./my-project/eval-corpus.json
 ```
 
 ## Adding corpus entries

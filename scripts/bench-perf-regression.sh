@@ -11,8 +11,8 @@ cleanup() { rm -rf "$workdir"; }
 trap cleanup EXIT
 
 # Platform p99 ladder - mirrors bench-runtime-decision.sh.
-if [ -n "${HORUS_PERF_P99_MS:-}" ]; then
-  ceiling="$HORUS_PERF_P99_MS"
+if [ -n "${LILARA_PERF_P99_MS:-}" ]; then
+  ceiling="$LILARA_PERF_P99_MS"
 elif [ "${OS:-}" = "Windows_NT" ] || uname -s 2>/dev/null | grep -qiE 'mingw|msys|cygwin'; then
   ceiling=500
 elif uname -r 2>/dev/null | grep -qi 'microsoft' && pwd | grep -q '^/mnt/'; then
@@ -23,6 +23,6 @@ else
   ceiling=10
 fi
 
-HORUS_STATE_DIR="$workdir" \
-HORUS_PERF_P99_MS="$ceiling" \
+LILARA_STATE_DIR="$workdir" \
+LILARA_PERF_P99_MS="$ceiling" \
 node "$root/tests/perf/bench.js"

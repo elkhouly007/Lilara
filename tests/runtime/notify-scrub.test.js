@@ -13,7 +13,7 @@ const assert = require("node:assert");
 const path   = require("node:path");
 
 const ROOT = path.join(__dirname, "..", "..");
-process.env.HORUS_DECISION_JOURNAL = "0";
+process.env.LILARA_DECISION_JOURNAL = "0";
 const { scrubForNotify, KEEP_KEYS, loadNotifyConfig } = require(path.join(ROOT, "runtime", "notify"));
 const { canonicalJson } = require(path.join(ROOT, "runtime", "canonical-json"));
 

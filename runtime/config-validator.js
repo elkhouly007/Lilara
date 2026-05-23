@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 "use strict";
 
-// config-validator.js — Pragmatic JSON schema validator for horus.config.json and
-// horus.contract.json. Validates types, required fields, enum values, and
+// config-validator.js — Pragmatic JSON schema validator for lilara.config.json and
+// lilara.contract.json. Validates types, required fields, enum values, and
 // additionalProperties. No ajv/zod dependency.
 
 const fs   = require("fs");
 const path = require("path");
 
-const CONFIG_SCHEMA_FILE   = path.join(__dirname, "..", "schemas", "horus.config.schema.json");
-const CONTRACT_SCHEMA_FILE = path.join(__dirname, "..", "schemas", "horus.contract.schema.json");
+const CONFIG_SCHEMA_FILE   = path.join(__dirname, "..", "schemas", "lilara.config.schema.json");
+const CONTRACT_SCHEMA_FILE = path.join(__dirname, "..", "schemas", "lilara.contract.schema.json");
 
 let _configSchema   = null;
 let _contractSchema = null;
@@ -124,7 +124,7 @@ function validateNode(value, schema, keyPath) {
 }
 
 /**
- * Validate an horus.config.json document.
+ * Validate an lilara.config.json document.
  * @param {object} doc
  * @returns {{ valid: boolean, errors: string[] }}
  */
@@ -139,7 +139,7 @@ function validateConfig(doc) {
 }
 
 /**
- * Validate an horus.contract.json document.
+ * Validate an lilara.contract.json document.
  * @param {object} doc
  * @returns {{ valid: boolean, errors: string[] }}
  */

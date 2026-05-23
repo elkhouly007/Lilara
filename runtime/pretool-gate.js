@@ -7,7 +7,7 @@
 // All three harnesses (claude, openclaw, opencode) delegate here for:
 //   - dangerous-command pattern scanning
 //   - runtime.decide() with unified policy and trajectory tracking
-//   - enforce / warn mode based on HORUS_ENFORCE
+//   - enforce / warn mode based on LILARA_ENFORCE
 //   - kill-switch check
 //
 // Each adapter is responsible only for extracting the command + cwd strings
@@ -129,10 +129,10 @@ function isCriticalEnvelopeRecheck(decision, payloadClass) {
 function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0, envelopeReporting = false, ir = null, trustMeta = null, outputChannels = null, harnessVersion = null }) {
   const stderrLines = [];
   const emit = (msg) => stderrLines.push(msg);
-  const ENFORCE = process.env.HORUS_ENFORCE === "1";
+  const ENFORCE = process.env.LILARA_ENFORCE === "1";
 
   // Kill-switch: block all tool calls immediately (floor F1).
-  if (process.env.HORUS_KILL_SWITCH === "1") {
+  if (process.env.LILARA_KILL_SWITCH === "1") {
     return { exitCode: 2, stderrLines: ["[Agent Runtime Guard] Kill-switch engaged — all tool calls blocked."], logAction: "BLOCK", logHitName: null };
   }
 
@@ -200,11 +200,11 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       });
       if (rawInput?.tool_use_id) rememberPending(rawInput.tool_use_id, envelope);
     }
-    // HAP ADR-007 PR-B: build the canonical IR and pass it to decide(). The
+    // Lilara ADR-007 PR-B: build the canonical IR and pass it to decide(). The
     // gate is the back-compat shim — adapters that don't pre-build an IR get
     // one synthesized here from the same flat fields decide() reads. The IR
     // is additive: floors still read flat fields; decide() only journals
-    // irHash (gated behind HORUS_IR_JOURNAL=1).
+    // irHash (gated behind LILARA_IR_JOURNAL=1).
     const gateIr = ir || buildIr(rawInput, {
       harness:        String(harness || ""),
       tool:           String(tool || "Bash"),
@@ -271,11 +271,11 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       if (secretHit) closeReasons.push("secret-payload");
       if (pathSensitivity === "high") closeReasons.push("sensitive-path");
       if (closeReasons.length > 0) {
-        emit(`[Agent Runtime Guard] BLOCKED — runtime unavailable under HORUS_ENFORCE=1 (signals: ${closeReasons.join(",")}).`);
+        emit(`[Agent Runtime Guard] BLOCKED — runtime unavailable under LILARA_ENFORCE=1 (signals: ${closeReasons.join(",")}).`);
         return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
       }
     }
-    emit("[Agent Runtime Guard] Proceeding in warn mode (runtime unavailable). Set HORUS_ENFORCE=1 to tighten behavior.");
+    emit("[Agent Runtime Guard] Proceeding in warn mode (runtime unavailable). Set LILARA_ENFORCE=1 to tighten behavior.");
     return { exitCode: 0, stderrLines, logAction: "WARN", logHitName: hit?.name || secretHit?.name || null };
   }
 
@@ -320,7 +320,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     if (decision.promotionGuidance.cliHint) emit(`[Agent Runtime Guard] Promotion CLI: ${decision.promotionGuidance.cliHint}`);
   }
   if (decision.pendingSuggestion) {
-    emit(`[Agent Runtime Guard] Pending local suggestion: ./scripts/horus-cli.sh runtime accept '${decision.pendingSuggestion}'`);
+    emit(`[Agent Runtime Guard] Pending local suggestion: ./scripts/lilara-cli.sh runtime accept '${decision.pendingSuggestion}'`);
   }
   if (decision.actionPlan?.summary) emit(`[Agent Runtime Guard] Action plan: ${decision.actionPlan.summary}`);
   if (Array.isArray(decision.actionPlan?.commands)) {
@@ -340,7 +340,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     emit(`[Agent Runtime Guard] ${decision.action} — proceeding in warn mode.`);
     logAction = "WARN";
   } else {
-    emit("[Agent Runtime Guard] Proceeding in warn mode. Set HORUS_ENFORCE=1 to tighten behavior.");
+    emit("[Agent Runtime Guard] Proceeding in warn mode. Set LILARA_ENFORCE=1 to tighten behavior.");
     logAction = "WARN";
   }
 

@@ -13,7 +13,7 @@ ARG hooks intercept PreToolUse events before a tool call executes. They scan for
 
 ## Hook Activation
 
-ARG hooks activate on every tool call where `HORUS_HOOKS=1` is set or when the hook files are installed in the Claude Code hooks configuration. They run synchronously before the tool executes.
+ARG hooks activate on every tool call where `LILARA_HOOKS=1` is set or when the hook files are installed in the Claude Code hooks configuration. They run synchronously before the tool executes.
 
 - `dangerous-command-gate.js`: scans Bash commands for dangerous patterns (rm -rf, curl|sh, force-push, DROP TABLE, etc.)
 - `secret-warning.js`: scans all tool inputs for secrets (API keys, tokens, private keys, connection strings)
@@ -22,35 +22,35 @@ ARG hooks activate on every tool call where `HORUS_HOOKS=1` is set or when the h
 ## Enforcement Modes
 
 - **Warn mode** (default): dangerous patterns trigger a warning to stderr but the command proceeds. Useful for learning which patterns trigger the gate.
-- **Enforce mode** (`HORUS_ENFORCE=1`): dangerous patterns cause the hook to exit code 2, aborting the tool call. Use this in production and CI environments.
+- **Enforce mode** (`LILARA_ENFORCE=1`): dangerous patterns cause the hook to exit code 2, aborting the tool call. Use this in production and CI environments.
 
 Set enforcement mode in your environment:
 ```bash
-export HORUS_ENFORCE=1  # enforce mode — blocks dangerous commands
-export HORUS_ENFORCE=0  # warn mode (default)
+export LILARA_ENFORCE=1  # enforce mode — blocks dangerous commands
+export LILARA_ENFORCE=0  # warn mode (default)
 ```
 
 ## Policy Store
 
-The ARG runtime maintains a policy store at `$HORUS_STATE_DIR/policy.json` (default: `~/.horus/policy.json`).
+The ARG runtime maintains a policy store at `$LILARA_STATE_DIR/policy.json` (default: `~/.lilara/policy.json`).
 
 - **Learned allow**: policies learned from repeated approvals. Once approved N times, automatically allowed.
 - **Auto-allow-once**: temporary grants for single-use approvals.
-- **Kill switch**: `HORUS_KILL_SWITCH=1` disables the runtime decision engine entirely. The hook still runs, but only severity-based fallbacks apply.
+- **Kill switch**: `LILARA_KILL_SWITCH=1` disables the runtime decision engine entirely. The hook still runs, but only severity-based fallbacks apply.
 
 ## Test Isolation
 
-Always set `HORUS_STATE_DIR` to a temporary directory in tests. The runtime reads and writes state files; without isolation, tests can interfere with each other and with your live session state.
+Always set `LILARA_STATE_DIR` to a temporary directory in tests. The runtime reads and writes state files; without isolation, tests can interfere with each other and with your live session state.
 
 ```bash
-export HORUS_STATE_DIR=$(mktemp -d)
+export LILARA_STATE_DIR=$(mktemp -d)
 # run your tests
 # state is isolated
 ```
 
 ## Hook Log
 
-Hooks emit JSONL events to `$HORUS_STATE_DIR/hook-events.log` when `HORUS_HOOK_LOG=1`. Each line is a valid JSON object with: `timestamp`, `hook`, `action`, `pattern`. Use this log for auditing and for understanding what ARG is doing.
+Hooks emit JSONL events to `$LILARA_STATE_DIR/hook-events.log` when `LILARA_HOOK_LOG=1`. Each line is a valid JSON object with: `timestamp`, `hook`, `action`, `pattern`. Use this log for auditing and for understanding what ARG is doing.
 
 ## Adding New Patterns
 

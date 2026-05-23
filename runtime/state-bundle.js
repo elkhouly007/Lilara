@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 
-// state-bundle.js — ADR-011 portable export/import of HAP state under
-// HORUS_STATE_DIR. Zero-dep. Format: hand-rolled POSIX-ustar tar carrying a
+// state-bundle.js — ADR-011 portable export/import of Lilara state under
+// LILARA_STATE_DIR. Zero-dep. Format: hand-rolled POSIX-ustar tar carrying a
 // root `bundle-manifest.json` plus `data/<rel>` for each included file. Regular
 // files only; symlinks/sockets/FIFOs and secrets/lock/tmp files are excluded
 // via SECRET_BLACKLIST. Chain-continuity-on-import is enforced via

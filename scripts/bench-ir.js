@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// bench-ir.js — HAP ADR-007 PR-D perf gate for the Canonical Action IR.
+// bench-ir.js — Lilara ADR-007 PR-D perf gate for the Canonical Action IR.
 //
 // Measures p50 / p95 / p99 latency for both `actionIr.build()` in isolation
 // and the full `decide()` end-to-end path that now embeds the IR build. The
@@ -10,8 +10,8 @@
 //   macOS:                     200 ms
 //   Windows / WSL-on-/mnt:     500 ms
 // Overrides:
-//   HORUS_BENCH_P99_MS=<n>            set ceiling explicitly
-//   HORUS_BENCH_BASELINE_SHA=<sha>    pin baseline lineage commit
+//   LILARA_BENCH_P99_MS=<n>            set ceiling explicitly
+//   LILARA_BENCH_BASELINE_SHA=<sha>    pin baseline lineage commit
 //
 // Baseline file: artifacts/bench/baseline.json, keyed by
 // `<platform>[-slowfs]-<node-major>` and stamped with commitSha. The 1.5×
@@ -37,16 +37,16 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (a === "--quiet") quiet = true;
 }
 
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_BRANCH_OVERRIDE;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_BRANCH_OVERRIDE;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 
-if (!process.env.HORUS_STATE_DIR) {
-  process.env.HORUS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "arg-bench-ir-"));
+if (!process.env.LILARA_STATE_DIR) {
+  process.env.LILARA_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "arg-bench-ir-"));
 }
 
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
@@ -90,7 +90,7 @@ function loadInputs() {
 const INPUTS = loadInputs();
 
 function platformCeilingMs() {
-  if (process.env.HORUS_BENCH_P99_MS) return Number(process.env.HORUS_BENCH_P99_MS);
+  if (process.env.LILARA_BENCH_P99_MS) return Number(process.env.LILARA_BENCH_P99_MS);
   if (process.platform === "win32") return 500;
   if (process.platform === "linux") {
     try {
@@ -120,7 +120,7 @@ function gitTry(args) {
 }
 
 function currentCommitSha() {
-  return process.env.HORUS_BENCH_BASELINE_SHA
+  return process.env.LILARA_BENCH_BASELINE_SHA
       || process.env.GITHUB_SHA
       || gitTry(["rev-parse", "HEAD"]) || "";
 }

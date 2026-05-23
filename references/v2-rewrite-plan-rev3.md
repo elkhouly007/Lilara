@@ -48,18 +48,18 @@ The five architectural pillars this rewrite plan addresses:
 
 **Status: ✅ FIXED**
 
-**Resolution:** `runtime/contract.js` (496 LOC) implements the full contract lifecycle: `load()`, `verify()` (hash tamper check), `accept()`, `scopeMatch()`, `generate()`, `contractId()`. `schemas/horus.contract.schema.json` defines v1+v2 schemas. The CLI exposes `horus-cli.sh contract init|accept|verify|show|amend`. The decision engine enforces the contract at Steps 2–5–11 of the 11-step precedence matrix.
+**Resolution:** `runtime/contract.js` (496 LOC) implements the full contract lifecycle: `load()`, `verify()` (hash tamper check), `accept()`, `scopeMatch()`, `generate()`, `contractId()`. `schemas/lilara.contract.schema.json` defines v1+v2 schemas. The CLI exposes `lilara-cli.sh contract init|accept|verify|show|amend`. The decision engine enforces the contract at Steps 2–5–11 of the 11-step precedence matrix.
 
 **Note:** The contract feature (v2 of the schema) is the architectural answer to W3. The UX (scan→analyze→present→approve→enforce three-mode flow) is Phase 3 of the master plan.
 
 ---
 
 ### W4 — Kill switch covers only 5 of 12 hooks
-**Statement:** `HORUS_KILL_SWITCH=1` was only checked in a subset of hooks. Some hooks continued operating even when the kill switch was set.
+**Statement:** `LILARA_KILL_SWITCH=1` was only checked in a subset of hooks. Some hooks continued operating even when the kill switch was set.
 
 **Status: ✅ FIXED**
 
-**Resolution:** All 13 production hooks check `HORUS_KILL_SWITCH`:
+**Resolution:** All 13 production hooks check `LILARA_KILL_SWITCH`:
 - Gate-class hooks (dangerous-command-gate, secret-warning, git-push-reminder, build-reminder, openclaw/adapter, opencode/adapter): exit 2 (block) when kill switch is active.
 - Informational hooks (session-start, session-end, memory-load, strategic-compact, pr-notifier, quality-gate, output-sanitizer): return early (exit 0, no-op) when kill switch is active.
 
@@ -102,22 +102,22 @@ Kill-switch fixtures in `tests/fixtures/kill-switch/` verify every hook.
 **Status: ⚠️ PARTIALLY FIXED**
 
 **Evidence:** `runtime/state-paths.js` exists and exports `stateDir()`, `hookStateDir()`, `instinctDir()`, `ensureDir()`. `claude/hooks/hook-utils.js` does use `statePaths.hookStateDir()`. However:
-- `hookStateDir()` in `state-paths.js` still returns `.horus` as a default (legacy path).
+- `hookStateDir()` in `state-paths.js` still returns `.lilara` as a default (legacy path).
 - Some scripts may still use hardcoded paths.
 
 **Outstanding work (Phase 1.6 + Phase 1 rebrand):**
 1. Audit all hooks and scripts for hardcoded `.openclaw/` paths.
-2. In `state-paths.js`: unify `hookStateDir()` with `stateDir()` — eliminate the legacy `.horus` default (migrate to `.horus/` as part of the rebrand).
-3. After rebrand: `stateDir()` should return `~/.horus/` (overridable via `HORUS_STATE_DIR`).
+2. In `state-paths.js`: unify `hookStateDir()` with `stateDir()` — eliminate the legacy `.lilara` default (migrate to `.lilara/` as part of the rebrand).
+3. After rebrand: `stateDir()` should return `~/.lilara/` (overridable via `LILARA_STATE_DIR`).
 
 ---
 
 ### W9 — Config has no schema; misconfiguration is silent
-**Statement:** `horus.config.json` had no JSON schema for validation. Misconfigured files would silently fall through to defaults with no error message.
+**Statement:** `lilara.config.json` had no JSON schema for validation. Misconfigured files would silently fall through to defaults with no error message.
 
 **Status: ✅ FIXED**
 
-**Resolution:** `schemas/horus.config.schema.json` defines the full config schema. `runtime/config-validator.js` (156 LOC) validates both config and contract files against their schemas. Validation errors surface in `horus-cli.sh contract verify`.
+**Resolution:** `schemas/lilara.config.schema.json` defines the full config schema. `runtime/config-validator.js` (156 LOC) validates both config and contract files against their schemas. Validation errors surface in `lilara-cli.sh contract verify`.
 
 ---
 
@@ -145,11 +145,11 @@ Kill-switch fixtures in `tests/fixtures/kill-switch/` verify every hook.
 ---
 
 ### W12 — Adapter enforce coverage was weak
-**Statement:** Host adapters did not consistently propagate `HORUS_ENFORCE=1` behavior. A blocked command on Claude Code might only produce a warning on another adapter.
+**Statement:** Host adapters did not consistently propagate `LILARA_ENFORCE=1` behavior. A blocked command on Claude Code might only produce a warning on another adapter.
 
 **Status: ✅ FIXED**
 
-**Resolution:** All adapters are thin shims that call `createAdapter()` in `claude/hooks/hook-utils.js`, which invokes `runPreToolGate()` from `runtime/pretool-gate.js`. The blocking/warning decision flows through the runtime decision engine with `HORUS_ENFORCE` respected. Since the blocking/warning decision is made inside `pretool-gate.js` (not in the adapter), all adapters automatically inherit consistent enforce behavior. Cross-harness equivalence fixtures in `tests/fixtures/cross-harness/` and `tests/fixtures/openclaw/` and `tests/fixtures/opencode/` verify this.
+**Resolution:** All adapters are thin shims that call `createAdapter()` in `claude/hooks/hook-utils.js`, which invokes `runPreToolGate()` from `runtime/pretool-gate.js`. The blocking/warning decision flows through the runtime decision engine with `LILARA_ENFORCE` respected. Since the blocking/warning decision is made inside `pretool-gate.js` (not in the adapter), all adapters automatically inherit consistent enforce behavior. Cross-harness equivalence fixtures in `tests/fixtures/cross-harness/` and `tests/fixtures/openclaw/` and `tests/fixtures/opencode/` verify this.
 
 ---
 
@@ -170,7 +170,7 @@ Kill-switch fixtures in `tests/fixtures/kill-switch/` verify every hook.
 **Evidence of remaining drift (pre-Phase 1):**
 - `ARCHITECTURE.md` listed 20 runtime files; actual count is 23 (missing `intent-classifier.js`, `route-resolver.js`, `index.js`).
 - `MODULES.md` did not list the new routing modules.
-- `DECISIONS.md` D5 stated "hooks print reminders, do not enforce policy" — stale since `dangerous-command-gate.js` + `secret-warning.js` now actively block in `HORUS_ENFORCE=1`.
+- `DECISIONS.md` D5 stated "hooks print reminders, do not enforce policy" — stale since `dangerous-command-gate.js` + `secret-warning.js` now actively block in `LILARA_ENFORCE=1`.
 - `claude/hooks/README.md` listed 12 hooks; actual is 13.
 - Skill count in README says "200 skills"; actual is 22.
 

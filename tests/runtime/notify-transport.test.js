@@ -11,7 +11,7 @@
 //     changes a decision; fire-and-forget verified by hot-path latency.
 //
 // Mock HTTP/SMTP servers use node:http and node:net respectively — no TLS
-// certs required at test time. `HORUS_NOTIFY_INSECURE=1` unlocks the
+// certs required at test time. `LILARA_NOTIFY_INSECURE=1` unlocks the
 // localhost-only http:// allowlist in the discord+slack URL validators and
 // the plain-TCP path in the email transport.
 //
@@ -25,8 +25,8 @@ const fs     = require("node:fs");
 const os     = require("node:os");
 
 const ROOT = path.join(__dirname, "..", "..");
-process.env.HORUS_NOTIFY_INSECURE = "1";
-process.env.HORUS_DECISION_JOURNAL = "0";
+process.env.LILARA_NOTIFY_INSECURE = "1";
+process.env.LILARA_DECISION_JOURNAL = "0";
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -87,7 +87,7 @@ async function run() {
   });
 
   await test("discord: retry-on-5xx then give-up-after-3 returns degraded marker", async () => {
-    process.env.HORUS_NOTIFY_RETRY_FAST = "1";
+    process.env.LILARA_NOTIFY_RETRY_FAST = "1";
     let hits = 0;
     const server = await startHttpStub((req, body, res) => {
       hits += 1; res.writeHead(503); res.end("nope");
@@ -200,11 +200,11 @@ async function run() {
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const port = server.address().port;
-    process.env.HORUS_SMTP_HOST = "127.0.0.1";
-    process.env.HORUS_SMTP_PORT = String(port);
-    process.env.HORUS_SMTP_USER = "alice";
-    process.env.HORUS_SMTP_PASS = "secretpw";
-    process.env.HORUS_SMTP_FROM = "ops@horus.local";
+    process.env.LILARA_SMTP_HOST = "127.0.0.1";
+    process.env.LILARA_SMTP_PORT = String(port);
+    process.env.LILARA_SMTP_USER = "alice";
+    process.env.LILARA_SMTP_PASS = "secretpw";
+    process.env.LILARA_SMTP_FROM = "ops@horus.local";
     try {
       const { send } = require(path.join(ROOT, "runtime/notify/email"));
       const r = await send({ type: "email", to: "ops@example.com" }, EVENT);
@@ -220,7 +220,7 @@ async function run() {
   });
 
   await test("email: missing SMTP_HOST returns ok:false (no socket open)", async () => {
-    delete process.env.HORUS_SMTP_HOST;
+    delete process.env.LILARA_SMTP_HOST;
     const { send } = require(path.join(ROOT, "runtime/notify/email"));
     const r = await send({ type: "email", to: "x@y.z" }, EVENT);
     assert.strictEqual(r.ok, false);
@@ -231,10 +231,10 @@ async function run() {
     const server = net.createServer(() => { /* never reply */ });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const port = server.address().port;
-    process.env.HORUS_SMTP_HOST = "127.0.0.1";
-    process.env.HORUS_SMTP_PORT = String(port);
-    delete process.env.HORUS_SMTP_USER;
-    delete process.env.HORUS_SMTP_PASS;
+    process.env.LILARA_SMTP_HOST = "127.0.0.1";
+    process.env.LILARA_SMTP_PORT = String(port);
+    delete process.env.LILARA_SMTP_USER;
+    delete process.env.LILARA_SMTP_PASS;
     try {
       // Shorten the SMTP socket timeout for the test by reloading email.js
       // and patching its module-level constant via an env override would be
@@ -267,9 +267,9 @@ async function run() {
     // We can't easily inject a contract without a hash, so verify the
     // contract-disabled path is byte-identical and the hook is a no-op.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "notify-engine-"));
-    process.env.HORUS_STATE_DIR = tmp;
-    process.env.HORUS_CONTRACT_ENABLED = "0";
-    delete process.env.HORUS_KILL_SWITCH;
+    process.env.LILARA_STATE_DIR = tmp;
+    process.env.LILARA_CONTRACT_ENABLED = "0";
+    delete process.env.LILARA_KILL_SWITCH;
     // Reset runtime cache so the engine picks up the new env.
     for (const k of Object.keys(require.cache)) {
       if (k.startsWith(path.join(ROOT, "runtime") + path.sep)) delete require.cache[k];
@@ -286,12 +286,12 @@ async function run() {
   await test("e2e: engine fires hook on require-review, journals notifyAttempted, returns fast", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "notify-e2e-"));
     const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "notify-e2e-proj-"));
-    process.env.HORUS_STATE_DIR = tmp;
-    process.env.HORUS_CONTRACT_ENABLED = "1";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_F19_DEMOTE_TOKEN;
+    process.env.LILARA_STATE_DIR = tmp;
+    process.env.LILARA_CONTRACT_ENABLED = "1";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_F19_DEMOTE_TOKEN;
 
     // Mock webhook stub
     const captured = [];
@@ -308,7 +308,7 @@ async function run() {
     const { hashContract } = require(path.join(ROOT, "runtime/contract"));
     const draft = {
       version: 3,
-      contractId: "hap-20260515-aaaaaaaaaaaa",
+      contractId: "lilara-20260515-aaaaaaaaaaaa",
       revision: 1,
       acceptedAt: "2026-05-15T00:00:00.000Z",
       harnessScope: ["claude"],
@@ -321,7 +321,7 @@ async function run() {
       },
     };
     draft.contractHash = hashContract(draft);
-    fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(draft, null, 2));
+    fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(draft, null, 2));
     // Record acceptance so verify() succeeds.
     const acceptedRegistry = { [draft.contractId]: draft.contractHash };
     fs.mkdirSync(path.join(tmp), { recursive: true });
@@ -338,7 +338,7 @@ async function run() {
       decide({ command: "echo warm", targetPath: "src/x.ts", tool: "Bash", projectRoot: projectDir, sessionRisk: 0 });
       // The hot-path latency measurement. Use a require-review-inducing input:
       // sudo on a protected branch → action: "require-review".
-      fs.writeFileSync(path.join(projectDir, "horus.config.json"), JSON.stringify({ runtime: { protected_branches: ["main"], trust_posture: "balanced" } }));
+      fs.writeFileSync(path.join(projectDir, "lilara.config.json"), JSON.stringify({ runtime: { protected_branches: ["main"], trust_posture: "balanced" } }));
       const t0 = process.hrtime.bigint();
       const r = decide({ command: "sudo systemctl restart api", targetPath: path.join(projectDir, "ops/svc"), tool: "Bash", projectRoot: projectDir, branch: "main", sessionRisk: 0 });
       const dt_ns = Number(process.hrtime.bigint() - t0);

@@ -30,9 +30,9 @@ tmp_state="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_state"; }
 trap cleanup EXIT
 
-HORUS_STATE_DIR="$tmp_state" \
-HORUS_CONTRACT_ENABLED=0 \
-HORUS_TRAJECTORY_WINDOW_MIN=0 \
-  bash scripts/horus-diff-decisions.sh --journal "$JOURNAL" 2>&1
+LILARA_STATE_DIR="$tmp_state" \
+LILARA_CONTRACT_ENABLED=0 \
+LILARA_TRAJECTORY_WINDOW_MIN=0 \
+  bash scripts/lilara-diff-decisions.sh --journal "$JOURNAL" 2>&1
 
 printf '\ncheck-decision-replay passed.\n'
