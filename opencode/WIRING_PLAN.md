@@ -40,9 +40,11 @@ Also accepted: `tool_input.command`, `input.command`, direct `command` field.
 
 ## PostToolUse Parity
 
-Current wiring is **PreToolUse-only**. `opencode/hooks/adapter.js` runs as a PreToolUse hook that gates shell commands before execution. A PostToolUse hook (equivalent to `claude/hooks/output-sanitizer.js`) is a documented follow-up.
+Current wiring includes both PreToolUse and PostToolUse. `opencode/hooks/adapter.js` gates shell commands as PreToolUse; `opencode/hooks/post-adapter.js` (equivalent to `claude/hooks/output-sanitizer.js`) scans tool output for the 23 secret patterns via `runtime/secret-scan.js` and records external-source content into the provenance window via `runtime/taint.js` so the F10 taint floor can detect injected commands.
 
-OpenCode is a Claude Code fork and likely supports PostToolUse hooks via the same event model, but this has not been verified against the actual hook configuration in a real OpenCode installation. Until a contributor confirms upstream OpenCode PostToolUse support and documents the wiring path, the PostToolUse extension remains deferred. See `references/owasp-agentic-coverage.md` (ASI05) for the current coverage status.
+OpenCode is a Claude Code fork and shares the same hook event model. Wire `opencode/hooks/post-adapter.js` as a `PostToolUse` hook in your OpenCode config — point the hook command at the absolute path of the file, mirroring how the PreToolUse `adapter.js` is wired. Both hooks read from stdin, echo stdin to stdout unchanged, and write any warnings to stderr; PostToolUse cannot block (warns only) per the harness contract.
+
+The `scripts/check-post-adapter-parity.sh` CI gate enforces that the OpenCode post-adapter requires `secret-scan` and `taint` and calls `scanSecrets()` + `recordExternalRead()` (in this implementation, via the shared `runtime/post-adapter-factory.js`). See `references/owasp-agentic-coverage.md` (ASI05) for the current coverage status — OpenCode is COVERED.
 
 ## Target Paths
 

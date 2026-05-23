@@ -14,6 +14,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - `artifacts/hooks-baseline.sha256` regenerated for `claude/hooks/output-sanitizer.js` (the only file in the integrity baseline whose hash changed; the five non-Claude post-adapters live outside the Claude-hooks baseline scope).
 
+### Documentation
+
+- **OpenCode PostToolUse parity — documented wiring path.** `opencode/WIRING_PLAN.md` PostToolUse Parity section rewritten from "deferred" to "supported" with wiring guidance. The implementation has been in repo since A3 (`opencode/hooks/post-adapter.js` delegating to `runtime/post-adapter-factory.js`), and `references/owasp-agentic-coverage.md` ASI05 has marked OpenCode COVERED since then; the WIRING_PLAN was the last document still describing it as a "documented follow-up". Operators are now instructed to wire the post-adapter as a PostToolUse hook mirroring how the PreToolUse `adapter.js` is wired. Also fixed a stale cross-reference in `openclaw/WIRING_PLAN.md` (`opencode/hooks/output-sanitizer.js` → `opencode/hooks/post-adapter.js`).
+
 ## [3.1.0] — 2026-05-15
 
 **Product milestone:** v0.5 "Incremental Hardened Daily" closed. Stages A–D delivered (PRs #37–#53). Master green across Ubuntu / macOS / Windows; all 30 local CI gates pass; 371 fixtures + 12 replay-corpus entries with 0 divergences; runtime p99 1.2ms (10ms ceiling); 13 hooks kill-switch clean. No schema-breaking change since 3.0.0 — every floor and every receipt field added in this window is additive.
