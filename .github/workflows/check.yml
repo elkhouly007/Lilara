@@ -46,6 +46,9 @@ jobs:
       - name: Audit local (scripts + hooks)
         run: bash scripts/audit-local.sh
 
+      - name: No stale Horus/HAP brand references
+        run: bash scripts/check-no-horus.sh
+
       - name: Audit examples (prose + GOOD blocks)
         # Exit 1 only if risky patterns found — known false positives allowed via exclusions
         run: |
