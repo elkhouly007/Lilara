@@ -86,7 +86,7 @@ readStdin()
       if (suggest) {
         hookLog("strategic-compact", "INFO", `suggestion-fired count=${count}`);
         process.stderr.write(
-          `[Agent Runtime Guard] Context hint: consider /compact — ${reason}. Call count: ${count}.\n`
+          `[Lilara] Context hint: consider /compact — ${reason}. Call count: ${count}.\n`
         );
       }
     } catch {

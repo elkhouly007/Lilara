@@ -57,7 +57,7 @@ readStdin()
     // Only print if there is something worth showing.
     if (s.pending === 0 && s.confident === 0) return;
 
-    const lines = ["[Agent Runtime Guard] Instinct store loaded."];
+    const lines = ["[Lilara] Instinct store loaded."];
     if (s.candidates > 0) {
       lines.push(`  → ${s.candidates} candidate(s) ready for your review — run /instinct-status.`);
     }

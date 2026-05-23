@@ -133,7 +133,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
 
   // Kill-switch: block all tool calls immediately (floor F1).
   if (process.env.LILARA_KILL_SWITCH === "1") {
-    return { exitCode: 2, stderrLines: ["[Agent Runtime Guard] Kill-switch engaged — all tool calls blocked."], logAction: "BLOCK", logHitName: null };
+    return { exitCode: 2, stderrLines: ["[Lilara] Kill-switch engaged — all tool calls blocked."], logAction: "BLOCK", logHitName: null };
   }
 
   // Primary path: the adapter resolved the command via its own extractor.
@@ -159,9 +159,9 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   // Emit pattern-hit warning before calling decide().
   if (hit) {
     const label = SEVERITY_LABEL[hit.severity] || "WARN";
-    emit(`[Agent Runtime Guard] [${label}] Dangerous command pattern: "${hit.name}"`);
-    if (hit.reason) emit(`[Agent Runtime Guard] Reason: ${hit.reason}`);
-    emit(`[Agent Runtime Guard] Command: ${cmd.slice(0, 200)}${cmd.length > 200 ? "…" : ""}`);
+    emit(`[Lilara] [${label}] Dangerous command pattern: "${hit.name}"`);
+    if (hit.reason) emit(`[Lilara] Reason: ${hit.reason}`);
+    emit(`[Lilara] Command: ${cmd.slice(0, 200)}${cmd.length > 200 ? "…" : ""}`);
   }
 
   const targetPath      = String(cwd || "");
@@ -173,8 +173,8 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   // so the decision-engine floor (step 4) fires identically across all harnesses.
   const secretHit = scanSecrets(cmd);
   if (secretHit) {
-    emit(`[Agent Runtime Guard] Possible ${secretHit.name} detected in command.`);
-    emit("[Agent Runtime Guard] Remove secrets before submitting. Prefer local env files that are not shared.");
+    emit(`[Lilara] Possible ${secretHit.name} detected in command.`);
+    emit("[Lilara] Remove secrets before submitting. Prefer local env files that are not shared.");
     payloadClass = "C";
   }
 
@@ -264,31 +264,31 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     }
   } catch (runtimeErr) {
     const errMsg = runtimeErr instanceof Error ? runtimeErr.message : String(runtimeErr);
-    emit(`[Agent Runtime Guard] WARNING: runtime decision engine unavailable (${errMsg}). Applying severity fallback.`);
+    emit(`[Lilara] WARNING: runtime decision engine unavailable (${errMsg}). Applying severity fallback.`);
     if (ENFORCE) {
       const closeReasons = [];
       if (hit && ["critical", "high", "medium"].includes(hit.severity)) closeReasons.push(`pattern:${hit.severity}`);
       if (secretHit) closeReasons.push("secret-payload");
       if (pathSensitivity === "high") closeReasons.push("sensitive-path");
       if (closeReasons.length > 0) {
-        emit(`[Agent Runtime Guard] BLOCKED — runtime unavailable under LILARA_ENFORCE=1 (signals: ${closeReasons.join(",")}).`);
+        emit(`[Lilara] BLOCKED — runtime unavailable under LILARA_ENFORCE=1 (signals: ${closeReasons.join(",")}).`);
         return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
       }
     }
-    emit("[Agent Runtime Guard] Proceeding in warn mode (runtime unavailable). Set LILARA_ENFORCE=1 to tighten behavior.");
+    emit("[Lilara] Proceeding in warn mode (runtime unavailable). Set LILARA_ENFORCE=1 to tighten behavior.");
     return { exitCode: 0, stderrLines, logAction: "WARN", logHitName: hit?.name || secretHit?.name || null };
   }
 
   // Enforce-mode block — check first so blocking output is unambiguous.
   if (ENFORCE && decision.enforcementAction === "block") {
-    if (payloadClass !== "A") emit(`[Agent Runtime Guard] Payload class: ${payloadClass}`);
-    if (pathSensitivity !== "low") emit(`[Agent Runtime Guard] Sensitive path detected (${pathSensitivity}): ${targetPath.slice(0, 120)}`);
-    if (sessionRisk > 0) emit(`[Agent Runtime Guard] Session risk: ${sessionRisk}`);
+    if (payloadClass !== "A") emit(`[Lilara] Payload class: ${payloadClass}`);
+    if (pathSensitivity !== "low") emit(`[Lilara] Sensitive path detected (${pathSensitivity}): ${targetPath.slice(0, 120)}`);
+    if (sessionRisk > 0) emit(`[Lilara] Session risk: ${sessionRisk}`);
     const primaryCode = Array.isArray(decision.reasonCodes) && decision.reasonCodes[0] ? ` [${decision.reasonCodes[0]}]` : "";
-    emit(`[Agent Runtime Guard] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})${primaryCode}`);
-    emit(`[Agent Runtime Guard] Explanation: ${decision.explanation}`);
-    emit("[Agent Runtime Guard] BLOCKED by runtime policy.");
-    emit("[Agent Runtime Guard] To proceed, get explicit approval or adjust local learned policy intentionally.");
+    emit(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})${primaryCode}`);
+    emit(`[Lilara] Explanation: ${decision.explanation}`);
+    emit("[Lilara] BLOCKED by runtime policy.");
+    emit("[Lilara] To proceed, get explicit approval or adjust local learned policy intentionally.");
     return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
   }
 
@@ -298,49 +298,49 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   }
 
   // Emit decision context for all other cases (pattern hit, or non-allow decision).
-  if (payloadClass !== "A") emit(`[Agent Runtime Guard] Payload class: ${payloadClass}`);
-  if (pathSensitivity !== "low") emit(`[Agent Runtime Guard] Sensitive path detected (${pathSensitivity}): ${targetPath.slice(0, 120)}`);
-  if (sessionRisk > 0) emit(`[Agent Runtime Guard] Session risk: ${sessionRisk}`);
-  emit(`[Agent Runtime Guard] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})`);
-  emit(`[Agent Runtime Guard] Explanation: ${decision.explanation}`);
-  if (decision.envelope?.hash) emit(`[Agent Runtime Guard] Execution envelope: ${decision.envelope.hash}`);
+  if (payloadClass !== "A") emit(`[Lilara] Payload class: ${payloadClass}`);
+  if (pathSensitivity !== "low") emit(`[Lilara] Sensitive path detected (${pathSensitivity}): ${targetPath.slice(0, 120)}`);
+  if (sessionRisk > 0) emit(`[Lilara] Session risk: ${sessionRisk}`);
+  emit(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})`);
+  emit(`[Lilara] Explanation: ${decision.explanation}`);
+  if (decision.envelope?.hash) emit(`[Lilara] Execution envelope: ${decision.envelope.hash}`);
 
   if (decision.action === "escalate") {
-    emit("[Agent Runtime Guard] ESCALATION ROUTE: human gate required — do not auto-allow.");
+    emit("[Lilara] ESCALATION ROUTE: human gate required — do not auto-allow.");
   }
   const routeLane = decision.workflowRoute?.lane;
   if (routeLane && routeLane !== "direct") {
-    emit(`[Agent Runtime Guard] Workflow route: ${routeLane} → ${decision.workflowRoute?.suggestedTarget || "—"}`);
+    emit(`[Lilara] Workflow route: ${routeLane} → ${decision.workflowRoute?.suggestedTarget || "—"}`);
   }
 
   // Additional guidance (warn mode).
-  if (discovered && discovered.branch) emit(`[Agent Runtime Guard] Detected branch: ${discovered.branch}`);
+  if (discovered && discovered.branch) emit(`[Lilara] Detected branch: ${discovered.branch}`);
   if (decision.promotionGuidance && decision.promotionGuidance.stage !== "new") {
-    emit(`[Agent Runtime Guard] Promotion: [${decision.promotionGuidance.stage}] ${decision.promotionGuidance.guidance}`);
-    if (decision.promotionGuidance.cliHint) emit(`[Agent Runtime Guard] Promotion CLI: ${decision.promotionGuidance.cliHint}`);
+    emit(`[Lilara] Promotion: [${decision.promotionGuidance.stage}] ${decision.promotionGuidance.guidance}`);
+    if (decision.promotionGuidance.cliHint) emit(`[Lilara] Promotion CLI: ${decision.promotionGuidance.cliHint}`);
   }
   if (decision.pendingSuggestion) {
-    emit(`[Agent Runtime Guard] Pending local suggestion: ./scripts/lilara-cli.sh runtime accept '${decision.pendingSuggestion}'`);
+    emit(`[Lilara] Pending local suggestion: ./scripts/lilara-cli.sh runtime accept '${decision.pendingSuggestion}'`);
   }
-  if (decision.actionPlan?.summary) emit(`[Agent Runtime Guard] Action plan: ${decision.actionPlan.summary}`);
+  if (decision.actionPlan?.summary) emit(`[Lilara] Action plan: ${decision.actionPlan.summary}`);
   if (Array.isArray(decision.actionPlan?.commands)) {
-    for (const c of decision.actionPlan.commands.slice(0, 3)) emit(`[Agent Runtime Guard] Suggested command: ${c}`);
+    for (const c of decision.actionPlan.commands.slice(0, 3)) emit(`[Lilara] Suggested command: ${c}`);
   }
-  if (decision.actionPlan?.reviewType) emit(`[Agent Runtime Guard] Review type: ${decision.actionPlan.reviewType}`);
+  if (decision.actionPlan?.reviewType) emit(`[Lilara] Review type: ${decision.actionPlan.reviewType}`);
   if (Array.isArray(decision.actionPlan?.modificationHints)) {
-    for (const h of decision.actionPlan.modificationHints.slice(0, 3)) emit(`[Agent Runtime Guard] Modification hint: ${h}`);
+    for (const h of decision.actionPlan.modificationHints.slice(0, 3)) emit(`[Lilara] Modification hint: ${h}`);
   }
 
   // Final log action for the adapter to record.
   let logAction;
   if (decision.action === "allow" && decision.decisionSource === "learned-allow") {
-    emit("[Agent Runtime Guard] Learned allow matched, proceeding in bounded-autonomy mode.");
+    emit("[Lilara] Learned allow matched, proceeding in bounded-autonomy mode.");
     logAction = "PASS";
   } else if (["route", "require-tests", "require-review", "modify"].includes(decision.action)) {
-    emit(`[Agent Runtime Guard] ${decision.action} — proceeding in warn mode.`);
+    emit(`[Lilara] ${decision.action} — proceeding in warn mode.`);
     logAction = "WARN";
   } else {
-    emit("[Agent Runtime Guard] Proceeding in warn mode. Set LILARA_ENFORCE=1 to tighten behavior.");
+    emit("[Lilara] Proceeding in warn mode. Set LILARA_ENFORCE=1 to tighten behavior.");
     logAction = "WARN";
   }
 

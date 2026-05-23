@@ -78,7 +78,7 @@ readStdin()
       const preview  = titles.slice(0, 3);
       const overflow = total - preview.length;
 
-      let msg = `[Agent Runtime Guard] Memory: ${total} item${total !== 1 ? "s" : ""} loaded.\n`;
+      let msg = `[Lilara] Memory: ${total} item${total !== 1 ? "s" : ""} loaded.\n`;
       for (const title of preview) {
         msg += `  \u2022 ${title}\n`;
       }

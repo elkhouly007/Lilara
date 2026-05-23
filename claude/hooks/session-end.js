@@ -82,7 +82,7 @@ readStdin()
     // Inform user via stderr — not visible to model, not blocking.
     const s = utils.summary();
     process.stderr.write(
-      `[Agent Runtime Guard] Session end recorded.\n` +
+      `[Lilara] Session end recorded.\n` +
       `  Instincts: ${s.pending} pending (${s.candidates} ready to review), ${s.confident} confident.\n` +
       `  Run /instinct-status to review and promote candidates.\n` +
       (s.expiringSoon > 0

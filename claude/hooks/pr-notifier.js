@@ -70,7 +70,7 @@ readStdin()
       const number = match[1];
 
       process.stderr.write(
-        `[Agent Runtime Guard] PR created: ${url}\n` +
+        `[Lilara] PR created: ${url}\n` +
         `  Review:  gh pr view ${number} --web\n` +
         `  Checks:  gh pr checks ${number}\n`
       );

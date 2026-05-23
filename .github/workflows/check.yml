@@ -1,4 +1,4 @@
-name: Agent Runtime Guard CI
+name: Lilara CI
 
 on:
   push:

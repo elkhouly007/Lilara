@@ -20,7 +20,7 @@ const LOCAL_BUILD_OR_TEST = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|check|
 
 readStdin()
   .then((raw) => {
-    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
+    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Lilara] Kill-switch engaged — blocked.\n"); process.exit(2); }
     if (!rateLimitCheck("build-reminder")) {
       process.stdout.write(raw);
       return;
@@ -29,8 +29,8 @@ readStdin()
       const input   = JSON.parse(raw || "{}");
       const command = commandFrom(input);
       if (LOCAL_BUILD_OR_TEST.test(command)) {
-        console.error("[Agent Runtime Guard] Build / test command detected.");
-        console.error("[Agent Runtime Guard] Review the full output before continuing — do not skip past failures.");
+        console.error("[Lilara] Build / test command detected.");
+        console.error("[Lilara] Review the full output before continuing — do not skip past failures.");
       }
     } catch {
       // Non-blocking by design.

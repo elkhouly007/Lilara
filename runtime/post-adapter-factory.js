@@ -72,8 +72,8 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // 1. Secret scan — warn if tool output contains a credential pattern.
         const hit = scanSecrets(text);
         if (hit) {
-          process.stderr.write(`[Agent Runtime Guard] Possible ${hit.name} detected in tool output.\n`);
-          process.stderr.write("[Agent Runtime Guard] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
+          process.stderr.write(`[Lilara] Possible ${hit.name} detected in tool output.\n`);
+          process.stderr.write("[Lilara] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
           try { hookLog(rateLimitKey, "WARN", hit.name); } catch { /* log I/O is non-fatal */ }
         }
 
@@ -91,7 +91,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
           if (expectedEnvelope && observedEnvelope) {
             const result = verify(expectedEnvelope, observedEnvelope, { enforceEnvDiff: true });
             if (!result.ok) {
-              process.stderr.write(`[Agent Runtime Guard] Execution envelope diverged after ${harnessName} tool run (${result.reason}).\n`);
+              process.stderr.write(`[Lilara] Execution envelope diverged after ${harnessName} tool run (${result.reason}).\n`);
               try {
                 append({
                   kind: "execution-envelope-diverged",

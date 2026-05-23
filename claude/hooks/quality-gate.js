@@ -75,7 +75,7 @@ readStdin()
       const command = commandTemplate.replace(/<file>/g, filePath);
 
       process.stderr.write(
-        `[Agent Runtime Guard] After editing ${filename}: run ${command} to check.\n`
+        `[Lilara] After editing ${filename}: run ${command} to check.\n`
       );
     } catch {
       // Malformed input — do not block.
