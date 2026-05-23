@@ -194,7 +194,7 @@ If you add them, document the module, make it opt-in, state what data may leave 
 | OpenCode | Supported | `opencode/` | `--tool opencode` | `opencode/WIRING_PLAN.md` |
 | OpenClaw | Supported | `openclaw/` | `--tool openclaw` | `openclaw/WIRING_PLAN.md` |
 | Codex | Planned | `codex/` | not yet supported | not yet available |
-| Claw Code | Planned | `clawcode/` | not yet supported | not yet available |
+| Claw Code | Supported (verified 2026-05-23) | `clawcode/` | `--tool clawcode` | `clawcode/WIRING_PLAN.md` |
 | antegravity | Planned | `antegravity/` | not yet supported | not yet available |
 
 Planned harnesses have stub directories with integration contract sketches but no active wiring. Passing `--tool codex` (or any planned harness name) to the setup wizard prints a clear "not yet supported" message rather than silently falling back to Claude. See each stub directory's `README.md` for the integration contract and known unknowns.

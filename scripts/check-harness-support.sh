@@ -29,14 +29,14 @@ done
 pass 'Supported harnesses present in matrix'
 
 # Planned harnesses must appear in the matrix as Planned
-for harness in 'Codex' 'Claw Code' 'antegravity'; do
+for harness in 'Codex' 'antegravity'; do
   grep -Fq "$harness" "$readme" || fail "README Harness Support Matrix missing planned harness: $harness"
 done
 pass 'Planned harnesses present in matrix'
 
 # Each planned harness must have a stub directory with README.md containing either
 # NOT YET SUPPORTED (legacy wording) or EXPERIMENTAL (promoted wording).
-for dir in codex clawcode antegravity; do
+for dir in codex antegravity; do
   stub_readme="$root/$dir/README.md"
   [ -f "$stub_readme" ] || fail "stub README missing: $dir/README.md"
   grep -qE 'NOT YET SUPPORTED|EXPERIMENTAL' "$stub_readme" || \
@@ -44,6 +44,17 @@ for dir in codex clawcode antegravity; do
   [ -f "$root/$dir/COMPATIBILITY_NOTES.md" ] || fail "stub COMPATIBILITY_NOTES missing: $dir/COMPATIBILITY_NOTES.md"
 done
 pass 'planned harness stub directories and status markers present'
+
+# ClawCode is now VERIFIED — it must NOT carry the planned-stub marker and
+# MUST carry a WIRING_PLAN.md authored against verified source.
+[ -f "$root/clawcode/README.md" ] || fail "clawcode/README.md missing"
+grep -qE 'NOT YET SUPPORTED|EXPERIMENTAL' "$root/clawcode/README.md" \
+  && fail "clawcode/README.md still carries planned-stub marker after verification (2026-05-23)"
+grep -qE 'VERIFIED' "$root/clawcode/README.md" \
+  || fail "clawcode/README.md missing VERIFIED marker"
+[ -f "$root/clawcode/WIRING_PLAN.md" ] || fail "clawcode/WIRING_PLAN.md missing — required for verified harness"
+[ -f "$root/clawcode/COMPATIBILITY_NOTES.md" ] || fail "clawcode/COMPATIBILITY_NOTES.md missing"
+pass 'clawcode verified directory layout present (README + WIRING_PLAN + COMPATIBILITY_NOTES)'
 
 # setup-wizard.sh must NOT silently fall back for unknown tools
 # It should contain codex|clawcode|antegravity rejection case (or exit 1 path)
@@ -54,7 +65,7 @@ pass 'setup-wizard.sh has planned-harness rejection path'
 # per-tool-apply-status.md must contain a Planned Harnesses section
 grep -Fq 'Planned Harnesses' "$apply_status" || fail 'per-tool-apply-status.md missing Planned Harnesses section'
 grep -Fq 'codex' "$apply_status" || fail 'per-tool-apply-status.md missing codex planned entry'
-grep -Fq 'clawcode' "$apply_status" || fail 'per-tool-apply-status.md missing clawcode planned entry'
+grep -Fq 'clawcode' "$apply_status" || fail 'per-tool-apply-status.md missing clawcode entry'
 grep -Fq 'antegravity' "$apply_status" || fail 'per-tool-apply-status.md missing antegravity planned entry'
 pass 'per-tool-apply-status.md has Planned Harnesses section with all three entries'
 

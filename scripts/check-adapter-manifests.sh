@@ -273,9 +273,11 @@ for (const harness of HARNESSES) {
     }
   }
 
-  // 10. verifiedAt — must be null or absent (no faked timestamps).
+  // 10. verifiedAt — null/absent until verified; otherwise a YYYY-MM-DD string.
   if ("verifiedAt" in m && m.verifiedAt !== null) {
-    fail(harness, `verifiedAt must be null until live verification lands; got ${JSON.stringify(m.verifiedAt)}`);
+    if (typeof m.verifiedAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.verifiedAt)) {
+      fail(harness, `verifiedAt must be null or a YYYY-MM-DD string; got ${JSON.stringify(m.verifiedAt)}`);
+    }
   }
 
   if (failed === 0 || ![...Array(failed).keys()].length /* always pass per-harness summary */) {
