@@ -48,7 +48,7 @@ It does not overwrite existing OpenClaw workspace files or global OpenClaw confi
 
 Current wiring includes both PreToolUse and PostToolUse. `openclaw/hooks/adapter.js` gates shell commands as PreToolUse; `openclaw/hooks/post-adapter.js` was added by Wave 1 A3 (merged in `3787b09`) and scans output for secrets and records external reads for the taint/provenance system.
 
-OpenClaw is an OpenCode fork and shares the same hook event model. PostToolUse wiring follows the same pattern as `opencode/hooks/output-sanitizer.js`. Verify the actual hook configuration path in your OpenClaw installation before wiring the PostToolUse event. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
+OpenClaw is an OpenCode fork and shares the same hook event model. PostToolUse wiring follows the same pattern as `opencode/hooks/post-adapter.js`. Verify the actual hook configuration path in your OpenClaw installation before wiring the PostToolUse event. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
 
 ## Target Paths
 
