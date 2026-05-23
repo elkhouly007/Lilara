@@ -1,8 +1,38 @@
 # Changelog
 
-All notable changes to Agent Runtime Guard are documented here.
+All notable changes to Lilara (formerly Horus Agentic Power / Agent Runtime Guard) are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
+
+---
+
+## [0.1.0] — 2026-05-24 — First Lilara release
+
+Rebrand from Horus Agentic Power (HAP) v3.1.0. Clean break — see MIGRATION.md for operator runbook.
+All prior versions documented under the HAP / Agent Runtime Guard name remain in this changelog as
+historical lineage; Lilara starts at 0.1.0.
+
+### Renamed
+
+- Product: Horus Agentic Power (HAP) → **Lilara**
+- CLI: `horus-cli.sh` → `lilara-cli.sh`; `horus-diff-decisions.sh` → `lilara-diff-decisions.sh`
+- Env vars: `HORUS_*` → `LILARA_*` (clean break — no backward-compat aliases)
+- State dir: `~/.horus/` → `~/.lilara/` (operators must `mv ~/.horus ~/.lilara`)
+- Config/contract files + schemas: `horus.*` → `lilara.*`
+- Contract ID prefix: `hap-` → `lilara-` (existing accepted contracts become invalid; re-acceptance required)
+- GitHub repo: `agent-runtime-guard` → `lilara`
+
+### Breaking
+
+- No backward-compatibility shims. `HORUS_*` env vars are **not** read.
+- Existing accepted contracts with `hap-` prefix require re-acceptance.
+- Operators must migrate state: `mv ~/.horus ~/.lilara`
+
+### Added
+
+- `scripts/lilara-rebrand.sh` — the 6-phase mechanical rename script (kept as tooling artifact)
+- `scripts/check-no-horus.sh` — permanent CI gate: fails if any stale HORUS/HAP brand token found
+- `scripts/lilara-rebrand-history.sh` — the historical ECC→Horus rename script (frozen reference)
 
 ---
 
