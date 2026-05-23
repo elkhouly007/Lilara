@@ -5,7 +5,24 @@
 // F10 taint floor. PostToolUse hooks cannot block; warns to stderr only.
 "use strict";
 
+const path = require("path");
 const { createPostAdapter } = require("../../runtime/post-adapter-factory");
-const ADAPTER_CAPABILITIES = { envelopeReporting: true };
-void ADAPTER_CAPABILITIES;
-createPostAdapter({ harnessName: "claude", rateLimitKey: "output-sanitizer", envelopeReporting: ADAPTER_CAPABILITIES.envelopeReporting });
+
+// Capabilities are sourced from claude/manifest.json so the hook and the
+// published capability manifest cannot drift. If the manifest is unreadable
+// at hook load (e.g. partial install), fall back to the conservative
+// envelopeReporting=false default — never assume more capability than the
+// manifest declares.
+let envelopeReporting = false;
+try {
+  const manifest = require(path.join(__dirname, "..", "manifest.json"));
+  envelopeReporting = manifest.envelopeReporting === true;
+} catch (_) {
+  // keep conservative default
+}
+
+createPostAdapter({
+  harnessName: "claude",
+  rateLimitKey: "output-sanitizer",
+  envelopeReporting,
+});
