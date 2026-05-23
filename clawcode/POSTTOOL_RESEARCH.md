@@ -1,109 +1,62 @@
-# Claw Code — PostToolUse Event Shape Research
+# Claw Code — PostToolUse Event Shape
 
-> **Status: UNVERIFIED.** All payload shapes below are inferred from PreToolUse patterns and by analogy with Claude Code. A contributor with access to a live Claw Code installation must verify the actual PostToolUse event format before any adapter can be wired in production.
+> **Status: VERIFIED — 2026-05-23.** Traced against ClawCode v0.1.3 source.
+> See [`WIRING_PLAN.md`](./WIRING_PLAN.md) for operator-facing wiring.
 
-## Background
+## Verified PostToolUse stdin payload
 
-The Claw Code PreToolUse adapter (`clawcode/hooks/adapter.js`) is the most tested of the three EXPERIMENTAL harnesses: `scripts/check-clawcode-adapter.sh` verifies 12 checks across 6 input shapes. The PreToolUse shapes (inferred, unverified) are:
-
-```json
-{ "command": "...", "cwd": "..." }
-{ "cmd": "...", "cwd": "..." }
-{ "tool_input": { "command": "..." } }
-```
-
-The PostToolUse event carries the **tool output** after execution. Claw Code's heritage and the tool's hook model determine the event format.
-
-## Hypothesised PostToolUse Shapes
-
-### Hypothesis A: Claude Code-compatible event model
-
-Claw Code may use the same hook event model as Claude Code:
+ClawCode fires PostToolUse (or `PostToolUseFailure` on tool error) via `_hook_engine.fire(...)` in `clawcode/llm/agent.py:1418-1438`. The `context` dict passed to the subprocess as stdin is:
 
 ```json
 {
-  "tool_use_id": "toolu_abc123",
+  "session_id": "<session id>",
+  "tool_call_id": "<tool call id>",
   "tool_name": "Bash",
-  "output": "<stdout of the command>",
-  "is_error": false
+  "tool_input": { "command": "...", "description": "..." },
+  "tool_output": "<stdout/stderr text from the tool execution>"
 }
 ```
 
-Output extraction path: `input.output || input.tool_output || input.content`.
+For `PostToolUseFailure`, the payload shape is identical — only the event name differs.
 
-### Hypothesis B: Claw Code-native output format
+## Verified PreToolUse stdin payload
 
-If Claw Code uses its own format matching its PreToolUse shape:
+`clawcode/llm/agent.py:1318-1323`:
 
 ```json
 {
-  "command": "<the command that ran>",
-  "result": "<stdout of the command>",
-  "exit_code": 0,
-  "cwd": "..."
+  "session_id": "<session id>",
+  "tool_call_id": "<tool call id>",
+  "tool_name": "Bash",
+  "tool_input": { "command": "...", "description": "..." }
 }
 ```
 
-Output extraction path: `input.result || input.output || input.stdout`.
+(No `tool_output` — that field appears only on PostToolUse.)
 
-### Hypothesis C: Minimal output envelope
+## Output protocol — IMPORTANT
 
-```json
-{
-  "exit_code": 0,
-  "output": "<stdout>",
-  "stderr": ""
-}
-```
+ClawCode's `_run_command_hook` (`clawcode/plugin/hooks.py:252-280`) reads the subprocess's STDOUT and tries to parse it as JSON. If the JSON carries `hookSpecificOutput.permissionDecision` (or `permissionDecision` at the top level — `hooks.py:43`), ClawCode honours the decision. The subprocess's **exit code is IGNORED**.
 
-Output extraction path: `input.output || input.stdout`.
+This applies to PreToolUse and PermissionRequest (the events that can block). PostToolUse output is observational; ClawCode does not act on its return.
 
-## How to Verify
+## Adapter implications
 
-1. Add a stub PostToolUse hook that captures stdin:
+- `clawcode/hooks/adapter.js` (PreToolUse) uses `harnessOutput: "permission-json"` so blocked tool calls actually fail in ClawCode. Without this, the previous adapter exited 2 but ClawCode allowed the command anyway.
+- `clawcode/hooks/post-adapter.js` (PostToolUse) uses the shared `createPostAdapter` factory and the default echo-stdin output. It scans `tool_output` via `runtime/secret-scan.js` and records external-source content into the provenance window via `runtime/taint.js`.
 
-```bash
-node -e "
-const fs = require('fs');
-const buf = [];
-process.stdin.on('data', d => buf.push(d));
-process.stdin.on('end', () => {
-  fs.appendFileSync('/tmp/clawcode-posttool.json', buf.join('') + '\n');
-  process.stdout.write(buf.join(''));
-});
-"
-```
+## What ARG extracts from PostToolUse
 
-2. Run a Claw Code session and invoke a shell command.
+`runtime/post-adapter-factory.js` reads:
 
-3. Inspect `/tmp/clawcode-posttool.json`.
+- `input.tool_name` -> matched against `EXTERNAL_TOOLS` (WebFetch, web_fetch, mcp, curl, wget, browser_action, Browser, fetch) for taint recording.
+- `input.tool_output` (fallback: `input.output`, `input.content`) -> scanned for the 23-pattern secret set via `runtime/secret-scan.scanSecrets()`. Warns to stderr on hit.
 
-4. Identify the output field path and any envelope keys.
+ClawCode's `tool_output` field maps directly to this -- no fallback needed for ClawCode. The fallback chain stays in place for cross-harness uniformity.
 
-5. File a PR updating this document with the verified shape and wiring instructions.
+## What is NOT verified
 
-## Suspected Output Field Priority
+- **MCP tool PostToolUse shape** -- when an MCP tool fires PostToolUse, the `tool_input` and `tool_output` schema for that tool is MCP-server-dependent. ARG's secret-scan operates on `tool_output` as plain text so this should be robust, but per-MCP-server verification has not been done.
+- **File-write tool output** -- for tools that return file contents (Read-equivalent) or write confirmations (Write/Edit-equivalent), the `tool_output` shape varies. ARG falls through to `collectText(input)` which recursively gathers all string values -- covers most cases but not formally enumerated against ClawCode.
 
-Based on the Claude Code output-sanitizer pattern and the Claw Code PreToolUse shape, the recommended extraction fallback chain for a Claw Code post-adapter would be:
-
-```javascript
-const outputText = String(
-  input.output ||
-  input.result ||
-  input.tool_output ||
-  input.content ||
-  input.stdout ||
-  ""
-);
-```
-
-## Current Adapter Coverage
-
-| Event | Coverage |
-|---|---|
-| PreToolUse (shell gate) | EXPERIMENTAL — `clawcode/hooks/adapter.js` (most tested EXPERIMENTAL harness) |
-| PostToolUse (output scan) | NOT WIRED — pending verification (see PR #13 for implementation once A3 merges) |
-
-## Relation To ASI05 Coverage
-
-Until PostToolUse is verified and wired for Claw Code, ASI05 (Improper Output Handling) carries a documented limitation for this harness. See `references/owasp-agentic-coverage.md` ASI05 row for the current status.
+These are not blockers for production use. They are mark-down items for future PRs.

@@ -356,11 +356,15 @@ function loadManifest(harness) {
  *   action-ir to populate trustMeta + outputChannels. HAP ADR-007 PR-B; pass
  *   `() => loadManifest("<harness>")` for the standard manifest-backed adapter.
  */
-function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false, extractTrustMeta = null }) {
+function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extractTool, envelopeReporting = false, extractTrustMeta = null, harnessOutput = "echo" }) {
   const { runPreToolGate } = require(path.join(__dirname, "..", "..", "runtime", "pretool-gate"));
   readStdin()
     .then((raw) => {
-      if (!rateLimitCheck(rateLimitKey)) { process.stdout.write(raw); return; }
+      if (!rateLimitCheck(rateLimitKey)) {
+        if (harnessOutput === "permission-json") process.stdout.write("{}");
+        else process.stdout.write(raw);
+        return;
+      }
       let input = {};
       try { input = JSON.parse(raw || "{}"); } catch { /* malformed — proceed with empty */ }
       let manifest = null;
@@ -383,7 +387,35 @@ function createAdapter({ harness, rateLimitKey, extractCommand, extractCwd, extr
       if (logAction && logHitName) {
         try { hookLog(rateLimitKey, logAction, logHitName); } catch { /* non-fatal */ }
       }
-      process.stdout.write(raw);
+      // Two adapter output protocols are supported:
+      //   "echo" (default): stdout = raw stdin, exit 2 = block. Used by harnesses
+      //     that read the exit code: Claude Code, OpenCode, OpenClaw, Codex,
+      //     Antegravity.
+      //   "permission-json": stdout = `{}` (allow) or
+      //     `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"..."}}`
+      //     (block). Used by ClawCode, which parses stdout JSON for the decision
+      //     and ignores the exit code. Verified against clawcode/plugin/hooks.py
+      //     lines 38-51 (decision extraction) and 252-280 (subprocess invocation).
+      //     Exit 2 is still emitted on block for cross-harness consistency.
+      if (harnessOutput === "permission-json") {
+        if (exitCode !== 0) {
+          const reasonLine = stderrLines.find((l) => /Reason:/.test(l))
+            || stderrLines.find((l) => /BLOCKED/.test(l))
+            || stderrLines[0]
+            || "Blocked by Agent Runtime Guard";
+          const reason = String(reasonLine).replace(/^\[Agent Runtime Guard\]\s*/, "").slice(0, 500);
+          process.stdout.write(JSON.stringify({
+            hookSpecificOutput: {
+              permissionDecision: "deny",
+              permissionDecisionReason: reason,
+            },
+          }));
+        } else {
+          process.stdout.write("{}");
+        }
+      } else {
+        process.stdout.write(raw);
+      }
       if (exitCode !== 0) process.exit(exitCode);
     })
     .catch(() => process.exit(0));

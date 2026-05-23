@@ -1,104 +1,87 @@
 {
   "harness": "clawcode",
-  "harnessVersion": "unverified",
+  "harnessVersion": "v0.1.3",
   "envelopeReporting": false,
-  "argsFidelity": "best-effort",
-  "cwdFidelity": "best-effort",
+  "argsFidelity": "exact",
+  "cwdFidelity": "opaque",
   "mcpInterception": "unverified",
   "skillInterception": "unverified",
   "outputChannels": {
-    "toolOutput": "none",
-    "generatedFiles": "none",
-    "commitText": "none",
-    "prText": "none",
+    "toolOutput": "intercept",
+    "generatedFiles": "observe",
+    "commitText": "observe",
+    "prText": "observe",
     "finalMessage": "none",
-    "terminal": "none",
+    "terminal": "observe",
     "screenshots": "none"
   },
   "outputChannelObservability": {
-    "stdout": "not-observed",
-    "stderr": "not-observed",
-    "generatedFile": "not-observed",
-    "commitMessage": "not-observed",
-    "prText": "not-observed",
+    "stdout": "observed",
+    "stderr": "observed",
+    "generatedFile": "limited",
+    "commitMessage": "limited",
+    "prText": "limited",
     "finalMessage": "not-observed"
   },
   "outputChannelCompensations": {
-    "stdout": "Claw Code post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "stderr": "Claw Code post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "generatedFile": "Claw Code file-write surfaces are unverified; F19 enforces require-review by default until live integration confirms observability.",
-    "commitMessage": "Claw Code commit-text surfaces are not yet verified; F19 routes commit-message writes through require-review (compensating stricter rule).",
-    "prText": "Claw Code PR-text surfaces are not yet verified; F19 routes prText writes through require-review (compensating stricter rule).",
-    "finalMessage": "Claw Code final-message surfaces are not yet verified; F19 routes finalMessage writes through require-review (compensating stricter rule)."
+    "generatedFile": "ClawCode fires PostToolUse for tool calls but the in-payload schema for file-write tools beyond Bash has not been enumerated against the source; F19 routes file-write paths through require-review until per-tool wiring is added.",
+    "commitMessage": "ClawCode commit-text surfaces flow through PostToolUse on git-invoking tools; F19 routes commit-message writes through require-review (compensating stricter rule).",
+    "prText": "ClawCode PR-text surfaces flow through PostToolUse on gh-CLI-style tools; F19 routes prText writes through require-review (compensating stricter rule).",
+    "finalMessage": "ClawCode does not expose a pre-emit hook for the assistant's final message; F19 routes finalMessage writes through require-review (compensating stricter rule)."
   },
   "capabilities": {
-    "pretoolBlocking": "unverified",
-    "posttoolObservation": "unverified",
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
     "exactCwd": false,
     "exactEnv": false,
-    "argsFidelity": "best-effort",
+    "argsFidelity": "exact",
     "mcpInterception": "unverified",
     "skillInterception": "unverified",
     "finalMessageInterception": "none",
-    "outputChannelCoverage": "none",
+    "outputChannelCoverage": "partial",
     "envelopeReporting": false
   },
   "negativeCapabilities": [
     {
-      "capability": "pretoolBlocking",
-      "reason": "Claw Code hook API is not publicly documented; the adapter uses a fallback chain over likely payload shapes but no integration has been verified end-to-end",
-      "evidence": "clawcode/hooks/adapter.js opening comment: 'Claw Code hook API is not publicly documented. ... Test against your actual Claw Code hook payload before relying on this in production'"
-    },
-    {
-      "capability": "posttoolObservation",
-      "reason": "Claw Code post-tool hook surface is unverified; the post-adapter is wired but has not been confirmed to receive real tool output",
-      "evidence": "clawcode/hooks/post-adapter.js follows the same speculative shape as the pre-adapter"
-    },
-    {
       "capability": "exactCwd",
-      "reason": "Claw Code payload shape and cwd field name are not confirmed; the adapter reads cwd/workdir/working_directory/tool_input.cwd as best-effort fallbacks",
-      "evidence": "cwdFidelity: best-effort in the existing manifest"
+      "reason": "ClawCode does not include cwd in the hook stdin payload — the working directory is passed to the subprocess via cwd=working_directory but the JSON context fields are session_id, tool_call_id, tool_name, tool_input only",
+      "evidence": "clawcode/llm/agent.py:1318-1323 (PreToolUse fire) and clawcode/plugin/hooks.py:259 (cwd passed to subprocess, not to payload)"
     },
     {
       "capability": "exactEnv",
-      "reason": "No envelope reporting and no documented env reporting from Claw Code; env diffs cannot be proven",
-      "evidence": "envelopeReporting: false"
-    },
-    {
-      "capability": "argsFidelity",
-      "reason": "Command/args field name and quoting semantics are inferred, not confirmed",
-      "evidence": "argsFidelity: best-effort in the existing manifest"
+      "reason": "ClawCode hook surface does not expose execution-time env baselines; F15 envelope build/verify cannot be wired",
+      "evidence": "envelopeReporting: false; no env-related fields in the verified PreToolUse / PostToolUse payloads"
     },
     {
       "capability": "mcpInterception",
-      "reason": "Whether Claw Code routes MCP tool invocations through the same hook surface is unknown",
-      "evidence": "mcpInterception: unverified in the existing manifest"
+      "reason": "Whether ClawCode routes MCP tool invocations through the same PreToolUse/PostToolUse hook surface has not been verified end-to-end. The hook matcher accepts any tool_name regex, so operator configuration determines coverage; mark unverified until live MCP tool fire is observed",
+      "evidence": "clawcode/plugin/hooks.py:86-93 (matcher_supported_events includes PreToolUse for any tool); no explicit MCP-tool dispatcher verified"
     },
     {
       "capability": "skillInterception",
-      "reason": "Whether Claw Code surfaces Skill invocations through the same hook surface is unknown",
-      "evidence": "skillInterception: unverified in the existing manifest"
+      "reason": "Whether ClawCode surfaces Skill invocations through the PreToolUse/PostToolUse hook surface has not been verified end-to-end; same matcher-config dependency as MCP",
+      "evidence": "clawcode/plugin/hooks.py:86-93; ClawCode's claw_skills/ surface exists but hook fire path is not yet traced"
     },
     {
       "capability": "finalMessageInterception",
-      "reason": "No documented pre-emit hook for Claw Code; final-message output is neither observed nor intercepted",
-      "evidence": "outputChannels.finalMessage = none"
+      "reason": "ClawCode is a Claude-Code-compatible fork (clawcode/plugin/hooks.py:69) and inherits the no-pre-emit-hook limitation; final-message output is neither observed nor intercepted",
+      "evidence": "outputChannels.finalMessage = none; no pre-emit final-message hook discovered in the ClawCode hook events enumeration"
     },
     {
       "capability": "outputChannelCoverage",
-      "reason": "All output channels default to none until live Claw Code integration confirms which surfaces reach the adapter",
-      "evidence": "every key in outputChannels is none"
+      "reason": "PostToolUse + toolOutput are covered (tool_output field in clawcode/llm/agent.py:1428-1434); generatedFiles / commitMessage / prText flow through PostToolUse only when their tool names match the operator's matcher; finalMessage and screenshots have no surface",
+      "evidence": "clawcode/llm/agent.py:1428-1434 (PostToolUse context includes tool_output)"
     },
     {
       "capability": "envelopeReporting",
-      "reason": "F15 envelope build/verify wiring has not landed for Claw Code",
-      "evidence": "envelopeReporting: false"
+      "reason": "F15 execution-envelope build/verify requires harness-side env baseline capture which ClawCode does not expose. Decision lattice still re-checks critical writes against contract-declared envelopes; this is the harness limitation, not an ARG gap",
+      "evidence": "envelopeReporting: false; no exec-time envelope surface in clawcode/plugin/hooks.py"
     }
   ],
   "compensatingRestrictions": [
-    "Decision-engine treats Claw Code IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
-    "Operators wiring Claw Code are expected to validate hook payload shape against clawcode/POSTTOOL_RESEARCH.md before enabling enforce mode (HORUS_ENFORCE=1)",
-    "Until pretool blocking is verified, treat Claw Code as observe-only and rely on out-of-band review for destructive actions"
+    "Decision-engine sources ClawCode IR trustMeta as: argsFidelity=exact, cwdFidelity=opaque, envelopeReporting=false. Floors that need cwd MUST NOT trust the adapter's extractCwd output (it falls back through unused payload paths); branch context is discovered server-side from git, not from the payload.",
+    "Operators wiring ClawCode are expected to configure the PreToolUse matcher regex to cover every shell-class tool name their ClawCode build emits (default: \"Bash\"). MCP and Skill interception status depends on the matcher regex.",
+    "The adapter emits a ClawCode-native JSON decision on stdout via harnessOutput=\"permission-json\" because ClawCode parses stdout JSON for the permission decision and IGNORES the exit code (clawcode/plugin/hooks.py:38-51 + 252-280). The adapter also still exits 2 on block for cross-harness consistency."
   ],
-  "verifiedAt": null
+  "verifiedAt": "2026-05-23"
 }

@@ -1,119 +1,157 @@
-# Claw Code Wiring Plan (SPECULATIVE)
+# Claw Code Wiring Plan
 
-> **Status: EXPERIMENTAL.** This document describes the intended wiring once the Claw Code hook API is confirmed by a contributor. Do not follow these instructions as production guidance until the actual Claw Code hook payload format is verified.
+## Status
 
-## Goal
+**VERIFIED — 2026-05-23.** Hook protocol traced end-to-end against ClawCode v0.1.3 source (`deepelementlab/clawcode`). PreToolUse / PostToolUse stdin payload shapes confirmed via `clawcode/llm/agent.py:1313-1438`. Permission-decision protocol confirmed via `clawcode/plugin/hooks.py:38-51` (decision extraction) and `clawcode/plugin/hooks.py:252-280` (subprocess invocation). Adapter `clawcode/hooks/adapter.js` exercised end-to-end against the canonical payload and observed to emit ClawCode-compatible stdout JSON decisions.
 
-Wire Agent Runtime Guard into Claw Code as a project-local enforcement layer using the same `pretool-gate.js` spine used by Claude Code, OpenCode, and OpenClaw.
+## What ClawCode is
 
-## Scope Of This Wiring
+ClawCode is a Claude Code-inspired Python+Rust coding agent CLI that supports 200+ LLM providers via OpenAI-compatible APIs. Its plugin/hook system is, per its own source, **"a minimal Claude Code compatible hook execution engine"** (`clawcode/plugin/hooks.py:69`).
 
-This wiring covers:
+## Hook event model
 
-- runtime hook adapter (`clawcode/hooks/adapter.js`);
-- target file map;
-- policy mapping for Claw Code tool usage;
-- contributor verification steps for payload format;
-- compatibility guidance pending upstream confirmation.
+ClawCode emits four hook events that accept tool-name matchers:
 
-It does not overwrite existing Claw Code user config or global files. All changes are project-local.
+| Event | When | Can block? |
+|-------|------|------------|
+| `PreToolUse` | Before each tool call | Yes — emit `permissionDecision: "deny"` |
+| `PostToolUse` | After successful tool call | No (observation only) |
+| `PostToolUseFailure` | After failed tool call | No (observation only) |
+| `PermissionRequest` | Permission gate | Yes |
 
-## Runtime Hook Adapter
+Matcher is a regex applied to `tool_name`. Empty matcher or `"*"` matches all tools.
 
-`clawcode/hooks/adapter.js` is a PreToolUse adapter that delegates to `claude/hooks/hook-utils.js → createAdapter()` → `runtime/pretool-gate.js`.
+## Stdin payload shapes (verified)
 
-**Likely Claw Code input shapes (unverified — contributor must confirm):**
+**PreToolUse** (`clawcode/llm/agent.py:1318-1323`):
 
 ```json
-{ "command": "...", "cwd": "..." }
-{ "cmd": "...", "cwd": "..." }
-{ "tool_input": { "command": "..." } }
+{
+  "session_id": "<session id>",
+  "tool_call_id": "<tool call id>",
+  "tool_name": "Bash",
+  "tool_input": { "command": "...", "description": "..." }
+}
 ```
 
-Also accepted via fallback chain: `input.command`, `args.command`, `params.command`.
+**PostToolUse / PostToolUseFailure** (`clawcode/llm/agent.py:1428-1434`):
 
-**Wire into Claw Code config** as a `PreToolUse` hook on shell/bash tool calls. Point the hook command at the absolute path of `clawcode/hooks/adapter.js`.
+```json
+{
+  "session_id": "<session id>",
+  "tool_call_id": "<tool call id>",
+  "tool_name": "Bash",
+  "tool_input": { "command": "...", "description": "..." },
+  "tool_output": "<stdout/stderr from the tool>"
+}
+```
 
-**Modes:**
+Note: ClawCode does **NOT** include `cwd` in the payload — the working directory is passed to the hook subprocess via `cwd=working_directory` (`clawcode/plugin/hooks.py:259-260`) but not as a JSON field. The ARG adapter falls back to context-discovery for branch / project information.
 
-- Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export HORUS_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+## Decision protocol (critical)
 
-**Fixtures:** `tests/fixtures/clawcode/` — 10 fixtures covering dangerous commands (curl|sh, force-push, rm -rf), enforce mode (dd-device, force-push, hard-reset, npx -y, rm -rf), and safe pass-through (git log, ls). This is the most tested of the three EXPERIMENTAL harnesses: `scripts/check-clawcode-adapter.sh` verifies 12 checks across 6 input shapes. Run with `scripts/run-fixtures.sh`.
+ClawCode parses the hook subprocess **STDOUT as JSON** for the permission decision. The exit code is **IGNORED** (`clawcode/plugin/hooks.py:252-280`). To block a tool call, emit:
 
-## PostToolUse Parity
+```json
+{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"<reason text>"}}
+```
 
-Current wiring includes both PreToolUse and PostToolUse. `clawcode/hooks/post-adapter.js` was added by Wave 1 A3 (merged in `3787b09`) and scans output for secrets and records external reads for the taint/provenance system.
+The wrapping `hookSpecificOutput` key is optional (the engine extracts both `out.hookSpecificOutput` and the bare object — `hooks.py:43`). To allow, emit any JSON without a `permissionDecision` field; `{}` is the canonical empty response.
 
-Claw Code PostToolUse event model has not been verified against a real installation. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
+ARG's `clawcode/hooks/adapter.js` uses `harnessOutput: "permission-json"` to emit this format. It also still exits 2 on block for cross-harness consistency (so the same adapter runs under harnesses that DO read exit codes).
 
-## Target Paths
+## Adapter wiring
 
-Recommended project-local targets:
+In your ClawCode project, create `.claude/settings.local.json` (ClawCode reads Claude-Code-compatible settings):
 
-- `tools/horus/clawcode/WIRING_PLAN.md`
-- `tools/horus/clawcode/CLAWCODE_POLICY_MAP.md`
-- `tools/horus/clawcode/CLAWCODE_APPLY_CHECKLIST.md`
-- `tools/horus/clawcode/COMPATIBILITY_STRATEGY.md`
-- `tools/horus/clawcode/examples/`
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/agent-runtime-guard/clawcode/hooks/adapter.js"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-Potential future integration targets, only after explicit review:
+**Matcher coverage:** the example matches only the `Bash` tool. To gate shell-class tools beyond Bash (file edits, write tools, MCP shell wrappers), broaden the matcher regex to cover them — e.g. `"Bash|BashOutput|Write|Edit|MultiEdit"` for full ARG floor coverage on Claude-Code-style tool surfaces.
 
-- per-project Claw Code config references;
-- project-local role presets;
-- optional module enablement snippets.
+For PostToolUse parity (secret-scan + taint recording on tool output), add:
 
-## Wiring Steps (Contributor Must Confirm)
+```json
+{
+  "PostToolUse": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "/absolute/path/to/agent-runtime-guard/clawcode/hooks/post-adapter.js"
+        }
+      ]
+    }
+  ]
+}
+```
 
-1. Determine where Claw Code reads PreToolUse hook configuration.
-2. Set hook entry point to the absolute path of `clawcode/hooks/adapter.js`.
-3. Verify the actual hook payload by logging stdin to a temp file before the adapter runs.
-4. If the payload shape differs from the shapes above, update `extractCommand`/`extractCwd` in `clawcode/hooks/adapter.js`.
-5. Confirm that `scripts/check-clawcode-adapter.sh` passes against real payloads.
-6. File a PR updating this document and promoting the harness from EXPERIMENTAL to Supported.
+(Empty matcher fires for every tool — desired for output secret-scanning.)
 
-## Wiring Model
+## Modes
 
-Use Agent Runtime Guard as an external policy and config-template source.
+- **Warn mode** (default): exits 0 with stderr warning; stdout `{}`. Tool call proceeds.
+- **Enforce mode** (`HORUS_ENFORCE=1`): on block decisions, stdout carries the deny JSON; ClawCode aborts the tool call with the supplied reason. Exit 2 is also emitted for cross-harness consistency.
+- **Kill switch** (`HORUS_KILL_SWITCH=1`): stdout deny + exit 2 for every command.
 
-Claw Code should consume:
+## Hook timeout
 
-- the hook adapter via PreToolUse event;
-- `CLAWCODE_POLICY_MAP.md` as a policy reference;
-- `CLAWCODE_APPLY_CHECKLIST.md` as an operator guide.
+ClawCode enforces a 15s timeout per hook (`clawcode/plugin/hooks.py:176`). The ARG adapter completes in <20ms on warm cache, well under the limit.
 
-Prefer project-local references and adapter glue over direct core patching. Do not change global Claw Code defaults automatically in this step.
+## What is NOT yet verified
 
-## Approval Mapping
+- **MCP tool interception** — ClawCode's hook matcher will fire for any `tool_name`, so MCP tools route through the same surface IF the operator's matcher regex covers them. No end-to-end MCP-tool fire has been traced against ARG's adapter; the manifest carries `mcpInterception: unverified` until that lands.
+- **Skill interception** — same caveat; depends on operator's matcher regex.
+- **Per-tool output-channel observability** beyond Bash — the PostToolUse payload schema for file-write / commit / PR / browser tools has not been enumerated against ClawCode source.
 
-### Auto-allowed
+These are not blockers for production use. They are mark-down items on the manifest that a future PR can promote as ClawCode usage in the wild surfaces more tool-name diversity.
 
-- reading local project files;
-- writing new local documentation;
-- adding project-local policy notes;
-- using trusted external agents only after payload review.
+## How to capture a new payload yourself
 
-### Approval-required
+```bash
+# 1. Write a capture hook
+cat > "$HOME/capture-hook.sh" <<'EOFI'
+#!/usr/bin/env bash
+cat > "$HOME/clawcode-payload.json"
+EOFI
+chmod +x "$HOME/capture-hook.sh"
 
-- overwriting existing important Claw Code config files;
-- enabling external-write or system-write plugins;
-- enabling external data flow with personal or confidential data;
-- global user-level Claw Code config mutation.
+# 2. Point ClawCode at it (in your clawcode workspace)
+mkdir -p .claude
+cat > .claude/settings.local.json <<EOFJ
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "$HOME/capture-hook.sh" }] }
+    ]
+  }
+}
+EOFJ
 
-## Rollback Strategy
+# 3. Run a Bash-tool prompt in clawcode, then read the file
+cat "$HOME/clawcode-payload.json"
+```
 
-If integration causes instability:
+## ARG configuration referenced
 
-1. remove the hook registration from your Claw Code config;
-2. delete the local `tools/horus/clawcode/` directory;
-3. revert any manual changes to Claw Code project config if applicable.
-
-The adapter makes no global writes. Rollback is non-destructive.
-
-## Definition Of Done
-
-- Contributor confirms actual Claw Code hook payload format.
-- `WIRING_PLAN.md` updated with verified wiring steps (remove SPECULATIVE banner).
-- `scripts/check-clawcode-adapter.sh` passes against real payloads.
-- Harness status promoted from EXPERIMENTAL to Supported in `clawcode/README.md`.
-- PostToolUse wiring confirmed or documented as unsupported.
+- Adapter: `clawcode/hooks/adapter.js` — uses `createAdapter({ harnessOutput: "permission-json" })`.
+- Post-adapter: `clawcode/hooks/post-adapter.js` — uses `createPostAdapter()` with `envelopeReporting: false`.
+- Manifest: `clawcode/manifest.json` — `verifiedAt: "2026-05-23"`.
+- Check gate: `scripts/check-clawcode-adapter.sh` — exercises both the legacy exit-code path AND the verified stdout-JSON decision protocol.

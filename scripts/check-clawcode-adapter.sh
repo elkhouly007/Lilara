@@ -149,4 +149,68 @@ printf '{"command":"ls -la"}' \
 [ "$actual_exit" -eq 2 ] || fail "kill-switch: expected exit 2 on safe command, got $actual_exit"
 pass "kill-switch: safe command blocked (exit 2) when HORUS_KILL_SWITCH=1"
 
+# ── 13: verified PreToolUse shape: tool_input.command extraction ─────────────
+# ClawCode's canonical PreToolUse payload (clawcode/llm/agent.py:1318-1323):
+#   { session_id, tool_call_id, tool_name, tool_input: { command, description? } }
+actual_exit=0
+printf '{"session_id":"s","tool_call_id":"t","tool_name":"Bash","tool_input":{"command":"rm -rf /home/user/data","description":"delete data"}}' \
+  | HORUS_RATE_LIMIT=0 node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "verified shape (warn mode): expected exit 0, got $actual_exit"
+grep -qF 'rm recursive force' "$tmp_stderr" \
+  || fail "verified shape: 'rm recursive force' not found (tool_input.command not extracted from canonical payload)"
+pass "verified ClawCode payload shape: tool_input.command extracted"
+
+# ── 14: harnessOutput=permission-json — allow case emits `{}` on stdout ──────
+# ClawCode parses stdout JSON for the decision (clawcode/plugin/hooks.py:279-280)
+# and IGNORES the exit code. Allow case must emit `{}` (no permissionDecision
+# field) so ClawCode honours the allow.
+tmp_stdout="$(mktemp)"
+trap 'rm -f "$tmp_stderr" "$tmp_stdout"' EXIT
+actual_exit=0
+printf '{"session_id":"s","tool_call_id":"t","tool_name":"Bash","tool_input":{"command":"ls -la"}}' \
+  | HORUS_RATE_LIMIT=0 node "$adapter" > "$tmp_stdout" 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "permission-json allow: expected exit 0, got $actual_exit"
+stdout_content="$(cat "$tmp_stdout")"
+[ "$stdout_content" = "{}" ] \
+  || fail "permission-json allow: stdout must be '{}' for ClawCode allow; got: $stdout_content"
+pass "permission-json allow case: stdout = '{}' (ClawCode honours as allow)"
+
+# ── 15: harnessOutput=permission-json — block case emits deny JSON on stdout ─
+# Enforce-mode block must emit valid JSON with permissionDecision=deny so
+# ClawCode aborts the tool call. Exit 2 is also emitted for cross-harness
+# consistency.
+actual_exit=0
+printf '{"session_id":"s","tool_call_id":"t","tool_name":"Bash","tool_input":{"command":"rm -rf /home/user/data"}}' \
+  | HORUS_RATE_LIMIT=0 HORUS_ENFORCE=1 node "$adapter" > "$tmp_stdout" 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 2 ] || fail "permission-json block: expected exit 2, got $actual_exit"
+stdout_content="$(cat "$tmp_stdout")"
+# Validate JSON shape via node reading from stdin (avoids Windows temp-path quoting issues).
+echo "$stdout_content" | node -e '
+  let d = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", c => d += c);
+  process.stdin.on("end", () => {
+    let p;
+    try { p = JSON.parse(d.trim()); } catch (e) { console.error("not JSON:", d); process.exit(1); }
+    const out = p.hookSpecificOutput || p;
+    if (out.permissionDecision !== "deny") { console.error("permissionDecision != deny:", out); process.exit(1); }
+    if (typeof out.permissionDecisionReason !== "string" || !out.permissionDecisionReason.length) {
+      console.error("missing permissionDecisionReason:", out); process.exit(1);
+    }
+  });
+' 2>"$tmp_stderr" || fail "permission-json block: stdout is not valid ClawCode deny JSON: $stdout_content"
+pass "permission-json block case: stdout = ClawCode deny JSON; exit 2 for cross-harness consistency"
+
+# ── 16: harnessOutput=permission-json — kill-switch emits deny JSON ──────────
+actual_exit=0
+printf '{"session_id":"s","tool_call_id":"t","tool_name":"Bash","tool_input":{"command":"ls"}}' \
+  | HORUS_RATE_LIMIT=0 HORUS_KILL_SWITCH=1 node "$adapter" > "$tmp_stdout" 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 2 ] || fail "kill-switch permission-json: expected exit 2, got $actual_exit"
+stdout_content="$(cat "$tmp_stdout")"
+case "$stdout_content" in
+  *permissionDecision*deny*) ;;
+  *) fail "kill-switch permission-json: stdout missing deny decision: $stdout_content" ;;
+esac
+pass "kill-switch permission-json: stdout = ClawCode deny JSON"
+
 printf '\nClaw Code adapter checks passed.\n'

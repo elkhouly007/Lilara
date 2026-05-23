@@ -69,8 +69,8 @@ Real gaps, ordered by security and operability impact. None are on a fixed timel
 
 ### Medium priority
 
-**Codex / ClawCode / Antegravity adapter verification.**
-Three of the six listed harnesses are best-effort stubs with broad input-shape fallback chains. Once a contributor confirms the actual hook payload shape for any of these harnesses, the adapter can be tightened and the harness promoted from "NOT YET SUPPORTED" to "Supported". Per-adapter `POSTTOOL_RESEARCH.md` and `COMPATIBILITY_NOTES.md` already exist as the staging surface.
+**Codex / Antegravity adapter verification.**
+Two of the six listed harnesses are best-effort stubs with broad input-shape fallback chains. Once a contributor confirms the actual hook payload shape for either of these harnesses, the adapter can be tightened and the harness promoted from "NOT YET SUPPORTED" to "Supported". Per-adapter `POSTTOOL_RESEARCH.md` and `COMPATIBILITY_NOTES.md` already exist as the staging surface. **ClawCode was verified 2026-05-23** — see `clawcode/WIRING_PLAN.md`; source-traced against `deepelementlab/clawcode` v0.1.3, adapter exercised end-to-end, harness promoted to Verified.
 
 **OpenClaw PostToolUse parity.**
 Same deferral as OpenCode but for the OpenClaw harness; PostToolUse event model is unverified upstream.
