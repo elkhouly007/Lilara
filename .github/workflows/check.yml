@@ -161,6 +161,9 @@ jobs:
       - name: Kill-switch (all 13 hooks)
         run: bash scripts/check-kill-switch.sh
 
+      - name: Pressure tests (structural check)
+        run: bash scripts/check-pressure-tests.sh
+
       - name: Decide-on-every-call (C1 regression guard)
         run: LILARA_STATE_DIR=$(mktemp -d) bash scripts/check-decide-on-every-call.sh
 
