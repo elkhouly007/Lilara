@@ -27,7 +27,7 @@ EXPECTED_AGENTS=49
 EXPECTED_RULES=82
 EXPECTED_SKILLS=22         # excludes agents/README.md style files
 EXPECTED_HOOKS=13          # JS files in claude/hooks/
-EXPECTED_FIXTURES=351      # fixture pairs (count of *.input files)
+EXPECTED_FIXTURES=359      # fixture pairs (count of *.input files); +8 for ADR-016 F21 corpus
 EXPECTED_SCRIPTS=86        # sh + js files in scripts/ (top-level only)
 
 # ---------------------------------------------------------------------------

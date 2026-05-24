@@ -56,7 +56,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 # 6. Run runtime and structural checks, including install and apply-status verification:
 ./scripts/lilara-cli.sh check
 
-# 7. Run all 351 fixture-based tests:
+# 7. Run all 359 fixture-based tests:
 ./scripts/lilara-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
