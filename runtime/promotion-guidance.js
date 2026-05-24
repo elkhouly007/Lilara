@@ -51,7 +51,7 @@ function evaluate(policyFacts = {}, risk = {}) {
       approvalCount,
       remaining: 0,
       guidance: "This pattern is an active learned allow. It will proceed automatically at this risk level.",
-      cliHint: policyKey ? `horus-cli.sh runtime state  # review active learned allows` : null,
+      cliHint: policyKey ? `lilara-cli.sh runtime state  # review active learned allows` : null,
     };
   }
 
@@ -61,7 +61,7 @@ function evaluate(policyFacts = {}, risk = {}) {
       approvalCount,
       remaining: 0,
       guidance: `This pattern has ${approvalCount} approvals and a pending suggestion. Promote it to a reviewed local default when you are ready.`,
-      cliHint: policyKey ? `horus-cli.sh runtime promote '${policyKey}'` : null,
+      cliHint: policyKey ? `lilara-cli.sh runtime promote '${policyKey}'` : null,
     };
   }
 
@@ -72,7 +72,7 @@ function evaluate(policyFacts = {}, risk = {}) {
       approvalCount,
       remaining,
       guidance: `This pattern has ${approvalCount}/${PROMOTION_THRESHOLD} approvals. ${remaining} more will make it eligible for a reviewed local default.`,
-      cliHint: policyKey ? `horus-cli.sh runtime record-approval --tool <tool> --command '<cmd>' --target <path>  # record next approval` : null,
+      cliHint: policyKey ? `lilara-cli.sh runtime record-approval --tool <tool> --command '<cmd>' --target <path>  # record next approval` : null,
     };
   }
 
@@ -83,7 +83,7 @@ function evaluate(policyFacts = {}, risk = {}) {
       approvalCount,
       remaining: 0,
       guidance: `This pattern has ${approvalCount} approvals but its suggestion was previously dismissed. Re-record an approval to regenerate the suggestion.`,
-      cliHint: policyKey ? `horus-cli.sh runtime record-approval --tool <tool> --command '<cmd>' --target <path>` : null,
+      cliHint: policyKey ? `lilara-cli.sh runtime record-approval --tool <tool> --command '<cmd>' --target <path>` : null,
     };
   }
 

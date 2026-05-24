@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-replay-corpus.sh — HAP ADR-007 PR-D replay corpus regression gate.
+# check-replay-corpus.sh — Lilara ADR-007 PR-D replay corpus regression gate.
 #
 # Replays tests/fixtures/replay-corpus/*.jsonl through the current decision
 # engine via scripts/replay-decisions.js. Each entry's recorded action,
@@ -14,8 +14,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf '[check-replay-corpus] node not found — skipping (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf '[check-replay-corpus] node not found — skipping (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf '[check-replay-corpus] node not found on PATH\n' >&2

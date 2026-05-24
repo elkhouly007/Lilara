@@ -1,6 +1,6 @@
 # action-ir fixtures
 
-Baseline fixtures for `runtime/action-ir.js` (HAP ADR-007 PR-A).
+Baseline fixtures for `runtime/action-ir.js` (Lilara ADR-007 PR-A).
 
 PR-A scope: shape + helpers exist; no adapter wiring yet. The current
 fixtures here document EMPTY_IR for human review; PR-B will add a

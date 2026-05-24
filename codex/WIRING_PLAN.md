@@ -36,7 +36,7 @@ Also accepted via fallback chain: `cmd`, `tool_input.command`, `input.command`, 
 **Modes:**
 
 - Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export HORUS_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+- Block mode: `export LILARA_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
 
 **Fixtures:** `tests/fixtures/codex/` — 10 fixtures covering dangerous commands (curl|sh, force-push, rm -rf), enforce mode (dd-device, force-push, hard-reset, npx -y, rm -rf), and safe pass-through (git log, ls). Run with `scripts/run-fixtures.sh`.
 

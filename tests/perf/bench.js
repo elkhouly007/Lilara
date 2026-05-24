@@ -15,12 +15,12 @@
 //   - Reports per-tool p99 to surface any tool-specific regressions.
 //
 // Run:  node tests/perf/bench.js
-// Env:  HORUS_PERF_P99_MS         - override p99 ceiling (ms)
-//       HORUS_PERF_ITER           - override iterations per flow (default 200
+// Env:  LILARA_PERF_P99_MS         - override p99 ceiling (ms)
+//       LILARA_PERF_ITER           - override iterations per flow (default 200
 //                                   for CI; spec calls for 1000 - run manually
-//                                   with HORUS_PERF_ITER=1000 for full sweep)
-//       HORUS_PERF_SUITE_BUDGET_S - override suite wall-clock budget (s)
-//       HORUS_STATE_DIR           - override state dir (recommend mktemp)
+//                                   with LILARA_PERF_ITER=1000 for full sweep)
+//       LILARA_PERF_SUITE_BUDGET_S - override suite wall-clock budget (s)
+//       LILARA_STATE_DIR           - override state dir (recommend mktemp)
 //
 // Note on iter default: 120 flows × 1000 iter takes ~200s on Linux and
 // would exceed the 5-min AC on Windows-slowfs (~5x IO multiplier).
@@ -52,7 +52,7 @@ function gitTry(args) {
   } catch { return ""; }
 }
 function currentCommitSha() {
-  return process.env.HORUS_PERF_BASELINE_SHA
+  return process.env.LILARA_PERF_BASELINE_SHA
       || process.env.GITHUB_SHA
       || gitTry(["rev-parse", "HEAD"]) || "";
 }
@@ -67,15 +67,15 @@ function isAncestorOrSame(maybeAncestor, head) {
   } catch { return false; }
 }
 
-if (!process.env.HORUS_STATE_DIR) {
-  process.env.HORUS_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "hap-perf-"));
+if (!process.env.LILARA_STATE_DIR) {
+  process.env.LILARA_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "lilara-perf-"));
 }
 const { decide } = require(path.join(root, "runtime", "decision-engine.js"));
 
-const ITER = Number(process.env.HORUS_PERF_ITER || 200);
+const ITER = Number(process.env.LILARA_PERF_ITER || 200);
 
 function platformCeilingMs() {
-  if (process.env.HORUS_PERF_P99_MS) return Number(process.env.HORUS_PERF_P99_MS);
+  if (process.env.LILARA_PERF_P99_MS) return Number(process.env.LILARA_PERF_P99_MS);
   if (process.platform === "win32") return 500;
   // WSL on a Windows-mounted filesystem behaves like Windows IO-wise
   if (process.platform === "linux") {
@@ -99,7 +99,7 @@ function platformKey() {
 // multiplier (same shape as the p99 ladder). Hard-budgeting Windows at 300s
 // produced false-positive failures even when p99 was well within ceiling.
 function suiteBudgetSec() {
-  if (process.env.HORUS_PERF_SUITE_BUDGET_S) return Number(process.env.HORUS_PERF_SUITE_BUDGET_S);
+  if (process.env.LILARA_PERF_SUITE_BUDGET_S) return Number(process.env.LILARA_PERF_SUITE_BUDGET_S);
   return platformCeilingMs() === 500 ? 900 : 300;
 }
 

@@ -3,7 +3,7 @@
 
 // notify/email.js — SMTP-over-TLS transport (ADR-015). Hand-rolled minimal
 // SMTP client over node:net + node:tls. Zero-dep (nodemailer is a hard stop).
-// Credentials live in env (HORUS_SMTP_*); body is text/plain only.
+// Credentials live in env (LILARA_SMTP_*); body is text/plain only.
 
 const net = require("node:net");
 const tls = require("node:tls");
@@ -13,7 +13,7 @@ const SOCKET_TIMEOUT_MS = 5000;
 
 function buildMessage(event, to, from) {
   const ev = event || {};
-  const subj = `[HAP/${ev.severity || "info"}] ${ev.kind || "notify"}`;
+  const subj = `[Lilara/${ev.severity || "info"}] ${ev.kind || "notify"}`;
   const body = `${String(ev.summary || "")}\r\n\r\n${canonicalJson(ev.scrubbedReceipt || {})}\r\n`;
   return [
     `From: ${from}`, `To: ${to}`, `Subject: ${subj}`,
@@ -23,15 +23,15 @@ function buildMessage(event, to, from) {
 }
 
 async function send(channel, event) {
-  const host = process.env.HORUS_SMTP_HOST || "";
-  const port = Number(process.env.HORUS_SMTP_PORT || 465) | 0;
-  const user = process.env.HORUS_SMTP_USER || "";
-  const pass = process.env.HORUS_SMTP_PASS || "";
-  const from = process.env.HORUS_SMTP_FROM || user || "horus@localhost";
+  const host = process.env.LILARA_SMTP_HOST || "";
+  const port = Number(process.env.LILARA_SMTP_PORT || 465) | 0;
+  const user = process.env.LILARA_SMTP_USER || "";
+  const pass = process.env.LILARA_SMTP_PASS || "";
+  const from = process.env.LILARA_SMTP_FROM || user || "horus@localhost";
   const to = String((channel && channel.to) || "");
   if (!host) return { ok: false, status: 0, error: "missing-smtp-host" };
   if (!to)   return { ok: false, status: 0, error: "missing-recipient" };
-  const insecure = process.env.HORUS_NOTIFY_INSECURE === "1";
+  const insecure = process.env.LILARA_NOTIFY_INSECURE === "1";
   return _smtpSession({ host, port, user, pass, from, to, message: buildMessage(event, to, from), insecure });
 }
 
@@ -40,7 +40,7 @@ function _smtpSession(opts) {
     let resolved = false;
     const sock = opts.insecure
       ? net.connect(opts.port, opts.host)
-      : tls.connect(opts.port, opts.host, { rejectUnauthorized: process.env.HORUS_NOTIFY_TLS_NOVERIFY !== "1" });
+      : tls.connect(opts.port, opts.host, { rejectUnauthorized: process.env.LILARA_NOTIFY_TLS_NOVERIFY !== "1" });
     const done = (r) => { if (resolved) return; resolved = true; try { sock.destroy(); } catch { /* */ } resolve(r); };
     let buf = "";
     let step = 0; // 0:greeting 1:ehlo 2:auth-init 3:auth-user 4:auth-pass 5:mailfrom 6:rcptto 7:data 8:body 9:quit

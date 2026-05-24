@@ -1,28 +1,27 @@
-# Skill: Configure Agent Runtime Guard
+# Skill: Configure Lilara
 
 ## Trigger
 
-Use when setting up Agent Runtime Guard in a new environment, installing components selectively, or reconfiguring what is active for a specific tool (Claude Code, OpenCode, OpenClaw).
+Use when setting up Lilara in a new environment, installing components selectively, or reconfiguring what is active for a specific tool (Claude Code, OpenCode, OpenClaw).
 
 ## Overview
 
-Agent Runtime Guard has three layers:
+Lilara has three layers:
 1. **Agents** — specialist sub-agents invoked by orchestrators or directly
 2. **Rules** — applied automatically to relevant file types during code operations
 3. **Skills** — slash commands invoked explicitly by the user
 
-Components live in `tools/horus/` and are wired to tools via config files in `claude/`, `opencode/`, and `openclaw/`.
+Components live in the project root and are wired to tools via config files in `claude/`, `opencode/`, and `openclaw/`.
 
 ## Setup Process
 
 ### Step 1 — Verify the repo is present
 
 ```bash
-ls tools/horus/
-# Should contain: agents/ rules/ skills/ scripts/ references/
+ls agents/ rules/ skills/ scripts/ references/
 ```
 
-If not present, clone or copy from the source.
+If not present, clone from `github.com/elkhouly007/lilara` or copy from the source.
 
 ### Step 2 — Choose target tool
 
@@ -51,13 +50,13 @@ Enable a pack by listing it in the tool's config. Disable by removing it — no 
 
 ```bash
 # Run the status check
-bash tools/horus/scripts/status-summary.sh
+bash scripts/status-summary.sh
 
 # Run the smoke test
-bash tools/horus/scripts/smoke-test.sh
+bash scripts/smoke-test.sh
 
 # Run the audit
-bash tools/horus/scripts/audit-local.sh
+bash scripts/audit-local.sh
 ```
 
 All checks must report `ok`. If any report `missing` or `fail`, read the error and install the missing component.

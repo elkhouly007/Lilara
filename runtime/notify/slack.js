@@ -31,7 +31,7 @@ function buildPayload(event) {
 function _urlAllowed(url) {
   if (typeof url !== "string" || url.length === 0) return false;
   if (url.startsWith(URL_PREFIX)) return true;
-  if (process.env.HORUS_NOTIFY_INSECURE === "1" && /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(url)) return true;
+  if (process.env.LILARA_NOTIFY_INSECURE === "1" && /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(url)) return true;
   return false;
 }
 

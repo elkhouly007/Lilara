@@ -2,7 +2,7 @@
 "use strict";
 
 // change-intent.js — F20 declared-envelope vs Action-IR drift evaluator
-// (HAP ADR-012 / scope §5.1 v0.5 Stage D wave 2).
+// (Lilara ADR-012 / scope §5.1 v0.5 Stage D wave 2).
 //
 // Compares the declared-intent envelope (envelope.declaredIntent) against the
 // canonical Action IR built by adapters. Out-of-intent actuals are tagged with
@@ -26,7 +26,7 @@ const DRIFT_CLASSES = Object.freeze({
   policyEdit:   "policy-edit-not-declared",
 });
 
-// Paths that mutate HAP policy / contracts. Any write/delete against one of
+// Paths that mutate Lilara policy / contracts. Any write/delete against one of
 // these — when allowedOps.policyEdits is not explicitly true — escalates
 // severity to `high` regardless of the other drift classes.
 const POLICY_PATH_PATTERNS = Object.freeze([

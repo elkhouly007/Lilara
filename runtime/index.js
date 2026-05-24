@@ -14,13 +14,13 @@ const workflowRouter = require("./workflow-router");
 const envelope = require("./envelope");
 const { classifyIntent } = require("./intent-classifier");
 const { resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS } = require("./route-resolver");
-// HAP ADR-007 PR-A: Canonical Action IR + decision lattice. Exported as
+// Lilara ADR-007 PR-A: Canonical Action IR + decision lattice. Exported as
 // namespaces so existing flat consumers are unaffected. PR-B will switch
 // pretool-gate to call actionIr.build(); PR-C will switch decision-engine
 // to read decisionLattice.LATTICE for source/floor labels.
 const actionIr = require("./action-ir");
 const decisionLattice = require("./decision-lattice");
-// HAP ADR-004 PR 37A: tamper-evident hash-chained journal. Exposed as a
+// Lilara ADR-004 PR 37A: tamper-evident hash-chained journal. Exposed as a
 // namespace so existing consumers stay unaffected; CLI and tests reach in
 // explicitly. No call site appends today — detection/reporting only.
 const journalChain = require("./journal-chain");

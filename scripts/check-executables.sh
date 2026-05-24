@@ -8,7 +8,7 @@ pass() { printf '  ok      %s\n' "$1"; }
 fail() { printf '  ERROR   %s\n' "$1" >&2; exit 1; }
 
 for f in \
-  scripts/horus-cli.sh \
+  scripts/lilara-cli.sh \
   scripts/setup-wizard.sh \
   scripts/check-skills.sh \
   scripts/install-local.sh \

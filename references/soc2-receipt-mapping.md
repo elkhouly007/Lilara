@@ -5,7 +5,7 @@
 This document maps each field in `schemas/receipt.v1.json` to a SOC2 Trust
 Service Criteria (TSC) control category so an external auditor doing a
 pre-read can see which control each receipt field supports. It is
-**informal** — HAP does not claim to be SOC2-certified, and this mapping
+**informal** — Lilara does not claim to be SOC2-certified, and this mapping
 does not replace the formal audit. It exists so an auditor walking the
 runtime log for the first time has a one-page legend.
 
@@ -71,11 +71,11 @@ Categories used here:
 | Degraded-mode propagation | ADR-004 PR 37B; suppresses operator-token demotions until chain is restored | A-1.2, CC-7.3 |
 | Cross-host portability | ADR-011 state bundle (`runtime/state-bundle.js`) | CC-7.3 |
 | Auditor redaction | `runtime/receipt-export.js` `redact: true` — proof-of-existence tokens with sha256 prefix | CC-6.6, CC-6.7 |
-| Schema enforceability | `scripts/generate-receipt-schema.sh` exhaustiveness gate; `HORUS_VALIDATE_RECEIPTS=1` dev-mode validator | CC-7.2 |
+| Schema enforceability | `scripts/generate-receipt-schema.sh` exhaustiveness gate; `LILARA_VALIDATE_RECEIPTS=1` dev-mode validator | CC-7.2 |
 
 ## What this mapping does NOT do
 
-- It does **not** certify HAP against any TSC. Certification requires an
+- It does **not** certify Lilara against any TSC. Certification requires an
   accredited SOC2 audit firm; that is M9+ work (commercial layer).
 - It does **not** cover infrastructure controls (where the journal lives,
   how the install key is stored, hardware boundary). Those are operator

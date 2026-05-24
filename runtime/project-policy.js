@@ -47,7 +47,7 @@ function normalizeRuntimeConfig(runtime = {}, projectRoot = "") {
 // loadProjectPolicy, and taint.correlateCommand). On macOS those existsSync
 // calls are ~5-10x slower than on Linux, so memoizing by resolved start path
 // is the dominant lever for the macOS p99. Cache is invalidated only on
-// process restart - acceptable because horus.config.json is project-level
+// process restart - acceptable because lilara.config.json is project-level
 // and not expected to materialize mid-session.
 const _findConfigCache = new Map();
 function findConfig(startPath = "") {
@@ -64,7 +64,7 @@ function findConfig(startPath = "") {
 
   let found = "";
   while (true) {
-    const candidate = path.join(current, "horus.config.json");
+    const candidate = path.join(current, "lilara.config.json");
     if (fs.existsSync(candidate)) { found = candidate; break; }
     const parent = path.dirname(current);
     if (parent === current) break;
@@ -101,8 +101,8 @@ function loadProjectPolicy(input = {}) {
       try {
         const bak = `${candidate}.corrupt-${Date.now()}.bak`;
         fs.copyFileSync(candidate, bak);
-        process.stderr.write(`[ARG] WARNING: horus.config.json corrupt — backed up to ${path.basename(bak)}, using defaults.\n`);
-        emitEvent("project-policy-corrupt", { file: "horus.config.json", errCode: String(err.code || "parse-error") });
+        process.stderr.write(`[ARG] WARNING: lilara.config.json corrupt — backed up to ${path.basename(bak)}, using defaults.\n`);
+        emitEvent("project-policy-corrupt", { file: "lilara.config.json", errCode: String(err.code || "parse-error") });
       } catch { /* backup is best-effort */ }
     }
     return defaultPolicy();

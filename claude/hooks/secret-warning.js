@@ -4,7 +4,7 @@
 // Delegates all scanning logic to runtime/secret-scan.js so the same
 // patterns are applied consistently across all harnesses.
 //
-// To enable block mode:  export HORUS_ENFORCE=1
+// To enable block mode:  export LILARA_ENFORCE=1
 
 "use strict";
 
@@ -13,7 +13,7 @@ const { scanSecrets } = require("../../runtime/secret-scan");
 
 readStdin()
   .then((raw) => {
-    if (process.env.HORUS_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
+    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Lilara] Kill-switch engaged — blocked.\n"); process.exit(2); }
 
     if (!rateLimitCheck("secret-warning")) {
       process.stdout.write(raw);
@@ -26,8 +26,8 @@ readStdin()
       const hit   = scanSecrets(text);
 
       if (hit) {
-        process.stderr.write(`[Agent Runtime Guard] Possible ${hit.name} detected in prompt input.\n`);
-        process.stderr.write("[Agent Runtime Guard] Remove secrets before submitting. Prefer local env files that are not shared.\n");
+        process.stderr.write(`[Lilara] Possible ${hit.name} detected in prompt input.\n`);
+        process.stderr.write("[Lilara] Remove secrets before submitting. Prefer local env files that are not shared.\n");
 
         const sessionRisk = readSessionRisk();
         try {
@@ -39,19 +39,19 @@ readStdin()
             notes: `secret-warning:${hit.name}`,
           });
           if (decision.riskLevel && decision.riskLevel !== "low") {
-            process.stderr.write(`[Agent Runtime Guard] Runtime decision: ${decision.action} (risk=${decision.riskLevel}, source=${decision.decisionSource})\n`);
-            process.stderr.write(`[Agent Runtime Guard] Explanation: ${decision.explanation}\n`);
+            process.stderr.write(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}, source=${decision.decisionSource})\n`);
+            process.stderr.write(`[Lilara] Explanation: ${decision.explanation}\n`);
           }
           if (sessionRisk > 0) {
-            process.stderr.write(`[Agent Runtime Guard] Session risk: ${sessionRisk}\n`);
+            process.stderr.write(`[Lilara] Session risk: ${sessionRisk}\n`);
           }
         } catch (runtimeErr) {
           const errMsg = runtimeErr instanceof Error ? runtimeErr.message : String(runtimeErr);
-          process.stderr.write(`[Agent Runtime Guard] WARNING: runtime decision engine unavailable (${errMsg}).\n`);
+          process.stderr.write(`[Lilara] WARNING: runtime decision engine unavailable (${errMsg}).\n`);
         }
 
         if (ENFORCE) {
-          process.stderr.write("[Agent Runtime Guard] BLOCKED — HORUS_ENFORCE=1 is active. Tool call aborted.\n");
+          process.stderr.write("[Lilara] BLOCKED — LILARA_ENFORCE=1 is active. Tool call aborted.\n");
           try { hookLog("secret-warning", "BLOCK", hit.name); } catch { /* log I/O is non-fatal */ }
           process.stdout.write(raw);
           process.exit(2);

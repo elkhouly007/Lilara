@@ -3,7 +3,7 @@
 #
 # Asks 5 questions, then outputs:
 #   1. A ready-to-run install command.
-#   2. A starter horus.config.json to copy into <target-dir>/horus.config.json.
+#   2. A starter lilara.config.json to copy into <target-dir>/lilara.config.json.
 #
 # Usage:
 #   ./scripts/setup-wizard.sh                  # interactive
@@ -159,7 +159,7 @@ install_cmd="bash ${root}/scripts/install-local.sh \"${target}\" --profile ${pro
 config_note=""
 
 if [ "$languages" != "auto" ] && [ -n "$languages" ]; then
-  config_note="Selected languages are provided via horus.config.json, so copy the generated config before running install."
+  config_note="Selected languages are provided via lilara.config.json, so copy the generated config before running install."
 else
   install_cmd="${install_cmd} --auto"
 fi
@@ -182,9 +182,9 @@ if [ "$wire" = "yes" ] && [ "$tool" = "openclaw" -o "$tool" = "both" ]; then
   printf '%s# Review %s/openclaw/WIRING_PLAN.md and %s/openclaw/OPENCLAW_APPLY_CHECKLIST.md before applying project-local integration.%s\n' "$DIM" "$target" "$target" "$RESET"
 fi
 
-# ── generate starter horus.config.json ─────────────────────────────────────────
+# ── generate starter lilara.config.json ─────────────────────────────────────────
 
-printf '\n%s━━━ Starter horus.config.json ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n\n' "$CYAN" "$RESET"
+printf '\n%s━━━ Starter lilara.config.json ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n\n' "$CYAN" "$RESET"
 
 # Build languages array
 if [ "$languages" = "auto" ] || [ -z "$languages" ]; then
@@ -200,7 +200,7 @@ else
   enforce_val="true"
 fi
 
-config_path="${target}/horus.config.json"
+config_path="${target}/lilara.config.json"
 
 # Use mktemp — never write to a predictable /tmp path (symlink attack risk).
 _tmp_config="$(mktemp)"
@@ -223,8 +223,8 @@ JSONEOF
 cat "$_tmp_config"
 
 printf '\n%s# To write this config, copy the JSON above into:%s\n' "$DIM" "$RESET"
-printf '%s  %s/horus.config.json%s\n' "$BOLD" "$target" "$RESET"
-printf '%s# Or simply: copy the JSON above into %s/horus.config.json%s\n' "$DIM" "$target" "$RESET"
+printf '%s  %s/lilara.config.json%s\n' "$BOLD" "$target" "$RESET"
+printf '%s# Or simply: copy the JSON above into %s/lilara.config.json%s\n' "$DIM" "$target" "$RESET"
 
 # ── summary ───────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pr-notifier.js — Horus Agentic Power  (PostToolUse hook, Bash only)
+ * pr-notifier.js — Lilara  (PostToolUse hook, Bash only)
  *
  * Fires after Bash tool use. Detects when `gh pr create` was run and a PR URL
  * appeared in the output, then prints a useful summary to stderr.
@@ -51,7 +51,7 @@ readStdin()
   .then((raw) => {
     // Always echo input unchanged first.
     process.stdout.write(raw || "");
-    if (process.env.HORUS_KILL_SWITCH === "1") return;
+    if (process.env.LILARA_KILL_SWITCH === "1") return;
 
     try {
       const input = JSON.parse(raw || "{}");
@@ -70,7 +70,7 @@ readStdin()
       const number = match[1];
 
       process.stderr.write(
-        `[Agent Runtime Guard] PR created: ${url}\n` +
+        `[Lilara] PR created: ${url}\n` +
         `  Review:  gh pr view ${number} --web\n` +
         `  Checks:  gh pr checks ${number}\n`
       );

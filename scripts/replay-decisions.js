@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// replay-decisions.js — HAP ADR-007 PR-D replay gate.
+// replay-decisions.js — Lilara ADR-007 PR-D replay gate.
 //
 // Replays a corpus or journal of decisions against the current engine and
 // asserts that `action`, `decisionSource`, `floorFired`, and `irHash` are
@@ -18,8 +18,8 @@
 //      In journal mode `decisionSource` is read from `source`, `floorFired` /
 //      `irHash` are optional and only checked when present.
 //
-// Determinism is enforced by isolating each call: fresh HORUS_STATE_DIR,
-// session-context cache reset, contract disabled, and HORUS_BRANCH_OVERRIDE
+// Determinism is enforced by isolating each call: fresh LILARA_STATE_DIR,
+// session-context cache reset, contract disabled, and LILARA_BRANCH_OVERRIDE
 // pinned to a synthetic non-protected sentinel so entries with empty/missing
 // `branch` do not inherit the cwd's git branch via context-discovery's
 // `git symbolic-ref` fallback (which would let a master-checkout CI drift
@@ -77,12 +77,12 @@ if (!fs.existsSync(file)) {
   process.exit(1);
 }
 
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-process.env.HORUS_RATE_LIMIT = "0";
-delete process.env.HORUS_KILL_SWITCH;
-delete process.env.HORUS_CONTRACT_REQUIRED;
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+process.env.LILARA_RATE_LIMIT = "0";
+delete process.env.LILARA_KILL_SWITCH;
+delete process.env.LILARA_CONTRACT_REQUIRED;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 // Pin a synthetic non-protected sentinel so entries with empty/missing
 // `branch` do not pick up the CI checkout's actual branch via
 // context-discovery's `git symbolic-ref` fallback. Explicit input.branch on
@@ -91,7 +91,7 @@ delete process.env.HORUS_F4_DEMOTE_TOKEN;
 // ("main","master") so the engine does not auto-escalate to protected-branch
 // review semantics. IR.branch comes from input only — sentinel does not enter
 // the canonical IR, so irHash stays byte-stable.
-process.env.HORUS_BRANCH_OVERRIDE = "replay/isolated-context";
+process.env.LILARA_BRANCH_OVERRIDE = "replay/isolated-context";
 
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
@@ -161,7 +161,7 @@ for (const e of entries) {
   replayed++;
   resetCache();
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-replay-"));
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
 
   let actual;
   try {

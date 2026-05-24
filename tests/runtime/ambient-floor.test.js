@@ -15,7 +15,7 @@
 //     wins the early-block race because rung 17 < rung 17.5.
 //   - F16 receipt contains the `ambientClass` field on fire.
 //
-// The tests use a per-test isolated HORUS_STATE_DIR and a synthetic contract
+// The tests use a per-test isolated LILARA_STATE_DIR and a synthetic contract
 // document written into a fresh tmpdir, so the engine's contract loader picks
 // it up without polluting the host. Module cache is cleared between tests so
 // the engine's lazy contract cache (_contractLoaded) doesn't leak between
@@ -68,19 +68,19 @@ function withSandbox(opts, body) {
     try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
   try {
-    process.env.HORUS_STATE_DIR        = stateDir;
-    process.env.HORUS_CONTRACT_ENABLED = o.contract ? "1" : "0";
-    process.env.HORUS_DECISION_JOURNAL = "1";
-    process.env.HORUS_RATE_LIMIT       = "0";
-    delete process.env.HORUS_KILL_SWITCH;
-    delete process.env.HORUS_CONTRACT_REQUIRED;
-    delete process.env.HORUS_F4_DEMOTE_TOKEN;
-    delete process.env.HORUS_IR_JOURNAL;
+    process.env.LILARA_STATE_DIR        = stateDir;
+    process.env.LILARA_CONTRACT_ENABLED = o.contract ? "1" : "0";
+    process.env.LILARA_DECISION_JOURNAL = "1";
+    process.env.LILARA_RATE_LIMIT       = "0";
+    delete process.env.LILARA_KILL_SWITCH;
+    delete process.env.LILARA_CONTRACT_REQUIRED;
+    delete process.env.LILARA_F4_DEMOTE_TOKEN;
+    delete process.env.LILARA_IR_JOURNAL;
 
     if (o.contract) {
       const doc = JSON.parse(JSON.stringify(o.contract));
       doc.contractHash = hashContract(doc);
-      fs.writeFileSync(path.join(projectDir, "horus.contract.json"), JSON.stringify(doc, null, 2));
+      fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
       const acceptedPath = path.join(stateDir, "accepted-contracts.json");
       const acceptedKey  = path.resolve(projectDir);
       fs.writeFileSync(acceptedPath, JSON.stringify({
@@ -252,7 +252,7 @@ test("class-only opt-in permits the floor (scopes.ambient.allow=[{class:gitConfi
   withSandbox({
     contract: {
       version: 3,
-      contractId: "hap-20260101-00000000a001",
+      contractId: "lilara-20260101-00000000a001",
       revision: 1,
       acceptedAt: "2026-01-01T00:00:00Z",
       harnessScope: ["claude"],
@@ -279,7 +279,7 @@ test("pathPrefix opt-in MATCH permits the floor", () => {
   withSandbox({
     contract: {
       version: 3,
-      contractId: "hap-20260101-00000000a002",
+      contractId: "lilara-20260101-00000000a002",
       revision: 1,
       acceptedAt: "2026-01-01T00:00:00Z",
       harnessScope: ["claude"],
@@ -306,7 +306,7 @@ test("pathPrefix opt-in MISMATCH still fires the floor", () => {
   withSandbox({
     contract: {
       version: 3,
-      contractId: "hap-20260101-00000000a003",
+      contractId: "lilara-20260101-00000000a003",
       revision: 1,
       acceptedAt: "2026-01-01T00:00:00Z",
       harnessScope: ["claude"],
@@ -336,7 +336,7 @@ test("pathPrefix opt-in does NOT cross class boundaries", () => {
   withSandbox({
     contract: {
       version: 3,
-      contractId: "hap-20260101-00000000a004",
+      contractId: "lilara-20260101-00000000a004",
       revision: 1,
       acceptedAt: "2026-01-01T00:00:00Z",
       harnessScope: ["claude"],

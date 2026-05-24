@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# horus-cli.sh — Unified command-line interface for Agent Runtime Guard.
+# lilara-cli.sh — Unified command-line interface for Agent Runtime Guard.
 #
 # Consolidates 14 individual scripts into one entry point.
 #
 # Usage:
-#   ./scripts/horus-cli.sh <subcommand> [args...]
+#   ./scripts/lilara-cli.sh <subcommand> [args...]
 #   ecc <subcommand> [args...]          (if symlinked to PATH)
 #
 # Subcommands:
 #   install     Install Agent Runtime Guard into a target project directory (one command).
-#   upgrade     Upgrade an existing installation in-place, preserving horus.config.json.
+#   upgrade     Upgrade an existing installation in-place, preserving lilara.config.json.
 #   setup       Run the interactive onboarding wizard.
 #   audit       Audit scripts and hook files for unsafe patterns.
 #   check       Fast runtime + unit checks (< 30 s). No fixtures, no audit scans, no bench.
@@ -24,11 +24,11 @@
 #   classify    Classify a payload file (A/B/C tier).
 #   redact      Redact a payload file (print sanitised version).
 #   wire        Generate a settings.json snippet for hook wiring.
-#   log         Show or clear the hook event log (HORUS_HOOK_LOG=1).
+#   log         Show or clear the hook event log (LILARA_HOOK_LOG=1).
 #   version     Print Agent Runtime Guard version.
 #   runtime     Show runtime roadmap, state, approvals, promotions, and decision explanations.
 #   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
-#   state       ADR-011 portable export/import of HAP state (export/import/doctor).
+#   state       ADR-011 portable export/import of Lilara state (export/import/doctor).
 #   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
 #   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
 #   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
@@ -36,21 +36,21 @@
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
-#   horus-cli.sh install ./my-project --profile rules --auto
-#   horus-cli.sh setup --non-interactive --target ./my-project --profile full
-#   horus-cli.sh audit
-#   horus-cli.sh check
-#   horus-cli.sh eval
-#   horus-cli.sh eval --verbose
-#   horus-cli.sh eval --max-fp-pct 5 --max-fn-pct 10
-#   horus-cli.sh redact payload.json --diff
-#   horus-cli.sh log --tail 20
-#   horus-cli.sh log --clear
-#   horus-cli.sh runtime state
-#   horus-cli.sh runtime accept 'bash|sudo|default-target|A'
-#   horus-cli.sh runtime record-approval --tool Bash --command 'sudo systemctl restart app' --target ops/service
-#   horus-cli.sh runtime promote 'bash|sudo|default-target|A'
-#   horus-cli.sh runtime explain --tool Bash --command 'sudo systemctl restart app' --target ops/service
+#   lilara-cli.sh install ./my-project --profile rules --auto
+#   lilara-cli.sh setup --non-interactive --target ./my-project --profile full
+#   lilara-cli.sh audit
+#   lilara-cli.sh check
+#   lilara-cli.sh eval
+#   lilara-cli.sh eval --verbose
+#   lilara-cli.sh eval --max-fp-pct 5 --max-fn-pct 10
+#   lilara-cli.sh redact payload.json --diff
+#   lilara-cli.sh log --tail 20
+#   lilara-cli.sh log --clear
+#   lilara-cli.sh runtime state
+#   lilara-cli.sh runtime accept 'bash|sudo|default-target|A'
+#   lilara-cli.sh runtime record-approval --tool Bash --command 'sudo systemctl restart app' --target ops/service
+#   lilara-cli.sh runtime promote 'bash|sudo|default-target|A'
+#   lilara-cli.sh runtime explain --tool Bash --command 'sudo systemctl restart app' --target ops/service
 
 set -eu
 
@@ -254,7 +254,7 @@ case "$cmd" in
     bash "${scripts}/check-clawcode-adapter.sh" || failed=1
 
     section "Decision replay (CI parity)"
-    HORUS_CONTRACT_ENABLED=0 HORUS_TRAJECTORY_WINDOW_MIN=0 \
+    LILARA_CONTRACT_ENABLED=0 LILARA_TRAJECTORY_WINDOW_MIN=0 \
       bash "${scripts}/check-decision-replay.sh" || failed=1
 
     section "Contract schema v2 migration (CI parity)"
@@ -305,7 +305,7 @@ case "$cmd" in
 
   # ── log ───────────────────────────────────────────────────────────────────
   log)
-    log_file="${HOME}/.horus/hook-events.log"
+    log_file="${HOME}/.lilara/hook-events.log"
 
     # Parse sub-flags
     tail_n=""
@@ -335,7 +335,7 @@ case "$cmd" in
 
     if [ ! -f "$log_file" ]; then
       printf 'No log file found at %s\n' "$log_file"
-      printf 'Set HORUS_HOOK_LOG=1 to enable event logging.\n'
+      printf 'Set LILARA_HOOK_LOG=1 to enable event logging.\n'
       exit 0
     fi
 
@@ -362,7 +362,7 @@ for (const line of lines) {
     ;;
 
   # ── contract ──────────────────────────────────────────────────────────────
-  # Manage the upfront security contract (horus.contract.json) for the current
+  # Manage the upfront security contract (lilara.contract.json) for the current
   # project. The contract pre-agrees all permissions before work begins.
   contract)
     sub="${1:-status}"
@@ -377,7 +377,7 @@ const { generate } = require(path.join(process.argv[2], "runtime/contract"));
 const projectRoot = path.resolve(process.argv[3] || ".");
 const draftPath = generate(projectRoot);
 console.log("Contract draft written to:", draftPath);
-console.log("Review and edit the draft, then run: horus-cli.sh contract accept");
+console.log("Review and edit the draft, then run: lilara-cli.sh contract accept");
 EOF
         ;;
       accept)
@@ -434,8 +434,8 @@ const df = draftFilePath(projectRoot);
 const left  = fs.existsSync(cf) ? JSON.parse(fs.readFileSync(cf,"utf8")) : null;
 const right = fs.existsSync(df) ? JSON.parse(fs.readFileSync(df,"utf8")) : null;
 if (!left && !right) { console.log("No contract or draft found."); process.exit(0); }
-console.log("--- horus.contract.json (accepted)");
-console.log("+++ horus.contract.json.draft");
+console.log("--- lilara.contract.json (accepted)");
+console.log("+++ lilara.contract.json.draft");
 const l = JSON.stringify(left || {}, null, 2).split("\n");
 const r = JSON.stringify(right || {}, null, 2).split("\n");
 l.forEach((line, i) => { if (line !== r[i]) console.log("-", line, "\n+", r[i] || ""); });
@@ -450,7 +450,7 @@ const { load, generate, contractFilePath, draftFilePath } = require(path.join(pr
 const projectRoot = path.resolve(process.argv[3] || ".");
 const cf = contractFilePath(projectRoot);
 if (!fs.existsSync(cf)) {
-  process.stderr.write("No accepted contract found. Run: horus-cli contract init && horus-cli contract accept first.\n");
+  process.stderr.write("No accepted contract found. Run: lilara-cli contract init && lilara-cli contract accept first.\n");
   process.exit(1);
 }
 const existing = JSON.parse(fs.readFileSync(cf, "utf8"));
@@ -461,7 +461,7 @@ generate(projectRoot, {
 });
 const df = draftFilePath(projectRoot);
 const next = (existing.revision || 1) + 1;
-process.stdout.write(`Draft written to ${path.relative(process.cwd(), df)} (revision ${next}).\nEdit it, then run: horus-cli contract accept\n`);
+process.stdout.write(`Draft written to ${path.relative(process.cwd(), df)} (revision ${next}).\nEdit it, then run: lilara-cli contract accept\n`);
 EOF
         ;;
       *)
@@ -475,10 +475,10 @@ EOF
   # ── operator-token ────────────────────────────────────────────────────────
   # Manage one-shot operator tokens for non-TTY contract acceptance and floor demotion.
   # Usage:
-  #   horus-cli.sh operator-token mint [label] [--scope <scope>]
+  #   lilara-cli.sh operator-token mint [label] [--scope <scope>]
   #     Mint a fresh one-shot token. Optional scope binds the token to a specific
   #     consumption purpose (e.g. class-c-review-demote for ADR-002 B F4 demotion).
-  #   horus-cli.sh operator-token verify <token>  Check validity without consuming it.
+  #   lilara-cli.sh operator-token verify <token>  Check validity without consuming it.
   operator-token)
     sub="${1:-mint}"
     shift || true
@@ -509,19 +509,19 @@ process.stdout.write("Token: " + token + "\n");
 if (scope) {
   process.stdout.write("Scope: " + scope + "\n");
   if (scope === "class-c-review-demote") {
-    process.stdout.write("Usage: HORUS_F4_DEMOTE_TOKEN=" + token + " <agent invocation>\n");
+    process.stdout.write("Usage: LILARA_F4_DEMOTE_TOKEN=" + token + " <agent invocation>\n");
   } else {
     process.stdout.write("Usage: scope-bound token; pass via the appropriate env var for " + scope + "\n");
   }
 } else {
-  process.stdout.write("Usage: HORUS_OPERATOR_TOKEN=" + token + " horus-cli.sh contract accept\n");
+  process.stdout.write("Usage: LILARA_OPERATOR_TOKEN=" + token + " lilara-cli.sh contract accept\n");
 }
 EOF
         ;;
       verify)
         token="${1:-}"
         if [ -z "$token" ]; then
-          printf '%sUsage: horus-cli.sh operator-token verify <token>%s\n' "$RED" "$RESET" >&2
+          printf '%sUsage: lilara-cli.sh operator-token verify <token>%s\n' "$RED" "$RESET" >&2
           exit 2
         fi
         node - "$root" "$token" <<'EOF'
@@ -560,7 +560,7 @@ EOF
       revoke)
         token_id="${1:-}"
         if [ -z "$token_id" ]; then
-          printf '%sUsage: horus-cli.sh operator-token revoke <token-or-id-prefix>%s\n' "$RED" "$RESET" >&2
+          printf '%sUsage: lilara-cli.sh operator-token revoke <token-or-id-prefix>%s\n' "$RED" "$RESET" >&2
           exit 2
         fi
         node - "$root" "$token_id" <<'EOF'
@@ -636,7 +636,7 @@ EOF
         exec node "${scripts}/runtime-state.js" explain "$@"
         ;;
       classify)
-        # Classify the intent of a shell command: horus-cli.sh runtime classify <command>
+        # Classify the intent of a shell command: lilara-cli.sh runtime classify <command>
         cmd_arg="${1:-}"
         node - "$root" "$cmd_arg" <<'__CLASSIFY_EOF__'
 "use strict";
@@ -647,7 +647,7 @@ console.log(JSON.stringify(result, null, 2));
 __CLASSIFY_EOF__
         ;;
       route)
-        # Resolve the workflow route for a shell command: horus-cli.sh runtime route <command>
+        # Resolve the workflow route for a shell command: lilara-cli.sh runtime route <command>
         cmd_arg="${1:-}"
         node - "$root" "$cmd_arg" <<'__ROUTE_EOF__'
 "use strict";
@@ -710,7 +710,7 @@ __JOURNAL_VERIFY_EOF__
 
   # ── state ─────────────────────────────────────────────────────────────────
   # ADR-011 state portability: export / import / doctor. Bundle format is a
-  # zero-dep ustar tar of HAP state under HORUS_STATE_DIR with secrets/host-
+  # zero-dep ustar tar of Lilara state under LILARA_STATE_DIR with secrets/host-
   # local files stripped. See references/adr-011-state-portability.md.
   state)
     sub="${1:-doctor}"
@@ -723,7 +723,7 @@ __JOURNAL_VERIFY_EOF__
           case "$1" in
             --force) force_arg="1" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh state export <out-path> [--force]\n'
+              printf 'Usage: lilara-cli.sh state export <out-path> [--force]\n'
               exit 0
               ;;
             --*) die "Unknown flag: $1" ;;
@@ -731,7 +731,7 @@ __JOURNAL_VERIFY_EOF__
           esac
           shift
         done
-        [ -n "$out_path" ] || die "Usage: horus-cli.sh state export <out-path> [--force]"
+        [ -n "$out_path" ] || die "Usage: lilara-cli.sh state export <out-path> [--force]"
         node - "$root" "$out_path" "$force_arg" <<'__STATE_EXPORT_EOF__'
 "use strict";
 const path = require("path");
@@ -754,7 +754,7 @@ try {
   dj.append({
     kind: "state-export", action: "state-export",
     riskLevel: "low", riskScore: 0, reasonCodes: ["state-bundle"],
-    tool: "horus-cli", branch: "",
+    tool: "lilara-cli", branch: "",
     notes: "bundle=" + m.bundleHash + " files=" + m.fileCount + " chainTip=" + (m.journalChainTipAt || "none"),
   });
 } catch (err) {
@@ -774,7 +774,7 @@ __STATE_EXPORT_EOF__
             --force) force_arg="1" ;;
             --accept-cross-host) xhost_arg="1" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]\n'
+              printf 'Usage: lilara-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]\n'
               exit 0
               ;;
             --*) die "Unknown flag: $1" ;;
@@ -782,7 +782,7 @@ __STATE_EXPORT_EOF__
           esac
           shift
         done
-        [ -n "$bundle_path" ] || die "Usage: horus-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]"
+        [ -n "$bundle_path" ] || die "Usage: lilara-cli.sh state import <bundle-path> [--apply] [--force] [--accept-cross-host]"
         node - "$root" "$bundle_path" "$apply_arg" "$force_arg" "$xhost_arg" <<'__STATE_IMPORT_EOF__'
 "use strict";
 const path = require("path");
@@ -817,7 +817,7 @@ if (r.crossHost)  process.stdout.write("  note: cross-host restore (--accept-cro
 dj.append({
   kind: "state-import", action: "state-import",
   riskLevel: "low", riskScore: 0, reasonCodes: ["state-bundle"],
-  tool: "horus-cli", branch: "",
+  tool: "lilara-cli", branch: "",
   notes: "bundle=" + r.manifest.bundleHash + " files=" + r.manifest.fileCount + " before=" + (tipBefore || "none") + " after=" + (r.manifest.journalChainTipAt || "none"),
 });
 __STATE_IMPORT_EOF__
@@ -838,7 +838,7 @@ process.stdout.write("  journalChainTipAt:   " + (m.journalChainTipAt || "(none)
 process.stdout.write("  hostFingerprint:     " + m.hostFingerprint + "\n");
 for (const e of m.excluded.slice(0, 10)) process.stdout.write("    [excluded] " + e.path + "  (" + e.reason + ")\n");
 if (m.excluded.length > 10) process.stdout.write("    ... and " + (m.excluded.length - 10) + " more\n");
-process.stdout.write("portability: ready (`horus-cli.sh state export <out>` to produce a bundle)\n");
+process.stdout.write("portability: ready (`lilara-cli.sh state export <out>` to produce a bundle)\n");
 __STATE_DOCTOR_EOF__
         ;;
       *)
@@ -850,9 +850,9 @@ __STATE_DOCTOR_EOF__
     ;;
 
   # ── envelope ──────────────────────────────────────────────────────────────
-  # ADR-012 (HAP v0.5 Stage D): declared-intent envelope. Writes the operator-
+  # ADR-012 (Lilara v0.5 Stage D): declared-intent envelope. Writes the operator-
   # supplied scope of what the agent is allowed to do — files / commands /
-  # network hosts / policy edits — to <HORUS_STATE_DIR>/envelope.json. The
+  # network hosts / policy edits — to <LILARA_STATE_DIR>/envelope.json. The
   # runtime engine reads this on each decide() and fires F20 (change-intent-
   # drift) when actuals deviate from the declared scope.
   envelope)
@@ -884,7 +884,7 @@ __STATE_DOCTOR_EOF__
             --source)          shift; source_label="${1:-cli}" ;;
             --source=*)        source_label="${1#--source=}" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh envelope set [--goal "..."] [--plan "..."] \\\n'
+              printf 'Usage: lilara-cli.sh envelope set [--goal "..."] [--plan "..."] \\\n'
               printf '         [--allow-writes "pat,pat"] [--allow-deletes "pat,pat"] \\\n'
               printf '         [--allow-commands "ls,cat"] [--allow-classes "explore,build"] \\\n'
               printf '         [--allow-hosts "github.com,*.example.com"] [--allow-policy] \\\n'
@@ -1014,7 +1014,7 @@ __SNAP_LIST_EOF__
         ;;
       show)
         snap_id="${1:-}"
-        [ -n "$snap_id" ] || die "Usage: horus-cli.sh snapshot show <snapshotId>"
+        [ -n "$snap_id" ] || die "Usage: lilara-cli.sh snapshot show <snapshotId>"
         node - "$root" "$snap_id" <<'__SNAP_SHOW_EOF__'
 "use strict";
 const path = require("path");
@@ -1050,7 +1050,7 @@ __SNAP_SHOW_EOF__
             --dry-run) apply_arg="" ;;
             --force)   force_arg="1" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh snapshot restore <snapshotId> [--apply] [--force]\n'
+              printf 'Usage: lilara-cli.sh snapshot restore <snapshotId> [--apply] [--force]\n'
               printf '  Default: dry-run (print what would change). Pass --apply to actually restore.\n'
               exit 0
               ;;
@@ -1059,7 +1059,7 @@ __SNAP_SHOW_EOF__
           esac
           shift
         done
-        [ -n "$snap_id" ] || die "Usage: horus-cli.sh snapshot restore <snapshotId> [--apply] [--force]"
+        [ -n "$snap_id" ] || die "Usage: lilara-cli.sh snapshot restore <snapshotId> [--apply] [--force]"
         node - "$root" "$snap_id" "$apply_arg" "$force_arg" <<'__SNAP_RESTORE_EOF__'
 "use strict";
 const path = require("path");
@@ -1136,7 +1136,7 @@ __SNAP_DOCTOR_EOF__
             --chain)    shift; chain_arg="${1:-}" ;;
             --chain=*)  chain_arg="${1#--chain=}" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh receipts validate [--journal <path>] [--chain <path>]\n'; exit 0 ;;
+              printf 'Usage: lilara-cli.sh receipts validate [--journal <path>] [--chain <path>]\n'; exit 0 ;;
             *) die "Unknown flag: $1" ;;
           esac
           shift
@@ -1191,30 +1191,30 @@ __RV_EOF__
             --risk-level=*)     lvl="${1#--risk-level=}" ;;
             --redact)           redact_arg="1" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh receipts export [--since <iso>] [--until <iso>] [--format jsonl|csv]\n'
+              printf 'Usage: lilara-cli.sh receipts export [--since <iso>] [--until <iso>] [--format jsonl|csv]\n'
               printf '         [--out <path>] [--session-id <id>] [--decision-action <act>] [--risk-level <lvl>] [--redact]\n'; exit 0 ;;
             *) die "Unknown flag: $1" ;;
           esac
           shift
         done
-        HORUS_EXPORT_SINCE="$since" HORUS_EXPORT_UNTIL="$until_" HORUS_EXPORT_FMT="$fmt" \
-        HORUS_EXPORT_OUT="$out_path" HORUS_EXPORT_SID="$sid" HORUS_EXPORT_ACT="$act" \
-        HORUS_EXPORT_LVL="$lvl" HORUS_EXPORT_REDACT="$redact_arg" \
+        LILARA_EXPORT_SINCE="$since" LILARA_EXPORT_UNTIL="$until_" LILARA_EXPORT_FMT="$fmt" \
+        LILARA_EXPORT_OUT="$out_path" LILARA_EXPORT_SID="$sid" LILARA_EXPORT_ACT="$act" \
+        LILARA_EXPORT_LVL="$lvl" LILARA_EXPORT_REDACT="$redact_arg" \
         node - "$root" <<'__RE_EOF__'
 "use strict";
 const fs = require("fs"); const path = require("path");
 const root = process.argv[2];
 const { exportReceipts, buildExportManifest } = require(path.join(root, "runtime/receipt-export"));
 const filter = {};
-if (process.env.HORUS_EXPORT_SINCE) filter.since = process.env.HORUS_EXPORT_SINCE;
-if (process.env.HORUS_EXPORT_UNTIL) filter.until = process.env.HORUS_EXPORT_UNTIL;
-if (process.env.HORUS_EXPORT_SID)   filter.sessionId      = process.env.HORUS_EXPORT_SID;
-if (process.env.HORUS_EXPORT_ACT)   filter.decisionAction = process.env.HORUS_EXPORT_ACT;
-if (process.env.HORUS_EXPORT_LVL)   filter.riskLevel      = process.env.HORUS_EXPORT_LVL;
-if (process.env.HORUS_EXPORT_REDACT === "1") filter.redact = true;
-const fmt = process.env.HORUS_EXPORT_FMT || "jsonl";
+if (process.env.LILARA_EXPORT_SINCE) filter.since = process.env.LILARA_EXPORT_SINCE;
+if (process.env.LILARA_EXPORT_UNTIL) filter.until = process.env.LILARA_EXPORT_UNTIL;
+if (process.env.LILARA_EXPORT_SID)   filter.sessionId      = process.env.LILARA_EXPORT_SID;
+if (process.env.LILARA_EXPORT_ACT)   filter.decisionAction = process.env.LILARA_EXPORT_ACT;
+if (process.env.LILARA_EXPORT_LVL)   filter.riskLevel      = process.env.LILARA_EXPORT_LVL;
+if (process.env.LILARA_EXPORT_REDACT === "1") filter.redact = true;
+const fmt = process.env.LILARA_EXPORT_FMT || "jsonl";
 const buf = exportReceipts(filter, fmt);
-const out = process.env.HORUS_EXPORT_OUT;
+const out = process.env.LILARA_EXPORT_OUT;
 if (out) {
   fs.writeFileSync(out, buf, { mode: 0o600 });
   const m = buildExportManifest(buf, { format: fmt, filter, redact: Boolean(filter.redact),
@@ -1236,7 +1236,7 @@ __RE_EOF__
         while [ $# -gt 0 ]; do
           case "$1" in
             --print) print_arg="1" ;;
-            -h|--help) printf 'Usage: horus-cli.sh receipts schema [--print]\n'; exit 0 ;;
+            -h|--help) printf 'Usage: lilara-cli.sh receipts schema [--print]\n'; exit 0 ;;
             *) die "Unknown flag: $1" ;;
           esac
           shift
@@ -1301,7 +1301,7 @@ const { summarizeTelemetry } = require(path.join(process.argv[2], "runtime/telem
 const s = summarizeTelemetry();
 if (s.totalEvents === 0) {
   console.log("No telemetry events recorded yet.");
-  console.log("Telemetry is written to: ~/.horus/telemetry.jsonl");
+  console.log("Telemetry is written to: ~/.lilara/telemetry.jsonl");
   process.exit(0);
 }
 console.log(`Telemetry summary — ${s.totalEvents} event(s) total`);
@@ -1353,7 +1353,7 @@ EOF
             --url=*)     url="${1#--url=}" ;;
             --dry-run)   dry_run="1" ;;
             -h|--help)
-              printf 'Usage: horus-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]\n'
+              printf 'Usage: lilara-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]\n'
               exit 0
               ;;
             --*) die "Unknown flag: $1" ;;
@@ -1361,7 +1361,7 @@ EOF
           esac
           shift
         done
-        [ -n "$channel" ] || die "Usage: horus-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]"
+        [ -n "$channel" ] || die "Usage: lilara-cli.sh notify test --channel <discord|slack|email> [--url <webhook>] [--dry-run]"
         node - "$root" "$channel" "$url" "$dry_run" <<'__NOTIFY_TEST_EOF__'
 "use strict";
 const path = require("path");
@@ -1372,7 +1372,7 @@ const dry = process.argv[5] === "1";
 const notify = require(path.join(root, "runtime/notify"));
 const event = {
   kind: "approval-request", severity: "info", decisionKey: "cli-test:" + Date.now(),
-  summary: "horus-cli notify test", scrubbedReceipt: notify.scrubForNotify({ action: "require-review", riskLevel: "low", reasonCodes: ["cli-test"], floorFired: null, decisionKey: "cli-test", timestamp: new Date().toISOString() }),
+  summary: "lilara-cli notify test", scrubbedReceipt: notify.scrubForNotify({ action: "require-review", riskLevel: "low", reasonCodes: ["cli-test"], floorFired: null, decisionKey: "cli-test", timestamp: new Date().toISOString() }),
   timestamp: new Date().toISOString(),
 };
 let transport;
@@ -1383,7 +1383,7 @@ if (dry) {
   process.stdout.write("notify test (dry-run): channel=" + channel + "\n");
   process.stdout.write(JSON.stringify(payload, null, 2) + "\n"); process.exit(0);
 }
-const ch = channel === "email" ? { type: "email", to: process.env.HORUS_SMTP_TO || "ops@example.com", events: ["*"] }
+const ch = channel === "email" ? { type: "email", to: process.env.LILARA_SMTP_TO || "ops@example.com", events: ["*"] }
   : { type: channel, webhookUrl: url, events: ["*"] };
 (async () => {
   const r = await transport.send(ch, event);
@@ -1418,7 +1418,7 @@ __NOTIFY_SHOW_EOF__
           case "$1" in
             --limit)   shift; limit="${1:-20}" ;;
             --limit=*) limit="${1#--limit=}" ;;
-            -h|--help) printf 'Usage: horus-cli.sh notify history [--limit N]\n'; exit 0 ;;
+            -h|--help) printf 'Usage: lilara-cli.sh notify history [--limit N]\n'; exit 0 ;;
             *) die "Unexpected arg: $1" ;;
           esac
           shift

@@ -51,7 +51,7 @@ function copyIfExists(src, dest) {
   try { if (fs.existsSync(src)) fs.copyFileSync(src, dest); } catch { /* best-effort */ }
 }
 
-const STRIPPED_ENV = ["HORUS_KILL_SWITCH", "HORUS_CONTRACT_REQUIRED", "HORUS_DEGRADED_MODE", "HORUS_F4_DEMOTE_TOKEN"];
+const STRIPPED_ENV = ["LILARA_KILL_SWITCH", "LILARA_CONTRACT_REQUIRED", "LILARA_DEGRADED_MODE", "LILARA_F4_DEMOTE_TOKEN"];
 
 async function runOne(file) {
   const scenario = require(path.join(SCENARIOS, file));
@@ -65,7 +65,7 @@ async function runOne(file) {
   let chain = { ok: true, entryCount: 0, errors: [] };
   let status = "passed", assertError = null;
   try {
-    Object.assign(process.env, { HORUS_STATE_DIR: stateDir, HORUS_DECISION_JOURNAL: "1", HORUS_CONTRACT_ENABLED: "0", HORUS_RATE_LIMIT: "0" });
+    Object.assign(process.env, { LILARA_STATE_DIR: stateDir, LILARA_DECISION_JOURNAL: "1", LILARA_CONTRACT_ENABLED: "0", LILARA_RATE_LIMIT: "0" });
     for (const k of STRIPPED_ENV) delete process.env[k];
     clearRuntimeCache();
     const ctx = { id, stateDir, projectDir, outDir, root: ROOT };

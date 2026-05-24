@@ -41,7 +41,7 @@ Hooks in `claude/hooks/` must:
 - inspect only the provided JSON;
 - write warnings to stderr;
 - echo the original input to stdout unchanged in default (warn) mode;
-- exit with code 2 to **block** the action when `HORUS_ENFORCE=1` is set — supported by `secret-warning.js`, `dangerous-command-gate.js`, and `git-push-reminder.js`;
+- exit with code 2 to **block** the action when `LILARA_ENFORCE=1` is set — supported by `secret-warning.js`, `dangerous-command-gate.js`, and `git-push-reminder.js`;
 - participate in rate limiting via `rateLimitCheck()` to prevent process spawn storms (all PreToolUse hooks);
 - use no external packages unless reviewed and documented;
 - make no network calls unless the module is explicitly marked external and routed through approval policy;
@@ -92,17 +92,17 @@ The prompt injection patterns in `dangerous-patterns.json` scan the command stri
 
 ---
 
-## Fail-Closed Behavior Under HORUS_ENFORCE=1
+## Fail-Closed Behavior Under LILARA_ENFORCE=1
 
-Under `HORUS_ENFORCE=1`, if `runtime.decide()` throws (e.g., corrupt `session-context.json`, partial deploy, or missing state file), the gate fails closed when any non-trivial safety signal is present: a dangerous-pattern hit at any severity (medium, high, or critical), a secret-bearing payload, or a high-sensitivity path. This trades availability for safety: a corrupt policy file under enforce can transiently block legitimate work, but the alternative — silently allowing tool calls when enforcement is requested — is worse. The existing `session-context.js` auto-backup-and-reset on parse error (lines 71-79) mitigates the availability cost. See `runtime/pretool-gate.js:182-200`.
+Under `LILARA_ENFORCE=1`, if `runtime.decide()` throws (e.g., corrupt `session-context.json`, partial deploy, or missing state file), the gate fails closed when any non-trivial safety signal is present: a dangerous-pattern hit at any severity (medium, high, or critical), a secret-bearing payload, or a high-sensitivity path. This trades availability for safety: a corrupt policy file under enforce can transiently block legitimate work, but the alternative — silently allowing tool calls when enforcement is requested — is worse. The existing `session-context.js` auto-backup-and-reset on parse error (lines 71-79) mitigates the availability cost. See `runtime/pretool-gate.js:182-200`.
 
 ---
 
 ## Emergency Override
 
-`HORUS_KILL_SWITCH=1` causes `runtime.decide()` to return `action: "block"` for every input, regardless of risk score, learned policy, or session state. Use this to immediately halt all runtime-permitted actions in an unsafe session.
+`LILARA_KILL_SWITCH=1` causes `runtime.decide()` to return `action: "block"` for every input, regardless of risk score, learned policy, or session state. Use this to immediately halt all runtime-permitted actions in an unsafe session.
 
-To re-enable normal operation, unset the variable: `unset HORUS_KILL_SWITCH` (or close and reopen your terminal).
+To re-enable normal operation, unset the variable: `unset LILARA_KILL_SWITCH` (or close and reopen your terminal).
 
 The kill switch does not affect hooks that operate independently of the runtime decision layer (e.g., `secret-warning.js` still scans for secrets, and informational hooks still pass stdin through). PreToolUse hooks exit 2 unconditionally — no additional flags are needed for complete PreToolUse blocking.
 

@@ -1,12 +1,12 @@
 # ADR-007 — Canonical Action IR + Explicit Decision Lattice
 
-**Status:** ACCEPTED — Khouly 2026-05-10 (HAP scope + plan lock).
+**Status:** ACCEPTED — Khouly 2026-05-10 (Lilara scope + plan lock).
 **PR-A status:** SHIPPED (skeleton only — zero behavior change).
 **Authors:** Misk (scope owner), Claude Code (implementer).
 **Repo authoritative cross-refs:** `DECISIONS.md` D49, `ARCHITECTURE.md` §1 + §2, `CHANGELOG.md` Unreleased.
-**Workspace authoritative source:** `~/.openclaw/workspace/workstreams/hap-adr-007-claude-plan.md` (full implementation plan).
+**Workspace authoritative source:** `~/.openclaw/workspace/workstreams/lilara-adr-007-claude-plan.md` (full implementation plan).
 
-> The full HAP architecture decision lives in OpenClaw workspace per the HAP project's split between scope/strategy (workspace) and code (this repo). This file is a repo-local reference so contributors hitting the modules `runtime/decision-lattice.js` and `runtime/action-ir.js` can find the rationale without leaving the repo. If anything below conflicts with the scope (`agent-runtime-guard-scope.md`), the scope wins.
+> The full Lilara architecture decision lives in OpenClaw workspace per the Lilara project's split between scope/strategy (workspace) and code (this repo). This file is a repo-local reference so contributors hitting the modules `runtime/decision-lattice.js` and `runtime/action-ir.js` can find the rationale without leaving the repo. If anything below conflicts with the scope (`agent-runtime-guard-scope.md`), the scope wins.
 
 ---
 
@@ -43,16 +43,16 @@ A thin in-process Canonical Action IR (`runtime/action-ir.js`) every adapter nor
 | PR | Sizing | Goal |
 |---|---|---|
 | **PR-A (this PR)** | S (≈4h) | Ship the ADR + the table + the IR module skeleton. Zero behavior change. |
-| PR-B | M (≈8h) | Adapter-side IR build via `actionIr.build()`; cross-adapter parity fixtures (6 adapters × ≥6 scenarios); manifests stub per adapter. `decide()` still reads legacy flat fields; only `irHash` is journaled, gated behind `HORUS_IR_JOURNAL=1`. |
+| PR-B | M (≈8h) | Adapter-side IR build via `actionIr.build()`; cross-adapter parity fixtures (6 adapters × ≥6 scenarios); manifests stub per adapter. `decide()` still reads legacy flat fields; only `irHash` is journaled, gated behind `LILARA_IR_JOURNAL=1`. |
 | PR-C | M (≈8h) | `decision-engine.js` consults `LATTICE` for `decisionSource` / `floorFired` / demotability matrix. Receipts gain `irHash`, `rung`, `latticeVersion` (additive). Imperative predicates unchanged. |
 | PR-D | S (≈4h) | Replay harness + 10-pattern adversarial seed + perf gates. |
 
-The full PR-B/C/D plan + acceptance criteria + hard stops live in `~/.openclaw/workspace/workstreams/hap-adr-007-claude-plan.md`. Misk + Khouly reviewed and accepted that plan on 2026-05-10. PR-A only is in scope here.
+The full PR-B/C/D plan + acceptance criteria + hard stops live in `~/.openclaw/workspace/workstreams/lilara-adr-007-claude-plan.md`. Misk + Khouly reviewed and accepted that plan on 2026-05-10. PR-A only is in scope here.
 
 ## 4. What PR-A actually changes
 
 **New (additive, zero-dep, pure):**
-- `runtime/decision-lattice.js` — frozen `LATTICE` array, `LATTICE_VERSION = "1"`, helpers `getEntry`, `getRung`, `getFloor`, `listFloors`, `assertOrdered`. Rung 0 (`L1`) is reserved with `predicateRef: "reserved"` for the HAP v1.0 Hard Ethical Core; the engine does not yet consume it. Opt-in self-test on module load via `HORUS_LATTICE_SELFTEST=1`.
+- `runtime/decision-lattice.js` — frozen `LATTICE` array, `LATTICE_VERSION = "1"`, helpers `getEntry`, `getRung`, `getFloor`, `listFloors`, `assertOrdered`. Rung 0 (`L1`) is reserved with `predicateRef: "reserved"` for the Lilara v1.0 Hard Ethical Core; the engine does not yet consume it. Opt-in self-test on module load via `LILARA_LATTICE_SELFTEST=1`.
 - `runtime/action-ir.js` — `EMPTY_IR`, `IR_VERSION = "1"`, `build(input, ctx)` (conservative best-effort builder returning a deeply-frozen IR; never throws on missing fields), `validate(ir) → { ok, reason }`, `canonicalize(ir)`, `irHash(ir)` (sha256 of `canonicalJson(ir with irHash = "")` via `runtime/canonical-json.js`).
 - `scripts/check-lattice-ordering.sh` — CI gate: validates LATTICE invariants (frozen, strictly-increasing rungs, unique ids, required fields, expected floor ids present) and IR skeleton invariants (frozen `EMPTY_IR`, `build()` returns frozen IR, `validate()` accepts/rejects shapes, `irHash` canonical-stable, tool→toolKind classification correct).
 - `tests/fixtures/decision-lattice/lattice-self-check.input` — JSON snapshot of LATTICE for human review + future parity diffs.
@@ -69,7 +69,7 @@ The full PR-B/C/D plan + acceptance criteria + hard stops live in `~/.openclaw/w
 **NOT touched in PR-A (explicit non-goals):**
 - `runtime/decision-engine.js` — every line unchanged. Floor predicates, ordering, outcomes, source/floor strings: unchanged.
 - `runtime/pretool-gate.js` — unchanged. No IR is built from gate calls yet.
-- `schemas/horus.contract.schema.json` — byte-unchanged.
+- `schemas/lilara.contract.schema.json` — byte-unchanged.
 - Any harness adapter (`claude/`, `opencode/`, `openclaw/`, `codex/`, `clawcode/`, `antegravity/`) — unchanged. Manifests + IR consumption are PR-B work.
 - Hard Ethical Core (Layer 1) — untouched. Rung 0 is a reservation only.
 
@@ -171,10 +171,10 @@ Coverage in PR-A:
 ## 7. Constraints honored
 
 - **Zero runtime dependencies.** Both modules use Node builtins (`crypto`, `path`) plus local `runtime/canonical-json.js` only. `scripts/check-zero-deps.sh` passes.
-- **Schema additive only.** `schemas/horus.contract.schema.json` byte-unchanged.
+- **Schema additive only.** `schemas/lilara.contract.schema.json` byte-unchanged.
 - **Hard Ethical Core untouched.** Rung 0 (`L1`) is a reservation slot; engine does not consume it.
 - **No floor ordering or predicate change.** `decision-engine.js` not edited.
-- **No HAP enforcement wired into Claude Code or OpenClaw.** Adapter manifests + IR consumption land in PR-B.
+- **No Lilara enforcement wired into Claude Code or OpenClaw.** Adapter manifests + IR consumption land in PR-B.
 - **Default-deny preserved.** Missing IR fields stay at `EMPTY_IR` defaults; `build()` never throws; `validate()` is structural, not normalizing.
 - **Three-mode operation preserved.** ADR-007 introduces no new mode.
 
@@ -197,12 +197,12 @@ Smallest meaningful gates that touch PR-A files:
 - p99 regression > 1.5× vs the soon-to-be-captured `baseline.pre-adr-007.json`.
 - Cross-adapter parity check failing for any of the 6 baseline scenarios (PR-B onward).
 - Floor ordering or predicate semantics change.
-- HAP enforcement wired into Claude Code or OpenClaw beyond manifest publish.
+- Lilara enforcement wired into Claude Code or OpenClaw beyond manifest publish.
 - Receipts losing any existing field (PR-C: schema additive only).
 - Replay harness finds drift on historical journal samples (PR-D).
 - CI matrix loses coverage.
 
 ## 10. Authorization gate
 
-- Misk + Khouly approved the full plan on 2026-05-10 (workspace `hap-adr-007-claude-plan.md`).
-- PR-A authorization: Khouly per HAP self-build constraint; PR-B/C/D each require their own morning review per `agent-runtime-guard-plan.md` §7.2 (≤ 1 PR per morning).
+- Misk + Khouly approved the full plan on 2026-05-10 (workspace `lilara-adr-007-claude-plan.md`).
+- PR-A authorization: Khouly per Lilara self-build constraint; PR-B/C/D each require their own morning review per `agent-runtime-guard-plan.md` §7.2 (≤ 1 PR per morning).

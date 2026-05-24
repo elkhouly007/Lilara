@@ -1,6 +1,6 @@
 # Smoke Tests
 
-This folder holds lightweight smoke-test scaffolding for Agent Runtime Guard.
+This folder holds lightweight smoke-test scaffolding for Lilara.
 
 ## Current Coverage Targets
 

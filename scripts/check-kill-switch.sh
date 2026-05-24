@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-kill-switch.sh — Verify HORUS_KILL_SWITCH=1 behavior across all 13 hooks.
+# check-kill-switch.sh — Verify LILARA_KILL_SWITCH=1 behavior across all 13 hooks.
 #
 # Kill-switch semantics:
 #   PreToolUse hooks  → exit 2 (block the tool call — no silent pass-through)
@@ -14,8 +14,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-kill-switch.sh (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-kill-switch.sh (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-kill-switch.sh requires Node.js\n' >&2
@@ -40,7 +40,7 @@ run_pretooluse_hook() {
   local label="$3"
 
   local actual_exit=0
-  printf '%s' "$payload" | HORUS_KILL_SWITCH=1 HORUS_ENFORCE=1 \
+  printf '%s' "$payload" | LILARA_KILL_SWITCH=1 LILARA_ENFORCE=1 \
     node "$hook" > /dev/null 2>/dev/null || actual_exit=$?
 
   if [ "$actual_exit" -eq 2 ]; then
@@ -58,7 +58,7 @@ run_passthrough_hook() {
 
   local actual_exit=0
   local actual_out
-  actual_out=$(printf '%s' "$payload" | HORUS_KILL_SWITCH=1 HORUS_ENFORCE=1 \
+  actual_out=$(printf '%s' "$payload" | LILARA_KILL_SWITCH=1 LILARA_ENFORCE=1 \
     node "$hook" 2>/dev/null) || actual_exit=$?
 
   if [ "$actual_exit" -ne 0 ]; then
@@ -90,7 +90,7 @@ run_passthrough_hook "claude/hooks/quality-gate.js"     "$SESSION"   "kill-switc
 run_passthrough_hook "claude/hooks/output-sanitizer.js" "$SESSION"   "kill-switch: output-sanitizer"
 
 if [ "$FAILED" -eq 0 ]; then
-  printf '\ncheck-kill-switch: all 13 hooks pass with HORUS_KILL_SWITCH=1\n'
+  printf '\ncheck-kill-switch: all 13 hooks pass with LILARA_KILL_SWITCH=1\n'
   exit 0
 fi
 printf '\ncheck-kill-switch: FAILED\n' >&2

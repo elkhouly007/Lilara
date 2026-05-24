@@ -22,7 +22,7 @@ const os     = require("node:os");
 const path   = require("node:path");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "horus-journal-chain-"));
-process.env.HORUS_STATE_DIR = tmp;
+process.env.LILARA_STATE_DIR = tmp;
 process.env.HOME            = tmp;
 
 const journal = require(path.join(__dirname, "..", "..", "runtime", "journal-chain"));

@@ -1,6 +1,8 @@
-# Agent Runtime Guard
+# Lilara
 
-**Agent Runtime Guard (ARG)** is a local-first runtime layer for AI coding agents. ECC — the upfront-contract model — is the foundation. The longer arc is broader: an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how.
+**Lilara** is a local-first runtime layer for AI coding agents. ECC — the upfront-contract model — is the foundation. The longer arc is broader: an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how.
+
+> Formerly known as **Agent Runtime Guard** (v3.x). See [MIGRATION.md](MIGRATION.md) for the v3.1.0 → v0.1.0 upgrade runbook and [CHANGELOG.md](CHANGELOG.md) for brand history.
 
 The goal is **more capability with less silent risk**:
 
@@ -37,28 +39,28 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 
 ```bash
 # 1. One-command install (validates prereqs, copies files, prints wire-hooks snippet):
-./scripts/horus-cli.sh install ./my-project --profile rules --auto
+./scripts/lilara-cli.sh install ./my-project --profile rules --auto
 
-# 2. Upgrade an existing installation in-place (preserves horus.config.json):
-./scripts/horus-cli.sh upgrade ./my-project
+# 2. Upgrade an existing installation in-place (preserves lilara.config.json):
+./scripts/lilara-cli.sh upgrade ./my-project
 
 # 3. Interactive setup wizard — answers 5 questions then gives you the command to run:
-./scripts/horus-cli.sh setup
+./scripts/lilara-cli.sh setup
 
 # 4. Wire hooks into your Claude Code settings.json:
-./scripts/horus-cli.sh wire ./my-project
+./scripts/lilara-cli.sh wire ./my-project
 
 # 5. Run a local audit of this repository:
-./scripts/horus-cli.sh audit
+./scripts/lilara-cli.sh audit
 
 # 6. Run runtime and structural checks, including install and apply-status verification:
-./scripts/horus-cli.sh check
+./scripts/lilara-cli.sh check
 
 # 7. Run all 351 fixture-based tests:
-./scripts/horus-cli.sh fixtures
+./scripts/lilara-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
-./scripts/horus-cli.sh eval
+./scripts/lilara-cli.sh eval
 ```
 
 ## What Is Included
@@ -67,7 +69,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 
 ### Hooks (`claude/hooks/`)
 
-13 Node.js hook files + shared utilities + pattern configs. All hooks: read stdin JSON, warn to stderr, echo stdin unchanged (or exit 2 to block in HORUS_ENFORCE=1 mode).
+13 Node.js hook files + shared utilities + pattern configs. All hooks: read stdin JSON, warn to stderr, echo stdin unchanged (or exit 2 to block in LILARA_ENFORCE=1 mode).
 
 | Hook | Event | Purpose |
 |------|-------|---------|
@@ -85,9 +87,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 | `hook-utils.js` | (shared library) | readStdin (5MB cap), commandFrom, hookLog, rateLimitCheck, classifyCommandPayload, classifyPathSensitivity, readSessionRisk |
 | `instinct-utils.js` | (shared library) | Instinct store read/write/prune/TTL management |
 
-Set `HORUS_ENFORCE=1` to activate block mode (exit 2) for secret-warning, dangerous-command-gate, and git-push-reminder.
-Set `HORUS_HOOK_LOG=1` to log all detection events to `~/.horus/hook-events.log`.
-Set `HORUS_KILL_SWITCH=1` to immediately block all `runtime.decide()` calls regardless of risk score — emergency override for unsafe sessions.
+Set `LILARA_ENFORCE=1` to activate block mode (exit 2) for secret-warning, dangerous-command-gate, and git-push-reminder.
+Set `LILARA_HOOK_LOG=1` to log all detection events to `~/.lilara/hook-events.log`.
+Set `LILARA_KILL_SWITCH=1` to immediately block all `runtime.decide()` calls regardless of risk score — emergency override for unsafe sessions.
 
 ### Agents (`agents/`) — 49 agents
 
@@ -101,14 +103,14 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 84 files
+### Scripts (`scripts/`) — 86 files
 
 | Script | Purpose |
 |--------|---------|
-| `horus-cli.sh` | Unified CLI entry point — all subcommands in one place |
+| `lilara-cli.sh` | Unified CLI entry point — all subcommands in one place |
 | `install.sh` | One-command install: validates prereqs, copies files, prints wire-hooks snippet |
-| `upgrade.sh` | In-place upgrade preserving `horus.config.json` and state files |
-| `setup-wizard.sh` | Interactive 5-question onboarding → install command + horus.config.json |
+| `upgrade.sh` | In-place upgrade preserving `lilara.config.json` and state files |
+| `setup-wizard.sh` | Interactive 5-question onboarding → install command + lilara.config.json |
 | `install-local.sh` | Low-level file copy (profiles: minimal/rules/agents/skills/full) |
 | `wire-hooks.sh` | Generate settings.json hook wiring snippet |
 | `audit-local.sh` | Grep-based risk scanner for scripts and hooks |
@@ -149,7 +151,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `detect-sensitive-data.sh` | Scan for common secrets/PII in files or stdin |
 | `policy-lint.sh` | Verify rule files follow Agent Runtime Guard standards |
 | `audit-staleness.sh` | Flag rule files with stale last_reviewed dates |
-| `generate-config.sh` | Probe project and generate starter horus.config.json |
+| `generate-config.sh` | Probe project and generate starter lilara.config.json |
 | `check-registries.sh` | Verify capability pack registry files |
 | `check-scenarios.sh` | Verify approval and injection scenario files |
 | `check-integration-smoke.sh` | Verify integration smoke cases |
@@ -160,7 +162,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `check-zero-deps.sh` | Assert runtime/*.js has no third-party require() calls |
 | `check-counts.sh` | Assert agent/rule/skill/hook/fixture/script counts match documented values |
 | `check-decision-replay.sh` | CI gate: replay the shipped sample journal through the current decision engine; exit 1 on any action divergence |
-| `migrateV1ToV2.js` | Upgrade an horus.contract.json from schema version 1 to version 2 (bumps revision, recomputes hash, validates result) |
+| `migrateV1ToV2.js` | Upgrade an lilara.contract.json from schema version 1 to version 2 (bumps revision, recomputes hash, validates result) |
 | `check-migrate-v1-v2.sh` | Verify the v1→v2 migration: version bumps, revision increments, hash recomputes, schema validates, idempotency |
 
 The SHA-256 hook integrity baseline lives at `artifacts/hooks-baseline.sha256` (data artifact, not a script) and is consumed by `verify-hooks-integrity.sh`.
@@ -178,7 +180,7 @@ The SHA-256 hook integrity baseline lives at `artifacts/hooks-baseline.sha256` (
 - `audit-notes.md` — construction notes on what was intentionally excluded
 - `CHANGELOG.md` — full version history
 - `references/` — 15 policy, coverage, and capability reference documents
-- `horus.config.json.example` — per-project configuration template, including runtime trust posture, protected branches, and sensitive path patterns
+- `lilara.config.json.example` — per-project configuration template, including runtime trust posture, protected branches, and sensitive path patterns
 
 ## Optional Risky Extensions
 

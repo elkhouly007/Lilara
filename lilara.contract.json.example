@@ -1,7 +1,7 @@
 {
-  "_comment": "Example horus.contract.json. Copy to your project root, edit scopes, then run: horus-cli.sh contract accept",
+  "_comment": "Example lilara.contract.json. Copy to your project root, edit scopes, then run: lilara-cli.sh contract accept",
   "version": 1,
-  "contractId": "hap-20260425-a7b2f1c3d4e5",
+  "contractId": "lilara-20260425-a7b2f1c3d4e5",
   "revision": 1,
   "acceptedAt": "2026-04-25T12:00:00Z",
   "acceptedBy": "developer@host",

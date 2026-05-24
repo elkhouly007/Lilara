@@ -24,7 +24,7 @@ tmp_home="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_home"; }
 trap cleanup EXIT
 
-HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || exit 1
+HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const fs = require('fs');
@@ -33,7 +33,7 @@ const { execFileSync } = require('child_process');
 
 // On Windows, bash provides POSIX paths (e.g. /tmp/xxx) that Node.js path.resolve()
 // converts to Windows paths (e.g. C:\tmp\xxx) — a different location than the bash
-// temp dir. Override HORUS_STATE_DIR and HOME with Node.js os.tmpdir() paths so all
+// temp dir. Override LILARA_STATE_DIR and HOME with Node.js os.tmpdir() paths so all
 // file I/O uses a valid, writable, platform-native location.
 //
 // Additionally, os.tmpdir() on Windows can return an 8.3 short path
@@ -46,9 +46,9 @@ fs.mkdirSync(_testStateDirRaw, { recursive: true, mode: 0o700 });
 // names (e.g. RUNNER~1 → runneradmin); plain realpathSync only resolves symlinks/./../
 const _realpathFn = typeof fs.realpathSync.native === 'function' ? fs.realpathSync.native : fs.realpathSync;
 const _testStateDir = (function() { try { return _realpathFn(_testStateDirRaw); } catch { return _testStateDirRaw; } })();
-process.env.HORUS_STATE_DIR = _testStateDir;
+process.env.LILARA_STATE_DIR = _testStateDir;
 process.env.HOME = _testStateDir;
-process.env.HORUS_DECISION_JOURNAL = '0'; // suppress journal file writes during tests
+process.env.LILARA_DECISION_JOURNAL = '0'; // suppress journal file writes during tests
 const { score } = require(path.join(root, 'runtime/risk-score.js'));
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
 const { build: buildEnvelope, verify: verifyEnvelope } = require(path.join(root, 'runtime/envelope.js'));
@@ -128,7 +128,7 @@ const repo = path.resolve(process.env.HOME, 'sample-repo');
 fs.mkdirSync(repo, { recursive: true });
 execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
 execFileSync('git', ['checkout', '-b', 'release'], { cwd: repo, stdio: 'ignore' });
-fs.writeFileSync(path.join(repo, 'horus.config.json'), JSON.stringify({ runtime: { protected_branches: ['release'], trust_posture: 'balanced' } }, null, 2));
+fs.writeFileSync(path.join(repo, 'lilara.config.json'), JSON.stringify({ runtime: { protected_branches: ['release'], trust_posture: 'balanced' } }, null, 2));
 const discovered = discover({ targetPath: path.join(repo, 'src') });
 // Normalize path separators and resolve 8.3 short names (realpathSync.native) before comparing.
 // Git always returns the canonical long path; os.tmpdir() on GitHub Actions Windows runner
@@ -171,7 +171,7 @@ recordApproval(_adaptiveKey);
 const adaptiveTestsDecision = decide({ ..._adaptiveKey, sessionRisk: 0 });
 if (!adaptiveTestsDecision.actionPlan.summary.includes('consider')) throw new Error('expected adaptive require-tests summary');
 if (adaptiveTestsDecision.workflowRoute?.lane !== 'verification') throw new Error(`expected verification lane, got ${adaptiveTestsDecision.workflowRoute?.lane}`);
-if (adaptiveTestsDecision.workflowRoute?.suggestedTarget !== 'horus-cli.check') throw new Error(`expected verification target horus-cli.check, got ${adaptiveTestsDecision.workflowRoute?.suggestedTarget}`);
+if (adaptiveTestsDecision.workflowRoute?.suggestedTarget !== 'lilara-cli.check') throw new Error(`expected verification target lilara-cli.check, got ${adaptiveTestsDecision.workflowRoute?.suggestedTarget}`);
 
 step('workflow-routing');
 // Reset trajectory state so escalations from prior steps (decide-require-tests,
@@ -182,11 +182,11 @@ step('workflow-routing');
 saveState({ sessions: {}, recent: [], updatedAt: null });
 const lowRoute = decide({ command: 'npm test', targetPath: 'web/app.ts', tool: 'Bash', sessionRisk: 0 });
 if (lowRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected checks lane, got ${lowRoute.workflowRoute?.lane}`);
-if (lowRoute.workflowRoute?.suggestedTarget !== 'horus-cli.check') throw new Error(`expected checks target horus-cli.check, got ${lowRoute.workflowRoute?.suggestedTarget}`);
+if (lowRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.check') throw new Error(`expected checks target lilara-cli.check, got ${lowRoute.workflowRoute?.suggestedTarget}`);
 
 const sourceRoute = decide({ command: 'update module', targetPath: 'src/runtime/app.ts', tool: 'Bash', sessionRisk: 0 });
 if (sourceRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected source route checks lane, got ${sourceRoute.workflowRoute?.lane}`);
-if (sourceRoute.workflowRoute?.suggestedTarget !== 'horus-cli.check') throw new Error(`expected source route target horus-cli.check, got ${sourceRoute.workflowRoute?.suggestedTarget}`);
+if (sourceRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.check') throw new Error(`expected source route target lilara-cli.check, got ${sourceRoute.workflowRoute?.suggestedTarget}`);
 
 const sourceShapeRepo = path.resolve(process.env.HOME, 'source-shape-repo');
 fs.mkdirSync(path.join(sourceShapeRepo, 'src'), { recursive: true });
@@ -196,7 +196,7 @@ fs.writeFileSync(path.join(sourceShapeRepo, 'package.json'), '{"name":"source-sh
 const sourceShapeRoute = decide({ command: 'update module', targetPath: path.join(sourceShapeRepo, 'src/app.ts'), tool: 'Bash', sessionRisk: 0, projectRoot: sourceShapeRepo });
 if (sourceShapeRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected source-shape route checks lane, got ${sourceShapeRoute.workflowRoute?.lane}`);
 if (!String(sourceShapeRoute.workflowRoute?.reason || '').includes('node project')) throw new Error('expected stack-aware source route reason');
-if (sourceShapeRoute.workflowRoute?.suggestedCommand !== 'horus-cli.sh check && npm test') throw new Error(`expected stack-aware source route command, got ${sourceShapeRoute.workflowRoute?.suggestedCommand}`);
+if (sourceShapeRoute.workflowRoute?.suggestedCommand !== 'lilara-cli.sh check && npm test') throw new Error(`expected stack-aware source route command, got ${sourceShapeRoute.workflowRoute?.suggestedCommand}`);
 
 const sourceEditRoute = decide({ command: 'edit module', targetPath: 'src/runtime/app.ts', tool: 'Edit', sessionRisk: 0 });
 if (sourceEditRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected source edit checks lane, got ${sourceEditRoute.workflowRoute?.lane}`);
@@ -204,7 +204,7 @@ if (!String(sourceEditRoute.workflowRoute?.reason || '').includes('direct edits'
 
 const strictSourceRoute = decide({ command: 'update module', targetPath: 'src/runtime/app.ts', tool: 'Bash', sessionRisk: 0, trustPosture: 'strict' });
 if (strictSourceRoute.workflowRoute?.lane !== 'review') throw new Error(`expected strict source route review lane, got ${strictSourceRoute.workflowRoute?.lane}`);
-if (strictSourceRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected strict source route target horus-cli.review, got ${strictSourceRoute.workflowRoute?.suggestedTarget}`);
+if (strictSourceRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected strict source route target lilara-cli.review, got ${strictSourceRoute.workflowRoute?.suggestedTarget}`);
 
 const protectedSourceRoute = decide({ command: 'update module', targetPath: 'src/runtime/app.ts', tool: 'Bash', sessionRisk: 0, branch: 'release', protectedBranches: ['release'] });
 if (protectedSourceRoute.workflowRoute?.lane !== 'review') throw new Error(`expected protected source route review lane, got ${protectedSourceRoute.workflowRoute?.lane}`);
@@ -221,9 +221,9 @@ if (!String(protectedSourceEditRoute.workflowRoute?.reason || '').includes('dire
 const docsRoute = decide({ command: 'update docs', targetPath: 'docs/runtime-notes.md', tool: 'Bash', sessionRisk: 0 });
 if (docsRoute.workflowRoute?.lane !== 'direct') throw new Error(`expected docs route direct lane, got ${docsRoute.workflowRoute?.lane}`);
 
-const setupRoute = decide({ command: 'setup profile full', targetPath: 'horus.config.json', tool: 'Bash', sessionRisk: 0 });
+const setupRoute = decide({ command: 'setup profile full', targetPath: 'lilara.config.json', tool: 'Bash', sessionRisk: 0 });
 if (setupRoute.workflowRoute?.lane !== 'setup') throw new Error(`expected setup lane, got ${setupRoute.workflowRoute?.lane}`);
-if (setupRoute.workflowRoute?.suggestedTarget !== 'horus-cli.setup') throw new Error(`expected setup target horus-cli.setup, got ${setupRoute.workflowRoute?.suggestedTarget}`);
+if (setupRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.setup') throw new Error(`expected setup target lilara-cli.setup, got ${setupRoute.workflowRoute?.suggestedTarget}`);
 
 step('setup-shape-route');
 const shapeRepo = path.resolve(process.env.HOME, 'shape-repo');
@@ -233,7 +233,7 @@ execFileSync('git', ['checkout', '-b', 'feature/setup'], { cwd: shapeRepo, stdio
 fs.writeFileSync(path.join(shapeRepo, 'package.json'), '{"name":"shape-repo"}\n');
 const setupShapeRoute = decide({ command: 'setup project', targetPath: shapeRepo, tool: 'Bash', sessionRisk: 0, projectRoot: shapeRepo });
 if (setupShapeRoute.workflowRoute?.lane !== 'setup') throw new Error(`expected setup shape lane, got ${setupShapeRoute.workflowRoute?.lane}`);
-if (setupShapeRoute.workflowRoute?.suggestedTarget !== 'horus-cli.generate-config') throw new Error(`expected setup shape target horus-cli.generate-config, got ${setupShapeRoute.workflowRoute?.suggestedTarget}`);
+if (setupShapeRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.generate-config') throw new Error(`expected setup shape target lilara-cli.generate-config, got ${setupShapeRoute.workflowRoute?.suggestedTarget}`);
 if (!String(setupShapeRoute.workflowRoute?.reason || '').includes('looks like node')) throw new Error('expected project-shape setup reason');
 if (!String(setupShapeRoute.workflowRoute?.suggestedCommand || '').includes('generate-config.sh')) throw new Error('expected generate-config setup command');
 if (!String(setupShapeRoute.explanation || '').includes('stack=node')) throw new Error('expected project-shape stack in explanation');
@@ -250,12 +250,12 @@ if (!String(setupShapeRoute.explanation || '').includes('config=missing')) throw
 // lives under `claude/` (no leading dot) so the ambient classifier skips it.
 const wiringEditRoute = decide({ command: '', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, branch: 'feature/hooks' });
 if (wiringEditRoute.workflowRoute?.lane !== 'wiring') throw new Error(`expected wiring edit lane, got ${wiringEditRoute.workflowRoute?.lane}`);
-if (wiringEditRoute.workflowRoute?.suggestedTarget !== 'horus-cli.wire') throw new Error(`expected wiring edit target horus-cli.wire, got ${wiringEditRoute.workflowRoute?.suggestedTarget}`);
+if (wiringEditRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.wire') throw new Error(`expected wiring edit target lilara-cli.wire, got ${wiringEditRoute.workflowRoute?.suggestedTarget}`);
 if (!String(wiringEditRoute.workflowRoute?.reason || '').includes('direct hook or settings editing')) throw new Error('expected tool-aware wiring reason');
 
 const strictWiringEditRoute = decide({ command: 'edit settings', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, trustPosture: 'strict' });
 if (strictWiringEditRoute.workflowRoute?.lane !== 'review') throw new Error(`expected strict wiring edit review lane, got ${strictWiringEditRoute.workflowRoute?.lane}`);
-if (strictWiringEditRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected strict wiring edit target horus-cli.review, got ${strictWiringEditRoute.workflowRoute?.suggestedTarget}`);
+if (strictWiringEditRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected strict wiring edit target lilara-cli.review, got ${strictWiringEditRoute.workflowRoute?.suggestedTarget}`);
 
 const protectedWiringEditRoute = decide({ command: 'edit settings', targetPath: 'claude/hooks/settings-edit.json', tool: 'Edit', sessionRisk: 0, branch: 'release', protectedBranches: ['release'] });
 if (protectedWiringEditRoute.workflowRoute?.lane !== 'review') throw new Error(`expected protected wiring edit review lane, got ${protectedWiringEditRoute.workflowRoute?.lane}`);
@@ -263,11 +263,11 @@ if (!String(protectedWiringEditRoute.workflowRoute?.reason || '').includes('prot
 
 const payloadRoute = decide({ command: 'redact payload.json', targetPath: 'payload.json', tool: 'Bash', sessionRisk: 0 });
 if (payloadRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected payload lane, got ${payloadRoute.workflowRoute?.lane}`);
-if (payloadRoute.workflowRoute?.suggestedTarget !== 'horus-cli.redact') throw new Error(`expected payload target horus-cli.redact, got ${payloadRoute.workflowRoute?.suggestedTarget}`);
+if (payloadRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.redact') throw new Error(`expected payload target lilara-cli.redact, got ${payloadRoute.workflowRoute?.suggestedTarget}`);
 
 const classBRoute = decide({ command: 'open customer export', targetPath: 'exports/customer.csv', tool: 'Bash', sessionRisk: 0, payloadClass: 'B' });
 if (classBRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected class B payload lane, got ${classBRoute.workflowRoute?.lane}`);
-if (classBRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected class B payload target horus-cli.review, got ${classBRoute.workflowRoute?.suggestedTarget}`);
+if (classBRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected class B payload target lilara-cli.review, got ${classBRoute.workflowRoute?.suggestedTarget}`);
 
 // ADR-002 Option B: class C blocks by default (F4 floor). Operator demotes to
 // require-review by minting a one-shot scoped token for legitimate inspection
@@ -275,11 +275,11 @@ if (classBRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new
 // review-lane assertion remains meaningful after F4's stricter default.
 const { mintOperatorToken: _mintCRoute } = require(path.join(root, 'runtime/contract.js'));
 const _classCDemoteToken = _mintCRoute('test-class-c-route', 'class-c-review-demote');
-process.env.HORUS_F4_DEMOTE_TOKEN = _classCDemoteToken;
+process.env.LILARA_F4_DEMOTE_TOKEN = _classCDemoteToken;
 const classCRoute = decide({ command: 'inspect incident bundle', targetPath: 'bundle.zip', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/incidents' });
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 if (classCRoute.workflowRoute?.lane !== 'review') throw new Error(`expected class C review lane (with demote token), got ${classCRoute.workflowRoute?.lane}`);
-if (classCRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected class C review target horus-cli.review, got ${classCRoute.workflowRoute?.suggestedTarget}`);
+if (classCRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected class C review target lilara-cli.review, got ${classCRoute.workflowRoute?.suggestedTarget}`);
 
 // ADR-002 Option B negative: class C without operator token stays blocked.
 const classCBlockedRoute = decide({ command: 'inspect incident bundle', targetPath: 'bundle.zip', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/incidents' });
@@ -287,17 +287,17 @@ if (classCBlockedRoute.workflowRoute?.lane !== 'blocked') throw new Error(`expec
 if (classCBlockedRoute.floorFired !== 'secret-class-C') throw new Error(`expected class C secret-class-C floor, got ${classCBlockedRoute.floorFired}`);
 
 const classifyRoute = decide({ command: 'classify inbound.txt', targetPath: 'payload.txt', tool: 'Bash', sessionRisk: 0 });
-if (classifyRoute.workflowRoute?.suggestedTarget !== 'horus-cli.classify') throw new Error(`expected classify target horus-cli.classify, got ${classifyRoute.workflowRoute?.suggestedTarget}`);
+if (classifyRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.classify') throw new Error(`expected classify target lilara-cli.classify, got ${classifyRoute.workflowRoute?.suggestedTarget}`);
 
 const payloadReviewRoute = decide({ command: 'review payload.json', targetPath: 'payload.json', tool: 'Bash', sessionRisk: 0 });
 if (payloadReviewRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected payload review lane, got ${payloadReviewRoute.workflowRoute?.lane}`);
-if (payloadReviewRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected payload review target horus-cli.review, got ${payloadReviewRoute.workflowRoute?.suggestedTarget}`);
-if (payloadReviewRoute.workflowRoute?.suggestedCommand !== 'horus-cli.sh review <file>') throw new Error(`expected payload review command, got ${payloadReviewRoute.workflowRoute?.suggestedCommand}`);
+if (payloadReviewRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected payload review target lilara-cli.review, got ${payloadReviewRoute.workflowRoute?.suggestedTarget}`);
+if (payloadReviewRoute.workflowRoute?.suggestedCommand !== 'lilara-cli.sh review <file>') throw new Error(`expected payload review command, got ${payloadReviewRoute.workflowRoute?.suggestedCommand}`);
 
 const reviewRoute = decide({ command: 'security review auth diff', targetPath: 'changes.patch', tool: 'Bash', sessionRisk: 0 });
 if (reviewRoute.workflowRoute?.lane !== 'review') throw new Error(`expected review lane, got ${reviewRoute.workflowRoute?.lane}`);
-if (reviewRoute.workflowRoute?.suggestedTarget !== 'horus-cli.review') throw new Error(`expected review target horus-cli.review, got ${reviewRoute.workflowRoute?.suggestedTarget}`);
-if (reviewRoute.workflowRoute?.suggestedCommand !== 'horus-cli.sh review') throw new Error(`expected review command, got ${reviewRoute.workflowRoute?.suggestedCommand}`);
+if (reviewRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected review target lilara-cli.review, got ${reviewRoute.workflowRoute?.suggestedTarget}`);
+if (reviewRoute.workflowRoute?.suggestedCommand !== 'lilara-cli.sh review') throw new Error(`expected review command, got ${reviewRoute.workflowRoute?.suggestedCommand}`);
 
 const modifyDecision = decide({ command: ['cat', 'prod/config'].join(' '), targetPath: path.join(repo, 'prod/service'), tool: 'Bash', branch: 'feature/payments', sessionRisk: 0 });
 if (modifyDecision.action !== 'modify') throw new Error(`expected modify, got ${modifyDecision.action}`);
@@ -351,9 +351,9 @@ if (escalateDecision.enforcementAction !== 'block') throw new Error(`expected bl
 // classifyCommandPayload: C-class payload defaults to blocked (F4 floor). With an
 // operator-token demotion (ADR-002 B), it routes to review for legitimate inspection.
 const _classifyCToken = _mintCRoute('test-classify-c', 'class-c-review-demote');
-process.env.HORUS_F4_DEMOTE_TOKEN = _classifyCToken;
+process.env.LILARA_F4_DEMOTE_TOKEN = _classifyCToken;
 const classifyCDecision = decide({ command: 'cat incident-report.pdf', targetPath: 'reports/', tool: 'Bash', sessionRisk: 0, payloadClass: 'C', branch: 'feature/hooks' });
-delete process.env.HORUS_F4_DEMOTE_TOKEN;
+delete process.env.LILARA_F4_DEMOTE_TOKEN;
 if (classifyCDecision.workflowRoute?.lane !== 'review') throw new Error(`expected class C → review lane (with demote token), got ${classifyCDecision.workflowRoute?.lane}`);
 
 // sessionRisk bump: elevated sessionRisk should add score and affect route for borderline commands
@@ -452,22 +452,22 @@ if (aaoDecision.trajectoryNudge) throw new Error('trajectory nudge must NOT fire
 console.log('trajectory-nudge exempt for auto-allow-once: ok');
 
 step('C3-kill-switch');
-// C.3 kill switch: HORUS_KILL_SWITCH=1 should block all decisions regardless of risk
-const origKS = process.env.HORUS_KILL_SWITCH;
-process.env.HORUS_KILL_SWITCH = '1';
+// C.3 kill switch: LILARA_KILL_SWITCH=1 should block all decisions regardless of risk
+const origKS = process.env.LILARA_KILL_SWITCH;
+process.env.LILARA_KILL_SWITCH = '1';
 const ksDecision = decide({ command: 'npm test', tool: 'Bash', targetPath: '.', branch: 'feature/test', sessionRisk: 0 });
 if (ksDecision.action !== 'block') throw new Error(`expected block from kill switch, got ${ksDecision.action}`);
 if (ksDecision.decisionSource !== 'kill-switch') throw new Error(`expected kill-switch source, got ${ksDecision.decisionSource}`);
 if (!ksDecision.explanation.includes('kill-switch engaged')) throw new Error('expected kill-switch engaged in explanation');
 // Restore env: delete may be unreliable on Windows Node 20; set to '' then delete.
 if (origKS !== undefined && origKS !== '') {
-  process.env.HORUS_KILL_SWITCH = origKS;
+  process.env.LILARA_KILL_SWITCH = origKS;
 } else {
-  process.env.HORUS_KILL_SWITCH = '';
-  delete process.env.HORUS_KILL_SWITCH;
+  process.env.LILARA_KILL_SWITCH = '';
+  delete process.env.LILARA_KILL_SWITCH;
 }
 // Guard: ensure kill switch is truly off before continuing (Windows env var quirk)
-if (process.env.HORUS_KILL_SWITCH === '1') throw new Error('kill-switch not cleared after test — env var delete failed');
+if (process.env.LILARA_KILL_SWITCH === '1') throw new Error('kill-switch not cleared after test — env var delete failed');
 console.log('kill-switch: ok');
 
 step('R1-learned-allow-destructive-delete');
@@ -499,7 +499,7 @@ if (destructiveLearnedDecision.action !== 'allow') {
   const _r1Enriched = { ..._r1PP, ..._r1Disc, ..._r1Exp };
   const _enrichedKey = _dk(_r1Enriched);
   const _inputKey = _dk(destructiveLearnedInput);
-  process.stderr.write(`[R1-diag] action=${destructiveLearnedDecision.action} source=${destructiveLearnedDecision.decisionSource} inputLearnedAllow=${_ila(destructiveLearnedInput)} enrichedLearnedAllow=${_ila(_r1Enriched)} HORUS_KILL_SWITCH=${JSON.stringify(process.env.HORUS_KILL_SWITCH)} policyKeys=${Object.keys(_dbgPolicy.learnedAllows||{}).join(',')} inputKey=${_inputKey} enrichedKey=${_enrichedKey} enrichedPayloadClass=${_r1Enriched.payloadClass}\n`);
+  process.stderr.write(`[R1-diag] action=${destructiveLearnedDecision.action} source=${destructiveLearnedDecision.decisionSource} inputLearnedAllow=${_ila(destructiveLearnedInput)} enrichedLearnedAllow=${_ila(_r1Enriched)} LILARA_KILL_SWITCH=${JSON.stringify(process.env.LILARA_KILL_SWITCH)} policyKeys=${Object.keys(_dbgPolicy.learnedAllows||{}).join(',')} inputKey=${_inputKey} enrichedKey=${_enrichedKey} enrichedPayloadClass=${_r1Enriched.payloadClass}\n`);
   throw new Error(`R1: expected allow for learned destructive-delete on non-protected branch, got ${destructiveLearnedDecision.action} (inputKey=${_inputKey} enrichedKey=${_enrichedKey})`);
 }
 if (destructiveLearnedDecision.decisionSource !== 'learned-allow') throw new Error(`R1: expected learned-allow source for destructive-delete, got ${destructiveLearnedDecision.decisionSource}`);
@@ -520,7 +520,7 @@ step('R4-block-workflow-route');
 const blockDecision = decide({ command: 'rm -rf /', targetPath: '/', tool: 'Bash', sessionRisk: 0 });
 if (blockDecision.action !== 'block') throw new Error(`R4: expected block for rm -rf /, got ${blockDecision.action}`);
 if (blockDecision.workflowRoute?.lane !== 'blocked') throw new Error(`R4: expected blocked lane, got ${blockDecision.workflowRoute?.lane}`);
-if (!blockDecision.workflowRoute?.suggestedCommand?.includes('horus-cli.sh runtime explain')) throw new Error('R4: expected runtime explain command in blocked route');
+if (!blockDecision.workflowRoute?.suggestedCommand?.includes('lilara-cli.sh runtime explain')) throw new Error('R4: expected runtime explain command in blocked route');
 console.log('block-action workflowRoute: ok');
 
 step('cross-harness-secret-scan');
@@ -563,16 +563,16 @@ execFileSync('git', ['config', 'user.email', 'f15@example.com'], { cwd: f15Repo,
 execFileSync('git', ['config', 'user.name', 'F15 Test'], { cwd: f15Repo, stdio: 'ignore' });
 execFileSync('git', ['add', '.'], { cwd: f15Repo, stdio: 'ignore' });
 execFileSync('git', ['commit', '-m', 'init'], { cwd: f15Repo, stdio: 'ignore' });
-const baseEnv = { ...process.env, PATH: path.join(f15Repo, 'bin') + path.delimiter + process.env.PATH, BASH_ALIASES: "safe-tool='safe-tool --flag'", HORUS_ENVELOPE_TEST: 'alpha' };
-const envA = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
-const envB = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
+const baseEnv = { ...process.env, PATH: path.join(f15Repo, 'bin') + path.delimiter + process.env.PATH, BASH_ALIASES: "safe-tool='safe-tool --flag'", LILARA_ENVELOPE_TEST: 'alpha' };
+const envA = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, LILARA_ENVELOPE_TEST: baseEnv.LILARA_ENVELOPE_TEST } });
+const envB = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: baseEnv, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, LILARA_ENVELOPE_TEST: baseEnv.LILARA_ENVELOPE_TEST } });
 if (envA.hash !== envB.hash) throw new Error(`expected stable envelope hash, got ${envA.hash} vs ${envB.hash}`);
 if (verifyEnvelope(envA, envB).ok !== true) throw new Error('expected identical envelopes to verify cleanly');
 const decisionWithEnvelope = decide({ command: 'safe-tool tracked.txt', targetPath: path.join(f15Repo, 'tracked.txt'), tool: 'Bash', branch: 'feature/f15', projectRoot: f15Repo, envelope: envA });
 if (decisionWithEnvelope.envelope?.hash !== envA.hash) throw new Error('expected additive decision.envelope field');
 
 step('f15-envelope-divergence-floor');
-const envChangedPath = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: { ...baseEnv, HORUS_ENVELOPE_TEST: 'beta' }, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, HORUS_ENVELOPE_TEST: baseEnv.HORUS_ENVELOPE_TEST } });
+const envChangedPath = buildEnvelope({ harness: 'claude', command: 'safe-tool tracked.txt', cwd: f15Repo, targetPath: path.join(f15Repo, 'tracked.txt'), projectRoot: f15Repo, env: { ...baseEnv, LILARA_ENVELOPE_TEST: 'beta' }, persistEnvBaseline: false, envBaseline: { PATH: baseEnv.PATH, BASH_ALIASES: baseEnv.BASH_ALIASES, LILARA_ENVELOPE_TEST: baseEnv.LILARA_ENVELOPE_TEST } });
 const diverged = decide({ command: 'safe-tool tracked.txt', targetPath: path.join(f15Repo, 'tracked.txt'), tool: 'Bash', branch: 'feature/f15', projectRoot: f15Repo, envelope: envA, observedEnvelope: envChangedPath });
 if (diverged.action !== 'block') throw new Error(`expected F15 block, got ${diverged.action}`);
 if (diverged.decisionSource !== 'execution-envelope-diverged') throw new Error(`expected F15 source, got ${diverged.decisionSource}`);
@@ -584,7 +584,7 @@ NODE
 pass 'runtime scoring, learned policy, suggestions, and session behavior'
 
 # classifyPathSensitivity unit tests
-HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" node - <<'NODE2' "$root" || exit 1
+HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE2' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const { classifyPathSensitivity } = require(path.join(root, 'claude/hooks/hook-utils.js'));

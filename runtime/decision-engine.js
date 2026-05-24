@@ -15,7 +15,7 @@ const { classifyCommand } = require("./decision-key");
 const { classifyIntent } = require("./intent-classifier");
 const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
 
-// HAP ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
+// Lilara ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
 // constant below resolves to the canonical name/source for its floor; the
 // engine reads these instead of hard-coded strings so a future relabel
 // only has to touch decision-lattice.js. `_LF`/`_LS` capture the floor
@@ -65,10 +65,10 @@ const _DEMOTE_F20_TOKEN_SCOPE       = "change-intent-drift-medium";
 const _DEMOTE_F9_TOOL_ALLOW_MATCHED = "contract-allow:tool-allow-matched";
 const _DEMOTE_F9_TOOL_ALLOW_SCOPE   = "contract-allow:tool-allow-tool-scope";
 
-// HAP ADR-007 PR-C: extra journal fields are emitted by default. Disable
-// with HORUS_IR_JOURNAL=0 for one release while consumers cut over.
+// Lilara ADR-007 PR-C: extra journal fields are emitted by default. Disable
+// with LILARA_IR_JOURNAL=0 for one release while consumers cut over.
 function _irJournalExtras(input, floorFired) {
-  if (process.env.HORUS_IR_JOURNAL === "0") return null;
+  if (process.env.LILARA_IR_JOURNAL === "0") return null;
   const ir = input && input.ir;
   if (!ir || typeof ir.irHash !== "string" || ir.irHash.length === 0) return null;
   const extras = { irHash: ir.irHash, latticeVersion: LATTICE_VERSION };
@@ -111,7 +111,7 @@ const {
 // ambient.js fails open (zero-dep / fail-open policy).
 const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
 // F17 PR-A: cross-agent-lock helper. State-dir-local; reads
-// `<HORUS_STATE_DIR>/cross-agent-locks/*.json` to detect a conflicting
+// `<LILARA_STATE_DIR>/cross-agent-locks/*.json` to detect a conflicting
 // lock owned by another agent/session for a write-like call.
 const { readLockState: _readLockState, findConflict: _findLockConflict } = require("./cross-agent-lock");
 const { stateDir: _statePathStateDir } = require("./state-paths");
@@ -150,13 +150,13 @@ try {
   _recordDestructiveOp = sb.recordDestructiveOp;
 } catch { /* optional */ }
 
-// Contract is loaded lazily - disabled only when HORUS_CONTRACT_ENABLED=0.
+// Contract is loaded lazily - disabled only when LILARA_CONTRACT_ENABLED=0.
 // `_contractLoaded` distinguishes "not yet loaded" from "loaded as null" so a
 // missing contract file doesn't re-trigger fs.existsSync on every decide().
 let _contract = null;
 let _contractLoaded = false;
 function getContract(projectRoot) {
-  if (process.env.HORUS_CONTRACT_ENABLED === "0") return null;
+  if (process.env.LILARA_CONTRACT_ENABLED === "0") return null;
   if (_contractLoaded) return _contract;
   try {
     _contract = _contractLoad(projectRoot || process.cwd());
@@ -392,7 +392,7 @@ const { loadDeclaredEnvelope: _loadDeclaredEnvelope } = require("./envelope");
 
 // F17 PR-A — cross-agent-lock floor helpers. Pure decision read-side; the
 // only I/O is the per-call lock-dir scan via readLockState() against the
-// engine's stateDir (HORUS_STATE_DIR-aware). Owner identity for the current
+// engine's stateDir (LILARA_STATE_DIR-aware). Owner identity for the current
 // call falls back through input.owner → input.sessionId → discovered.sessionId
 // so existing harness wiring needs no schema change.
 function _isWriteLikeForLock(input) {
@@ -506,7 +506,7 @@ function _fireNotifyHook(result, contract, decisionKey) {
 }
 
 function decide(input = {}) {
-  if (process.env.HORUS_KILL_SWITCH === "1") {
+  if (process.env.LILARA_KILL_SWITCH === "1") {
     const killResult = {
       action: "block",
       enforcementAction: "block",
@@ -598,7 +598,7 @@ function decide(input = {}) {
 
   if (contract) {
     // Step 2: contract-hash-mismatch in strict mode — block
-    if (process.env.HORUS_CONTRACT_REQUIRED === "1") {
+    if (process.env.LILARA_CONTRACT_REQUIRED === "1") {
       try {
         const vResult = _contractVerify(discovered.projectRoot || process.cwd());
         if (!vResult.ok) {
@@ -620,10 +620,10 @@ function decide(input = {}) {
 
     // Step 5: strict-mode + gated class + no contract coverage → block
     const harness = String(input.harness || enriched.harness || "");
-    if (process.env.HORUS_CONTRACT_REQUIRED === "1" && harness && !harnessInScope(contract, harness)) {
+    if (process.env.LILARA_CONTRACT_REQUIRED === "1" && harness && !harnessInScope(contract, harness)) {
       if (isGated) {
         return buildEarlyBlock("harness-out-of-scope", enriched, discovered, input,
-          `harness '${harness}' not in contract harnessScope — run: horus-cli contract amend --add-harness ${harness}`,
+          `harness '${harness}' not in contract harnessScope — run: lilara-cli contract amend --add-harness ${harness}`,
           { floorFired: _F5.name, decisionSource: _F5.source, ambientTouch: _ambientTouch });
       }
     }
@@ -641,10 +641,10 @@ function decide(input = {}) {
         contractReason = sm.reason;
       }
     } catch { /* scopeMatch error → contractAllow stays false */ }
-  } else if (process.env.HORUS_CONTRACT_REQUIRED === "1" && isGated) {
+  } else if (process.env.LILARA_CONTRACT_REQUIRED === "1" && isGated) {
     // No contract + strict mode + gated class → block
     return buildEarlyBlock("no-contract-strict", enriched, discovered, input,
-      "no accepted contract — run: horus-cli contract init && horus-cli contract accept",
+      "no accepted contract — run: lilara-cli contract init && lilara-cli contract accept",
       { ambientTouch: _ambientTouch });
   }
 
@@ -990,7 +990,7 @@ function decide(input = {}) {
       // Attempt operator-token demotion only when the LATTICE demotableBy
       // explicitly authorizes it for this severity. `compensating` requires
       // a declared compensatingRestriction to be eligible.
-      const tokenEnv = process.env.HORUS_F19_DEMOTE_TOKEN || "";
+      const tokenEnv = process.env.LILARA_F19_DEMOTE_TOKEN || "";
       let demoted = false;
       const demotionLatticed = canDemote(_F19.id, _DEMOTE_F19_SUSPICIOUS);
       const severityEligible =
@@ -1077,7 +1077,7 @@ function decide(input = {}) {
         _f20PreviewAction = "block";
         _f20PreviewSource = _F20.source[0];
       } else if (diff.severity === "medium") {
-        const tokenEnv = process.env.HORUS_F20_DEMOTE_TOKEN || "";
+        const tokenEnv = process.env.LILARA_F20_DEMOTE_TOKEN || "";
         let demoted = false;
         if (tokenEnv && canDemote(_F20.id, _DEMOTE_F20_MEDIUM)) {
           try {
@@ -1147,7 +1147,7 @@ function decide(input = {}) {
   // ADR-002 Option B: an operator can demote F4 from `block` to `require-review` for
   // legitimate inspection use cases (incident response, customer-data audit, security
   // investigation) by minting a one-shot scoped token and passing it via
-  // HORUS_F4_DEMOTE_TOKEN. The token is single-use and scope-bound to
+  // LILARA_F4_DEMOTE_TOKEN. The token is single-use and scope-bound to
   // `class-c-review-demote`. Without a valid token, F4 stays a hard block.
   if (action !== "block") {
     const isClassC = (enriched.payloadClass || "A") === "C";
@@ -1163,7 +1163,7 @@ function decide(input = {}) {
       // presence is necessary but not sufficient — canDemote() is the sole
       // arbiter so future drift cannot bypass the lattice.
       let f4DemoteAllowed = false;
-      const demoteToken = process.env.HORUS_F4_DEMOTE_TOKEN || "";
+      const demoteToken = process.env.LILARA_F4_DEMOTE_TOKEN || "";
       // ADR-004 PR 37B: in degraded mode the F4 operator-token demotion is
       // suppressed entirely — F4 stays a hard block even with a valid token.
       // Token is not consumed (so the operator does not waste it during an
@@ -1295,7 +1295,7 @@ function decide(input = {}) {
   }
 
   const trajectory = getSessionTrajectory();
-  const trajectoryThreshold = Number(process.env.HORUS_TRAJECTORY_THRESHOLD || "3");
+  const trajectoryThreshold = Number(process.env.LILARA_TRAJECTORY_THRESHOLD || "3");
   let trajectoryNudge = null;
   // Trajectory-nudge applies to baseline risk-engine decisions only. Floor-derived
   // sources (intent-unknown-strict, taint-floor, session-risk-floor, f4-class-c-demoted,
@@ -1376,7 +1376,7 @@ function decide(input = {}) {
   }
 
   // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
-  // chain has failed verify (or HORUS_DEGRADED_MODE=1) AND this call is
+  // chain has failed verify (or LILARA_DEGRADED_MODE=1) AND this call is
   // write-like, any final `allow` is rerouted to `require-review`. Floors
   // that already produced require-review / escalate / block are preserved
   // verbatim — degraded mode never widens an allow nor weakens an existing
@@ -1453,7 +1453,7 @@ function decide(input = {}) {
   // marks the receipt `failed-fail-open` and proceeds — never promotes to
   // block, never weakens a stronger action.
   let _snapshotReceipt = null;
-  if (process.env.HORUS_AUTO_SNAPSHOT !== "0" && action === "allow" && input.ir && input.ir.destructive === true) {
+  if (process.env.LILARA_AUTO_SNAPSHOT !== "0" && action === "allow" && input.ir && input.ir.destructive === true) {
     try {
       const _sScope = _snapshot.planSnapshotScope(input.ir, { reason: input.ir.commandClass || "destructive" });
       const _sR = _snapshot.createSnapshot(_sScope, null, { decisionKey: policyKey, irHash: input.ir.irHash || null });

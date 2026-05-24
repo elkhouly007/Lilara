@@ -75,11 +75,11 @@ DROPPED — the journal `notify` entry records what happened, but the engine
 proceeds unchanged.
 
 **Credentials live in env, never in the contract.** SMTP host / port / user /
-pass / from come from `HORUS_SMTP_*`. The contract document is hashed and
+pass / from come from `LILARA_SMTP_*`. The contract document is hashed and
 committed; baking credentials into it would publish them. Webhook URLs go
 in the contract because URL alone is not a credential per Discord / Slack
 threat models (the URL IS the bearer, but the contract is hashed and stored
-in `~/.horus/`, not pushed to remote).
+in `~/.lilara/`, not pushed to remote).
 
 **Receipt enrichment.** A decision whose hook actually fires (contract
 enabled + matching event) gains an additive `notifyAttempted: true` key.
@@ -90,7 +90,7 @@ stay byte-identical.
 
 **Compromised webhook URL.** Worst case: an attacker who reads / steals the
 webhook URL can spam the destination channel with anything they want, AND
-they can read whatever HAP sends to that channel. The scrub contract bounds
+they can read whatever Lilara sends to that channel. The scrub contract bounds
 the latter: the leaked-payload surface is only the 9 allowlisted receipt
 fields, none of which contain secrets. There is no path for `args`,
 `outputs[]`, `cwd`, file contents, or env values to reach the webhook even
@@ -99,8 +99,8 @@ omitting a single line in `KEEP_KEYS` shrinks the surface, not grows it.
 
 **Compromised SMTP creds.** Credentials are env-only; they never appear on
 the receipt, never appear in the journal, and never appear in any payload
-the transport sends. A leaked `HORUS_SMTP_PASS` lets the attacker send mail
-through the operator's SMTP, but does NOT widen the HAP receipt surface.
+the transport sends. A leaked `LILARA_SMTP_PASS` lets the attacker send mail
+through the operator's SMTP, but does NOT widen the Lilara receipt surface.
 
 **Adversarial event injection.** Notification events are derived ONLY from
 the finalized engine `result`. There is no path from raw user input to a
@@ -130,8 +130,8 @@ failure on the next `horus notify history` invocation and in the journal.
 - **Notification deduplication / digest mode.** Per-event firing only.
 - **Encrypted webhook bodies.** Transport-layer TLS is sufficient given the
   scrub contract.
-- **Wiring HAP enforcement into Claude Code / OpenClaw runtime.** Notifications
-  here are about the HAP runtime's own decisions, not about adapter wiring.
+- **Wiring Lilara enforcement into Claude Code / OpenClaw runtime.** Notifications
+  here are about the Lilara runtime's own decisions, not about adapter wiring.
 
 ## 5. CLI surface
 
@@ -152,7 +152,7 @@ keeping with the §7.2 PII baseline.
 - `runtime/notify/slack.js`   — Slack incoming-webhook transport.
 - `runtime/notify/email.js`   — SMTP-over-TLS transport (hand-rolled, zero-dep).
 - `runtime/decision-engine.js` — hook at two return sites (early-block + main).
-- `schemas/horus.contract.schema.json` — additive `notifications` block.
-- `scripts/horus-cli.sh` — `notify {test,show,history}` subcommands.
+- `schemas/lilara.contract.schema.json` — additive `notifications` block.
+- `scripts/lilara-cli.sh` — `notify {test,show,history}` subcommands.
 - `tests/runtime/notify-scrub.test.js` — adversarial PII scrub corpus.
 - `tests/runtime/notify-transport.test.js` — HTTP + SMTP mock-server stubs.

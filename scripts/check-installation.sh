@@ -21,10 +21,10 @@ printf '[check-installation]\n'
 printf 'Workspace: %s\n' "$workdir"
 
 # 1. generate starter config
-bash "$root/scripts/generate-config.sh" "$sample_repo" --output "$sample_repo/horus.config.json" >/dev/null
-check_file "$sample_repo/horus.config.json" 'generate-config output'
-grep -q '"typescript"' "$sample_repo/horus.config.json" || fail 'generate-config detects typescript'
-grep -q '"python"' "$sample_repo/horus.config.json" || fail 'generate-config detects python'
+bash "$root/scripts/generate-config.sh" "$sample_repo" --output "$sample_repo/lilara.config.json" >/dev/null
+check_file "$sample_repo/lilara.config.json" 'generate-config output'
+grep -q '"typescript"' "$sample_repo/lilara.config.json" || fail 'generate-config detects typescript'
+grep -q '"python"' "$sample_repo/lilara.config.json" || fail 'generate-config detects python'
 pass 'generate-config'
 
 # 2. minimal profile
@@ -63,12 +63,12 @@ pass 'install profile: skills'
 # 6. full profile + ecc.config consumption
 full_target="$workdir/full-install"
 mkdir -p "$full_target"
-cp "$sample_repo/horus.config.json" "$full_target/horus.config.json"
+cp "$sample_repo/lilara.config.json" "$full_target/lilara.config.json"
 bash "$root/scripts/install-local.sh" "$full_target" >/dev/null
 check_file "$full_target/agents/code-reviewer.md" 'config-driven install copies agents'
 check_file "$full_target/skills/code-review.md" 'config-driven install copies skills'
 check_file "$full_target/rules/typescript/coding-style.md" 'config-driven install copies configured rules'
-pass 'install profile from horus.config.json'
+pass 'install profile from lilara.config.json'
 
 # 7. list mode
 list_output="$workdir/list-output.txt"
@@ -112,12 +112,12 @@ bash "$root/scripts/upgrade.sh" "$fresh_target" > "$same_ver_output"
 grep -q 'nothing to do' "$same_ver_output" || fail 'upgrade.sh reports nothing-to-do when version matches'
 pass 'upgrade.sh same-version no-op'
 
-# 13. upgrade.sh — version bump updates files and preserves horus.config.json
+# 13. upgrade.sh — version bump updates files and preserves lilara.config.json
 upgrade_target="$workdir/upgrade-target"
 bash "$root/scripts/install-local.sh" "$upgrade_target" --profile minimal >/dev/null
 # Write a fake old version and a config that must be preserved
 printf '0.9.0\n' > "$upgrade_target/VERSION"
-cat > "$upgrade_target/horus.config.json" <<'CFGEOF'
+cat > "$upgrade_target/lilara.config.json" <<'CFGEOF'
 {"profile":"minimal","_test":"preserved"}
 CFGEOF
 upgrade_output="$workdir/upgrade-output.txt"
@@ -127,8 +127,8 @@ grep -q 'updated' "$upgrade_output" || fail 'upgrade.sh reports files updated'
 current_ver="$(cat "$root/VERSION")"
 installed_ver="$(cat "$upgrade_target/VERSION")"
 [ "$installed_ver" = "$current_ver" ] || fail "upgrade.sh did not update VERSION ($installed_ver != $current_ver)"
-# horus.config.json must be preserved (our _test marker must still be there)
-grep -q '_test' "$upgrade_target/horus.config.json" || fail 'upgrade.sh overwrote horus.config.json'
+# lilara.config.json must be preserved (our _test marker must still be there)
+grep -q '_test' "$upgrade_target/lilara.config.json" || fail 'upgrade.sh overwrote lilara.config.json'
 check_file "$upgrade_target/claude/hooks/secret-warning.js" 'upgrade.sh kept hooks'
 pass 'upgrade.sh version bump'
 

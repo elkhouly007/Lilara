@@ -7,11 +7,85 @@ schema migrations (contract v1→v2, v2→v3) are documented in
 
 ---
 
+## v3.1.0 (HAP / Agent Runtime Guard) → v0.1.0 (Lilara) — clean-break upgrade
+
+**Decision D-016:** Clean break. No dual-read fallback. No `HORUS_*` aliases.
+
+### 1. Stop any running hooks
+
+Close all Claude Code / OpenCode / OpenClaw / Codex / Antegravity sessions
+before migrating. Running hooks will crash or silently fail once the env vars
+and state dir are renamed.
+
+### 2. Migrate state directory
+
+```bash
+mv ~/.horus ~/.lilara
+```
+
+If you want to keep both side-by-side during a trial period, wipe `~/.horus`
+and start fresh — the only operator today is Khouly, so blast radius is one
+person.
+
+### 3. Migrate environment variables
+
+Remove all `HORUS_*` entries from your shell rc files (`.bashrc`, `.zshrc`,
+etc.) and replace with `LILARA_*` equivalents:
+
+| Old | New |
+|-----|-----|
+| `HORUS_ENFORCE` | `LILARA_ENFORCE` |
+| `HORUS_KILL_SWITCH` | `LILARA_KILL_SWITCH` |
+| `HORUS_STATE_DIR` | `LILARA_STATE_DIR` |
+| `HORUS_CONTRACT_ENABLED` | `LILARA_CONTRACT_ENABLED` |
+| `HORUS_TRAJECTORY_WINDOW_MIN` | `LILARA_TRAJECTORY_WINDOW_MIN` |
+| `HORUS_BENCH_P99_MS` | `LILARA_BENCH_P99_MS` |
+| `HORUS_PERF_P99_MS` | `LILARA_PERF_P99_MS` |
+| (all others follow the same pattern) | |
+
+### 4. Re-accept your contracts
+
+Existing accepted contracts carry a `contractId` with the `hap-` prefix.
+That prefix no longer matches the schema regex `^lilara-...`. They are
+invalid and will be ignored.
+
+```bash
+# Accept a fresh contract
+bash scripts/lilara-cli.sh accept-contract ./lilara.contract.json
+
+# Verify
+bash scripts/lilara-cli.sh check
+bash scripts/lilara-cli.sh state stats
+```
+
+### 5. Update wire-hook snippets
+
+If your hooks file (e.g. `.claude/settings.json`) references `horus-cli.sh`,
+update to `lilara-cli.sh`. Re-run `bash scripts/install.sh` to pick up the
+renamed scripts automatically.
+
+### 6. Verify
+
+```bash
+bash scripts/lilara-cli.sh check
+bash scripts/lilara-cli.sh state stats   # journal/policy/snapshots intact
+```
+
+### Local git remote (after GitHub repo rename)
+
+```bash
+git remote set-url origin git@github.com:elkhouly007/lilara.git
+```
+
+GitHub auto-redirects old `agent-runtime-guard` URLs for ~12 months.
+
+---
+
 ## ADR-007 — Canonical Action IR + Decision Lattice (PR-A → PR-D)
 
 **Status:** additive. No operator action required.
 
-The HAP ADR-007 series (`references/adr-007-canonical-action-ir.md`) lands
+The Lilara ADR-007 series (`references/adr-007-canonical-action-ir.md`) lands
 in four sequential PRs on the master branch. Every change is additive: the
 contract schema is byte-stable, no existing decision flips outcome, and no
 new third-party dependency is introduced.
@@ -41,7 +115,7 @@ The journal append path explicitly preserves field order; the only
 deltas are new keys at the end.
 
 Operators who do not want the extras can opt out for one release with
-`HORUS_IR_JOURNAL=0`. The flag is intended as a short-lived escape hatch
+`LILARA_IR_JOURNAL=0`. The flag is intended as a short-lived escape hatch
 during cutover and will be removed once external consumers have parsed at
 least one IR-on journal.
 
@@ -87,7 +161,7 @@ so baseline drift cannot accidentally land in PRs).
 ### Rollback
 
 Each PR can be reverted in isolation. To temporarily disable just the
-journal extras without reverting code, set `HORUS_IR_JOURNAL=0` in the
+journal extras without reverting code, set `LILARA_IR_JOURNAL=0` in the
 operator environment.
 
 ---
@@ -117,24 +191,24 @@ carry any F18 signal are unaffected.
 
 ### ADR-011 — state portability
 
-New CLI: `horus-cli.sh state export <path>` writes a self-contained
-bundle of `~/.horus/` (learned-policy, journal, instincts, snapshots,
-session-budget, locks). `horus-cli.sh state import <path>` restores it.
+New CLI: `lilara-cli.sh state export <path>` writes a self-contained
+bundle of `~/.lilara/` (learned-policy, journal, instincts, snapshots,
+session-budget, locks). `lilara-cli.sh state import <path>` restores it.
 Useful for migrating between machines or moving from a test box to
 production. Implemented in `runtime/state-bundle.js`.
 
 ### ADR-013 — auto-snapshot before destructive ops
 
-New state subdir: `~/.horus/snapshots/`. When a destructive action is
+New state subdir: `~/.lilara/snapshots/`. When a destructive action is
 allowed/routed, `runtime/snapshot.js` captures pre-action state and
 attaches the snapshot ref to the receipt. Disk usage grows with
-destructive-op volume; prune with `horus-cli.sh snapshot prune` (or
+destructive-op volume; prune with `lilara-cli.sh snapshot prune` (or
 remove files older than your retention threshold manually). No
 configuration is required for the feature to be active.
 
 ### ADR-014 — audit-grade receipts
 
-New CLI: `horus-cli.sh receipt export <session-id>` produces a canonical
+New CLI: `lilara-cli.sh receipt export <session-id>` produces a canonical
 receipt JSON for auditors. `scripts/redact-payload.sh` is an offline
 audit tool that strips sensitive fields from an exported receipt; it is
 NOT in the runtime path. CI gate: `scripts/check-receipt-schema.sh`.
@@ -148,9 +222,9 @@ keys:
 - `notifications.discord.webhookUrl` — Discord incoming-webhook URL.
 - `notifications.slack.webhookUrl` — Slack incoming-webhook URL.
 - `notifications.email.{to, from?}` — email recipient(s). SMTP
-  credentials live in the environment only: `HORUS_SMTP_HOST`,
-  `HORUS_SMTP_PORT`, `HORUS_SMTP_USER`, `HORUS_SMTP_PASS`,
-  `HORUS_SMTP_FROM`. Never stored in the contract or any state file.
+  credentials live in the environment only: `LILARA_SMTP_HOST`,
+  `LILARA_SMTP_PORT`, `LILARA_SMTP_USER`, `LILARA_SMTP_PASS`,
+  `LILARA_SMTP_FROM`. Never stored in the contract or any state file.
 
 The hook is fire-and-forget: transport failures do not change a
 decision. Receipts gain an additive `notifyAttempted: true` ONLY when
@@ -199,6 +273,6 @@ single feature without reverting code:
 | F18 network-egress | omit `scopes.network.allowDomains` (and `denyDomains`, `allowPlaintext`) |
 | F19 output-exfil | (no opt-out; lattice floor) |
 | F20 change-intent | (no opt-out; lattice floor) |
-| Auto-snapshot (ADR-013) | (no env flag yet; remove `~/.horus/snapshots/` to reclaim disk) |
+| Auto-snapshot (ADR-013) | (no env flag yet; remove `~/.lilara/snapshots/` to reclaim disk) |
 | Notifications (ADR-015) | omit `notifications` from the contract, or set `notifications.enabled` to `false` |
 | Journal hash-chain (ADR-004) | (no opt-out; backwards-compatible append format) |

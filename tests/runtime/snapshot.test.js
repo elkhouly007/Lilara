@@ -25,12 +25,12 @@ const path   = require("node:path");
 const crypto = require("node:crypto");
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "horus-snapshot-"));
-process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
-fs.mkdirSync(process.env.HORUS_STATE_DIR, { recursive: true, mode: 0o700 });
+process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
+fs.mkdirSync(process.env.LILARA_STATE_DIR, { recursive: true, mode: 0o700 });
 
 // Quiet down the optional decision-journal during tests that aren't asserting
 // on journal contents.
-process.env.HORUS_DECISION_JOURNAL = "1";
+process.env.LILARA_DECISION_JOURNAL = "1";
 
 const root = path.join(__dirname, "..", "..");
 const snap = require(path.join(root, "runtime", "snapshot"));
@@ -194,8 +194,8 @@ test("engine: snapshot FS error → action stays allow, receipt records failed-f
   const f = path.join(proj, "doc.txt");
   fs.writeFileSync(f, "hello");
   const stateDir = freshTmp("fo-state");
-  process.env.HORUS_STATE_DIR = stateDir;
-  process.env.HORUS_CONTRACT_ENABLED = "0";
+  process.env.LILARA_STATE_DIR = stateDir;
+  process.env.LILARA_CONTRACT_ENABLED = "0";
 
   const snapPath   = path.join(root, "runtime", "snapshot");
   const enginePath = path.join(root, "runtime", "decision-engine");
@@ -227,8 +227,8 @@ test("engine: snapshot FS error → action stays allow, receipt records failed-f
     assert.strictEqual(r.snapshot.snapshotId, null);
   } finally {
     localSnap.createSnapshot = orig;
-    delete process.env.HORUS_CONTRACT_ENABLED;
-    process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
+    delete process.env.LILARA_CONTRACT_ENABLED;
+    process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
     delete require.cache[require.resolve(snapPath)];
     delete require.cache[require.resolve(enginePath)];
   }
@@ -272,7 +272,7 @@ test("pruneSnapshots: age + total-bytes constraints respected", () => {
 // ─── 7. Engine guards: non-destructive + block decisions ────────────────
 test("engine: non-destructive IR → no snapshot attempted", () => {
   const stateDir = freshTmp("nd-state");
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   const enginePath = path.join(root, "runtime", "decision-engine");
   delete require.cache[require.resolve(enginePath)];
   const localEngine = require(enginePath);
@@ -282,13 +282,13 @@ test("engine: non-destructive IR → no snapshot attempted", () => {
   input.ir = irBuild(input, { tool: "Read", command: input.command, cwd: tmpRoot, projectRoot: tmpRoot });
   const r = localEngine.decide(input);
   assert.strictEqual(r.snapshot, undefined, "non-destructive decisions must not have a snapshot receipt key");
-  process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
+  process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
   delete require.cache[require.resolve(enginePath)];
 });
 test("engine: block decision → no snapshot attempted", () => {
   const stateDir = freshTmp("blk-state");
-  process.env.HORUS_STATE_DIR = stateDir;
-  process.env.HORUS_KILL_SWITCH = "1";
+  process.env.LILARA_STATE_DIR = stateDir;
+  process.env.LILARA_KILL_SWITCH = "1";
   const enginePath = path.join(root, "runtime", "decision-engine");
   delete require.cache[require.resolve(enginePath)];
   const localEngine = require(enginePath);
@@ -298,8 +298,8 @@ test("engine: block decision → no snapshot attempted", () => {
     assert.strictEqual(r.action, "block");
     assert.strictEqual(r.snapshot, undefined);
   } finally {
-    delete process.env.HORUS_KILL_SWITCH;
-    process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
+    delete process.env.LILARA_KILL_SWITCH;
+    process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
     delete require.cache[require.resolve(enginePath)];
   }
 });
@@ -342,9 +342,9 @@ test("e2e smoke: destructive-allow → snapshot → simulated rm -rf → restore
 
   // Wire through the engine like a real destructive-allow decision.
   const stateDir = freshTmp("e2e-state");
-  process.env.HORUS_STATE_DIR = stateDir;
+  process.env.LILARA_STATE_DIR = stateDir;
   // Disable contract so it does not gate the allow path.
-  process.env.HORUS_CONTRACT_ENABLED = "0";
+  process.env.LILARA_CONTRACT_ENABLED = "0";
   const enginePath = path.join(root, "runtime", "decision-engine");
   const snapPath   = path.join(root, "runtime", "snapshot");
   delete require.cache[require.resolve(enginePath)];
@@ -385,7 +385,7 @@ test("e2e smoke: destructive-allow → snapshot → simulated rm -rf → restore
   fs.rmSync(proj, { recursive: true, force: true });
   assert.ok(!fs.existsSync(proj), "project tree should be gone after simulated rm");
 
-  // Restore. The snapshot store is under HORUS_STATE_DIR/snapshots/.
+  // Restore. The snapshot store is under LILARA_STATE_DIR/snapshots/.
   const rr = localSnap.restoreSnapshot(r.snapshot.snapshotId);
   assert.strictEqual(rr.ok, true, "restore should succeed when targets are absent");
   assert.strictEqual(rr.restored.length, 3, "all three captured files must be restored");
@@ -394,8 +394,8 @@ test("e2e smoke: destructive-allow → snapshot → simulated rm -rf → restore
   }
 
   // Cleanup env so later tests in this file don't inherit it.
-  delete process.env.HORUS_CONTRACT_ENABLED;
-  process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
+  delete process.env.LILARA_CONTRACT_ENABLED;
+  process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
   delete require.cache[require.resolve(enginePath)];
   delete require.cache[require.resolve(snapPath)];
 });

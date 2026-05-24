@@ -81,4 +81,4 @@ node -e "
 - [ ] Permanent allows exist for safe repeated commands (test, lint, build)
 - [ ] No overly broad wildcards that bypass sensitive-path detection
 - [ ] Session-scoped policies expire — review if they were promoted to permanent
-- [ ] `HORUS_ENFORCE=1` set in CI to make blocks terminal rather than advisory
+- [ ] `LILARA_ENFORCE=1` set in CI to make blocks terminal rather than advisory

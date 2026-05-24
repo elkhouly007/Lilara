@@ -34,7 +34,7 @@ Also accepted: `tool_input.command`, `input.command`, direct `command` field.
 **Modes:**
 
 - Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export HORUS_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+- Block mode: `export LILARA_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
 
 **Fixtures:** `tests/fixtures/opencode/` — 12 fixtures covering dangerous commands (rm -rf, force-push, curl\|sh, DROP TABLE, npx -y, git reset --hard), enforce mode, safe pass-through, and borderline sudo.
 

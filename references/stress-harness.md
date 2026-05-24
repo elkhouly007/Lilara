@@ -43,7 +43,7 @@ Each `*.scenario.js` exports:
 | `assertGraceful(out, journal, ctx)` | Assert graceful behavior (throws on failure).       |
 
 `ctx` carries `{ id, stateDir, projectDir, outDir, root }`. The runner
-mkdtemp's a fresh `HORUS_STATE_DIR` per scenario and reloads `runtime/*`
+mkdtemp's a fresh `LILARA_STATE_DIR` per scenario and reloads `runtime/*`
 from the require cache so memoised engine state cannot leak across runs.
 
 A run is "graceful" when (per `assert-graceful.js`):
@@ -61,7 +61,7 @@ A run is "graceful" when (per `assert-graceful.js`):
 | provider-down       | input carries `adapterManifest.capabilities.network = false` | engine returns a deterministic decision without throwing (G4 capability degradation)        |
 | rate-limit          | synthetic adapter throws `RateLimitError` (HTTP 429) on first call | engine remains decision-stable; assertion observes adapter throw + journal-or-marker         |
 | network-out         | F18 `evaluateDns` with a stub lookup that throws `ENOTFOUND` | F18 FC #4 fires (`dns_lookup_failed`); `decide()` returns without crash                      |
-| disk-full           | `HORUS_STATE_DIR` chmod 0o500 + F17 lock conflict (early-block path) | engine reaches `buildEarlyBlock`, wrapped journal/append silently fails, decision returns    |
+| disk-full           | `LILARA_STATE_DIR` chmod 0o500 + F17 lock conflict (early-block path) | engine reaches `buildEarlyBlock`, wrapped journal/append silently fails, decision returns    |
 | lockfile-stuck      | stale `cross-agent-locks/*.json` owned by a fictitious agent | F17 fires deterministically across 10 repeated `decide()` calls; bounded wait (<30 s)        |
 | clock-skew          | `Date.now()` frozen at 2000-01-01T00:00Z             | engine + `journal-chain.verify()` remain clean (chain is timestamp-agnostic by design)       |
 | journal-corruption  | one chain entry's payload tampered after append      | engine enters degraded mode (ADR-004); `verify()` reports corruption                         |
@@ -74,7 +74,7 @@ scope is observe-and-report — fixes belong in scoped follow-up PRs.
 
 - **disk-full non-block path** — `runtime/decision-engine.js` line 1456
   (`append`) and line 1488 (`recordDecision`) are NOT wrapped in
-  `try/catch`. Under `HORUS_STATE_DIR` chmod 0o500, both throw `EACCES`
+  `try/catch`. Under `LILARA_STATE_DIR` chmod 0o500, both throw `EACCES`
   on the non-block return path. The disk-full scenario today exercises
   the wrapped F17 early-block path so the harness ships green; the
   unwrapped path remains a follow-up.

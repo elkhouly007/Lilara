@@ -1,5 +1,5 @@
 /**
- * instinct-utils.js — Horus Agentic Power
+ * instinct-utils.js — Lilara
  *
  * Shared utilities for the instinct learning system.
  *
@@ -7,7 +7,7 @@
  * - No external packages (stdlib only: fs, path, os)
  * - No network calls
  * - No access to session content or payloads
- * - Writes only to ~/.horus/instincts/ (user-local, not synced)
+ * - Writes only to ~/.lilara/instincts/ (user-local, not synced)
  */
 
 "use strict";

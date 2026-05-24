@@ -1,4 +1,4 @@
-# ADR-012 — Change-intent drift (F20, HAP v0.5 Stage D wave 2)
+# ADR-012 — Change-intent drift (F20, Lilara v0.5 Stage D wave 2)
 
 Status: accepted (v0.5 Stage D, parallel with auto-snapshot)
 Scope: §5.1 "Change-intent diffing: compare declared user goal / plan envelope against actual file, command, network, and policy deltas; out-of-intent changes escalate."
@@ -126,8 +126,8 @@ The journal entry chains per ADR-004 when F20 fires (block / require-review).
 
 ### CLI
 
-`scripts/horus-cli.sh envelope set | show | clear` (added under the existing
-unified CLI). `envelope set` writes `<HORUS_STATE_DIR>/envelope.json`
+`scripts/lilara-cli.sh envelope set | show | clear` (added under the existing
+unified CLI). `envelope set` writes `<LILARA_STATE_DIR>/envelope.json`
 (0600), with a 24h freshness window. `envelope show` redacts goal /
 planSummary to 120 chars. `envelope clear` removes the file.
 
@@ -143,7 +143,7 @@ severity. Both stay in the lattice; F7 is NOT modified by this PR.
   supplies via CLI for v0.5.
 - Adversarial replay corpus (will follow up similar to F16 PR-D / #41).
 - F7 deprecation / merger with F20.
-- Wiring HAP enforcement into Claude Code / OpenClaw runtime.
+- Wiring Lilara enforcement into Claude Code / OpenClaw runtime.
 - Operator-token signing-mechanism upgrade (reuses the F4/F19 scoped-token
   path: `mintOperatorToken(label, "change-intent-drift-medium")`).
 
@@ -153,7 +153,7 @@ severity. Both stay in the lattice; F7 is NOT modified by this PR.
 - `bash scripts/check-lattice-receipts.sh` — green with F20 fixture pin.
 - `bash scripts/check-runtime-core.sh` / `check-zero-deps.sh` /
   `check-counts.sh` — green.
-- `HORUS_HERMETIC_TEST=1 bash scripts/run-fixtures.sh` — green.
+- `LILARA_HERMETIC_TEST=1 bash scripts/run-fixtures.sh` — green.
 
 ## Files
 
@@ -164,5 +164,5 @@ severity. Both stay in the lattice; F7 is NOT modified by this PR.
 - `runtime/decision-journal.js` (changeIntent pass-through)
 - `tests/runtime/change-intent.test.js`
 - `tests/fixtures/lattice-receipts/F20-change-intent-drift.input`
-- `scripts/horus-cli.sh` (`envelope set | show | clear`)
+- `scripts/lilara-cli.sh` (`envelope set | show | clear`)
 - `references/adr-012-change-intent-drift.md` (this file)

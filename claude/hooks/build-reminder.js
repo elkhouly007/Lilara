@@ -2,12 +2,12 @@
 // build-reminder.js — PreToolUse hook for the Bash tool.
 //
 // Reminds the agent to review build/test output before continuing.
-// In enforce mode (HORUS_ENFORCE=1) blocks merging or committing after
+// In enforce mode (LILARA_ENFORCE=1) blocks merging or committing after
 // a known failing build command — currently advisory-only for build runs
 // (no blocking: the agent needs to SEE the output to know if it failed).
 //
 // Enforce levels:
-//   HORUS_ENFORCE=1  →  block mode: suppresses the "proceeding in warn mode" message
+//   LILARA_ENFORCE=1  →  block mode: suppresses the "proceeding in warn mode" message
 //                     (blocking build commands before run makes no sense; the hook
 //                      enforces the REVIEW step, not the run step).
 //   Default        →  warn mode:  prints a reminder to review before continuing.
@@ -20,7 +20,7 @@ const LOCAL_BUILD_OR_TEST = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|check|
 
 readStdin()
   .then((raw) => {
-    if (process.env.HORUS_KILL_SWITCH === "1") { process.stderr.write("[Agent Runtime Guard] Kill-switch engaged — blocked.\n"); process.exit(2); }
+    if (process.env.LILARA_KILL_SWITCH === "1") { process.stderr.write("[Lilara] Kill-switch engaged — blocked.\n"); process.exit(2); }
     if (!rateLimitCheck("build-reminder")) {
       process.stdout.write(raw);
       return;
@@ -29,8 +29,8 @@ readStdin()
       const input   = JSON.parse(raw || "{}");
       const command = commandFrom(input);
       if (LOCAL_BUILD_OR_TEST.test(command)) {
-        console.error("[Agent Runtime Guard] Build / test command detected.");
-        console.error("[Agent Runtime Guard] Review the full output before continuing — do not skip past failures.");
+        console.error("[Lilara] Build / test command detected.");
+        console.error("[Lilara] Review the full output before continuing — do not skip past failures.");
       }
     } catch {
       // Non-blocking by design.

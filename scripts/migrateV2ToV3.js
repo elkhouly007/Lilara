@@ -5,8 +5,8 @@ const fs   = require("node:fs");
 const path = require("node:path");
 
 function main() {
-  const inPath  = process.argv[2] || path.join(process.cwd(), "horus.contract.json");
-  const outPath = process.argv[3] || path.join(process.cwd(), "horus.contract.json.draft");
+  const inPath  = process.argv[2] || path.join(process.cwd(), "lilara.contract.json");
+  const outPath = process.argv[3] || path.join(process.cwd(), "lilara.contract.json.draft");
 
   if (!fs.existsSync(inPath)) {
     console.error(`migrateV2ToV3: input not found: ${inPath}`);
@@ -52,7 +52,7 @@ function main() {
 
   fs.writeFileSync(outPath, JSON.stringify(next, null, 2) + "\n");
   console.log(`migrateV2ToV3: wrote ${outPath} (version=3, hash=${next.contractHash.slice(0, 19)}...)`);
-  console.log("Next: review the draft, then 'horus-cli.sh contract accept' to finalize.");
+  console.log("Next: review the draft, then 'lilara-cli.sh contract accept' to finalize.");
 }
 
 main();

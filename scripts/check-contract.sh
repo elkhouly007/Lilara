@@ -158,10 +158,10 @@ const { generate, hashContract, newContractId, invalidateCache, scopeMatch, harn
 
 // newContractId format
 const cid = newContractId();
-assert(/^hap-\d{8}-[0-9a-f]{12}$/.test(cid), "newContractId: correct format");
+assert(/^lilara-\d{8}-[0-9a-f]{12}$/.test(cid), "newContractId: correct format");
 
 // generate writes a draft
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hap-test-"));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lilara-test-"));
 const draftPath = generate(tmpDir, { harnesses: ["claude", "opencode"] });
 assert(fs.existsSync(draftPath), "generate: draft file created");
 

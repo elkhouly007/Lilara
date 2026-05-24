@@ -2,7 +2,7 @@
   "title": "F14 budget-exceeded: destructive-ops counter at limit",
   "contract": {
     "version": 3,
-    "contractId": "hap-20260101-00000000f014",
+    "contractId": "lilara-20260101-00000000f014",
     "revision": 1,
     "acceptedAt": "2026-01-01T00:00:00Z",
     "acceptedBy": "fixture",

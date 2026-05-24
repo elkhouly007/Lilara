@@ -52,7 +52,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
 
   readStdin()
     .then((raw) => {
-      if (process.env.HORUS_KILL_SWITCH === "1") {
+      if (process.env.LILARA_KILL_SWITCH === "1") {
         process.stdout.write(raw);
         return;
       }
@@ -72,8 +72,8 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // 1. Secret scan — warn if tool output contains a credential pattern.
         const hit = scanSecrets(text);
         if (hit) {
-          process.stderr.write(`[Agent Runtime Guard] Possible ${hit.name} detected in tool output.\n`);
-          process.stderr.write("[Agent Runtime Guard] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
+          process.stderr.write(`[Lilara] Possible ${hit.name} detected in tool output.\n`);
+          process.stderr.write("[Lilara] Secret may have been echoed by the tool. Rotate the credential if unintentional.\n");
           try { hookLog(rateLimitKey, "WARN", hit.name); } catch { /* log I/O is non-fatal */ }
         }
 
@@ -86,12 +86,12 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // report an exec-time envelope in PostToolUse payloads.
         if (envelopeReporting) {
           const toolUseId = input.tool_use_id || input.toolUseId || null;
-          const observedEnvelope = input.executionEnvelope || input.execution_envelope || input.horus?.executionEnvelope || null;
+          const observedEnvelope = input.executionEnvelope || input.execution_envelope || input.lilara?.executionEnvelope || null;
           const expectedEnvelope = toolUseId ? loadPending(toolUseId, Boolean(observedEnvelope)) : null;
           if (expectedEnvelope && observedEnvelope) {
             const result = verify(expectedEnvelope, observedEnvelope, { enforceEnvDiff: true });
             if (!result.ok) {
-              process.stderr.write(`[Agent Runtime Guard] Execution envelope diverged after ${harnessName} tool run (${result.reason}).\n`);
+              process.stderr.write(`[Lilara] Execution envelope diverged after ${harnessName} tool run (${result.reason}).\n`);
               try {
                 append({
                   kind: "execution-envelope-diverged",

@@ -9,7 +9,7 @@
 //   { "tool": "bash", "command": "...", "workdir": "..." }
 //   { "tool_name": "Bash", "tool_input": { "command": "..." } }  (Claude Code compat)
 //
-// To enable block mode: export HORUS_ENFORCE=1
+// To enable block mode: export LILARA_ENFORCE=1
 
 "use strict";
 
@@ -21,7 +21,7 @@ createAdapter({
   extractCommand:    (i) => String(i.command || i.cmd || i.tool_input?.command || i.input?.command || i.args?.command || i.params?.command || ""),
   extractCwd:        (i) => String(i.workdir || i.cwd || i.working_directory || i.tool_input?.cwd || i.input?.cwd || i.args?.cwd || ""),
   extractTool:       (i) => String(i.tool_name || i.tool || i.type || "Bash"),
-  // HAP ADR-007 PR-B: codex/manifest.json declares best-effort args/cwd
+  // Lilara ADR-007 PR-B: codex/manifest.json declares best-effort args/cwd
   // fidelity and unverified MCP/skill interception. envelopeReporting stays
   // false until verified Codex hook integration lands.
   envelopeReporting: false,

@@ -12,7 +12,7 @@ Local-only Node.js scripts. All hooks follow the same safety contract:
 | No network calls | Zero outbound connections |
 | No content access | Never read prompt text, file contents, or API responses |
 | Silent fail | `catch(() => process.exit(0))` — hooks never crash the harness |
-| Local writes only | Only `~/.horus/` (instincts, session counter, telemetry) |
+| Local writes only | Only `~/.lilara/` (instincts, session counter, telemetry) |
 
 ---
 
@@ -27,7 +27,7 @@ Local-only Node.js scripts. All hooks follow the same safety contract:
 ### Stop Hooks
 | Hook | What it does |
 |------|-------------|
-| `session-end.js` | Captures tool_name + event_type metadata, writes one candidate instinct to `~/.horus/instincts/pending.json`. Never captures content. |
+| `session-end.js` | Captures tool_name + event_type metadata, writes one candidate instinct to `~/.lilara/instincts/pending.json`. Never captures content. |
 
 ### PreToolUse Hooks
 | Hook | Matcher | What it does |
@@ -40,7 +40,7 @@ Local-only Node.js scripts. All hooks follow the same safety contract:
 ### PostToolUse Hooks
 | Hook | Matcher | What it does |
 |------|---------|-------------|
-| `strategic-compact.js` | all tools | Tracks call count in `~/.horus/session-counter.json`. Suggests `/compact` at 50, 100, and every 25 after. Also fires after Agent/WebFetch/WebSearch. |
+| `strategic-compact.js` | all tools | Tracks call count in `~/.lilara/session-counter.json`. Suggests `/compact` at 50, 100, and every 25 after. Also fires after Agent/WebFetch/WebSearch. |
 | `output-sanitizer.js` | all tools | Scans tool output for secrets (delegates to `runtime/secret-scan.js`). Cannot block; emits stderr warning for cross-harness consistency. |
 | `pr-notifier.js` | Bash only | Detects GitHub PR URL in output after `gh pr create`. Prints URL + review commands. |
 | `quality-gate.js` | Edit / Write | Reads `file_path` metadata, suggests typecheck/lint command for `.ts`, `.py`, `.go`, `.rs`, `.java/.kt` files. |
@@ -114,13 +114,13 @@ Copy this block into `~/.claude/settings.json` (replace `/ABS_PATH/` with the fu
 
 | Variable | Values | Effect |
 |----------|--------|--------|
-| `HORUS_ENFORCE` | `0` (default) / `1` | When `1`, hooks exit code 2 to block the tool call instead of warning. |
-| `HORUS_KILL_SWITCH` | unset (default) / `1` | When `1`, `runtime.decide()` returns `action: "block"` for **every** input, regardless of risk score. Use in emergencies to stop all agentic tool use immediately. Unset with `unset HORUS_KILL_SWITCH` to restore normal operation. Hook output will print `kill-switch engaged` prominently when active. |
-| `HORUS_HOOK_LOG` | `0` (default) / `1` | When `1`, writes structured JSONL events to `~/.horus/hook-events.log`. |
-| `HORUS_RATE_LIMIT` | `1` (default) / `0` | When `0`, disables the token-bucket rate limiter (useful in CI / tests). |
-| `HORUS_STATE_DIR` | path | Override the runtime state directory (policy store, session context, decision journal). Defaults to `~/.horus`. Useful for test isolation. |
-| `HORUS_TRAJECTORY_THRESHOLD` | integer (default `3`) | Number of recent escalations before trajectory nudge activates. |
-| `HORUS_TRAJECTORY_WINDOW_MIN` | integer (default `30`) | Sliding window in minutes for trajectory escalation counting. |
+| `LILARA_ENFORCE` | `0` (default) / `1` | When `1`, hooks exit code 2 to block the tool call instead of warning. |
+| `LILARA_KILL_SWITCH` | unset (default) / `1` | When `1`, `runtime.decide()` returns `action: "block"` for **every** input, regardless of risk score. Use in emergencies to stop all agentic tool use immediately. Unset with `unset LILARA_KILL_SWITCH` to restore normal operation. Hook output will print `kill-switch engaged` prominently when active. |
+| `LILARA_HOOK_LOG` | `0` (default) / `1` | When `1`, writes structured JSONL events to `~/.lilara/hook-events.log`. |
+| `LILARA_RATE_LIMIT` | `1` (default) / `0` | When `0`, disables the token-bucket rate limiter (useful in CI / tests). |
+| `LILARA_STATE_DIR` | path | Override the runtime state directory (policy store, session context, decision journal). Defaults to `~/.lilara`. Useful for test isolation. |
+| `LILARA_TRAJECTORY_THRESHOLD` | integer (default `3`) | Number of recent escalations before trajectory nudge activates. |
+| `LILARA_TRAJECTORY_WINDOW_MIN` | integer (default `30`) | Sliding window in minutes for trajectory escalation counting. |
 
 ## Verify Installation
 

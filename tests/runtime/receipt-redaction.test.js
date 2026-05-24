@@ -31,7 +31,7 @@ function test(name, fn) {
 
 function freshStateDir(label) {
   const p = fs.mkdtempSync(path.join(os.tmpdir(), "arg-rr-" + label + "-"));
-  process.env.HORUS_STATE_DIR = p;
+  process.env.LILARA_STATE_DIR = p;
   for (const k of Object.keys(require.cache)) {
     if (k.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[k];
   }

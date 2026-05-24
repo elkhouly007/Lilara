@@ -1,6 +1,6 @@
 {
-  "title": "F1 kill-switch fires unconditionally with HORUS_KILL_SWITCH=1",
-  "env": { "HORUS_KILL_SWITCH": "1" },
+  "title": "F1 kill-switch fires unconditionally with LILARA_KILL_SWITCH=1",
+  "env": { "LILARA_KILL_SWITCH": "1" },
   "input": {
     "tool": "Bash",
     "command": "ls -la",

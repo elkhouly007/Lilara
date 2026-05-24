@@ -30,21 +30,21 @@ else
     pass 'hook rejects huge payload'
 fi
 
-# 3. Missing horus.config.json
+# 3. Missing lilara.config.json
 (
   cd "$workdir"
   printf '{"text":"hello"}' | node "$hook" >/dev/null 2>&1 || fail 'hook fails when config is missing'
 )
-pass 'hook handles missing horus.config.json (defaults to safe)'
+pass 'hook handles missing lilara.config.json (defaults to safe)'
 
-# 4. Malformed horus.config.json
-cat > "$workdir/horus.config.json" <<'EOF'
+# 4. Malformed lilara.config.json
+cat > "$workdir/lilara.config.json" <<'EOF'
 { "invalid": json
 EOF
 (
   cd "$workdir"
   printf '{"text":"hello"}' | node "$hook" >/dev/null 2>&1 || true
-  pass 'hook handles malformed horus.config.json'
+  pass 'hook handles malformed lilara.config.json'
 )
 
 # 5. Dangerous Command Gate edge cases
@@ -55,7 +55,7 @@ cat > "$workdir/multi-line.json" <<'EOF'
   "command": "echo hello\nsudo rm -rf /"
 }
 EOF
-if HORUS_ENFORCE=1 node "$dcg_hook" < "$workdir/multi-line.json" 2>/tmp/ecc-dcg.err; then
+if LILARA_ENFORCE=1 node "$dcg_hook" < "$workdir/multi-line.json" 2>/tmp/ecc-dcg.err; then
     fail 'DCG should block dangerous command on second line'
 fi
 pattern="rm -r"
@@ -63,18 +63,18 @@ pattern="${pattern}f"
 grep -Fq "$pattern" /tmp/ecc-dcg.err || fail 'DCG error should mention the command'
 pass 'DCG detects dangerous command in multi-line input'
 
-# 6. JSONL audit trail: verify hookLog emits valid JSON lines when HORUS_HOOK_LOG=1
+# 6. JSONL audit trail: verify hookLog emits valid JSON lines when LILARA_HOOK_LOG=1
 log_dir="$(mktemp -d)"
 log_cleanup() { rm -rf "$log_dir"; }
 trap log_cleanup EXIT
 log_file="$log_dir/hook-events.log"
 dcg_hook="$root/claude/hooks/dangerous-command-gate.js"
-HORUS_HOOK_LOG=1 HORUS_STATE_DIR="$log_dir" HORUS_RATE_LIMIT=0 \
+LILARA_HOOK_LOG=1 LILARA_STATE_DIR="$log_dir" LILARA_RATE_LIMIT=0 \
   node "$dcg_hook" <<'EOF' >/dev/null 2>/dev/null || true
 {"tool_name":"Bash","args":{"command":"rm -rf /tmp/ecc-hook-log-fixture-test"}}
 EOF
 if [ ! -f "$log_file" ]; then
-  fail 'hook-events.log not created when HORUS_HOOK_LOG=1'
+  fail 'hook-events.log not created when LILARA_HOOK_LOG=1'
 fi
 # Each non-empty line must parse as JSON with ts, hook, event, label fields
 node - "$log_file" <<'JSCHECK' || fail 'hook-events.log contains invalid JSONL'
@@ -90,6 +90,6 @@ for (const line of lines) {
 }
 console.log(`JSONL ok (${lines.length} entries)`);
 JSCHECK
-pass 'hookLog emits valid JSONL when HORUS_HOOK_LOG=1'
+pass 'hookLog emits valid JSONL when LILARA_HOOK_LOG=1'
 
 printf '\nHook edge-case checks passed.\n'

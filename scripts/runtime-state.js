@@ -41,7 +41,7 @@ function show() {
     console.log("\n[pending-suggestions]");
     for (const item of suggestions) {
       console.log(`  - ${item.key}  approvals=${item.approvalCount}`);
-      console.log(`    promote: horus-cli.sh runtime promote '${item.key}'`);
+      console.log(`    promote: lilara-cli.sh runtime promote '${item.key}'`);
     }
   }
 

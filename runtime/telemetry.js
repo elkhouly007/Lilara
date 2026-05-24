@@ -11,7 +11,7 @@ const { stateDir, ensureDir } = require("./state-paths");
 // Never records payload content, commands, file paths, or secrets.
 //
 // Log location: <stateDir>/telemetry.jsonl
-// Only writes when HORUS_TELEMETRY !== "0".
+// Only writes when LILARA_TELEMETRY !== "0".
 // ---------------------------------------------------------------------------
 
 function telemetryFile() {
@@ -19,7 +19,7 @@ function telemetryFile() {
 }
 
 function emitEvent(eventName, fields = {}) {
-  if (process.env.HORUS_TELEMETRY === "0") return;
+  if (process.env.LILARA_TELEMETRY === "0") return;
   try {
     const base = stateDir();
     ensureDir(base);

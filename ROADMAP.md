@@ -6,7 +6,7 @@ This document tracks forward-looking work only. For the implemented architecture
 
 ## Executive Summary
 
-ARG is a zero-dep Node runtime guard for AI coding agents. It pairs an explicit upfront contract (`horus.contract.json`) with a single enforcement spine and hard safety floors that no contract or learning step can demote. The current product milestone — v0.5 "Incremental Hardened Daily" — is closed; the runtime is in soak.
+ARG is a zero-dep Node runtime guard for AI coding agents. It pairs an explicit upfront contract (`lilara.contract.json`) with a single enforcement spine and hard safety floors that no contract or learning step can demote. The current product milestone — v0.5 "Incremental Hardened Daily" — is closed; the runtime is in soak.
 
 ### Three horizons
 
@@ -45,8 +45,8 @@ See `CHANGELOG.md` `[3.1.0]` and `DECISIONS.md` D49+ for the full record.
 
 ## Earlier shipped lines (summary)
 
-- **v3.0.0 — 2026-04-27.** Brand rename (`ECC_*` → `HORUS_*`, contract / config / state path renames, `arg-` → `hap-` contractId prefix). Phase 1 closed W1–W14 structural weaknesses; Phase 3 added autonomous routing foundation (`intent-classifier.js`, `route-resolver.js`).
-- **v2.1.x — 2026-04-25.** Cross-harness secret-scan parity; PostToolUse output sanitization (Claude); enforce-mode fixture corrections; protected-branch glob matching; legacy 4-part learned-allow key removed; correctness hardening (hermetic fixtures, bench platform detection, fail-closed under HORUS_ENFORCE=1); telemetry aggregation.
+- **v3.0.0 — 2026-04-27.** Brand rename (`ECC_*` → `LILARA_*`, contract / config / state path renames, contractId prefix renamed — see CHANGELOG for full chain). Phase 1 closed W1–W14 structural weaknesses; Phase 3 added autonomous routing foundation (`intent-classifier.js`, `route-resolver.js`).
+- **v2.1.x — 2026-04-25.** Cross-harness secret-scan parity; PostToolUse output sanitization (Claude); enforce-mode fixture corrections; protected-branch glob matching; legacy 4-part learned-allow key removed; correctness hardening (hermetic fixtures, bench platform detection, fail-closed under LILARA_ENFORCE=1); telemetry aggregation.
 - **v2.0.x — 2026-04-25.** Upfront security contract model. All fourteen W-series structural weaknesses addressed. Single enforcement spine, session-id partitioning, strict/readonly modes.
 - **v1.x and v0.x — 2026-04-19 → 2026-04-25.** Pre-contract era. See CHANGELOG.
 
@@ -77,8 +77,8 @@ Same deferral as OpenCode but for the OpenClaw harness; PostToolUse event model 
 
 ### Low priority
 
-**D23 — trademark clearance for "Horus Agentic Power".**
-OPEN. Pre-launch blocker. USPTO TESS / EUIPO / WIPO Madrid searches in classes 42 and 9 plus domain availability. If a conflict is found, the rebrand ripples through CLI name, `HORUS_*` env vars, `hap-` contractId prefix, and all docs.
+**D23 — trademark clearance for "Lilara".**
+RESOLVED (2026-05-24). Khouly accepted the risk and proceeded with the Lilara name (PR #59). USPTO/EUIPO/WIPO searches deferred; no blocking conflict found in initial review. Domain selection (`lilara.dev` vs `.ai`) deferred to M9 commercial track.
 
 ---
 

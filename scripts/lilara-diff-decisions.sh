@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# horus-diff-decisions.sh — Replay the last N journal entries through the current
+# lilara-diff-decisions.sh — Replay the last N journal entries through the current
 # decision engine and report any action or source divergence vs the recorded values.
 #
-# Used as a regression gate before Phase 4 flips HORUS_CONTRACT_ENABLED=1 default.
-# Requires the decision journal at ~/.horus/decision-journal.jsonl
+# Used as a regression gate before Phase 4 flips LILARA_CONTRACT_ENABLED=1 default.
+# Requires the decision journal at ~/.lilara/decision-journal.jsonl
 #
 # Usage:
-#   bash scripts/horus-diff-decisions.sh [--max N] [--journal /path/to/journal.jsonl]
+#   bash scripts/lilara-diff-decisions.sh [--max N] [--journal /path/to/journal.jsonl]
 #
 # Exit 0 = clean (zero divergence ignoring legitimate contract-allow source changes).
 # Exit 1 = divergence found.
@@ -17,7 +17,7 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  printf 'Error: node not found — skipping horus-diff-decisions.sh\n' >&2
+  printf 'Error: node not found — skipping lilara-diff-decisions.sh\n' >&2
   exit 0
 fi
 
@@ -47,7 +47,7 @@ const journalArg = process.argv[4] || "";
 
 // Locate journal
 const defaultJournal = path.join(
-  process.env.HORUS_STATE_DIR || path.join(os.homedir(), ".openclaw", "agent-runtime-guard"),
+  process.env.LILARA_STATE_DIR || path.join(os.homedir(), ".openclaw", "agent-runtime-guard"),
   "decision-journal.jsonl"
 );
 const journalPath = journalArg || defaultJournal;

@@ -1,1 +1,1 @@
-{"command":"rm -rf /data/old","env":{"HORUS_ENFORCE":"1"},"cwd":"/test"}
+{"command":"rm -rf /data/old","env":{"LILARA_ENFORCE":"1"},"cwd":"/test"}

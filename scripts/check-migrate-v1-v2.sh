@@ -21,11 +21,11 @@ tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT
 
-# Generate a v1 contract via `horus-cli contract init`, then accept the draft.
-# We use HORUS_STATE_DIR + HORUS_CONTRACT_ENABLED=1 so the contract subsystem is live.
-export HORUS_STATE_DIR="$tmp/state"
-export HORUS_CONTRACT_ENABLED=1
-mkdir -p "$HORUS_STATE_DIR"
+# Generate a v1 contract via `lilara-cli contract init`, then accept the draft.
+# We use LILARA_STATE_DIR + LILARA_CONTRACT_ENABLED=1 so the contract subsystem is live.
+export LILARA_STATE_DIR="$tmp/state"
+export LILARA_CONTRACT_ENABLED=1
+mkdir -p "$LILARA_STATE_DIR"
 
 # Use the Node contract module to write a minimal v1 fixture directly.
 node - "$tmp" <<'NODE'
@@ -51,7 +51,7 @@ function hashContract(doc) {
 
 const v1 = {
   version:      1,
-  contractId:   "arg-20260425-abcdef012345",
+  contractId:   "lilara-20260425-abcdef012345",
   revision:     1,
   acceptedAt:   "2026-04-25T00:00:00.000Z",
   acceptedBy:   "test",

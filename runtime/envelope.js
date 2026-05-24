@@ -51,9 +51,9 @@ function safeGitHead(cwd) {
 function trackedEnvKeys(env, extraKeys = []) {
   const keys = new Set(DEFAULT_ENV_KEYS);
   for (const key of Object.keys(env || {})) {
-    if (key.startsWith("HORUS_")) keys.add(key);
+    if (key.startsWith("LILARA_")) keys.add(key);
   }
-  for (const key of String(process.env.HORUS_ENVELOPE_ENV_KEYS || "").split(",").map((item) => item.trim()).filter(Boolean)) {
+  for (const key of String(process.env.LILARA_ENVELOPE_ENV_KEYS || "").split(",").map((item) => item.trim()).filter(Boolean)) {
     keys.add(key);
   }
   for (const key of (Array.isArray(extraKeys) ? extraKeys : [])) {
@@ -103,7 +103,7 @@ function loadBaseline(input = {}, env, keys) {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
     const fresh = snapshotEnv(env, keys);
-    if (input.persistEnvBaseline !== false && process.env.HORUS_READONLY_CONTRACT !== "1") {
+    if (input.persistEnvBaseline !== false && process.env.LILARA_READONLY_CONTRACT !== "1") {
       try {
         fs.writeFileSync(file + ".tmp", JSON.stringify(fresh), { mode: 0o600 });
         fs.renameSync(file + ".tmp", file);
@@ -249,7 +249,7 @@ function targetCandidates(input = {}, cwd) {
   const fromCommand = extractPaths(input.command || "");
   const extra = Array.isArray(input.trackPaths)
     ? input.trackPaths
-    : String(process.env.HORUS_ENVELOPE_TRACK_PATHS || "").split(path.delimiter);
+    : String(process.env.LILARA_ENVELOPE_TRACK_PATHS || "").split(path.delimiter);
   const raw = [];
   if (fromCommand.length > 0) raw.push(...fromCommand);
   if (input.targetPath && input.targetPath !== cwd) raw.push(input.targetPath);
@@ -430,9 +430,9 @@ function verify(expectedEnvelope, observedEnvelope, options = {}) {
   };
 }
 
-// ADR-012 (HAP v0.5 Stage D): declared-intent envelope read-side. The CLI
-// (scripts/horus-cli.sh `horus envelope set/show/clear`) writes a JSON file at
-// <HORUS_STATE_DIR>/envelope.json describing what the operator has authorized.
+// ADR-012 (Lilara v0.5 Stage D): declared-intent envelope read-side. The CLI
+// (scripts/lilara-cli.sh `horus envelope set/show/clear`) writes a JSON file at
+// <LILARA_STATE_DIR>/envelope.json describing what the operator has authorized.
 // The engine calls loadDeclaredEnvelope() on every decide() to materialize the
 // `envelope.declaredIntent` shape consumed by runtime/change-intent.js (F20).
 //
@@ -507,7 +507,7 @@ function pendingPath(toolUseId) {
 }
 
 function rememberPending(toolUseId, envelope) {
-  if (!toolUseId || !envelope || process.env.HORUS_READONLY_CONTRACT === "1") return false;
+  if (!toolUseId || !envelope || process.env.LILARA_READONLY_CONTRACT === "1") return false;
   try {
     const file = pendingPath(toolUseId);
     const tmp = file + ".tmp";

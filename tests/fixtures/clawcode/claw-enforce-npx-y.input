@@ -1,1 +1,1 @@
-{"command":"npx -y create-react-app myapp","env":{"HORUS_ENFORCE":"1"},"cwd":"/test","branch":"feature/init"}
+{"command":"npx -y create-react-app myapp","env":{"LILARA_ENFORCE":"1"},"cwd":"/test","branch":"feature/init"}

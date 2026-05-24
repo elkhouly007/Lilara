@@ -15,9 +15,9 @@ cleanup() { rm -rf "$workdir"; }
 trap cleanup EXIT
 
 # Default ceiling: 5ms on Linux (CI), 500ms on Windows (file-system overhead).
-# Override with HORUS_BENCH_P99_MS=<n> to set explicitly.
-if [ -n "${HORUS_BENCH_P99_MS:-}" ]; then
-  P99_CEILING_MS="$HORUS_BENCH_P99_MS"
+# Override with LILARA_BENCH_P99_MS=<n> to set explicitly.
+if [ -n "${LILARA_BENCH_P99_MS:-}" ]; then
+  P99_CEILING_MS="$LILARA_BENCH_P99_MS"
 elif [ "${OS:-}" = "Windows_NT" ] || uname -s 2>/dev/null | grep -qiE 'mingw|msys|cygwin'; then
   P99_CEILING_MS=500
 elif uname -r 2>/dev/null | grep -qi 'microsoft' && pwd | grep -q '^/mnt/'; then
@@ -40,7 +40,7 @@ const root = process.argv[2];
 const workdir = process.argv[3];
 const p99Ceiling = Number(process.argv[4]);
 
-process.env.HORUS_STATE_DIR = workdir;
+process.env.LILARA_STATE_DIR = workdir;
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
 
 // Baseline lineage helpers — mirror tests/perf/bench.js. CI cache restore-keys
@@ -59,7 +59,7 @@ function gitTry(args) {
   } catch { return ""; }
 }
 function currentCommitSha() {
-  return process.env.HORUS_BENCH_BASELINE_SHA
+  return process.env.LILARA_BENCH_BASELINE_SHA
       || process.env.GITHUB_SHA
       || gitTry(["rev-parse", "HEAD"]) || "";
 }

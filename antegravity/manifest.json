@@ -97,7 +97,7 @@
   ],
   "compensatingRestrictions": [
     "Decision-engine treats antegravity IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
-    "Operators wiring antegravity are expected to validate hook payload shape against antegravity/POSTTOOL_RESEARCH.md before enabling enforce mode (HORUS_ENFORCE=1)",
+    "Operators wiring antegravity are expected to validate hook payload shape against antegravity/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
     "Until pretool blocking is verified, treat antegravity as observe-only and rely on out-of-band review for destructive actions"
   ],
   "verifiedAt": null

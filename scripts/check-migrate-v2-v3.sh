@@ -8,10 +8,10 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 # ── 1. Write a minimal well-formed v2 fixture ─────────────────────────────────
-cat > "$tmp/horus.contract.json" <<'JSON'
+cat > "$tmp/lilara.contract.json" <<'JSON'
 {
   "version": 2,
-  "contractId": "arg-20260508-aabbccddeeff",
+  "contractId": "lilara-20260508-aabbccddeeff",
   "revision": 1,
   "acceptedAt": "2026-05-08T00:00:00Z",
   "acceptedBy": "test-operator",
@@ -33,10 +33,10 @@ const doc = JSON.parse(fs.readFileSync(p, 'utf8'));
 delete doc.contractHash;
 doc.contractHash = hashContract(doc);
 fs.writeFileSync(p, JSON.stringify(doc, null, 2) + '\n');
-" -- "$tmp/horus.contract.json"
+" -- "$tmp/lilara.contract.json"
 
 # ── 2. Run migration ──────────────────────────────────────────────────────────
-node scripts/migrateV2ToV3.js "$tmp/horus.contract.json" "$tmp/horus.contract.json.draft"
+node scripts/migrateV2ToV3.js "$tmp/lilara.contract.json" "$tmp/lilara.contract.json.draft"
 
 # ── 3. Validate draft ─────────────────────────────────────────────────────────
 node -e "
@@ -73,12 +73,12 @@ if (recomputed !== draft.contractHash) {
 }
 
 console.log('check-migrate-v2-v3: draft OK (version=3, lossless, schema-valid, hash-correct)');
-" -- "$tmp/horus.contract.json.draft" "$tmp/horus.contract.json"
+" -- "$tmp/lilara.contract.json.draft" "$tmp/lilara.contract.json"
 
 # ── 4. Idempotency: v3 input → exit 0, stderr message, no second draft written ─
-stderr_out="$(node scripts/migrateV2ToV3.js "$tmp/horus.contract.json.draft" "$tmp/horus.contract.json.draft2" 2>&1 1>/dev/null || true)"
+stderr_out="$(node scripts/migrateV2ToV3.js "$tmp/lilara.contract.json.draft" "$tmp/lilara.contract.json.draft2" 2>&1 1>/dev/null || true)"
 exit_code=0
-node scripts/migrateV2ToV3.js "$tmp/horus.contract.json.draft" "$tmp/horus.contract.json.draft2" 2>/dev/null || exit_code=$?
+node scripts/migrateV2ToV3.js "$tmp/lilara.contract.json.draft" "$tmp/lilara.contract.json.draft2" 2>/dev/null || exit_code=$?
 if [ "$exit_code" -ne 0 ]; then
   echo "FAIL: migrating a v3 file should exit 0 (idempotent), got exit=$exit_code"
   exit 1
@@ -87,7 +87,7 @@ if ! echo "$stderr_out" | grep -qF "already version 3"; then
   echo "FAIL: expected 'already version 3' on stderr, got: $stderr_out"
   exit 1
 fi
-if [ -f "$tmp/horus.contract.json.draft2" ]; then
+if [ -f "$tmp/lilara.contract.json.draft2" ]; then
   echo "FAIL: idempotent no-op should not write a second draft"
   exit 1
 fi

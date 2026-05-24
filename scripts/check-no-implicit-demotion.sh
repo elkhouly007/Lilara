@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-no-implicit-demotion.sh — HAP ADR-007 PR-C anti-drift gate.
+# check-no-implicit-demotion.sh — Lilara ADR-007 PR-C anti-drift gate.
 #
 # Every `source = …` reassignment in runtime/decision-engine.js MUST source
 # from a LATTICE constant (the `_F*` / `_LA` / `_AAO` / `_CA` / `_TN` aliases,

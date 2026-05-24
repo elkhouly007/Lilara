@@ -6,7 +6,7 @@ High-level workflow definitions that orchestrate agents, rules, and tools for co
 
 | Skill | Use When |
 |---|---|
-| `configure-horus` | Setting up or reconfiguring ARG components for a new project |
+| `configure-lilara` | Setting up or reconfiguring ARG components for a new project |
 | `arg-runtime-debug` | A command was blocked or allowed unexpectedly by ARG |
 | `arg-policy-tune` | Adjusting what ARG permits or blocks |
 | `arg-learning-review` | Auditing accumulated ARG policies before a release |
@@ -29,7 +29,7 @@ This table is a set of selected examples, not an exhaustive index of all 22 skil
 | **Intelligence** | intelligence-amplification, context-maximizer, autonomous-improvement |
 | **Multi-agent** | multi-agent-debug, orchestration-design, multi-agent-orchestration |
 | **Deployment** | deployment-safety, workflow-acceleration |
-| **Setup / meta** | configure-horus, git-worktree-patterns, pm2-patterns |
+| **Setup / meta** | configure-lilara, git-worktree-patterns, pm2-patterns |
 | **Content** | investor-outreach, content-engine |
 
 ## How to Use

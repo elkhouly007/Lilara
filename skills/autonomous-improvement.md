@@ -22,7 +22,7 @@ Review recent agent outputs for patterns of:
 
 ```bash
 # Check agent invocation history if ARG journal is enabled
-grep '"agent"' ~/.horus/decision-journal.jsonl | \
+grep '"agent"' ~/.lilara/decision-journal.jsonl | \
   node -e "
     const lines = require('fs').readFileSync('/dev/stdin','utf8').trim().split('\n');
     const agents = lines.map(l => { try { return JSON.parse(l).agent } catch(e){} }).filter(Boolean);

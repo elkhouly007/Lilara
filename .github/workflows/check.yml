@@ -1,4 +1,4 @@
-name: Agent Runtime Guard CI
+name: Lilara CI
 
 on:
   push:
@@ -45,6 +45,9 @@ jobs:
 
       - name: Audit local (scripts + hooks)
         run: bash scripts/audit-local.sh
+
+      - name: No stale pre-Lilara brand references
+        run: bash scripts/check-no-horus.sh
 
       - name: Audit examples (prose + GOOD blocks)
         # Exit 1 only if risky patterns found — known false positives allowed via exclusions
@@ -146,7 +149,7 @@ jobs:
 
       - name: Decision replay (sample journal CI gate)
         run: |
-          HORUS_CONTRACT_ENABLED=0 HORUS_TRAJECTORY_WINDOW_MIN=0 \
+          LILARA_CONTRACT_ENABLED=0 LILARA_TRAJECTORY_WINDOW_MIN=0 \
           bash scripts/check-decision-replay.sh
 
       - name: Contract module
@@ -159,10 +162,10 @@ jobs:
         run: bash scripts/check-kill-switch.sh
 
       - name: Decide-on-every-call (C1 regression guard)
-        run: HORUS_STATE_DIR=$(mktemp -d) bash scripts/check-decide-on-every-call.sh
+        run: LILARA_STATE_DIR=$(mktemp -d) bash scripts/check-decide-on-every-call.sh
 
       - name: Session isolation (trajectory partitioning)
-        run: HORUS_STATE_DIR=$(mktemp -d) bash scripts/check-session-isolation.sh
+        run: LILARA_STATE_DIR=$(mktemp -d) bash scripts/check-session-isolation.sh
 
       - name: Decision quality gate (FP/FN bounds)
         run: bash scripts/eval-decision-quality.sh
@@ -175,7 +178,7 @@ jobs:
           restore-keys: bench-baseline-${{ matrix.os }}-
 
       - name: Runtime decision bench
-        run: HORUS_BENCH_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-runtime-decision.sh
+        run: LILARA_BENCH_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-runtime-decision.sh
 
       - name: Save bench baseline
         uses: actions/cache@v4
@@ -192,7 +195,7 @@ jobs:
           restore-keys: perf-baseline-${{ matrix.os }}-
 
       - name: Perf regression guard (Task 0.12, 120 flows × 200 iter)
-        run: HORUS_PERF_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-perf-regression.sh
+        run: LILARA_PERF_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-perf-regression.sh
 
       - name: Save perf-regression baseline
         uses: actions/cache@v4

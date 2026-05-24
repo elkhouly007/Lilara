@@ -3,7 +3,7 @@
 
 // degraded-mode.js — ADR-004 PR 37B (PR-B) degraded-mode enforcement.
 //
-// ADR-004 says: when the tamper-evident hash chain fails verify, HAP enters
+// ADR-004 says: when the tamper-evident hash chain fails verify, Lilara enters
 // degraded mode. In degraded mode:
 //   - no baseline-block demotion is allowed for F4, F6, F7, F15-F18.
 //   - learned/auto allow routes to require-review (not allow) for write-like
@@ -18,7 +18,7 @@
 // `_clearCache()` between cases. Zero new I/O paths; no enforcement happens
 // here — the caller (decision-engine.js) reads the descriptor and routes.
 //
-// HORUS_DEGRADED_MODE env var is a forcing knob: "1" pins degraded on (used
+// LILARA_DEGRADED_MODE env var is a forcing knob: "1" pins degraded on (used
 // by tests and by an operator who wants the safer posture without a tamper
 // signal); "0" pins it off (CI/test hermeticity when a chain happens to be
 // present). Either explicit value short-circuits the verify() call.
@@ -38,7 +38,7 @@ function _getVerify() {
 //   { degraded: boolean, reason: string|null, source: "env"|"verify"|"verify-error" }
 function evaluate(opts) {
   const o = opts || {};
-  const envVal = process.env.HORUS_DEGRADED_MODE;
+  const envVal = process.env.LILARA_DEGRADED_MODE;
   if (envVal === "1") return { degraded: true,  reason: "env-override", source: "env" };
   if (envVal === "0") return { degraded: false, reason: null,           source: "env" };
   let result;
@@ -46,7 +46,7 @@ function evaluate(opts) {
     result = _getVerify()({ file: o.file });
   } catch (err) {
     // verify() itself threw — treat as degraded (fail-closed); the operator
-    // can clear via HORUS_DEGRADED_MODE=0 once they have inspected the chain.
+    // can clear via LILARA_DEGRADED_MODE=0 once they have inspected the chain.
     return {
       degraded: true,
       reason: "verify-threw:" + (err && err.message ? String(err.message) : "unknown"),

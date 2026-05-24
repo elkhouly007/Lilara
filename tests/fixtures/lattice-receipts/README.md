@@ -1,4 +1,4 @@
-# lattice-receipts fixtures (HAP ADR-007 PR-C)
+# lattice-receipts fixtures (Lilara ADR-007 PR-C)
 
 One fixture per floor (and two demoted-variant fixtures) that pins the
 LATTICE-anchored receipt shape produced by `decide()`. The runner is

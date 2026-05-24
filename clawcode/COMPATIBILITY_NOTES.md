@@ -15,12 +15,12 @@
 | Matcher semantics | Regex against `tool_name`. Empty / `"*"` matches all | `clawcode/plugin/hooks.py:86-114` |
 | Hook timeout | 15s per hook | `clawcode/plugin/hooks.py:176` |
 | Settings wiring | `.claude/settings.local.json` (ClawCode reads Claude-Code-compatible settings) | confirmed against canonical hook config in this repo |
-| `HORUS_ENFORCE=1` behaviour | Adapter emits `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"…"}}` on stdout AND exits 2. ClawCode honours the JSON decision; the exit is for cross-harness consistency | `clawcode/hooks/adapter.js` + ARG end-to-end test 2026-05-23 |
+| `LILARA_ENFORCE=1` behaviour | Adapter emits `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"…"}}` on stdout AND exits 2. ClawCode honours the JSON decision; the exit is for cross-harness consistency | `clawcode/hooks/adapter.js` + ARG end-to-end test 2026-05-23 |
 
 ## Decisions taken
 
-- **Trust posture default:** balanced. Same as OpenCode / OpenClaw. Operator overrides via `horus.config.json` `trustPosture`.
-- **Config file:** ClawCode sessions use the standard `horus.config.json` per project, same as every other harness. No ClawCode-specific overrides.
+- **Trust posture default:** balanced. Same as OpenCode / OpenClaw. Operator overrides via `lilara.config.json` `trustPosture`.
+- **Config file:** ClawCode sessions use the standard `lilara.config.json` per project, same as every other harness. No ClawCode-specific overrides.
 - **Rate limiting:** same token-bucket as every other harness (`rateLimitKey: "clawcode-adapter"`); a busy ClawCode session can exhaust the bucket and skip the gate (fail-open with stdout `{}` for ClawCode, matching the other adapters' fail-open semantics).
 - **Adapter output protocol:** `harnessOutput: "permission-json"` on the PreToolUse adapter. The PostToolUse adapter keeps the default echo-stdin protocol since ClawCode treats PostToolUse output as informational.
 

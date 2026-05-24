@@ -9,7 +9,7 @@
 
 ## 1. Why this exists
 
-The 2026-05-13 adversarial corpus run found three real bypasses that defeated `claude/hooks/dangerous-command-gate.js` in `HORUS_ENFORCE=1` mode. All three exited 0 with empty stderr — i.e. silently allowed — even though each carried a destructive intent the engine has blocked since v1.0.
+The 2026-05-13 adversarial corpus run found three real bypasses that defeated `claude/hooks/dangerous-command-gate.js` in `LILARA_ENFORCE=1` mode. All three exited 0 with empty stderr — i.e. silently allowed — even though each carried a destructive intent the engine has blocked since v1.0.
 
 | # | Leak | Root cause | File:line at fault |
 |---|---|---|---|
@@ -102,7 +102,7 @@ A read-only adversarial reconfirmation audit confirmed the original three leaks 
 | `r‌m -rf /` | U+0072 U+200C U+006D (ZWNJ) | same root cause as ZWJ |
 | `ʀᴍ -rf /` | U+0280 + U+1D0D (IPA small caps) | small-caps Latin letters are not compatibility chars; not in confusables map |
 
-All five exited 0 (silently allowed) under `HORUS_ENFORCE=1`. The fix is contained to `runtime/command-normalize.js`:
+All five exited 0 (silently allowed) under `LILARA_ENFORCE=1`. The fix is contained to `runtime/command-normalize.js`:
 
 1. **NFKD instead of NFKC** for the verb-recognition arm — precomposed letter+diacritic forms decompose to base + combining mark (e.g. `ṙ → r + U+0307`), which the strip pass then collapses to the bare base.
 2. **Default-ignorable strip** — a single linear `String.replace` pass with one precompiled regex removes the Cf-class formatting code points (ZWJ U+200D, ZWNJ U+200C, BOM U+FEFF, soft hyphen U+00AD, bidi overrides U+202A-U+202E, word joiner / invisible operator block U+2060-U+206F, variation selectors U+FE00-U+FE0F + supplement U+E0100-U+E01EF, Mongolian / Khmer / Hangul fillers).

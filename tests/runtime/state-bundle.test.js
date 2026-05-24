@@ -27,10 +27,10 @@ const crypto = require("node:crypto");
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "horus-state-bundle-"));
 
-// Default HORUS_STATE_DIR so any helper that calls stateDir() without an
+// Default LILARA_STATE_DIR so any helper that calls stateDir() without an
 // explicit dir uses an isolated location. We override per-test with opts.
-process.env.HORUS_STATE_DIR = path.join(tmpRoot, "default-state");
-fs.mkdirSync(process.env.HORUS_STATE_DIR, { recursive: true, mode: 0o700 });
+process.env.LILARA_STATE_DIR = path.join(tmpRoot, "default-state");
+fs.mkdirSync(process.env.LILARA_STATE_DIR, { recursive: true, mode: 0o700 });
 
 const sb = require(path.join(__dirname, "..", "..", "runtime", "state-bundle"));
 const journal = require(path.join(__dirname, "..", "..", "runtime", "journal-chain"));
@@ -51,7 +51,7 @@ function seedStateDir(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Hash chain — append 3 entries. This also generates install.key.
   const chainFile = path.join(dir, "journal-chain.jsonl");
-  process.env.HORUS_STATE_DIR = dir;
+  process.env.LILARA_STATE_DIR = dir;
   journal.append("decision.allow", { i: 0, note: "seed-0" }, { file: chainFile });
   journal.append("decision.allow", { i: 1, note: "seed-1" }, { file: chainFile });
   journal.append("decision.allow", { i: 2, note: "seed-2" }, { file: chainFile });

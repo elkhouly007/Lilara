@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-receipt-schema.sh — HAP ADR-007 PR-C: additive-only receipt schema gate.
+# check-receipt-schema.sh — Lilara ADR-007 PR-C: additive-only receipt schema gate.
 #
 # Runs the lattice-receipts fixture sweep, collects every journal entry +
 # decide() return shape produced, and asserts:
@@ -23,8 +23,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 if ! command -v node >/dev/null 2>&1; then
-  if [ "${HORUS_ALLOW_MISSING_NODE:-0}" = "1" ]; then
-    printf 'Warning: node not found — skipping check-receipt-schema (HORUS_ALLOW_MISSING_NODE=1)\n' >&2
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf 'Warning: node not found — skipping check-receipt-schema (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
     exit 0
   fi
   printf 'Error: node not found on PATH — check-receipt-schema.sh requires Node.js\n' >&2
@@ -110,11 +110,11 @@ if (!fs.existsSync(replayInput)) {
 }
 
 const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "arg-receipt-schema-"));
-process.env.HORUS_STATE_DIR        = stateDir;
-process.env.HORUS_CONTRACT_ENABLED = "0";
-process.env.HORUS_DECISION_JOURNAL = "1";
-process.env.HORUS_TRAJECTORY_WINDOW_MIN = "0";
-delete process.env.HORUS_IR_JOURNAL; // exercise PR-C default (= on)
+process.env.LILARA_STATE_DIR        = stateDir;
+process.env.LILARA_CONTRACT_ENABLED = "0";
+process.env.LILARA_DECISION_JOURNAL = "1";
+process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
+delete process.env.LILARA_IR_JOURNAL; // exercise PR-C default (= on)
 
 const { decide } = require(path.join(root, "runtime/decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime/action-ir"));
@@ -167,14 +167,14 @@ for (const f of fs.readdirSync(fxRoot).filter(x => x.endsWith(".input")).sort())
   const fx = JSON.parse(fs.readFileSync(path.join(fxRoot, f), "utf8"));
 
   const envSnapshot = Object.assign({}, process.env);
-  process.env.HORUS_STATE_DIR        = fxStateDir;
-  process.env.HORUS_CONTRACT_ENABLED = fx.contract ? "1" : "0";
-  process.env.HORUS_DECISION_JOURNAL = "1";
-  process.env.HORUS_RATE_LIMIT       = "0";
-  delete process.env.HORUS_KILL_SWITCH;
-  delete process.env.HORUS_CONTRACT_REQUIRED;
-  delete process.env.HORUS_F4_DEMOTE_TOKEN;
-  delete process.env.HORUS_IR_JOURNAL;
+  process.env.LILARA_STATE_DIR        = fxStateDir;
+  process.env.LILARA_CONTRACT_ENABLED = fx.contract ? "1" : "0";
+  process.env.LILARA_DECISION_JOURNAL = "1";
+  process.env.LILARA_RATE_LIMIT       = "0";
+  delete process.env.LILARA_KILL_SWITCH;
+  delete process.env.LILARA_CONTRACT_REQUIRED;
+  delete process.env.LILARA_F4_DEMOTE_TOKEN;
+  delete process.env.LILARA_IR_JOURNAL;
   if (fx.env) for (const [k, v] of Object.entries(fx.env)) process.env[k] = String(v);
 
   // Reset runtime caches
@@ -205,7 +205,7 @@ for (const f of fs.readdirSync(fxRoot).filter(x => x.endsWith(".input")).sort())
     } else if (typeof doc.contractHash !== "string") {
       doc.contractHash = "sha256:" + "0".repeat(64);
     }
-    fs.writeFileSync(path.join(fxProject, "horus.contract.json"), JSON.stringify(doc, null, 2));
+    fs.writeFileSync(path.join(fxProject, "lilara.contract.json"), JSON.stringify(doc, null, 2));
     const shouldAccept = fx.acceptContract != null ? fx.acceptContract : !fx.badHash;
     if (shouldAccept) {
       const acceptedKey = path.resolve(fxProject);
@@ -236,7 +236,7 @@ for (const f of fs.readdirSync(fxRoot).filter(x => x.endsWith(".input")).sort())
   }
   if (fx.preDecide && fx.preDecide.mintF4DemoteToken) {
     const { mintOperatorToken } = require(path.join(root, "runtime/contract"));
-    process.env.HORUS_F4_DEMOTE_TOKEN = mintOperatorToken("receipt-schema-fx", "class-c-review-demote");
+    process.env.LILARA_F4_DEMOTE_TOKEN = mintOperatorToken("receipt-schema-fx", "class-c-review-demote");
   }
 
   const input = Object.assign({ projectRoot: fxProject }, fx.input || {});

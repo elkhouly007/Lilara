@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * memory-load.js — Horus Agentic Power  (SessionStart hook)
+ * memory-load.js — Lilara  (SessionStart hook)
  *
  * Fires at session start. Reads the memory index file and prints a brief
  * orientation summary to stderr so the user knows what context is loaded.
@@ -13,7 +13,7 @@
  * - No external packages, no network calls.
  * - Silent fail on errors.
  *
- * Memory file location: ~/.horus/memory/MEMORY.md
+ * Memory file location: ~/.lilara/memory/MEMORY.md
  */
 
 "use strict";
@@ -25,7 +25,7 @@ const path = require("path");
 const HOME = os.homedir();
 
 const MEMORY_PATHS = [
-  path.join(HOME, ".horus", "memory", "MEMORY.md"),
+  path.join(HOME, ".lilara", "memory", "MEMORY.md"),
 ];
 
 /** Extract entry titles from lines that start with `- [` (markdown list links). */
@@ -65,7 +65,7 @@ readStdin()
   .then((raw) => {
     // Always echo input unchanged first.
     process.stdout.write(raw || "");
-    if (process.env.HORUS_KILL_SWITCH === "1") return;
+    if (process.env.LILARA_KILL_SWITCH === "1") return;
 
     try {
       const content = readMemoryFile();
@@ -78,7 +78,7 @@ readStdin()
       const preview  = titles.slice(0, 3);
       const overflow = total - preview.length;
 
-      let msg = `[Agent Runtime Guard] Memory: ${total} item${total !== 1 ? "s" : ""} loaded.\n`;
+      let msg = `[Lilara] Memory: ${total} item${total !== 1 ? "s" : ""} loaded.\n`;
       for (const title of preview) {
         msg += `  \u2022 ${title}\n`;
       }

@@ -4,11 +4,11 @@
 // contract.js — Upfront security contract enforcement for Agent Runtime Guard.
 //
 // Implements the contract lifecycle defined in the v2.0 plan (Section 4):
-//   - load()        — read + validate horus.contract.json for the current project
+//   - load()        — read + validate lilara.contract.json for the current project
 //   - verify()      — recompute contractHash and compare to accepted-contracts.json
 //   - scopeMatch()  — check a decision input against contract scopes
-//   - generate()    — write horus.contract.json.draft (used by horus-cli contract init)
-//   - accept()      — finalise a draft → horus.contract.json + accepted-contracts record
+//   - generate()    — write lilara.contract.json.draft (used by lilara-cli contract init)
+//   - accept()      — finalise a draft → lilara.contract.json + accepted-contracts record
 //   - contractId()  — generate a fresh contract ID (zero-dep, no ULID library)
 //
 // Hard floors (Section 4.5) are enforced in decision-engine.js, not here.
@@ -31,11 +31,11 @@ const { stateDir }         = require("./state-paths");
 // ---------------------------------------------------------------------------
 
 function contractFilePath(projectRoot) {
-  return path.join(String(projectRoot || process.cwd()), "horus.contract.json");
+  return path.join(String(projectRoot || process.cwd()), "lilara.contract.json");
 }
 
 function draftFilePath(projectRoot) {
-  return path.join(String(projectRoot || process.cwd()), "horus.contract.json.draft");
+  return path.join(String(projectRoot || process.cwd()), "lilara.contract.json.draft");
 }
 
 function acceptedContractsPath() {
@@ -49,7 +49,7 @@ function acceptedContractsPath() {
 function newContractId() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand  = crypto.randomBytes(6).toString("hex");
-  return `hap-${today}-${rand}`;
+  return `lilara-${today}-${rand}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ let _cacheKey = null;
 let _cacheLoaded = false;
 
 /**
- * Load and validate horus.contract.json for the given project root.
+ * Load and validate lilara.contract.json for the given project root.
  * Returns null if no contract file exists.
  * Throws if the file exists but fails schema validation.
  *
@@ -174,15 +174,15 @@ function verify(projectRoot) {
 }
 
 // ---------------------------------------------------------------------------
-// Accept — finalise a draft into horus.contract.json
+// Accept — finalise a draft into lilara.contract.json
 // ---------------------------------------------------------------------------
 
 /**
- * Accept horus.contract.json.draft:
+ * Accept lilara.contract.json.draft:
  *   1. Validate schema.
  *   2. Reject revision downgrade.
  *   3. Compute and embed contractHash.
- *   4. Write horus.contract.json.
+ *   4. Write lilara.contract.json.
  *   5. Record in accepted-contracts.json.
  *
  * @param {string} projectRoot
@@ -198,7 +198,7 @@ function operatorTokensPath() {
 
 /**
  * Mint a one-shot 32-byte hex operator token.
- * Appends to ~/.horus/operator-tokens.jsonl (mode 0600) and returns the token.
+ * Appends to ~/.lilara/operator-tokens.jsonl (mode 0600) and returns the token.
  *
  * @param {string} [label] — optional human label for audit trail
  * @param {string} [scope] — optional scope binding. When set, the token is
@@ -361,7 +361,7 @@ function consumeOperatorToken(token) {
  * (B3/Q2 fix: replaces the harness env-var allowlist — defense by absence.)
  *
  * Passes when: (a) stdin is a TTY (operator at interactive terminal), or
- *              (b) HORUS_OPERATOR_TOKEN matches a valid one-shot token.
+ *              (b) LILARA_OPERATOR_TOKEN matches a valid one-shot token.
  *
  * @throws {Error} if neither condition is satisfied
  */
@@ -370,20 +370,20 @@ function _checkOperatorSignal() {
   if (process.stdin.isTTY) return;
 
   // (b) One-shot operator token — pre-issued by an operator for scripted acceptance
-  const token = process.env.HORUS_OPERATOR_TOKEN || "";
+  const token = process.env.LILARA_OPERATOR_TOKEN || "";
   if (token) {
     if (consumeOperatorToken(token)) return;
     throw new Error(
-      "contract.js: HORUS_OPERATOR_TOKEN is invalid or already consumed. " +
-      "Run 'horus-cli operator-token mint' to generate a fresh one-shot token."
+      "contract.js: LILARA_OPERATOR_TOKEN is invalid or already consumed. " +
+      "Run 'lilara-cli operator-token mint' to generate a fresh one-shot token."
     );
   }
 
   throw new Error(
     "contract.js: refusing to accept a contract outside an interactive terminal. " +
-    "Run 'horus-cli contract accept' in an interactive terminal (stdin is a TTY), or " +
-    "pre-issue a one-shot token with 'horus-cli operator-token mint' and pass it via " +
-    "HORUS_OPERATOR_TOKEN."
+    "Run 'lilara-cli contract accept' in an interactive terminal (stdin is a TTY), or " +
+    "pre-issue a one-shot token with 'lilara-cli operator-token mint' and pass it via " +
+    "LILARA_OPERATOR_TOKEN."
   );
 }
 
@@ -397,7 +397,7 @@ function accept(projectRoot) {
   const contractPath = contractFilePath(projectRoot);
 
   if (!fs.existsSync(draftPath)) {
-    throw new Error(`contract.js: no draft found at ${draftPath}. Run 'horus-cli contract init' first.`);
+    throw new Error(`contract.js: no draft found at ${draftPath}. Run 'lilara-cli contract init' first.`);
   }
 
   let draft;
@@ -456,7 +456,7 @@ function accept(projectRoot) {
 // ---------------------------------------------------------------------------
 
 /**
- * Write horus.contract.json.draft with sensible defaults.
+ * Write lilara.contract.json.draft with sensible defaults.
  *
  * @param {string} projectRoot
  * @param {object} opts — { harnesses?, trustPosture?, existingRevision? }

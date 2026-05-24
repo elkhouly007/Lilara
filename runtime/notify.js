@@ -139,7 +139,7 @@ function _withTimeout(p, ms) {
 }
 
 // Shared HTTP POST used by discord + slack transports. http:// allowed only
-// when HORUS_NOTIFY_INSECURE=1 so the transport tests can stub a localhost
+// when LILARA_NOTIFY_INSECURE=1 so the transport tests can stub a localhost
 // server without binding TLS certs.
 function postJson(targetUrl, body) {
   return new Promise((resolve) => {

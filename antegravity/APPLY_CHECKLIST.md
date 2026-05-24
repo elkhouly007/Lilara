@@ -12,20 +12,20 @@
 ## Safe Automatic Actions
 
 - Installing `antegravity/hooks/adapter.js` in a project-local path (no global mutation)
-- Setting `HORUS_ENFORCE=0` (warn-only mode, non-blocking)
+- Setting `LILARA_ENFORCE=0` (warn-only mode, non-blocking)
 
 ## Requires User Approval
 
 - Any antegravity config change that registers the hook globally
-- Setting `HORUS_ENFORCE=1` (will block tool calls on high/critical risk)
+- Setting `LILARA_ENFORCE=1` (will block tool calls on high/critical risk)
 - Any change to existing antegravity config files
 
 ## Post-Wiring Verification
 
 - [ ] `scripts/check-antegravity-adapter.sh` passes (12 checks)
 - [ ] A real antegravity tool call triggers the adapter (check stderr for `[Agent Runtime Guard]` prefix)
-- [ ] Kill-switch test: `HORUS_KILL_SWITCH=1` blocks all tool calls
-- [ ] `unset HORUS_KILL_SWITCH` restores normal operation
+- [ ] Kill-switch test: `LILARA_KILL_SWITCH=1` blocks all tool calls
+- [ ] `unset LILARA_KILL_SWITCH` restores normal operation
 
 ## Rollback
 

@@ -12,7 +12,7 @@
  * When a match is found, the decision engine raises the action to require-review
  * via the taint floor (F10) regardless of the baseline risk score.
  *
- * Provenance entries are stored in ~/.horus/provenance-window.json with a 5-minute
+ * Provenance entries are stored in ~/.lilara/provenance-window.json with a 5-minute
  * hard TTL and a 60-second correlation window used by correlateCommand().
  *
  * Zero external dependencies.
@@ -42,7 +42,7 @@ function recordExternalRead(content, source) {
  * or { tainted: false } when the command appears unrelated to external reads.
  *
  * Read-only tools (Read, Grep, Glob, LS, NotebookRead and any added to
- * taint.safeToolClasses in horus.config.json) bypass correlation — they cannot
+ * taint.safeToolClasses in lilara.config.json) bypass correlation — they cannot
  * execute injected payloads, so firing F10 on them produces only noise (D37).
  *
  * @param {string} command         — shell command to check

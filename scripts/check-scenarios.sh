@@ -35,7 +35,7 @@ if command -v node >/dev/null 2>&1; then
   cleanup() { rm -rf "$tmp_home"; }
   trap cleanup EXIT
 
-  HOME="$tmp_home" HORUS_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || fail 'runtime scenario validation failed'
+  HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || fail 'runtime scenario validation failed'
 const path = require('path');
 const root = process.argv[2];
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
@@ -54,11 +54,11 @@ const globalInstall = decide({ command: 'npm install -g some-tool', targetPath: 
 if (globalInstall.action === 'allow') throw new Error(`Scenario 9: global install should not produce allow, got ${globalInstall.action}`);
 if (globalInstall.riskLevel === 'low') throw new Error(`Scenario 9: global install risk must be medium+, got ${globalInstall.riskLevel}`);
 
-// HORUS_KILL_SWITCH: any command blocked when kill-switch is active
-process.env.HORUS_KILL_SWITCH = '1';
+// LILARA_KILL_SWITCH: any command blocked when kill-switch is active
+process.env.LILARA_KILL_SWITCH = '1';
 const killed = decide({ command: 'npm test', targetPath: 'src/index.ts', tool: 'Bash' });
-if (killed.action !== 'block') throw new Error(`HORUS_KILL_SWITCH=1 should block all actions, got ${killed.action}`);
-delete process.env.HORUS_KILL_SWITCH;
+if (killed.action !== 'block') throw new Error(`LILARA_KILL_SWITCH=1 should block all actions, got ${killed.action}`);
+delete process.env.LILARA_KILL_SWITCH;
 
 console.log('Runtime scenario validation: all assertions passed');
 NODE
