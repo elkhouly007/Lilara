@@ -24,7 +24,7 @@ printf '[check-counts]\n'
 # Expected values — update these when adding files, then update README too.
 # ---------------------------------------------------------------------------
 EXPECTED_AGENTS=49
-EXPECTED_RULES=94          # +12 from rationalization-defense: master rule + README + 10 rationale companions
+EXPECTED_RULES=95          # +1 from markdown-link-security rule
 EXPECTED_SKILLS=22         # excludes agents/README.md style files
 EXPECTED_HOOKS=13          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus

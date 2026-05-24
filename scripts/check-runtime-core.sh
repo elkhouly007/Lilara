@@ -625,4 +625,8 @@ pass 'session-resume buildSummary'
 node "$root/tests/runtime/eval-runner.test.js" || exit 1
 pass 'eval-runner discover/runAll/toJUnit'
 
+# markdown-link-scan unit test
+node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
+pass 'markdown-link-scan scanMarkdownLinks'
+
 printf '\nRuntime core checks passed.\n'

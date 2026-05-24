@@ -22,7 +22,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Registry present in-tree; project-local Claude wiring docs and hook assets verified |
-| Rules (94) | ✅ | Full rules tree present; project-local apply path documented |
+| Rules (95) | ✅ | Full rules tree present; project-local apply path documented |
 | Skills (22) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in mcp.json |
 | Wrapper pack | ✅ | |
@@ -38,7 +38,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Registry present in-tree; OpenCode wiring plan and config template present |
-| Rules (94) | ✅ | Full rules tree present; project-local apply path documented |
+| Rules (95) | ✅ | Full rules tree present; project-local apply path documented |
 | Skills (22) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in opencode.json |
 | Wrapper pack | ✅ | |
@@ -54,7 +54,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Full agent registry present in-tree with OpenClaw wiring plan |
-| Rules (94) | ✅ | Full rules set present in-tree |
+| Rules (95) | ✅ | Full rules set present in-tree |
 | Skills (22) | ✅ | Full skill set present in-tree |
 | MCP pack | ✅ | Active |
 | Wrapper pack | ✅ | Active |

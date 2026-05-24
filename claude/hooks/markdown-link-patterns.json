@@ -1,0 +1,29 @@
+{
+  "_comment": "Markdown link injection patterns for runtime/markdown-link-scan.js. Mirrors the baked-in BUILTIN_PATTERNS in the module. Edit here to tune without touching JS.",
+  "patterns": [
+    {
+      "id":       "MD-LINK-JS-SCHEME",
+      "pattern":  "\\]\\(\\s*javascript\\s*:",
+      "severity": "high",
+      "note":     "javascript: href — executes JS on click in browser/preview contexts (RFC 3986 §3.1; OWASP DOM-based XSS)"
+    },
+    {
+      "id":       "MD-LINK-DATA-SCHEME",
+      "pattern":  "\\]\\(\\s*data\\s*:",
+      "severity": "high",
+      "note":     "data: URI — can render inline HTML with scripts (RFC 2397; OWASP data URI injection)"
+    },
+    {
+      "id":       "MD-LINK-USERINFO",
+      "pattern":  "\\]\\(\\s*https?:\\/\\/[^/@\\s)]+:[^/@\\s)]+@",
+      "severity": "medium",
+      "note":     "user:pass@host in URL — credential smuggling; browser hides userinfo segment (RFC 3986 §3.2.1)"
+    },
+    {
+      "id":       "MD-LINK-TOKEN-IN-QUERY",
+      "pattern":  "\\]\\(\\s*https?:\\/\\/[^\\s)]+\\?[^)]*\\b(?:api_key|access_token|auth_token|token|password|secret)=",
+      "severity": "high",
+      "note":     "Token/secret in query string — leaks to logs, search indexes, CI (OWASP Sensitive Data Exposure)"
+    }
+  ]
+}
