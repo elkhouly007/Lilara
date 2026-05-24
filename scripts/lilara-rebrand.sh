@@ -84,7 +84,7 @@ sed_i() { sed "${_SI[@]}" "$@"; }
 # bulk_replace GREP_PAT SED_PAT SED_REP
 # - Excludes: .git, node_modules, .claude, artifacts, archive
 # - Excludes this script and check-no-horus.sh
-# - Includes: *.js *.sh *.json *.md *.jsonc *.yaml *.yml *.txt *.example *.jsonl
+# - Includes: *.js *.sh *.json *.md *.jsonc *.yaml *.yml *.txt *.example *.jsonl *.input *.expected *.expected_stderr
 bulk_replace() {
   local grep_pat="$1" sed_pat="$2" sed_rep="$3"
   local files
@@ -92,7 +92,8 @@ bulk_replace() {
     --include="*.js"   --include="*.sh"     --include="*.json"   \
     --include="*.md"   --include="*.jsonc"  --include="*.yaml"   \
     --include="*.yml"  --include="*.txt"    --include="*.example" \
-    --include="*.jsonl" \
+    --include="*.jsonl" --include="*.input" --include="*.expected" \
+    --include="*.expected_stderr" \
     --exclude-dir=".git"         --exclude-dir="node_modules"    \
     --exclude-dir=".claude"      --exclude-dir="artifacts"       \
     --exclude-dir="archive"      \

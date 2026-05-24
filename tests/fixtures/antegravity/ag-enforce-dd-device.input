@@ -1,1 +1,1 @@
-{"command":"dd if=/dev/zero of=/dev/sda bs=512","env":{"HORUS_ENFORCE":"1"},"cwd":"/test"}
+{"command":"dd if=/dev/zero of=/dev/sda bs=512","env":{"LILARA_ENFORCE":"1"},"cwd":"/test"}

@@ -1,6 +1,6 @@
 {
-  "title": "F2 contract-hash-mismatch under HORUS_CONTRACT_REQUIRED=1",
-  "env": { "HORUS_CONTRACT_REQUIRED": "1" },
+  "title": "F2 contract-hash-mismatch under LILARA_CONTRACT_REQUIRED=1",
+  "env": { "LILARA_CONTRACT_REQUIRED": "1" },
   "contract": {
     "version": 3,
     "contractId": "lilara-20260101-0000000000f2",
