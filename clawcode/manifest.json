@@ -83,5 +83,6 @@
     "Operators wiring ClawCode are expected to configure the PreToolUse matcher regex to cover every shell-class tool name their ClawCode build emits (default: \"Bash\"). MCP and Skill interception status depends on the matcher regex.",
     "The adapter emits a ClawCode-native JSON decision on stdout via harnessOutput=\"permission-json\" because ClawCode parses stdout JSON for the permission decision and IGNORES the exit code (clawcode/plugin/hooks.py:38-51 + 252-280). The adapter also still exits 2 on block for cross-harness consistency."
   ],
+  "additionalContextSupported": true,
   "verifiedAt": "2026-05-23"
 }

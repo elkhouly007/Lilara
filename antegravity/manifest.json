@@ -100,5 +100,6 @@
     "Operators wiring antegravity are expected to validate hook payload shape against antegravity/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
     "Until pretool blocking is verified, treat antegravity as observe-only and rely on out-of-band review for destructive actions"
   ],
+  "additionalContextSupported": false,
   "verifiedAt": null
 }

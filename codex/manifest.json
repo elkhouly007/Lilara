@@ -100,5 +100,6 @@
     "Operators wiring Codex are expected to validate hook payload shape against codex/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
     "Until pretool blocking is verified, treat Codex as observe-only and rely on out-of-band review for destructive actions"
   ],
+  "additionalContextSupported": false,
   "verifiedAt": null
 }

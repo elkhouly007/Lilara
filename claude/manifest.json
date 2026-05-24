@@ -69,5 +69,6 @@
     "PostToolUse output is scanned for secrets (scanSecrets) and tagged as external-source for taint tracking on every tool output, including final-message-adjacent channels",
     "F15 execution envelopes are re-verified immediately before payload-class-C and protected-branch writes regardless of pretool decision"
   ],
+  "additionalContextSupported": true,
   "verifiedAt": null
 }
