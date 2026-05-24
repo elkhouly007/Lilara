@@ -34,6 +34,7 @@
 #   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
 #   notify      ADR-015 notification routing (test/show/history).
 #   sandbox     ADR-016 dry-run a command through the decision lattice; print which floors fire.
+#   session     Session-resume ops (summary).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -1461,6 +1462,7 @@ __NOTIFY_HISTORY_EOF__
     esac
     ;;
 
+<<<<<<< HEAD
   # ── sandbox ───────────────────────────────────────────────────────────────
   sandbox)
     json_mode=0; tool_override="Bash"; harness_override="cli-sandbox"; explain=0
@@ -1518,6 +1520,34 @@ if (jsonMode === "1") {
   }
 }
 __SANDBOX_EOF__
+    ;;
+
+  # ── session ───────────────────────────────────────────────────────────────
+  # Session-resume summary: compact prior-session context for operators.
+  session)
+    sub="${1:-summary}"
+    shift || true
+    case "$sub" in
+      summary)
+        node - "$root" <<'__SESSION_SUMMARY_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const { buildSummary } = require(path.join(root, "runtime/session-resume"));
+const s = buildSummary();
+if (!s.text) {
+  process.stdout.write("session summary: (no prior session data)\n");
+} else {
+  process.stdout.write("session summary:\n  " + s.text + "\n");
+}
+__SESSION_SUMMARY_EOF__
+        ;;
+      *)
+        printf '%sUnknown session subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: summary\n' >&2
+        exit 2
+        ;;
+    esac
     ;;
 
   # ── help ──────────────────────────────────────────────────────────────────

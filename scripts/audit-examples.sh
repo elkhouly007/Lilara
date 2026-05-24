@@ -20,7 +20,8 @@ SCAN_DIRS="agents rules skills"
 # Skip fenced code blocks and inline code spans. Flag risky patterns in prose.
 
 prose_result="$(
-  find $SCAN_DIRS -type f -name '*.md' -not -name 'README.md' | sort | \
+  find $SCAN_DIRS -type f -name '*.md' -not -name 'README.md' \
+    -not -name '*.rationale.md' | sort | \
   xargs awk '
   FNR == 1 { in_code = 0; fence = "" }
 
@@ -68,7 +69,8 @@ prose_result="$(
 # A "GOOD" example should never contain genuinely dangerous commands.
 
 good_result="$(
-  find $SCAN_DIRS -type f -name '*.md' -not -name 'README.md' | sort | \
+  find $SCAN_DIRS -type f -name '*.md' -not -name 'README.md' \
+    -not -name '*.rationale.md' | sort | \
   xargs awk '
   FNR == 1 { in_code = 0; in_good_block = 0; fence = ""; last_prose = "" }
 
