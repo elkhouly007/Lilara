@@ -325,6 +325,7 @@ function loadManifest(harness) {
       harness: String(m.harness || harness),
       harnessVersion: typeof m.harnessVersion === "string" ? m.harnessVersion : null,
       envelopeReporting: Boolean(m.envelopeReporting),
+      additionalContextSupported: Boolean(m.additionalContextSupported),
       trustMeta: {
         envelopeReporting: Boolean(m.envelopeReporting),
         argsFidelity: typeof m.argsFidelity === "string" ? m.argsFidelity : "best-effort",

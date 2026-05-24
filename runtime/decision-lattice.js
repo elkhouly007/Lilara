@@ -353,6 +353,16 @@ const LATTICE = Object.freeze([
     notes: "F20: declared-envelope vs Action-IR drift. high blocks; medium routes to require-review (demotable only by a one-shot scoped operator token bound to change-intent-drift-medium); low is receipt-only. Fail-open on helper exception.",
   }),
   Object.freeze({
+    id: "F21",
+    rung: 18.7,
+    name: "compaction-survival",
+    action: "warn",
+    source: "compaction-survival-detected",
+    demotableBy: [],
+    predicateRef: "runtime/compaction-survival.js + runtime/post-adapter-factory.js",
+    notes: "ADR-016: PostToolUse pattern scan for prompt-injection payloads in Read/WebFetch/WebSearch/Fetch/mcp/Browser results. Detection-only warn floor; enforcement via F10 taint correlation on next PreToolUse.",
+  }),
+  Object.freeze({
     id: "D-LEARNED-ALLOW",
     rung: 19,
     name: "learned-allow",

@@ -70,5 +70,6 @@
     "Critical-write floors (payload-class-C, protected-branch) must rely on adapter pretool blocking + post-tool secret-scan rather than envelope re-verification until F15 wiring lands",
     "PostToolUse output is scanned for secrets (scanSecrets) and tagged as external-source for taint tracking on every tool output"
   ],
+  "additionalContextSupported": false,
   "verifiedAt": null
 }

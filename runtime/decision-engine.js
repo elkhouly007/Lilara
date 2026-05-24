@@ -14,6 +14,7 @@ const { recommend } = require("./workflow-router");
 const { classifyCommand } = require("./decision-key");
 const { classifyIntent } = require("./intent-classifier");
 const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
+const { floorCodeFor } = require("./floor-codes");
 
 // Lilara ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
 // constant below resolves to the canonical name/source for its floor; the
@@ -43,6 +44,7 @@ const _F16 = getEntry("F16");         // ambient-authority (ADR-009 PR-B)
 const _F17 = getEntry("F17");         // cross-agent-lock (PR-A)
 const _F19 = getEntry("F19");         // output-channel-exfiltration (ADR-010)
 const _F20 = getEntry("F20");         // change-intent-drift (ADR-012)
+const _F21 = getEntry("F21");         // compaction-survival (ADR-016)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -182,6 +184,9 @@ let _earlyBlockDegradedDefault = null;
 // ADR-015: notify hook reads the active contract on early-block returns so a
 // kill-switch fire still sends. Populated by decide() at the top of each call.
 let _earlyBlockContract = null;
+// ADR-016: when dryRun is true, skip journal appends across all early-block
+// paths. Populated by decide() at the top of each call.
+let _earlyBlockDryRun = false;
 function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   // ADR-009 PR-C: any early-block decision that touched an ambient path
   // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
@@ -208,10 +213,13 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   // fields (outputChannel, matchClasses, redactedSample,
   // compensatingRestrictionApplied) as the non-block F19 path below.
   const _f19            = extra.f19Detail || null;
+  const _code           = extra.code || floorCodeFor(reasonCode) || null;
+  const _coaching       = extra.coaching || null;
   const result = {
     action: "block",
     enforcementAction: "block",
     floorFired: extra.floorFired || null,
+    ...(_code     != null ? { code:     _code     } : {}),
     riskScore: 10,
     riskLevel: "critical",
     reasonCodes: [reasonCode],
@@ -243,8 +251,10 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       redactedSample: typeof _f19.redactedSample === "string" ? _f19.redactedSample : "",
       compensatingRestrictionApplied: Boolean(_f19.compensatingRestrictionApplied),
     } : {}),
+    ...(_coaching     != null ? { coaching: _coaching } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
+  if (_earlyBlockDryRun) return result;
   try {
     const irExtras = _irJournalExtras(input, result.floorFired);
     append({
@@ -266,6 +276,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
       ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
       ...(_f19          != null ? { f19Detail:     _f19           } : {}),
+      ...(_code         != null ? { code:          _code          } : {}),
+      ...(_coaching     != null ? { coaching:      _coaching      } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -578,6 +590,8 @@ function decide(input = {}) {
   // ADR-015: thread the active contract to the early-block return path so
   // kill-switch / contract-mismatch fires can still emit a notification.
   _earlyBlockContract = contract;
+  // ADR-016: thread dryRun to early-block paths so sandbox previews skip journal.
+  _earlyBlockDryRun = Boolean(input.dryRun || process.env.LILARA_DRY_RUN === "1");
 
   // B2 commit 2: contextTrust per-branch posture override.
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
@@ -1465,10 +1479,12 @@ function decide(input = {}) {
     }
   }
 
+  const _decidedCode = floorFired ? floorCodeFor(floorFired) : null;
   const result = {
     action,
     enforcementAction: ["block", "escalate", "require-review", "require-tests"].includes(action) ? "block" : "warn",
     floorFired: floorFired || null,
+    ...(_decidedCode ? { code: _decidedCode } : {}),
     riskScore: risk.score,
     riskLevel: risk.level,
     reasonCodes: risk.reasons,
@@ -1523,43 +1539,48 @@ function decide(input = {}) {
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
-  append({
-    kind: "runtime-decision",
-    action: result.action,
-    riskLevel: result.riskLevel,
-    riskScore: result.riskScore,
-    reasonCodes: result.reasonCodes,
-    tool: input.tool || "",
-    intent: intentResult.intent,
-    branch: input.branch || "",
-    targetPath: input.targetPath || "",
-    notes: `${source}${input.notes ? ` | ${input.notes}` : ""}`,
-    ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
-    ...(source === _CA.source[0] ? { scopeHit: contractReason } : {}),
-    ...(floorFired ? { floorFired } : {}),
-    ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
-    ...(validityWarning ? { validityWarning } : {}),
-    ...(mcpWarning            ? { mcpWarning }            : {}),
-    ...(skillWarning          ? { skillWarning }          : {}),
-    ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
-    ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
-    ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
-    ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
-    ...(_f19Detail ? { f19Detail: _f19Detail } : {}),
-    ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
-    // ADR-013: additive snapshot receipt key passes through the journal
-    // entry verbatim. Absent on non-destructive / non-allow decisions so
-    // existing journals stay byte-identical.
-    ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
-    ...(irExtras || {}),
-    redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
-  });
+  if (!_earlyBlockDryRun) {
+    append({
+      kind: "runtime-decision",
+      action: result.action,
+      riskLevel: result.riskLevel,
+      riskScore: result.riskScore,
+      reasonCodes: result.reasonCodes,
+      tool: input.tool || "",
+      intent: intentResult.intent,
+      branch: input.branch || "",
+      targetPath: input.targetPath || "",
+      notes: `${source}${input.notes ? ` | ${input.notes}` : ""}`,
+      ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),
+      ...(source === _CA.source[0] ? { scopeHit: contractReason } : {}),
+      ...(floorFired ? { floorFired } : {}),
+      ...(_decidedCode ? { code: _decidedCode } : {}),
+      ...(taintResult?.tainted ? { taintSource: taintResult.source, taintReason: taintResult.reason } : {}),
+      ...(validityWarning ? { validityWarning } : {}),
+      ...(mcpWarning            ? { mcpWarning }            : {}),
+      ...(skillWarning          ? { skillWarning }          : {}),
+      ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+      ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
+      ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
+      ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
+      ...(_f19Detail ? { f19Detail: _f19Detail } : {}),
+      ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
+      // ADR-013: additive snapshot receipt key passes through the journal
+      // entry verbatim. Absent on non-destructive / non-allow decisions so
+      // existing journals stay byte-identical.
+      ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
+      ...(irExtras || {}),
+      redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
+    });
+  }
 
-  recordDecision({
-    action: result.action,
-    riskLevel: result.riskLevel,
-    reasonCodes: result.reasonCodes,
-  });
+  if (!_earlyBlockDryRun) {
+    recordDecision({
+      action: result.action,
+      riskLevel: result.riskLevel,
+      reasonCodes: result.reasonCodes,
+    });
+  }
 
   // Increment destructive-op counter after an allowed destructive-delete — F14 checks at next decide().
   try {

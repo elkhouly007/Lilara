@@ -79,5 +79,6 @@
     "Antegravity honours exit code 2 for blocks (packages/core/src/hooks/hookRunner.ts convertPlainTextToHookOutput — exit 2+ → decision: deny). No harnessOutput:'permission-json' opt-in is needed (contrast with ClawCode, which ignores exit codes and reads stdout JSON). The adapter uses the default harnessOutput:'echo' path.",
     "Protocol verified via public google-gemini/gemini-cli source (Apache-2.0). Live end-to-end hook fire in agy v1.0.1 with corrected event names (BeforeTool/AfterTool + run_shell_command matcher) has not yet been confirmed. Operators should run the capture recipe in WIRING_PLAN.md and report the payload shape."
   ],
+  "additionalContextSupported": false,
   "verifiedAt": "2026-05-24"
 }

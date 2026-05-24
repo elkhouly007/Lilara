@@ -34,6 +34,7 @@
       "enum": [
         "allow",
         "block",
+        "warn",
         "escalate",
         "require-review",
         "require-tests",
@@ -111,6 +112,28 @@
     "floorFired": {
       "type": "string",
       "maxLength": 80
+    },
+    "code": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^F[0-9]+",
+      "description": "Stable floor code (e.g. F8_PROTECTED_BRANCH). Drawn from runtime/floor-codes.js. ADR-016."
+    },
+    "coaching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hint": {
+          "type": "string",
+          "maxLength": 256
+        }
+      },
+      "description": "Optional coaching envelope written by F21 and educational floors. ADR-016."
     },
     "taintSource": {
       "type": "string",

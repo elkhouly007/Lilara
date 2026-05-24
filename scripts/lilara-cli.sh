@@ -33,6 +33,7 @@
 #   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
 #   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
 #   notify      ADR-015 notification routing (test/show/history).
+#   sandbox     ADR-016 dry-run a command through the decision lattice; print which floors fire.
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -71,7 +72,7 @@ else
 fi
 
 usage() {
-  sed -n '3,22p' "$0" | sed 's/^# //' | grep -v '^#'
+  sed -n '3,37p' "$0" | sed 's/^# //' | grep -v '^#'
 }
 
 die() { printf '%sError: %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
@@ -1455,6 +1456,65 @@ __NOTIFY_HISTORY_EOF__
         exit 2
         ;;
     esac
+    ;;
+
+  # ── sandbox ───────────────────────────────────────────────────────────────
+  sandbox)
+    json_mode=0; tool_override="Bash"; harness_override="cli-sandbox"; explain=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --json)    json_mode=1; shift ;;
+        --tool)    tool_override="$2"; shift 2 ;;
+        --harness) harness_override="$2"; shift 2 ;;
+        --explain) explain=1; shift ;;
+        --) shift; break ;;
+        --*) printf '%sUnknown sandbox flag: %s%s\n' "$RED" "$1" "$RESET" >&2; exit 2 ;;
+        *) break ;;
+      esac
+    done
+    cmd="$*"
+    if [ -z "$cmd" ]; then
+      printf 'Usage: lilara sandbox [--json] [--tool TOOL] [--harness HARNESS] [--explain] <command...>\n' >&2
+      printf 'Dry-run a command through the decision lattice without writing to the journal.\n' >&2
+      exit 2
+    fi
+    node - "$root" "$tool_override" "$harness_override" "$cmd" "$json_mode" "$explain" <<'__SANDBOX_EOF__'
+"use strict";
+const path = require("path");
+const [root, tool, harness, cmd, jsonMode, explain] = process.argv.slice(2);
+process.env.LILARA_DRY_RUN = "1";
+const { decide } = require(path.join(root, "runtime", "decision-engine"));
+let result;
+try {
+  result = decide({
+    tool,
+    harness,
+    command: cmd,
+    cwd: process.cwd(),
+    branch: "sandbox",
+    dryRun: true,
+  });
+} catch (err) {
+  process.stderr.write("[lilara sandbox] engine error: " + (err && err.message || err) + "\n");
+  process.exit(1);
+}
+if (jsonMode === "1") {
+  process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+} else {
+  const { floorFired, decisionSource, code, reasonCodes, riskScore, riskLevel, action } = result;
+  const rungVal = result.rung != null ? result.rung : "-";
+  process.stdout.write("action:         " + action + "\n");
+  process.stdout.write("floorFired:     " + (floorFired || "-") + "\n");
+  process.stdout.write("code:           " + (code || "-") + "\n");
+  process.stdout.write("rung:           " + rungVal + "\n");
+  process.stdout.write("reasonCodes:    " + JSON.stringify(reasonCodes || []) + "\n");
+  process.stdout.write("riskScore:      " + riskScore + " (" + riskLevel + ")\n");
+  process.stdout.write("decisionSource: " + (decisionSource || "-") + "\n");
+  if (explain === "1" && result.explanation) {
+    process.stdout.write("\nexplanation:\n" + result.explanation + "\n");
+  }
+}
+__SANDBOX_EOF__
     ;;
 
   # ── help ──────────────────────────────────────────────────────────────────

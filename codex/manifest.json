@@ -78,5 +78,6 @@
     "MCP and Skill tool-handler coverage in Codex is incomplete upstream (openai/codex#20204, #16732). F19 + skill-deny floors apply best-effort and route to require-review until upstream coverage gaps are closed. Operators should not rely on Lilara blocking MCP-delegated tool calls that Codex does not surface through the hook path.",
     "Codex honours exit code 2 for blocks (developers.openai.com/codex/hooks). No harnessOutput:'permission-json' opt-in is needed (contrast with ClawCode, which ignores exit codes and reads stdout JSON). The adapter uses the default harnessOutput:'echo' path."
   ],
+  "additionalContextSupported": false,
   "verifiedAt": "2026-05-24"
 }
