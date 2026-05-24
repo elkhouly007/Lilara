@@ -117,17 +117,17 @@ fi
 # Q2 — which tool
 ask "tool" "2/5  Which AI coding tool do you use?" "claude" "claude | opencode | openclaw | both"
 case "$tool" in
-  claude|opencode|openclaw|both) ;;
-  codex|clawcode|antegravity)
+  claude|opencode|openclaw|both|codex|clawcode) ;;
+  antegravity)
     printf '\n%sNOT YET SUPPORTED: "%s" integration is planned but not yet implemented.%s\n' "$YELLOW" "$tool" "$RESET" >&2
-    printf 'Supported tools: claude | opencode | openclaw | both\n' >&2
+    printf 'Supported tools: claude | opencode | openclaw | both | codex | clawcode\n' >&2
     printf 'See the Harness Support Matrix in README.md for details.\n' >&2
     printf 'Stub integration contract: %s/README.md\n' "$root/$tool" >&2
     exit 1
     ;;
   *)
-    printf '\n%sUnknown tool: "%s". Supported: claude | opencode | openclaw | both%s\n' "$YELLOW" "$tool" "$RESET" >&2
-    printf 'Planned (not yet supported): codex | clawcode | antegravity\n' >&2
+    printf '\n%sUnknown tool: "%s". Supported: claude | opencode | openclaw | both | codex | clawcode%s\n' "$YELLOW" "$tool" "$RESET" >&2
+    printf 'Planned (not yet supported): antegravity\n' >&2
     printf 'See the Harness Support Matrix in README.md for details.\n' >&2
     exit 1
     ;;

@@ -1,32 +1,31 @@
 # Codex Apply Checklist
 
-> **EXPERIMENTAL.** Use this checklist only after the actual Codex hook payload format is confirmed by a contributor.
+**Status: VERIFIED — 2026-05-24.** Hook protocol confirmed against openai/codex source. Follow the wiring path in `WIRING_PLAN.md`.
 
 ## Before Wiring
 
-- [ ] Read `COMPATIBILITY_NOTES.md` — understand what is unverified
-- [ ] Read `WIRING_PLAN.md` — understand the speculative wiring steps
-- [ ] Log actual Codex hook stdin to a temp file and compare against the adapter's fallback chain
-- [ ] Run `bash scripts/check-codex-adapter.sh` with the actual payload shape
+- [ ] Read `WIRING_PLAN.md` — covers the verified payload shapes, decision protocol, and a concrete `.codex/hooks.json` example
+- [ ] Read `COMPATIBILITY_NOTES.md` — covers known MCP/Skill coverage gaps
+- [ ] Run `bash scripts/check-codex-adapter.sh` — 16 checks must pass (fallback coverage + verified shape assertions)
 
 ## Safe Automatic Actions
 
-- Installing `codex/hooks/adapter.js` in a project-local path (no global mutation)
+- Installing `codex/hooks/adapter.js` in a project-local `.codex/hooks.json` (no global mutation)
 - Setting `LILARA_ENFORCE=0` (warn-only mode, non-blocking)
 
 ## Requires User Approval
 
-- Any Codex config change that registers the hook globally
-- Setting `LILARA_ENFORCE=1` (will block tool calls on high/critical risk)
+- Any Codex config change that registers the hook at the user level (`~/.codex/hooks.json`)
+- Setting `LILARA_ENFORCE=1` (will block tool calls on high/critical risk via exit code 2)
 - Any change to existing Codex config files
 
 ## Post-Wiring Verification
 
-- [ ] `scripts/check-codex-adapter.sh` passes (12 checks)
-- [ ] A real Codex tool call triggers the adapter (check stderr for `[Agent Runtime Guard]` prefix)
+- [ ] `scripts/check-codex-adapter.sh` passes (all 16 checks)
+- [ ] A real Codex tool call triggers the adapter (check stderr for `[Lilara]` prefix)
 - [ ] Kill-switch test: `LILARA_KILL_SWITCH=1` blocks all tool calls
 - [ ] `unset LILARA_KILL_SWITCH` restores normal operation
 
 ## Rollback
 
-Remove the hook registration from your Codex config. The adapter makes no global writes.
+Remove the hook entry from `.codex/hooks.json`. The adapter makes no global writes.

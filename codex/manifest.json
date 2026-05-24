@@ -1,104 +1,82 @@
 {
   "harness": "codex",
-  "harnessVersion": "unverified",
+  "harnessVersion": "main@2026-05-24",
   "envelopeReporting": false,
-  "argsFidelity": "best-effort",
-  "cwdFidelity": "best-effort",
-  "mcpInterception": "unverified",
-  "skillInterception": "unverified",
+  "argsFidelity": "exact",
+  "cwdFidelity": "exact",
+  "mcpInterception": "partial",
+  "skillInterception": "partial",
   "outputChannels": {
-    "toolOutput": "none",
-    "generatedFiles": "none",
-    "commitText": "none",
-    "prText": "none",
+    "toolOutput": "observe",
+    "generatedFiles": "observe",
+    "commitText": "observe",
+    "prText": "observe",
     "finalMessage": "none",
-    "terminal": "none",
+    "terminal": "observe",
     "screenshots": "none"
   },
   "outputChannelObservability": {
-    "stdout": "not-observed",
-    "stderr": "not-observed",
-    "generatedFile": "not-observed",
-    "commitMessage": "not-observed",
-    "prText": "not-observed",
+    "stdout": "observed",
+    "stderr": "observed",
+    "generatedFile": "limited",
+    "commitMessage": "limited",
+    "prText": "limited",
     "finalMessage": "not-observed"
   },
   "outputChannelCompensations": {
-    "stdout": "Codex post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "stderr": "Codex post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "generatedFile": "Codex file-write surfaces are unverified; F19 enforces require-review by default until live integration confirms observability.",
-    "commitMessage": "Codex commit-text surfaces are not yet verified; F19 routes commit-message writes through require-review (compensating stricter rule).",
-    "prText": "Codex PR-text surfaces are not yet verified; F19 routes prText writes through require-review (compensating stricter rule).",
-    "finalMessage": "Codex final-message surfaces are not yet verified; F19 routes finalMessage writes through require-review (compensating stricter rule)."
+    "generatedFile": "Codex fires PostToolUse for tool calls but the in-payload schema for file-write tools beyond Bash has not been enumerated against the source; F19 routes file-write paths through require-review until per-tool wiring is confirmed.",
+    "commitMessage": "Codex commit-text surfaces flow through PostToolUse on git-invoking tools; F19 routes commit-message writes through require-review (compensating stricter rule).",
+    "prText": "Codex PR-text surfaces flow through PostToolUse on gh-CLI-style tools; F19 routes prText writes through require-review (compensating stricter rule).",
+    "finalMessage": "Codex does not expose a pre-emit hook for the assistant's final message; F19 routes finalMessage writes through require-review (compensating stricter rule)."
   },
   "capabilities": {
-    "pretoolBlocking": "unverified",
-    "posttoolObservation": "unverified",
-    "exactCwd": false,
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
+    "exactCwd": true,
     "exactEnv": false,
-    "argsFidelity": "best-effort",
-    "mcpInterception": "unverified",
-    "skillInterception": "unverified",
+    "argsFidelity": "exact",
+    "mcpInterception": "partial",
+    "skillInterception": "partial",
     "finalMessageInterception": "none",
-    "outputChannelCoverage": "none",
+    "outputChannelCoverage": "partial",
     "envelopeReporting": false
   },
   "negativeCapabilities": [
     {
-      "capability": "pretoolBlocking",
-      "reason": "Codex hook API is not publicly documented; the adapter uses a fallback chain over likely payload shapes but no integration has been verified end-to-end",
-      "evidence": "codex/hooks/adapter.js opening comment: 'Codex hook API is not publicly documented. ... Test against your actual Codex hook payload before relying on this in production'"
-    },
-    {
-      "capability": "posttoolObservation",
-      "reason": "Codex post-tool hook surface is unverified; the post-adapter is wired but has not been confirmed to receive real Codex tool output",
-      "evidence": "codex/hooks/post-adapter.js follows the same speculative shape as the pre-adapter"
-    },
-    {
-      "capability": "exactCwd",
-      "reason": "Codex payload shape and cwd field name are not confirmed; the adapter reads workdir/cwd/working_directory/tool_input.cwd as best-effort fallbacks",
-      "evidence": "cwdFidelity: best-effort in the existing manifest"
-    },
-    {
       "capability": "exactEnv",
-      "reason": "No envelope reporting and no documented env reporting from Codex; env diffs cannot be proven",
-      "evidence": "envelopeReporting: false"
-    },
-    {
-      "capability": "argsFidelity",
-      "reason": "Command/args field name and quoting semantics are inferred, not confirmed",
-      "evidence": "argsFidelity: best-effort in the existing manifest"
+      "reason": "Codex hook surface does not expose execution-time env baselines; F15 envelope build/verify cannot be wired",
+      "evidence": "envelopeReporting: false; no env-related fields in the verified PreToolUse / PostToolUse structs (codex-rs/hooks/src/events/pre_tool_use.rs, codex-rs/hooks/src/events/post_tool_use.rs)"
     },
     {
       "capability": "mcpInterception",
-      "reason": "Whether Codex routes MCP tool invocations through the same hook surface is unknown",
-      "evidence": "mcpInterception: unverified in the existing manifest"
+      "reason": "MCP tool-handler coverage in codex-rs is incomplete upstream. openai/codex#20204 documents inconsistent PreToolUse hook coverage across tool handlers, and openai/codex#16732 (fixed in openai/codex#18391) showed ApplyPatch was missing from the hook dispatch path entirely. Many MCP-delegated tool handlers may not emit PreToolUse events.",
+      "evidence": "GitHub issues: openai/codex#20204 (inconsistent hook coverage), openai/codex#16732 (ApplyPatchHandler missing PreToolUse/PostToolUse; fixed in PR #18391)"
     },
     {
       "capability": "skillInterception",
-      "reason": "Whether Codex surfaces Skill invocations through the same hook surface is unknown",
-      "evidence": "skillInterception: unverified in the existing manifest"
+      "reason": "Whether Codex surfaces Skill invocations through the PreToolUse/PostToolUse hook path has not been verified end-to-end; subject to the same handler-coverage gaps as MCP (openai/codex#20204)",
+      "evidence": "openai/codex#20204 (inconsistent hook coverage across tool handlers)"
     },
     {
       "capability": "finalMessageInterception",
-      "reason": "No documented pre-emit hook for Codex; final-message output is neither observed nor intercepted",
-      "evidence": "outputChannels.finalMessage = none"
+      "reason": "No documented pre-emit hook for the assistant final message in Codex; final-message output is neither observed nor intercepted",
+      "evidence": "outputChannels.finalMessage = none; no pre-emit final-message hook found in codex-rs/hooks/src/events/"
     },
     {
       "capability": "outputChannelCoverage",
-      "reason": "All output channels default to none until live Codex integration confirms which surfaces reach the adapter",
-      "evidence": "every key in outputChannels is none"
+      "reason": "PostToolUse + toolOutput are covered via tool_response field in codex-rs/hooks/src/events/post_tool_use.rs; generatedFiles / commitMessage / prText flow through PostToolUse only when their tool handlers emit the event; finalMessage and screenshots have no hook surface",
+      "evidence": "codex-rs/hooks/src/events/post_tool_use.rs (PostToolUseRequest struct with tool_response field); hook handler coverage gaps per openai/codex#20204"
     },
     {
       "capability": "envelopeReporting",
-      "reason": "F15 envelope build/verify wiring has not landed for Codex",
-      "evidence": "envelopeReporting: false"
+      "reason": "F15 execution-envelope build/verify requires harness-side env baseline capture which Codex does not expose. Decision lattice still re-checks critical writes against contract-declared envelopes; this is the harness limitation, not a Lilara gap.",
+      "evidence": "envelopeReporting: false; no exec-time envelope surface in codex-rs/hooks/src/"
     }
   ],
   "compensatingRestrictions": [
-    "Decision-engine treats Codex IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
-    "Operators wiring Codex are expected to validate hook payload shape against codex/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
-    "Until pretool blocking is verified, treat Codex as observe-only and rely on out-of-band review for destructive actions"
+    "Decision-engine sources Codex IR trustMeta as: argsFidelity=exact, cwdFidelity=exact, envelopeReporting=false. Floors can rely on the adapter's extractCwd output (i.cwd is an AbsolutePathBuf typed field — codex-rs/hooks/src/types.rs:41) and tool_input.command for the command string.",
+    "MCP and Skill tool-handler coverage in Codex is incomplete upstream (openai/codex#20204, #16732). F19 + skill-deny floors apply best-effort and route to require-review until upstream coverage gaps are closed. Operators should not rely on Lilara blocking MCP-delegated tool calls that Codex does not surface through the hook path.",
+    "Codex honours exit code 2 for blocks (developers.openai.com/codex/hooks). No harnessOutput:'permission-json' opt-in is needed (contrast with ClawCode, which ignores exit codes and reads stdout JSON). The adapter uses the default harnessOutput:'echo' path."
   ],
-  "verifiedAt": null
+  "verifiedAt": "2026-05-24"
 }

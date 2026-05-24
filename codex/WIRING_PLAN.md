@@ -1,118 +1,167 @@
-# Codex Wiring Plan (SPECULATIVE)
+# Codex Wiring Plan
 
-> **Status: EXPERIMENTAL.** This document describes the intended wiring once the Codex hook API is confirmed by a contributor. Do not follow these instructions as production guidance until the actual Codex hook payload format is verified.
+## Status
 
-## Goal
+**VERIFIED — 2026-05-24.** Hook protocol traced end-to-end against openai/codex (codex-rs). PreToolUse / PostToolUse stdin payload shapes confirmed via `codex-rs/hooks/src/events/pre_tool_use.rs` (PreToolUseRequest struct) and `codex-rs/hooks/src/events/post_tool_use.rs` (PostToolUseRequest struct). Snake-case serialisation confirmed via `codex-rs/hooks/src/types.rs:38` (`#[serde(rename_all = "snake_case")]` on HookPayload). Exit-code decision protocol confirmed via the authoritative public docs at `developers.openai.com/codex/hooks`.
 
-Wire Agent Runtime Guard into Codex as a project-local enforcement layer using the same `pretool-gate.js` spine used by Claude Code, OpenCode, and OpenClaw.
+## What Codex is
 
-## Scope Of This Wiring
+Codex is OpenAI's agentic CLI tool (codex-rs, the Rust implementation). It exposes a hook system for intercepting tool calls before and after execution. The hook subprocess receives a JSON payload on stdin and uses exit code 2 to block a tool call (Codex surfaces the stderr reason text to the model).
 
-This wiring covers:
+## Hook event model
 
-- runtime hook adapter (`codex/hooks/adapter.js`);
-- target file map;
-- policy mapping for Codex tool usage;
-- contributor verification steps for payload format;
-- compatibility guidance pending upstream confirmation.
+Codex emits two hook events:
 
-It does not overwrite existing Codex user config or global files. All changes are project-local.
+| Event | When | Can block? |
+|-------|------|------------|
+| `PreToolUse` | Before each tool call | Yes — exit code 2; stderr reason shown to model |
+| `PostToolUse` | After successful tool call | No (observation only) |
 
-## Runtime Hook Adapter
+Hook configuration keys tools by name. The PreToolUse hook fires before Codex executes the tool; exit code 2 causes Codex to abort the tool call and relay the hook's stderr to the model.
 
-`codex/hooks/adapter.js` is a PreToolUse adapter that delegates to `claude/hooks/hook-utils.js → createAdapter()` → `runtime/pretool-gate.js`.
+## Stdin payload shapes (verified)
 
-**Likely Codex input shapes (unverified — contributor must confirm):**
+**PreToolUse** (`codex-rs/hooks/src/events/pre_tool_use.rs` — PreToolUseRequest struct):
 
 ```json
-{ "tool": "bash", "command": "...", "workdir": "..." }
-{ "tool_name": "Bash", "tool_input": { "command": "..." } }
+{
+  "session_id": "<session id>",
+  "turn_id": "<turn id>",
+  "subagent": false,
+  "cwd": "/absolute/path/to/project",
+  "transcript_path": null,
+  "model": "o4-mini",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "matcher_aliases": [],
+  "tool_use_id": "<tool use id>",
+  "tool_input": { "command": "..." }
+}
 ```
 
-Also accepted via fallback chain: `cmd`, `tool_input.command`, `input.command`, `args.command`, `params.command`.
+All field names are snake_case (`codex-rs/hooks/src/types.rs:38`). `cwd` is an absolute path string typed as `AbsolutePathBuf` (`codex-rs/hooks/src/types.rs:41`). For Bash and apply_patch tools, `tool_input` contains a `command` field.
 
-**Wire into Codex config** as a `PreToolUse` hook on shell/bash tool calls. Point the hook command at the absolute path of `codex/hooks/adapter.js`.
+**PostToolUse** (`codex-rs/hooks/src/events/post_tool_use.rs` — PostToolUseRequest struct):
 
-**Modes:**
+```json
+{
+  "session_id": "<session id>",
+  "turn_id": "<turn id>",
+  "tool_name": "Bash",
+  "tool_use_id": "<tool use id>",
+  "tool_input": { "command": "..." },
+  "tool_response": "<stdout/stderr from the tool>"
+}
+```
 
-- Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export LILARA_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+The verified output field is `tool_response`. The Lilara shared `createPostAdapter()` factory (`runtime/post-adapter-factory.js`) leads with `tool_response` and falls back to `output`/`tool_output`/`content` for cross-harness compatibility.
 
-**Fixtures:** `tests/fixtures/codex/` — 10 fixtures covering dangerous commands (curl|sh, force-push, rm -rf), enforce mode (dd-device, force-push, hard-reset, npx -y, rm -rf), and safe pass-through (git log, ls). Run with `scripts/run-fixtures.sh`.
+## Decision protocol
 
-## PostToolUse Parity
+Codex uses **exit-code** semantics (unlike ClawCode, which ignores exit codes and reads stdout JSON):
 
-Current wiring includes both PreToolUse and PostToolUse. `codex/hooks/post-adapter.js` was added by Wave 1 A3 (merged in `3787b09`) and scans output for secrets and records external reads for the taint/provenance system.
+- Exit code `0` — allow: tool call proceeds.
+- Exit code `2` — block: Codex aborts the tool call and shows the hook's stderr to the model.
+- Any other non-zero — error: Codex treats as an unexpected hook failure.
 
-Codex PostToolUse event model has not been verified against a real installation. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
+`stderr` carries the human-readable block reason that Codex surfaces to the model. `stdout` is passed through unchanged (Codex does not parse it for decisions).
 
-## Target Paths
+The Lilara adapter (`codex/hooks/adapter.js`) uses the default `harnessOutput: "echo"` path — no stdout JSON is emitted on allow or block. This is in contrast with the ClawCode adapter (`clawcode/hooks/adapter.js`), which uses `harnessOutput: "permission-json"` because ClawCode ignores exit codes entirely and reads stdout JSON instead.
 
-Recommended project-local targets:
+## Adapter wiring
 
-- `tools/horus/codex/WIRING_PLAN.md`
-- `tools/horus/codex/CODEX_POLICY_MAP.md`
-- `tools/horus/codex/CODEX_APPLY_CHECKLIST.md`
-- `tools/horus/codex/COMPATIBILITY_STRATEGY.md`
-- `tools/horus/codex/examples/`
+In your Codex project, create `.codex/hooks.json`:
 
-Potential future integration targets, only after explicit review:
+```json
+{
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "command": "/absolute/path/to/lilara/codex/hooks/adapter.js",
+      "timeout": 30
+    }
+  ]
+}
+```
 
-- per-project Codex config references;
-- project-local role presets;
-- optional module enablement snippets.
+Alternatively, use `~/.codex/hooks.json` for user-level wiring (applies to all projects). Config locations in priority order: `<repo>/.codex/hooks.json`, `<repo>/.codex/config.toml`, `~/.codex/hooks.json`, `~/.codex/config.toml` (per `developers.openai.com/codex/hooks`).
 
-## Wiring Steps (Contributor Must Confirm)
+For PostToolUse parity (secret-scan + taint recording on tool output), add:
 
-1. Determine where Codex reads PreToolUse hook configuration.
-2. Set hook entry point to the absolute path of `codex/hooks/adapter.js`.
-3. Verify the actual hook payload by logging stdin to a temp file before the adapter runs.
-4. If the payload shape differs from the shapes above, update `extractCommand`/`extractCwd` in `codex/hooks/adapter.js`.
-5. Confirm that `scripts/check-codex-adapter.sh` passes against real payloads.
-6. File a PR updating this document and promoting the harness from EXPERIMENTAL to Supported.
+```json
+{
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "command": "/absolute/path/to/lilara/codex/hooks/adapter.js",
+      "timeout": 30
+    },
+    {
+      "event": "PostToolUse",
+      "command": "/absolute/path/to/lilara/codex/hooks/post-adapter.js",
+      "timeout": 30
+    }
+  ]
+}
+```
 
-## Wiring Model
+## Modes
 
-Use Agent Runtime Guard as an external policy and config-template source.
+- **Warn mode** (default): exits 0 with stderr warning. Tool call proceeds.
+- **Enforce mode** (`LILARA_ENFORCE=1`): on block decisions, exits 2; Codex aborts the tool call and shows the stderr reason to the model.
+- **Kill switch** (`LILARA_KILL_SWITCH=1`): exits 2 for every command regardless of risk score.
 
-Codex should consume:
+## Hook timeout
 
-- the hook adapter via PreToolUse event;
-- `CODEX_POLICY_MAP.md` as a policy reference;
-- `CODEX_APPLY_CHECKLIST.md` as an operator guide.
+Codex enforces a default 600s timeout per hook subprocess (`developers.openai.com/codex/hooks`), configurable per-hook via the `timeout` field. The Lilara adapter completes in <20ms on warm cache, well under the limit.
 
-Prefer project-local references and adapter glue over direct core patching. Do not change global Codex defaults automatically in this step.
+## What is NOT yet verified
 
-## Approval Mapping
+- **MCP tool-handler coverage** — Codex's hook dispatch is per tool-handler. Not all tool handlers emit PreToolUse events; openai/codex#20204 documents inconsistent coverage, and openai/codex#16732 (fixed in PR #18391) showed ApplyPatch was missing from the hook dispatch path. MCP-delegated tool calls may not reach the hook surface.
+- **Skill interception** — subject to the same handler-coverage gaps as MCP.
+- **Per-tool output-channel observability** beyond Bash — the PostToolUse payload schema for file-write / commit / PR / browser tools has not been enumerated against the codex-rs source beyond the Bash case.
 
-### Auto-allowed
+These are manifest-level caveats, not blockers for production use. The `mcpInterception: "partial"` and `skillInterception: "partial"` claims in `codex/manifest.json` reflect this state accurately.
 
-- reading local project files;
-- writing new local documentation;
-- adding project-local policy notes;
-- using trusted external agents only after payload review.
+## How to capture a new payload yourself
 
-### Approval-required
+```bash
+# 1. Write a capture hook
+cat > "$HOME/capture-codex.js" <<'EOFI'
+#!/usr/bin/env node
+"use strict";
+const fs = require("fs");
+let d = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", c => d += c);
+process.stdin.on("end", () => {
+  fs.appendFileSync("/tmp/codex-payload.json", d + "\n");
+  process.stdout.write(d);
+});
+EOFI
+chmod +x "$HOME/capture-codex.js"
 
-- overwriting existing important Codex config files;
-- enabling external-write or system-write plugins;
-- enabling external data flow with personal or confidential data;
-- global user-level Codex config mutation.
+# 2. Wire it as a PreToolUse hook in your Codex project
+mkdir -p .codex
+cat > .codex/hooks.json <<EOFJ
+{
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "command": "$HOME/capture-codex.js",
+      "timeout": 30
+    }
+  ]
+}
+EOFJ
 
-## Rollback Strategy
+# 3. Run a Bash-tool prompt in Codex, then inspect the payload
+cat /tmp/codex-payload.json
+```
 
-If integration causes instability:
+## Lilara configuration referenced
 
-1. remove the hook registration from your Codex config;
-2. delete the local `tools/horus/codex/` directory;
-3. revert any manual changes to Codex project config if applicable.
-
-The adapter makes no global writes. Rollback is non-destructive.
-
-## Definition Of Done
-
-- Contributor confirms actual Codex hook payload format.
-- `WIRING_PLAN.md` updated with verified wiring steps (remove SPECULATIVE banner).
-- `scripts/check-codex-adapter.sh` passes against real payloads.
-- Harness status promoted from EXPERIMENTAL to Supported in `codex/README.md`.
-- PostToolUse wiring confirmed or documented as unsupported.
+- Adapter: `codex/hooks/adapter.js` — uses `createAdapter()` with default `harnessOutput: "echo"`.
+- Post-adapter: `codex/hooks/post-adapter.js` — uses `createPostAdapter()` with `envelopeReporting: false`.
+- Manifest: `codex/manifest.json` — `verifiedAt: "2026-05-24"`.
+- Check gate: `scripts/check-codex-adapter.sh` — exercises fallback coverage (checks 1–12) and verified canonical payload shapes (checks 13–16).

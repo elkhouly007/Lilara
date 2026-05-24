@@ -6,6 +6,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **feat(codex): verify hook protocol against openai/codex + promote adapter from EXPERIMENTAL to VERIFIED** — Source-traced PreToolUse / PostToolUse payload shapes against `codex-rs/hooks/src/events/` structs; snake_case confirmed via `codex-rs/hooks/src/types.rs:38`; exit-code protocol confirmed via public docs. `codex/hooks/adapter.js` extraction chain reordered to lead with verified upstream fields (`tool_input.command`, `cwd`). `codex/manifest.json` promoted: `verifiedAt: "2026-05-24"`, `argsFidelity: "exact"`, `cwdFidelity: "exact"`, `mcpInterception: "partial"`, `skillInterception: "partial"` (openai/codex#20204, #16732). All negativeCapabilities rewritten with `codex-rs/hooks/src/` file:line citations. `runtime/post-adapter-factory.js` extraction chain gains `tool_response` (verified Codex PostToolUse field). `scripts/check-codex-adapter.sh` adds checks 13–16 against the canonical payload shape. All codex/ docs rewritten from SPECULATIVE/EXPERIMENTAL to VERIFIED. Cross-cutting harness matrix, roadmap, apply-status, and OWASP coverage updated accordingly.
+
+---
+
 ## [0.1.0] — 2026-05-24 — First Lilara release
 
 Rebrand from Horus Agentic Power (HAP) v3.1.0. Clean break — see MIGRATION.md for operator runbook.

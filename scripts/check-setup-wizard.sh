@@ -49,7 +49,7 @@ fi
 pass 'openclaw wizard output'
 
 # Planned harnesses should exit non-zero with a clear message, not silently fall back
-for planned_tool in codex clawcode antegravity; do
+for planned_tool in antegravity; do
   err_out="$workdir/planned-${planned_tool}.txt"
   if bash "$root/scripts/setup-wizard.sh" --non-interactive --tool "$planned_tool" --target ./demo >"$err_out" 2>&1; then
     fail "wizard should exit non-zero for planned tool: $planned_tool"

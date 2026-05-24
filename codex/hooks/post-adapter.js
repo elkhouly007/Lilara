@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 // post-adapter.js — Codex PostToolUse adapter (D38: delegates to createPostAdapter).
+//
+// Verified against codex-rs/hooks/src/events/post_tool_use.rs (PostToolUseRequest
+// struct). The verified output field is "tool_response"; the shared createPostAdapter()
+// factory also covers the "output"/"tool_output"/"content" fallback chain for
+// cross-harness compatibility.
 "use strict";
 
 const path = require("path");
