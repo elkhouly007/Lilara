@@ -2,11 +2,11 @@
 
 ## Status
 
-EXPERIMENTAL. The antegravity hook API is not publicly documented. This strategy is written for when the integration is confirmed.
+VERIFIED — 2026-05-24. Hook protocol traced against `google-gemini/gemini-cli` (Apache-2.0). See `WIRING_PLAN.md` and `COMPATIBILITY_NOTES.md` for full details.
 
 ## Core Rule
 
-Do not rely on patching antegravity internals. Use the hook registration mechanism (if one exists) and a project-local `antegravity/hooks/adapter.js`. If antegravity does not support external hook registration, this integration cannot proceed without upstream changes.
+Do not rely on patching antegravity internals. Use the verified `BeforeTool` / `AfterTool` hook events wired in `.gemini/settings.json` (or `~/.gemini/settings.json`). The hook registration mechanism is confirmed via the upstream source.
 
 ## Avoid
 
@@ -20,11 +20,11 @@ Do not rely on patching antegravity internals. Use the hook registration mechani
 - the same `pretool-gate.js` fallback chain that handles multiple payload shapes
 - explicit shape testing via `scripts/check-antegravity-adapter.sh`
 
-## Compatibility Checks After antegravity Updates
+## Compatibility Checks After Antegravity Updates
 
-Review:
-- hook payload schema changes (command field name, nesting)
-- hook lifecycle changes (PreToolUse → different event name)
-- permission model changes
+Track releases of `google-gemini/gemini-cli` for changes to:
+- `packages/core/src/hooks/types.ts` — `BeforeToolInput` / `AfterToolInput` field names or nesting
+- `packages/core/src/hooks/hookRunner.ts` — exit-code semantics or output parsing order
+- Event name renames in the `HookEventName` enum
 
-If antegravity changes break the adapter, update `extractCommand`/`extractCwd` in `antegravity/hooks/adapter.js` and re-run `scripts/check-antegravity-adapter.sh`.
+If an upstream change breaks the adapter, update `extractCommand`/`extractCwd` in `antegravity/hooks/adapter.js`, update checks 13–16 in `scripts/check-antegravity-adapter.sh`, and update `antegravity/manifest.json`'s `harnessVersion` and `verifiedAt`.

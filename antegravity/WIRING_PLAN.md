@@ -1,119 +1,216 @@
-# antegravity Wiring Plan (SPECULATIVE)
+# Antegravity Wiring Plan
 
-> **Status: EXPERIMENTAL.** This document describes the intended wiring once the antegravity hook API is confirmed by a contributor. Do not follow these instructions as production guidance until the actual antegravity hook payload format is verified.
+## Status
 
-## Goal
+**VERIFIED — 2026-05-24.** Hook protocol traced end-to-end against `google-gemini/gemini-cli` (Apache-2.0). BeforeTool / AfterTool stdin payload shapes confirmed via `packages/core/src/hooks/types.ts` (BeforeToolInput / AfterToolInput). Decision protocol confirmed via `packages/core/src/hooks/hookRunner.ts`. Event-name / tool-name translation mapping confirmed via `packages/cli/src/commands/hooks/migrate.ts`.
 
-Wire Agent Runtime Guard into antegravity as a project-local enforcement layer using the same `pretool-gate.js` spine used by Claude Code, OpenCode, and OpenClaw.
+> **Live end-to-end caveat:** The protocol is verified against the upstream source that Antegravity v1.0.1 embeds. A live hook fire in `agy` with corrected event names (`BeforeTool` / `AfterTool` + `run_shell_command` matcher) has not yet been confirmed end-to-end. See the capture recipe below.
 
-## Scope Of This Wiring
+## What Antegravity Is
 
-This wiring covers:
+Antegravity is Google's agentic coding CLI (binary: `agy`, website: `antigravity.google`). It is built on the open-source **Gemini CLI** framework (`github.com/google-gemini/gemini-cli`, Apache-2.0). The internal build string `google3/third_party/gemini_coder/framework/core/core.runHooks` maps to the public `HookRunner` class in `packages/core/src/hooks/hookRunner.ts`.
 
-- runtime hook adapter (`antegravity/hooks/adapter.js`);
-- target file map;
-- policy mapping for antegravity tool usage;
-- contributor verification steps for payload format;
-- compatibility guidance pending upstream confirmation.
+## The Migration Trap
 
-It does not overwrite existing antegravity user config or global files. All changes are project-local.
+> **Critical:** Antegravity uses Gemini CLI event names — NOT Claude Code event names. If you copy a Claude Code hook config, the hooks will silently not fire.
 
-## Runtime Hook Adapter
+| Claude Code | Gemini CLI (Antegravity) |
+|---|---|
+| `PreToolUse` | **`BeforeTool`** |
+| `PostToolUse` | **`AfterTool`** |
+| `UserPromptSubmit` | `BeforeAgent` |
+| `Stop` / `SubAgentStop` | `AfterAgent` |
+| `PreCompact` | `PreCompress` |
+| `Bash` (tool matcher) | **`run_shell_command`** |
+| `Edit` (tool matcher) | **`replace`** |
+| `$CLAUDE_PROJECT_DIR` (env var) | **`$GEMINI_PROJECT_DIR`** |
 
-`antegravity/hooks/adapter.js` is a PreToolUse adapter that delegates to `claude/hooks/hook-utils.js → createAdapter()` → `runtime/pretool-gate.js`.
+Source: `packages/cli/src/commands/hooks/migrate.ts`. Running `agy hooks migrate` converts `.claude/settings.local.json` → `.gemini/settings.json` automatically.
 
-**Likely antegravity input shapes (unverified — contributor must confirm):**
+## Hook Event Model
+
+| Event | When | Can block? |
+|-------|------|------------|
+| `BeforeTool` | Before each tool call | Yes — exit code 2; reason surfaced to model |
+| `AfterTool` | After successful tool call | No (observation only) |
+| `BeforeAgent`, `AfterAgent`, etc. | Agent lifecycle | Not used by Lilara |
+
+## Stdin Payload Shapes (Verified)
+
+All fields are snake_case. Source: `packages/core/src/hooks/types.ts`.
+
+**BeforeTool** (BeforeToolInput extends HookInput):
 
 ```json
-{ "command": "...", "cwd": "..." }
-{ "cmd": "...", "cwd": "..." }
-{ "tool_input": { "command": "..." } }
+{
+  "session_id": "<session id>",
+  "transcript_path": "/path/to/transcript.json",
+  "cwd": "/absolute/path/to/project",
+  "hook_event_name": "BeforeTool",
+  "timestamp": "2026-05-24T00:00:00.000Z",
+  "tool_name": "run_shell_command",
+  "tool_input": { "command": "..." },
+  "mcp_context": null,
+  "original_request_name": null
+}
 ```
 
-Also accepted via fallback chain: `input.command`, `args.command`, `params.command`.
+**AfterTool** (AfterToolInput extends HookInput):
 
-**Wire into antegravity config** as a `PreToolUse` hook on shell/bash tool calls. Point the hook command at the absolute path of `antegravity/hooks/adapter.js`.
+```json
+{
+  "session_id": "<session id>",
+  "transcript_path": "/path/to/transcript.json",
+  "cwd": "/absolute/path/to/project",
+  "hook_event_name": "AfterTool",
+  "timestamp": "2026-05-24T00:00:00.000Z",
+  "tool_name": "run_shell_command",
+  "tool_input": { "command": "..." },
+  "tool_response": "<stdout/stderr from the tool>"
+}
+```
 
-**Modes:**
+The Lilara shared `createPostAdapter()` factory (`runtime/post-adapter-factory.js`) already leads with `tool_response` for output extraction — no adapter-side change needed.
 
-- Warn mode (default): warns to stderr, exits 0 (tool call proceeds). Set no env var.
-- Block mode: `export LILARA_ENFORCE=1` — exits 2 on high/critical risk (tool call aborted).
+## Decision Protocol (Verified)
 
-**Fixtures:** `tests/fixtures/antegravity/` — 10 fixtures covering dangerous commands (curl|sh, force-push, rm -rf), enforce mode (dd-device, force-push, hard-reset, npx -y, rm -rf), and safe pass-through (git log, ls). Run with `scripts/run-fixtures.sh`.
+Antegravity parses the hook subprocess output as follows (hookRunner.ts lines 371–388):
 
-## PostToolUse Parity
+1. **JSON stdout** parsed first into `HookOutput { decision?, reason?, hookSpecificOutput?, continue?, systemMessage?, suppressOutput? }`. `HookDecision` values: `'ask' | 'block' | 'deny' | 'approve' | 'allow' | undefined`.
+2. **Plain-text + exit-code fallback** when stdout is not valid JSON:
+   - Exit `0` → allow (tool call proceeds)
+   - Exit `1` → allow with warning (non-blocking)
+   - **Exit `2+` → deny** (Antegravity aborts the tool call, surfaces stderr reason to model)
 
-Current wiring includes both PreToolUse and PostToolUse. `antegravity/hooks/post-adapter.js` was added by Wave 1 A3 (merged in `3787b09`) and scans output for secrets and records external reads for the taint/provenance system.
+Lilara's default `harnessOutput: "echo"` path (exit 2 on block) is fully compatible. No `harnessOutput: "permission-json"` opt-in is needed (contrast with ClawCode, which ignores exit codes and reads stdout JSON).
 
-antegravity PostToolUse event model is unverified. Until a contributor confirms event model support and documents the wiring path, the PostToolUse extension remains deferred for production use. See `references/owasp-agentic-coverage.md` (ASI05) for current coverage status.
+Default timeout: **60 000 ms** (`DEFAULT_HOOK_TIMEOUT` in hookRunner.ts).
 
-## Target Paths
+Env vars expanded in hook command: `$GEMINI_PROJECT_DIR`, `$GEMINI_CWD`, `$GEMINI_PLANS_DIR`, `$GEMINI_SESSION_ID`, `$CLAUDE_PROJECT_DIR` (compat alias).
 
-Recommended project-local targets:
+## Adapter Wiring
 
-- `tools/horus/antegravity/WIRING_PLAN.md`
-- `tools/horus/antegravity/ANTEGRAVITY_POLICY_MAP.md`
-- `tools/horus/antegravity/ANTEGRAVITY_APPLY_CHECKLIST.md`
-- `tools/horus/antegravity/COMPATIBILITY_STRATEGY.md`
-- `tools/horus/antegravity/examples/`
+Config file locations (either user-level or project-level):
+- `~/.gemini/settings.json` — applies to all Antegravity sessions
+- `<project>/.gemini/settings.json` — applies to this project only
 
-Potential future integration targets, only after explicit review:
+Antegravity may also read `.antigravity/` config — check `agy --help` or `agy config` for the authoritative path on your installed version.
 
-- per-project antegravity config references;
-- project-local role presets;
-- optional module enablement snippets.
+**Preferred: run `agy hooks migrate`** if you already have a `.claude/settings.local.json`. The command auto-converts Claude Code hook names and tool names.
 
-## Wiring Steps (Contributor Must Confirm)
+**Or wire manually** in `.gemini/settings.json`:
 
-1. Determine where antegravity reads PreToolUse hook configuration.
-2. Set hook entry point to the absolute path of `antegravity/hooks/adapter.js`.
-3. Verify the actual hook payload by logging stdin to a temp file before the adapter runs.
-4. If the payload shape differs from the shapes above, update `extractCommand`/`extractCwd` in `antegravity/hooks/adapter.js`.
-5. Confirm that `scripts/check-antegravity-adapter.sh` passes against real payloads.
-6. File a PR updating this document and promoting the harness from EXPERIMENTAL to Supported.
+```json
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/lilara/antegravity/hooks/adapter.js",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-## Wiring Model
+To gate write-class tools beyond shell (file replace, multi-edit), broaden the matcher regex: `"run_shell_command|replace|create_file|move_file"`.
 
-Use Agent Runtime Guard as an external policy and config-template source.
+For AfterTool parity (secret-scan + taint recording on tool output), add:
 
-antegravity should consume:
+```json
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/lilara/antegravity/hooks/adapter.js",
+            "timeout": 60000
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/lilara/antegravity/hooks/post-adapter.js",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-- the hook adapter via PreToolUse event;
-- `ANTEGRAVITY_POLICY_MAP.md` as a policy reference;
-- `ANTEGRAVITY_APPLY_CHECKLIST.md` as an operator guide.
+(Empty matcher fires for every tool — desired for output secret-scanning.)
 
-Prefer project-local references and adapter glue over direct core patching. Do not change global antegravity defaults automatically in this step.
+## Modes
 
-## Approval Mapping
+- **Warn mode** (default): exits 0 with stderr warning. Tool call proceeds.
+- **Enforce mode** (`LILARA_ENFORCE=1`): on block decisions, exits 2; Antegravity aborts the tool call and shows the stderr reason to the model.
+- **Kill switch** (`LILARA_KILL_SWITCH=1`): exits 2 for every command regardless of risk score.
 
-### Auto-allowed
+## What Is NOT Yet Verified
 
-- reading local project files;
-- writing new local documentation;
-- adding project-local policy notes;
-- using trusted external agents only after payload review.
+- **Live end-to-end `agy` v1.0.1 fire.** Use the capture recipe below to confirm and report.
+- **MCP tool-handler coverage.** `BeforeToolInput.mcp_context` is present in the type, suggesting MCP invocations reach the hook, but per-handler dispatch has not been traced.
+- **Per-tool output-channel observability** beyond `run_shell_command` — AfterTool payload schema for file-write / commit / PR tools not enumerated.
+- **`.antigravity/` config path.** Binary strings show this directory name; the exact precedence between `~/.gemini/`, `<project>/.gemini/`, and `.antigravity/` has not been traced.
 
-### Approval-required
+## How to Capture a Live Payload
 
-- overwriting existing important antegravity config files;
-- enabling external-write or system-write plugins;
-- enabling external data flow with personal or confidential data;
-- global user-level antegravity config mutation.
+```bash
+# 1. Write a capture hook
+cat > "$HOME/capture-antegravity.js" <<'EOFI'
+#!/usr/bin/env node
+"use strict";
+const fs = require("fs");
+let d = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", c => d += c);
+process.stdin.on("end", () => {
+  fs.appendFileSync("/tmp/antegravity-payload.json", d + "\n");
+  process.stdout.write(d);
+});
+EOFI
+chmod +x "$HOME/capture-antegravity.js"
 
-## Rollback Strategy
+# 2. Wire it as a BeforeTool hook in your project
+mkdir -p .gemini
+cat > .gemini/settings.json <<EOFJ
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [{ "type": "command", "command": "$HOME/capture-antegravity.js" }]
+      }
+    ]
+  }
+}
+EOFJ
 
-If integration causes instability:
+# 3. Run a shell-tool prompt in Antegravity, then inspect the payload
+cat /tmp/antegravity-payload.json
+```
 
-1. remove the hook registration from your antegravity config;
-2. delete the local `tools/horus/antegravity/` directory;
-3. revert any manual changes to antegravity project config if applicable.
+If the payload shape matches the verified `BeforeToolInput` above, the integration is confirmed end-to-end. Report the result so `manifest.json` can note the live-fire confirmation.
 
-The adapter makes no global writes. Rollback is non-destructive.
+## Lilara Configuration Referenced
 
-## Definition Of Done
-
-- Contributor confirms actual antegravity hook payload format.
-- `WIRING_PLAN.md` updated with verified wiring steps (remove SPECULATIVE banner).
-- `scripts/check-antegravity-adapter.sh` passes against real payloads.
-- Harness status promoted from EXPERIMENTAL to Supported in `antegravity/README.md`.
-- PostToolUse wiring confirmed or documented as unsupported.
+- Adapter: `antegravity/hooks/adapter.js` — uses `createAdapter()` with default `harnessOutput: "echo"`.
+- Post-adapter: `antegravity/hooks/post-adapter.js` — uses `createPostAdapter()` with `envelopeReporting: false`.
+- Manifest: `antegravity/manifest.json` — `verifiedAt: "2026-05-24"`.
+- Check gate: `scripts/check-antegravity-adapter.sh` — 16 checks covering fallback shapes (1–12) and verified canonical payload shapes (13–16).

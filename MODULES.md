@@ -149,8 +149,8 @@ Each harness has a PostToolUse hook that: (1) scans tool output for secrets via 
 | OpenCode | `opencode/hooks/post-adapter.js` | Claude Code fork — same PostToolUse hook format; F15 manifest stub currently reports `envelopeReporting: false` |
 | OpenClaw | `openclaw/hooks/post-adapter.js` | Claude Code-compatible shape; F15 manifest stub currently reports `envelopeReporting: false` |
 | Codex | `codex/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
-| Clawcode | `clawcode/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
-| Antegravity | `antegravity/hooks/post-adapter.js` | Best-effort — API unverified; F15 manifest stub currently reports `envelopeReporting: false` |
+| Clawcode | `clawcode/hooks/post-adapter.js` | VERIFIED 2026-05-23 — AfterTool payload confirmed against deepelementlab/clawcode v0.1.3; `envelopeReporting: false` |
+| Antegravity | `antegravity/hooks/post-adapter.js` | VERIFIED 2026-05-24 — AfterTool `tool_response` field confirmed against google-gemini/gemini-cli source; `envelopeReporting: false` |
 
 `scripts/check-post-adapter-parity.sh` CI gate enforces that all 6 files require both secret-scan and taint modules and call both `scanSecrets()` and `recordExternalRead()`.
 

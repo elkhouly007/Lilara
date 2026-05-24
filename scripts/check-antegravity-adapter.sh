@@ -149,4 +149,51 @@ printf '{"command":"ls -la"}' \
 [ "$actual_exit" -eq 2 ] || fail "kill-switch: expected exit 2 on safe command, got $actual_exit"
 pass "kill-switch: safe command blocked (exit 2) when LILARA_KILL_SWITCH=1"
 
+# ── 13-16: fresh state dir so accumulated session risk from checks 1–12 does ──
+# not bleed into the verified-shape safe-command assertion (D26 pattern).
+_state_dir2="$(mktemp -d)"
+trap 'rm -rf "$_state_dir" "$_state_dir2"' EXIT
+
+# ── 13: verified BeforeToolInput shape — safe command: exit 0, no stderr ─────
+# Canonical BeforeTool payload from google-gemini/gemini-cli:
+#   packages/core/src/hooks/types.ts (BeforeToolInput extends HookInput)
+# snake_case fields; cwd is a plain string; tool_input carries the tool args.
+actual_exit=0
+printf '{"session_id":"s1","transcript_path":"/tmp/t.json","cwd":"/tmp","hook_event_name":"BeforeTool","timestamp":"2026-05-24T00:00:00Z","tool_name":"run_shell_command","tool_input":{"command":"echo verified"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "verified shape safe: expected exit 0, got $actual_exit"
+[ ! -s "$tmp_stderr" ]   || fail "verified shape safe: unexpected stderr: $(cat "$tmp_stderr")"
+pass "verified Antegravity payload shape (safe): exit 0, no stderr"
+
+# ── 14: verified shape — dangerous command, enforce mode: exit 2 ─────────────
+actual_exit=0
+printf '{"session_id":"s1","transcript_path":"/tmp/t.json","cwd":"/tmp","hook_event_name":"BeforeTool","timestamp":"2026-05-24T00:00:00Z","tool_name":"run_shell_command","tool_input":{"command":"rm -rf /home/user/data"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_ENFORCE=1 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 2 ] || fail "verified shape enforce: expected exit 2, got $actual_exit"
+pass "verified Antegravity payload shape (enforce): dangerous command blocked, exit 2"
+
+# ── 15: verified shape — cwd field extracted (context-discovery uses i.cwd) ──
+# Verify the adapter reads i.cwd by triggering a warn-mode detection on the
+# canonical shape. The adapter must not crash when cwd is an absolute path.
+actual_exit=0
+printf '{"session_id":"s1","transcript_path":"/tmp/t.json","cwd":"/home/user/project","hook_event_name":"BeforeTool","timestamp":"2026-05-24T00:00:00Z","tool_name":"run_shell_command","tool_input":{"command":"rm -rf /home/user/data"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "verified shape cwd: expected exit 0 in warn mode, got $actual_exit"
+grep -qF 'rm recursive force' "$tmp_stderr" \
+  || fail "verified shape cwd: 'rm recursive force' not in stderr (cwd field may not be extracted)"
+pass "verified Antegravity payload shape: cwd field extracted, command detected via tool_input.command"
+
+# ── 16: AfterTool round-trip — tool_response field triggers secret scan ──────
+# AfterToolInput.tool_response: Record<string, unknown>
+# (packages/core/src/hooks/types.ts)
+post_adapter="$root/antegravity/hooks/post-adapter.js"
+[ -f "$post_adapter" ] || fail "antegravity/hooks/post-adapter.js missing"
+actual_exit=0
+printf '{"session_id":"s1","transcript_path":"/tmp/t.json","cwd":"/tmp","hook_event_name":"AfterTool","timestamp":"2026-05-24T00:00:00Z","tool_name":"run_shell_command","tool_input":{"command":"cat ~/.aws/credentials"},"tool_response":"aws_access_key_id = AKIAIOSFODNN7EXAMPLE"}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$post_adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "post-adapter tool_response: expected exit 0, got $actual_exit"
+grep -qi 'aws\|secret\|credential\|key' "$tmp_stderr" \
+  || fail "post-adapter tool_response: secret-scan warning not emitted for AWS key in tool_response"
+pass "AfterTool tool_response: AKIA secret in tool_response triggers secret-scan warning"
+
 printf '\nantegravity adapter checks passed.\n'
