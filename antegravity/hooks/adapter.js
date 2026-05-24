@@ -1,9 +1,16 @@
 #!/usr/bin/env node
-// adapter.js — antegravity PreToolUse adapter for Agent Runtime Guard (best-effort).
+// adapter.js — antegravity BeforeTool adapter for Lilara (verified via upstream source).
 //
-// antegravity hook API is not publicly documented. This adapter uses the broadest
-// possible fallback chain to cover likely input shapes. Test against your
-// actual antegravity hook payload before relying on this in production.
+// Hook protocol verified against google-gemini/gemini-cli (Apache-2.0):
+//   Payload shape:  packages/core/src/hooks/types.ts — BeforeToolInput
+//   Decision proto: packages/core/src/hooks/hookRunner.ts — exit 2 = deny
+//
+// IMPORTANT: Antegravity uses Gemini CLI event names, NOT Claude Code names.
+//   ✓ Use "BeforeTool" / "AfterTool" in ~/.gemini/settings.json (or .gemini/settings.json)
+//   ✗ Do NOT use "PreToolUse" / "PostToolUse" — those are Claude Code names
+//   ✓ Use "run_shell_command" as the tool matcher (not "Bash")
+//
+// Run `agy hooks migrate` to auto-convert .claude/settings.local.json → .gemini/settings.json.
 //
 // To enable block mode: export LILARA_ENFORCE=1
 

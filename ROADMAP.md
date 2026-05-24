@@ -69,8 +69,8 @@ Real gaps, ordered by security and operability impact. None are on a fixed timel
 
 ### Medium priority
 
-**Antegravity adapter verification.**
-One of the six listed harnesses remains a best-effort stub with a broad input-shape fallback chain. Once a contributor confirms the actual hook payload shape for Antegravity, the adapter can be tightened and the harness promoted from "NOT YET SUPPORTED" to "Supported". `antegravity/POSTTOOL_RESEARCH.md` and `antegravity/COMPATIBILITY_NOTES.md` exist as the staging surface. **ClawCode was verified 2026-05-23** and **Codex was verified 2026-05-24** — see `clawcode/WIRING_PLAN.md` and `codex/WIRING_PLAN.md` for the verification pattern.
+**Live end-to-end hook confirmation for Codex and antegravity.**
+Both adapters are source-trace verified, but neither has confirmed a live hook fire with the corrected event names (`tool_call.output` / `BeforeTool` + `run_shell_command`). Live confirmation is documented as a re-check trigger in `codex/WIRING_PLAN.md` and `antegravity/WIRING_PLAN.md`. A contributor with a live `codex` or `agy` install can append a captured payload fixture and mark the item complete.
 
 **OpenClaw PostToolUse parity.**
 Same deferral as OpenCode but for the OpenClaw harness; PostToolUse event model is unverified upstream.
