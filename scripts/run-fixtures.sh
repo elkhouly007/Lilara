@@ -1473,7 +1473,7 @@ const fs = require('fs');
 const { hashContract } = require('./runtime/contract');
 const doc = {
   version: 2,
-  contractId: 'arg-20260508-aabbccddeeff',
+  contractId: 'lilara-20260508-aabbccddeeff',
   revision: 1,
   acceptedAt: '2026-05-08T00:00:00Z',
   harnessScope: ['claude'],
@@ -1510,7 +1510,7 @@ const fs = require('fs');
 const { hashContract } = require('./runtime/contract');
 const doc = {
   version: 3,
-  contractId: 'arg-20260508-aabbccddeeff',
+  contractId: 'lilara-20260508-aabbccddeeff',
   revision: 1,
   acceptedAt: '2026-05-08T00:00:00Z',
   harnessScope: ['claude'],

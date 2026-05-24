@@ -51,7 +51,7 @@ function hashContract(doc) {
 
 const v1 = {
   version:      1,
-  contractId:   "arg-20260425-abcdef012345",
+  contractId:   "lilara-20260425-abcdef012345",
   revision:     1,
   acceptedAt:   "2026-04-25T00:00:00.000Z",
   acceptedBy:   "test",

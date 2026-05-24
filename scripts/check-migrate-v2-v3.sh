@@ -11,7 +11,7 @@ trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/lilara.contract.json" <<'JSON'
 {
   "version": 2,
-  "contractId": "arg-20260508-aabbccddeeff",
+  "contractId": "lilara-20260508-aabbccddeeff",
   "revision": 1,
   "acceptedAt": "2026-05-08T00:00:00Z",
   "acceptedBy": "test-operator",
