@@ -621,4 +621,8 @@ LILARA_STATE_DIR="$session_resume_dir" node "$root/tests/runtime/session-resume.
 rm -rf "$session_resume_dir" 2>/dev/null || true
 pass 'session-resume buildSummary'
 
+# eval-runner unit test
+node "$root/tests/runtime/eval-runner.test.js" || exit 1
+pass 'eval-runner discover/runAll/toJUnit'
+
 printf '\nRuntime core checks passed.\n'

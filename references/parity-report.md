@@ -1,6 +1,6 @@
 # Parity Report
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 Upstream reference: `affaan-m/everything-claude-code` `v1.10.0`
 Source of truth: `references/parity-matrix.json`
 

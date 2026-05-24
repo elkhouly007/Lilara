@@ -103,7 +103,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 87 files
+### Scripts (`scripts/`) — 88 files
 
 | Script | Purpose |
 |--------|---------|
@@ -118,6 +118,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `verify-hooks-integrity.sh` | SHA-256 baseline check for all hook files |
 | `run-fixtures.sh` | Fixture-based automated test runner (count managed by `check-fixture-count.sh`) |
 | `eval-decision-quality.sh` | Measure `runtime.decide()` FP/FN rates against a labeled corpus; exits 1 if thresholds exceeded |
+| `check-evals.sh` | Optional CI gate: run all `evals/*.eval.js` and assert exit 0; skip via `LILARA_SKIP_EVAL=1` |
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |
 | `check-config-integration.sh` | Verify `generate-config`, `install-local`, and `wire-hooks --check` integration paths |

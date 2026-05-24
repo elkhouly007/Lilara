@@ -27,8 +27,8 @@ EXPECTED_AGENTS=49
 EXPECTED_RULES=94          # +12 from rationalization-defense: master rule + README + 10 rationale companions
 EXPECTED_SKILLS=22         # excludes agents/README.md style files
 EXPECTED_HOOKS=13          # JS files in claude/hooks/
-EXPECTED_FIXTURES=359      # fixture pairs (count of *.input files); +8 for ADR-016 F21 corpus
-EXPECTED_SCRIPTS=87        # sh + js files in scripts/ (top-level only); +1 check-pressure-tests.sh
+EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus
+EXPECTED_SCRIPTS=88        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh
 
 # ---------------------------------------------------------------------------
 # Count from filesystem
