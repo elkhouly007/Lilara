@@ -2,29 +2,31 @@
 
 ## Status
 
-EXPERIMENTAL. The Codex hook API is not publicly documented. This strategy is written for when the integration is confirmed.
+VERIFIED — 2026-05-24. Hook payload shape and decision protocol confirmed against openai/codex (codex-rs). See `WIRING_PLAN.md` for the full verification record.
 
 ## Core Rule
 
-Do not rely on patching Codex internals. Use the hook registration mechanism (if one exists) and a project-local `codex/hooks/adapter.js`. If Codex does not support external hook registration, this integration cannot proceed without upstream changes.
+Use the hook registration mechanism (`<repo>/.codex/hooks.json` or `~/.codex/hooks.json`) and a project-local `codex/hooks/adapter.js`. Do not patch Codex internals.
 
 ## Avoid
 
-- assumptions about Codex hook payload stability
-- tight coupling to Codex version-specific behavior
-- global Codex config mutation
+- Assumptions about Codex hook payload stability beyond what is typed in `codex-rs/hooks/src/`
+- Global Codex config mutation without operator consent
+- Relying on MCP or Skill interception without checking openai/codex#20204 coverage status
 
 ## Prefer
 
-- project-local hook file registration
-- the same `pretool-gate.js` fallback chain that handles multiple payload shapes
-- explicit shape testing via `scripts/check-codex-adapter.sh`
+- Project-local hook file registration via `.codex/hooks.json`
+- The verified field path (`tool_input.command`, `cwd`) as the primary extraction path, with legacy fallbacks retained for defensive parsing
+- Explicit shape testing via `scripts/check-codex-adapter.sh`
 
 ## Compatibility Checks After Codex Updates
 
-Review:
-- hook payload schema changes (command field name, nesting)
-- hook lifecycle changes (PreToolUse → different event name)
-- permission model changes
+Review after upstream codex-rs changes to:
 
-If Codex changes break the adapter, update `extractCommand`/`extractCwd` in `codex/hooks/adapter.js` and re-run `scripts/check-codex-adapter.sh`.
+- Hook payload struct fields in `codex-rs/hooks/src/events/`
+- Hook event lifecycle changes (new event types, removed event types)
+- Exit-code protocol changes
+- Handler-coverage gaps (monitor openai/codex#20204 and related issues)
+
+If upstream changes break the adapter, update `extractCommand`/`extractCwd` in `codex/hooks/adapter.js`, update `codex/manifest.json` `harnessVersion`, and re-run `scripts/check-codex-adapter.sh`.

@@ -1,13 +1,19 @@
 #!/usr/bin/env node
-// adapter.js — Codex PreToolUse adapter for Agent Runtime Guard (best-effort).
+// adapter.js — Codex PreToolUse adapter for Lilara.
 //
-// Codex hook API is not publicly documented. This adapter uses the broadest
-// possible fallback chain to cover likely input shapes. Test against your
-// actual Codex hook payload before relying on this in production.
+// Verified against openai/codex (codex-rs). Canonical PreToolUse payload
+// shape from codex-rs/hooks/src/events/pre_tool_use.rs (PreToolUseRequest
+// struct) with snake_case serialisation from codex-rs/hooks/src/types.rs:38
+// (#[serde(rename_all = "snake_case")] on HookPayload):
 //
-// Likely Codex shapes (not verified):
-//   { "tool": "bash", "command": "...", "workdir": "..." }
-//   { "tool_name": "Bash", "tool_input": { "command": "..." } }  (Claude Code compat)
+//   { "session_id": "...", "turn_id": "...", "cwd": "/abs/path",
+//     "tool_name": "Bash", "tool_use_id": "...",
+//     "tool_input": { "command": "..." } }
+//
+// Exit-code protocol (developers.openai.com/codex/hooks): 0 = allow,
+// 2 = block (stderr reason shown to model). Codex honours exit code 2,
+// so no harnessOutput:"permission-json" opt-in is needed (contrast with
+// ClawCode, which ignores the exit code and reads stdout JSON instead).
 //
 // To enable block mode: export LILARA_ENFORCE=1
 
@@ -18,12 +24,12 @@ const { createAdapter, loadManifest } = require("../../claude/hooks/hook-utils")
 createAdapter({
   harness:           "codex",
   rateLimitKey:      "codex-adapter",
-  extractCommand:    (i) => String(i.command || i.cmd || i.tool_input?.command || i.input?.command || i.args?.command || i.params?.command || ""),
-  extractCwd:        (i) => String(i.workdir || i.cwd || i.working_directory || i.tool_input?.cwd || i.input?.cwd || i.args?.cwd || ""),
+  // Lead with verified upstream field (codex-rs/hooks/src/events/pre_tool_use.rs:
+  // tool_input is a Value containing "command" for Bash/apply_patch tools).
+  extractCommand:    (i) => String(i.tool_input?.command || i.command || i.cmd || i.input?.command || i.args?.command || i.params?.command || ""),
+  // Lead with verified upstream field (codex-rs/hooks/src/types.rs:41 — cwd: AbsolutePathBuf).
+  extractCwd:        (i) => String(i.cwd || i.workdir || i.working_directory || i.tool_input?.cwd || i.input?.cwd || i.args?.cwd || ""),
   extractTool:       (i) => String(i.tool_name || i.tool || i.type || "Bash"),
-  // Lilara ADR-007 PR-B: codex/manifest.json declares best-effort args/cwd
-  // fidelity and unverified MCP/skill interception. envelopeReporting stays
-  // false until verified Codex hook integration lands.
   envelopeReporting: false,
   extractTrustMeta:  () => loadManifest("codex"),
 });
