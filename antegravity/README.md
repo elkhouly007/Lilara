@@ -1,34 +1,51 @@
-# antegravity Harness — EXPERIMENTAL
+# antegravity Harness — VERIFIED
 
-> **EXPERIMENTAL — best-effort adapter, not promoted to production.** A `hooks/adapter.js` ships using the broadest input-shape fallback chain. The antegravity hook API is not publicly documented and the adapter is unverified against real antegravity hook payloads. Test your actual antegravity hook payload against the adapter before relying on it. See [ROADMAP.md](../ROADMAP.md) under "Codex / ClawCode / Antegravity adapter verification" for promotion criteria.
+**VERIFIED — 2026-05-24.** Hook protocol traced end-to-end against `google-gemini/gemini-cli` (Apache-2.0). BeforeTool / AfterTool payload shapes confirmed via `packages/core/src/hooks/types.ts` (BeforeToolInput / AfterToolInput interfaces). Decision protocol confirmed via `packages/core/src/hooks/hookRunner.ts` (exit 2 = deny). Event-name / tool-name mapping confirmed via `packages/cli/src/commands/hooks/migrate.ts`.
+
+> **Important:** Antegravity uses Gemini CLI event names, not Claude Code names. Wire as `BeforeTool` / `AfterTool` (not `PreToolUse` / `PostToolUse`) and match `run_shell_command` (not `Bash`). Run `agy hooks migrate` to auto-convert a Claude Code config. See [WIRING_PLAN.md](WIRING_PLAN.md) for full wiring details.
 
 ## What This Is
 
-`hooks/adapter.js` delegates to `claude/hooks/hook-utils.js → createAdapter()`, which calls `runtime/pretool-gate.js` — the same single enforcement spine used by the Claude Code, OpenCode, and OpenClaw adapters. The adapter handles the most common input shapes (object with `tool_name`/`tool_input`, flat string, array argv) via a fallback chain.
+`hooks/adapter.js` delegates to `claude/hooks/hook-utils.js → createAdapter()`, which calls `runtime/pretool-gate.js` — the same single enforcement spine used by the Claude Code, OpenCode, and OpenClaw adapters.
 
-CI: A dedicated `scripts/check-antegravity-adapter.sh` is planned (Batch B2).
+`hooks/post-adapter.js` delegates to `runtime/post-adapter-factory.js → createPostAdapter()` — the same secret-scan + taint-record path used by all six harnesses. It reads `tool_response` from the AfterTool payload (verified field in AfterToolInput).
 
-## What Is Planned
+## Protocol Summary
 
-When this integration is promoted, it would deliver:
-- A `WIRING_PLAN.md` documenting how Agent Runtime Guard hooks map to antegravity's hook event model
-- An `ANTEGRAVITY_POLICY_MAP.md` documenting which runtime policies apply and how
-- An `ANTEGRAVITY_APPLY_CHECKLIST.md` for verifying the integration is active
-- Setup wizard support via `--tool antegravity`
-- Per-tool apply-status rows showing actual wiring state
-- Promotion from EXPERIMENTAL to Supported
+| Property | Value |
+|---|---|
+| Upstream source | `google-gemini/gemini-cli` (Apache-2.0) |
+| Event name: pre-tool | `BeforeTool` |
+| Event name: post-tool | `AfterTool` |
+| Shell tool name | `run_shell_command` |
+| Payload encoding | snake_case JSON on stdin |
+| cwd field | `cwd` (string in HookInput base) |
+| command field | `tool_input.command` |
+| Post-tool output field | `tool_response` |
+| Block decision | exit code 2 (or JSON `{ "decision": "deny" }` on stdout) |
+| Config file | `~/.gemini/settings.json` or `<project>/.gemini/settings.json` |
+| Default timeout | 60 000 ms |
 
-## Promotion Criteria
+## What Is Verified
 
-This harness is promoted from EXPERIMENTAL to Supported when:
-1. A contributor verifies the actual antegravity hook payload format and confirms the adapter handles it correctly
-2. `WIRING_PLAN.md` documents the confirmed wiring path
-3. `scripts/check-antegravity-adapter.sh` passes against representative real payloads
+- PreToolUse / PostToolUse blocking + observation wired via BeforeTool / AfterTool
+- Payload field names and nesting (snake_case, `tool_input.command`, `cwd`, `tool_response`)
+- Decision protocol: exit 2 = deny; exit 0 = allow; JSON stdout HookOutput also parsed
+- Event-name translation from Claude Code names (see `migrate.ts` mapping)
 
-## Known Unknowns
+## What Is NOT Yet Verified
 
-See `COMPATIBILITY_NOTES.md` for a full list of what is unresolved.
+- **Live end-to-end `agy` v1.0.1 fire with corrected event names.** Protocol is verified against the upstream source. A live hook fire in the actual `agy` binary has not yet been confirmed. See the capture recipe in `WIRING_PLAN.md`.
+- **MCP tool-handler coverage.** `BeforeToolInput` carries an optional `mcp_context` field, indicating MCP invocations may reach the hook surface, but per-handler dispatch coverage is not enumerated. Manifest carries `mcpInterception: "unverified"`.
+- **Per-tool output-channel observability** beyond `run_shell_command` — the AfterTool payload schema for file-write / commit / PR tools has not been enumerated in the source beyond the base AfterToolInput.
+- **Skills.** Gemini CLI has no Skills concept; `skillInterception: "none"`.
 
-## How to Contribute
+See `COMPATIBILITY_NOTES.md` for the full known/unknown table.
 
-If you have verified knowledge of the antegravity hook API or agent lifecycle, open a PR that fills in `COMPATIBILITY_NOTES.md` and proposes a `WIRING_PLAN.md`. Do not propose fake wiring — only document what you have actually tested.
+## CI
+
+`scripts/check-antegravity-adapter.sh` — 16 checks covering all 6 fallback-chain shapes plus the verified canonical BeforeToolInput / AfterToolInput payload shapes.
+
+## How to Wire
+
+See [WIRING_PLAN.md](WIRING_PLAN.md) for the complete wiring guide with verified settings.json examples, the migration trap, and the live re-check recipe.

@@ -71,7 +71,8 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         const input = JSON.parse(raw || "{}");
         // PostToolUse payload shape: { tool_use_id, tool_name, output, ... }
         const toolName   = String(input.tool_name || input.tool || "");
-        const outputText = String(input.output || input.tool_output || input.content || "");
+        // tool_response is the verified Codex PostToolUse field (codex-rs/hooks/src/events/post_tool_use.rs).
+        const outputText = String(input.tool_response || input.output || input.tool_output || input.content || "");
         const text = outputText || collectText(input);
 
         // 1. Secret scan — warn if tool output contains a credential pattern.

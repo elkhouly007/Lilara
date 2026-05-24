@@ -195,11 +195,11 @@ If you add them, document the module, make it opt-in, state what data may leave 
 | Claude Code | Supported | `claude/` | `--tool claude` | `claude/WIRING_PLAN.md` |
 | OpenCode | Supported | `opencode/` | `--tool opencode` | `opencode/WIRING_PLAN.md` |
 | OpenClaw | Supported | `openclaw/` | `--tool openclaw` | `openclaw/WIRING_PLAN.md` |
-| Codex | Planned | `codex/` | not yet supported | not yet available |
+| Codex | Supported (verified 2026-05-24) | `codex/` | `--tool codex` | `codex/WIRING_PLAN.md` |
 | Claw Code | Supported (verified 2026-05-23) | `clawcode/` | `--tool clawcode` | `clawcode/WIRING_PLAN.md` |
-| antegravity | Planned | `antegravity/` | not yet supported | not yet available |
+| antegravity | Supported (verified 2026-05-24) | `antegravity/` | `--tool antegravity` | `antegravity/WIRING_PLAN.md` |
 
-Planned harnesses have stub directories with integration contract sketches but no active wiring. Passing `--tool codex` (or any planned harness name) to the setup wizard prints a clear "not yet supported" message rather than silently falling back to Claude. See each stub directory's `README.md` for the integration contract and known unknowns.
+All six harnesses are now verified or supported. See each harness's `WIRING_PLAN.md` for the verified protocol and integration instructions.
 
 ## Compatibility
 

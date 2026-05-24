@@ -149,4 +149,48 @@ printf '{"command":"ls -la"}' \
 [ "$actual_exit" -eq 2 ] || fail "kill-switch: expected exit 2 on safe command, got $actual_exit"
 pass "kill-switch: safe command blocked (exit 2) when LILARA_KILL_SWITCH=1"
 
+# ── 13-16: fresh state dir so accumulated session risk from checks 1–12 does ──
+# not bleed into the verified-shape safe-command assertion (D26 pattern).
+_state_dir2="$(mktemp -d)"
+trap 'rm -rf "$_state_dir" "$_state_dir2"' EXIT
+
+# ── 13: verified PreToolUse shape — safe command: exit 0, no stderr ──────────
+# Canonical PreToolUse payload from codex-rs/hooks/src/events/pre_tool_use.rs
+# (PreToolUseRequest struct); snake_case per codex-rs/hooks/src/types.rs:38.
+actual_exit=0
+printf '{"session_id":"s1","turn_id":"t1","cwd":"/tmp","transcript_path":null,"hook_event_name":"PreToolUse","model":"o4-mini","permission_mode":"default","tool_name":"Bash","tool_use_id":"u1","tool_input":{"command":"echo verified"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "verified shape safe: expected exit 0, got $actual_exit"
+[ ! -s "$tmp_stderr" ]   || fail "verified shape safe: unexpected stderr: $(cat "$tmp_stderr")"
+pass "verified Codex payload shape (safe): exit 0, no stderr"
+
+# ── 14: verified shape — dangerous command, enforce mode: exit 2 ──────────────
+actual_exit=0
+printf '{"session_id":"s1","turn_id":"t1","cwd":"/tmp","transcript_path":null,"hook_event_name":"PreToolUse","model":"o4-mini","permission_mode":"default","tool_name":"Bash","tool_use_id":"u1","tool_input":{"command":"rm -rf /home/user/data"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_ENFORCE=1 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 2 ] || fail "verified shape enforce: expected exit 2, got $actual_exit"
+pass "verified Codex payload shape (enforce): dangerous command blocked, exit 2"
+
+# ── 15: verified shape — cwd field extracted (context-discovery uses i.cwd) ───
+# Verify the adapter reads i.cwd by triggering a warn-mode detection on the
+# canonical shape. The adapter must not crash when cwd is an absolute path.
+actual_exit=0
+printf '{"session_id":"s1","turn_id":"t1","cwd":"/home/user/project","transcript_path":null,"hook_event_name":"PreToolUse","model":"o4-mini","permission_mode":"default","tool_name":"Bash","tool_use_id":"u1","tool_input":{"command":"rm -rf /home/user/data"}}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "verified shape cwd: expected exit 0 in warn mode, got $actual_exit"
+grep -qF 'rm recursive force' "$tmp_stderr" \
+  || fail "verified shape cwd: 'rm recursive force' not in stderr (cwd field may not be extracted)"
+pass "verified Codex payload shape: cwd field extracted, command detected via tool_input.command"
+
+# ── 16: PostToolUse round-trip — tool_response field triggers secret scan ─────
+post_adapter="$root/codex/hooks/post-adapter.js"
+[ -f "$post_adapter" ] || fail "codex/hooks/post-adapter.js missing"
+actual_exit=0
+printf '{"session_id":"s1","turn_id":"t1","tool_name":"Bash","tool_use_id":"u1","tool_input":{"command":"cat ~/.aws/credentials"},"tool_response":"aws_access_key_id = AKIAIOSFODNN7EXAMPLE"}' \
+  | LILARA_RATE_LIMIT=0 LILARA_STATE_DIR="$_state_dir2" node "$post_adapter" > /dev/null 2>"$tmp_stderr" || actual_exit=$?
+[ "$actual_exit" -eq 0 ] || fail "post-adapter tool_response: expected exit 0, got $actual_exit"
+grep -qi 'aws\|secret\|credential\|key' "$tmp_stderr" \
+  || fail "post-adapter tool_response: secret-scan warning not emitted for AWS key in tool_response"
+pass "PostToolUse tool_response: AKIA secret in tool_response triggers secret-scan warning"
+
 printf '\nCodex adapter checks passed.\n'

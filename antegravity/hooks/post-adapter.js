@@ -1,5 +1,11 @@
 #!/usr/bin/env node
-// post-adapter.js — antegravity PostToolUse adapter (D38: delegates to createPostAdapter).
+// post-adapter.js — antegravity AfterTool adapter for Lilara (verified via upstream source).
+//
+// Hook protocol verified against google-gemini/gemini-cli (Apache-2.0):
+//   Payload shape:  packages/core/src/hooks/types.ts — AfterToolInput
+//   Output field:   tool_response (AfterToolInput.tool_response: Record<string, unknown>)
+//
+// Wire as "AfterTool" event in .gemini/settings.json (NOT "PostToolUse").
 "use strict";
 
 const path = require("path");

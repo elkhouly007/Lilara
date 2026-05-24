@@ -104,9 +104,9 @@ The following harnesses are planned but not yet supported. Stub directories docu
 
 | Harness | Status | Directory | Notes |
 |---|---|---|---|
-| Codex | planned | codex/ | Integration contract defined; wiring not yet implemented |
+| Codex | verified 2026-05-24 | codex/ | Source-traced against openai/codex (codex-rs); adapter exercised end-to-end; see codex/WIRING_PLAN.md |
 | Claw Code | verified 2026-05-23 | clawcode/ | Source-traced against deepelementlab/clawcode v0.1.3; adapter exercised end-to-end; see clawcode/WIRING_PLAN.md |
-| antegravity | planned | antegravity/ | Integration contract defined; wiring not yet implemented |
+| antegravity | verified 2026-05-24 | antegravity/ | Source-traced against google-gemini/gemini-cli (Apache-2.0); BeforeTool/AfterTool protocol verified; see antegravity/WIRING_PLAN.md |
 
 ---
 

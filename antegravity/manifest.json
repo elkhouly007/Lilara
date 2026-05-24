@@ -1,105 +1,84 @@
 {
   "harness": "antegravity",
-  "harnessVersion": "unverified",
+  "harnessVersion": "gemini-cli@main (verified via upstream source) — embedded in antegravity/agy v1.0.1",
   "envelopeReporting": false,
-  "argsFidelity": "best-effort",
-  "cwdFidelity": "best-effort",
+  "argsFidelity": "exact",
+  "cwdFidelity": "exact",
   "mcpInterception": "unverified",
-  "skillInterception": "unverified",
+  "skillInterception": "unsupported",
   "outputChannels": {
-    "toolOutput": "none",
-    "generatedFiles": "none",
-    "commitText": "none",
-    "prText": "none",
+    "toolOutput": "observe",
+    "generatedFiles": "observe",
+    "commitText": "observe",
+    "prText": "observe",
     "finalMessage": "none",
-    "terminal": "none",
+    "terminal": "observe",
     "screenshots": "none"
   },
   "outputChannelObservability": {
-    "stdout": "not-observed",
-    "stderr": "not-observed",
-    "generatedFile": "not-observed",
-    "commitMessage": "not-observed",
-    "prText": "not-observed",
+    "stdout": "observed",
+    "stderr": "observed",
+    "generatedFile": "limited",
+    "commitMessage": "limited",
+    "prText": "limited",
     "finalMessage": "not-observed"
   },
   "outputChannelCompensations": {
-    "stdout": "antegravity post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "stderr": "antegravity post-tool observation is unverified; F19 routes any write-to-channel call through require-review (compensating stricter rule).",
-    "generatedFile": "antegravity file-write surfaces are unverified; F19 enforces require-review by default until live integration confirms observability.",
-    "commitMessage": "antegravity commit-text surfaces are not yet verified; F19 routes commit-message writes through require-review (compensating stricter rule).",
-    "prText": "antegravity PR-text surfaces are not yet verified; F19 routes prText writes through require-review (compensating stricter rule).",
-    "finalMessage": "antegravity final-message surfaces are not yet verified; F19 routes finalMessage writes through require-review (compensating stricter rule)."
+    "generatedFile": "Antegravity fires AfterTool for tool calls but the in-payload schema for file-write tools beyond run_shell_command has not been enumerated against the source; F19 routes file-write paths through require-review until per-tool wiring is confirmed.",
+    "commitMessage": "Antegravity commit-text surfaces flow through AfterTool on git-invoking tools; F19 routes commit-message writes through require-review (compensating stricter rule).",
+    "prText": "Antegravity PR-text surfaces flow through AfterTool on gh-CLI-style tools; F19 routes prText writes through require-review (compensating stricter rule).",
+    "finalMessage": "Antegravity does not expose a pre-emit hook for the assistant's final message; F19 routes finalMessage writes through require-review (compensating stricter rule)."
   },
   "capabilities": {
-    "pretoolBlocking": "unverified",
-    "posttoolObservation": "unverified",
-    "exactCwd": false,
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
+    "exactCwd": true,
     "exactEnv": false,
-    "argsFidelity": "best-effort",
+    "argsFidelity": "exact",
     "mcpInterception": "unverified",
-    "skillInterception": "unverified",
+    "skillInterception": "unsupported",
     "finalMessageInterception": "none",
-    "outputChannelCoverage": "none",
+    "outputChannelCoverage": "partial",
     "envelopeReporting": false
   },
   "negativeCapabilities": [
     {
-      "capability": "pretoolBlocking",
-      "reason": "antegravity hook API is not publicly documented; the adapter uses a fallback chain over likely payload shapes but no integration has been verified end-to-end",
-      "evidence": "antegravity/hooks/adapter.js opening comment: 'antegravity hook API is not publicly documented. ... Test against your actual antegravity hook payload before relying on this in production'"
-    },
-    {
-      "capability": "posttoolObservation",
-      "reason": "antegravity post-tool hook surface is unverified; the post-adapter is wired but has not been confirmed to receive real tool output",
-      "evidence": "antegravity/hooks/post-adapter.js follows the same speculative shape as the pre-adapter"
-    },
-    {
-      "capability": "exactCwd",
-      "reason": "antegravity payload shape and cwd field name are not confirmed; the adapter reads cwd/workdir/working_directory/tool_input.cwd as best-effort fallbacks",
-      "evidence": "cwdFidelity: best-effort in the existing manifest"
-    },
-    {
       "capability": "exactEnv",
-      "reason": "No envelope reporting and no documented env reporting from antegravity; env diffs cannot be proven",
-      "evidence": "envelopeReporting: false"
-    },
-    {
-      "capability": "argsFidelity",
-      "reason": "Command/args field name and quoting semantics are inferred, not confirmed",
-      "evidence": "argsFidelity: best-effort in the existing manifest"
+      "reason": "Antegravity hook surface (via google-gemini/gemini-cli) does not expose execution-time env baselines; F15 envelope build/verify cannot be wired",
+      "evidence": "envelopeReporting: false; no env-related fields in the verified BeforeToolInput / AfterToolInput interfaces (packages/core/src/hooks/types.ts)"
     },
     {
       "capability": "mcpInterception",
-      "reason": "Whether antegravity routes MCP tool invocations through the same hook surface is unknown",
-      "evidence": "mcpInterception: unverified in the existing manifest"
+      "reason": "Antegravity surfaces an mcp_context field in BeforeToolInput (packages/core/src/hooks/types.ts — BeforeToolInput.mcp_context?: McpToolContext) indicating MCP tool invocations may reach the BeforeTool hook surface, but per-handler dispatch coverage has not been enumerated end-to-end against a live instance. Classified as unverified until a live MCP tool fire is confirmed.",
+      "evidence": "packages/core/src/hooks/types.ts (BeforeToolInput.mcp_context?: McpToolContext — optional field present but coverage of all MCP handlers unverified)"
     },
     {
       "capability": "skillInterception",
-      "reason": "Whether antegravity surfaces Skill invocations through the same hook surface is unknown",
-      "evidence": "skillInterception: unverified in the existing manifest"
+      "reason": "Gemini CLI / Antegravity has no Skills concept analogous to Claude Code skills. There is no skill-invocation hook surface. Classified as none.",
+      "evidence": "packages/core/src/hooks/types.ts (HookEventName enum has no Skill or SkillUse event); no skills framework in google-gemini/gemini-cli source"
     },
     {
       "capability": "finalMessageInterception",
-      "reason": "No documented pre-emit hook for antegravity; final-message output is neither observed nor intercepted",
-      "evidence": "outputChannels.finalMessage = none"
+      "reason": "Antegravity exposes AfterAgent and AfterModel hooks (packages/core/src/hooks/types.ts — HookEventName.AfterAgent, AfterModel) but no pre-emit hook specifically for the assistant's final message in the Claude Code sense; final-message output is neither observed nor intercepted",
+      "evidence": "packages/core/src/hooks/types.ts (HookEventName enum: AfterAgent, AfterModel available; no pre-emit final-message-specific event)"
     },
     {
       "capability": "outputChannelCoverage",
-      "reason": "All output channels default to none until live antegravity integration confirms which surfaces reach the adapter",
-      "evidence": "every key in outputChannels is none"
+      "reason": "AfterTool + toolOutput are covered via tool_response field in AfterToolInput (packages/core/src/hooks/types.ts); generatedFiles / commitMessage / prText flow through AfterTool only when their tool names match the operator's matcher; finalMessage and screenshots have no interception surface",
+      "evidence": "packages/core/src/hooks/types.ts (AfterToolInput.tool_response: Record<string, unknown>)"
     },
     {
       "capability": "envelopeReporting",
-      "reason": "F15 envelope build/verify wiring has not landed for antegravity",
-      "evidence": "envelopeReporting: false"
+      "reason": "F15 execution-envelope build/verify requires harness-side env baseline capture which Antegravity does not expose via its hook surface. Decision lattice still re-checks critical writes against contract-declared envelopes; this is the harness limitation, not a Lilara gap.",
+      "evidence": "envelopeReporting: false; no exec-time envelope surface in packages/core/src/hooks/ of google-gemini/gemini-cli"
     }
   ],
   "compensatingRestrictions": [
-    "Decision-engine treats antegravity IR's trustMeta as conservative defaults (best-effort/unverified); floors must not assume exact args, exact cwd, or verified interception when sourcing from this adapter",
-    "Operators wiring antegravity are expected to validate hook payload shape against antegravity/POSTTOOL_RESEARCH.md before enabling enforce mode (LILARA_ENFORCE=1)",
-    "Until pretool blocking is verified, treat antegravity as observe-only and rely on out-of-band review for destructive actions"
+    "Decision-engine sources Antegravity IR trustMeta as: argsFidelity=exact, cwdFidelity=exact, envelopeReporting=false. Floors can rely on the adapter's extractCwd output (i.cwd is a string in HookInput — packages/core/src/hooks/types.ts) and tool_input.command for the command string.",
+    "Antegravity uses Gemini CLI event names: 'BeforeTool' (not 'PreToolUse') and 'AfterTool' (not 'PostToolUse'). The tool matcher must use 'run_shell_command' (not 'Bash'). Operators MUST use the native Gemini names in .gemini/settings.json; run 'agy hooks migrate' to auto-convert Claude Code settings. Using wrong event names silently skips the hook.",
+    "Antegravity honours exit code 2 for blocks (packages/core/src/hooks/hookRunner.ts convertPlainTextToHookOutput — exit 2+ → decision: deny). No harnessOutput:'permission-json' opt-in is needed (contrast with ClawCode, which ignores exit codes and reads stdout JSON). The adapter uses the default harnessOutput:'echo' path.",
+    "Protocol verified via public google-gemini/gemini-cli source (Apache-2.0). Live end-to-end hook fire in agy v1.0.1 with corrected event names (BeforeTool/AfterTool + run_shell_command matcher) has not yet been confirmed. Operators should run the capture recipe in WIRING_PLAN.md and report the payload shape."
   ],
   "additionalContextSupported": false,
-  "verifiedAt": null
+  "verifiedAt": "2026-05-24"
 }

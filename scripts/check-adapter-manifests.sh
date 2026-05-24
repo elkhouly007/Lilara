@@ -64,7 +64,7 @@ const root = process.argv[2];
 const HARNESSES = ["claude", "opencode", "openclaw", "codex", "clawcode", "antegravity"];
 
 const FIDELITY = new Set(["exact", "best-effort", "opaque"]);
-const INTERCEPTION = new Set(["supported", "unsupported", "unverified"]);
+const INTERCEPTION = new Set(["supported", "unsupported", "unverified", "partial"]);
 const CHANNEL_STATE = new Set(["intercept", "observe", "none"]);
 const COVERAGE = new Set(["full", "broad", "partial", "minimal", "none"]);
 const REQUIRED_CHANNEL_KEYS = [
