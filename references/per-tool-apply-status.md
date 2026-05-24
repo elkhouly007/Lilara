@@ -2,7 +2,7 @@
 
 Tracks which Agent Runtime Guard components are applied (wired and active) vs. template-only (file exists but not yet configured) for each supported tool.
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ---
 
