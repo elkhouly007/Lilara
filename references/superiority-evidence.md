@@ -1,6 +1,6 @@
 # Superiority Evidence
 
-Last updated: 2026-04-26
+Last updated: 2026-05-25
 Reference baseline: `affaan-m/everything-claude-code` `v1.10.0`
 
 This file records measured or directly verifiable ways Agent Runtime Guard now exceeds upstream, rather than only matching it.
@@ -9,7 +9,7 @@ This file records measured or directly verifiable ways Agent Runtime Guard now e
 
 | Metric | Value | Evidence |
 |---|---:|---|
-| ECC-only extensions beyond upstream | 153 | Derived from `references/parity-matrix.json` current-only totals across agents, rules, and skills |
+| ECC-only extensions beyond upstream | 166 | Derived from `references/parity-matrix.json` current-only totals across agents, rules, and skills |
 | Verified tool wiring targets | 3 | `claude/WIRING_PLAN.md`, `opencode/WIRING_PLAN.md`, `openclaw/WIRING_PLAN.md` |
 | Reviewed capability packs | 6 | `modules/*/registry.json` |
 | Verification layers in `status-summary.sh` | 24 | Verification block in `scripts/status-summary.sh` |

@@ -1,6 +1,6 @@
 # Parity Report
 
-Last updated: 2026-04-26
+Last updated: 2026-05-25
 Upstream reference: `affaan-m/everything-claude-code` `v1.10.0`
 Source of truth: `references/parity-matrix.json`
 
@@ -9,7 +9,7 @@ Source of truth: `references/parity-matrix.json`
 | Component | Upstream | Current | Adopted | Deferred | Current-only |
 |---|---:|---:|---:|---:|---:|
 | Agents | 0 | 49 | 0 | 0 | 49 |
-| Rules | 0 | 82 | 0 | 0 | 82 |
+| Rules | 0 | 95 | 0 | 0 | 95 |
 | Skills | 0 | 22 | 0 | 0 | 22 |
 
 ## Interpretation

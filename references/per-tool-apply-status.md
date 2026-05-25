@@ -2,7 +2,7 @@
 
 Tracks which Agent Runtime Guard components are applied (wired and active) vs. template-only (file exists but not yet configured) for each supported tool.
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ---
 
@@ -22,7 +22,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Registry present in-tree; project-local Claude wiring docs and hook assets verified |
-| Rules (82) | ✅ | Full rules tree present; project-local apply path documented |
+| Rules (95) | ✅ | Full rules tree present; project-local apply path documented |
 | Skills (22) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in mcp.json |
 | Wrapper pack | ✅ | |
@@ -38,7 +38,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Registry present in-tree; OpenCode wiring plan and config template present |
-| Rules (82) | ✅ | Full rules tree present; project-local apply path documented |
+| Rules (95) | ✅ | Full rules tree present; project-local apply path documented |
 | Skills (22) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in opencode.json |
 | Wrapper pack | ✅ | |
@@ -54,7 +54,7 @@ Last updated: 2026-05-24
 | Component | Status | Notes |
 |---|---|---|
 | Agents (49) | ✅ | Full agent registry present in-tree with OpenClaw wiring plan |
-| Rules (82) | ✅ | Full rules set present in-tree |
+| Rules (95) | ✅ | Full rules set present in-tree |
 | Skills (22) | ✅ | Full skill set present in-tree |
 | MCP pack | ✅ | Active |
 | Wrapper pack | ✅ | Active |

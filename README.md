@@ -95,7 +95,7 @@ Set `LILARA_KILL_SWITCH=1` to immediately block all `runtime.decide()` calls reg
 
 Specialist reviewers, planners, and resolvers: security-reviewer, architect, code-reviewer, tdd-guide, python/rust/go/kotlin/java/cpp/csharp/swift/typescript/flutter/dart reviewers, build-error-resolvers, performance-optimizer, a11y-architect, and more. Every agent follows the ARG amplification philosophy: clear Mission, ARG-aware Activation, numbered Protocol, and measurable Done When criteria. See `agents/ROUTING.md` for quick-reference dispatch guide.
 
-### Rules (`rules/`) — 82 rule files
+### Rules (`rules/`) — 95 rule files
 
 Security, coding-style, patterns, testing, hooks, and performance rules across 12 language directories (Python, TypeScript, Go, Rust, Java, C++, Kotlin, C#, Dart, Swift, Perl, PHP) plus common, database, infrastructure, and web domains. Every rule file is original content written for the ARG amplification philosophy.
 
@@ -103,7 +103,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 86 files
+### Scripts (`scripts/`) — 88 files
 
 | Script | Purpose |
 |--------|---------|
@@ -118,6 +118,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `verify-hooks-integrity.sh` | SHA-256 baseline check for all hook files |
 | `run-fixtures.sh` | Fixture-based automated test runner (count managed by `check-fixture-count.sh`) |
 | `eval-decision-quality.sh` | Measure `runtime.decide()` FP/FN rates against a labeled corpus; exits 1 if thresholds exceeded |
+| `check-evals.sh` | Optional CI gate: run all `evals/*.eval.js` and assert exit 0; skip via `LILARA_SKIP_EVAL=1` |
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |
 | `check-config-integration.sh` | Verify `generate-config`, `install-local`, and `wire-hooks --check` integration paths |

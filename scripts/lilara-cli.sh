@@ -17,7 +17,7 @@
 #   contract    Manage the upfront security contract (init/accept/show/verify/diff/amend).
 #   operator-token  Manage one-shot operator tokens for non-TTY contract acceptance (mint/verify).
 #   fixtures    Run all fixture-based tests.
-#   eval        Measure decision quality: run labeled corpus through runtime.decide(), report FP/FN rates.
+#   eval        Decision quality: eval quality (FP/FN rates) | eval run (auto-discover evals/*.eval.js + JUnit).
 #   integrity   Verify hook file SHA-256 integrity baseline.
 #   status      Show counts of agents, rules, skills, hooks, scripts.
 #   review      Review a payload file for security classification.
@@ -34,6 +34,7 @@
 #   receipts    ADR-014 audit-grade receipts (validate/export/schema/doctor).
 #   notify      ADR-015 notification routing (test/show/history).
 #   sandbox     ADR-016 dry-run a command through the decision lattice; print which floors fire.
+#   session     Session-resume ops (summary).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -209,6 +210,9 @@ case "$cmd" in
     section "Kill-switch (all 13 hooks)"
     bash "${scripts}/check-kill-switch.sh" || failed=1
 
+    section "Pressure tests"
+    bash "${scripts}/check-pressure-tests.sh" || failed=1
+
     if [ "$failed" -eq 0 ]; then
       printf '\n%sAll checks passed.%s\n' "$GREEN" "$RESET"
       printf 'This is the fast loop. For the full CI set (fixtures, audit, bench), run: %s ci\n' "$0"
@@ -264,14 +268,83 @@ case "$cmd" in
     section "Runtime bench"
     bash "${scripts}/bench-runtime-decision.sh" || failed=1
 
+    # Eval gate — opt-in; skip by default to avoid corpus-drift failures.
+    # Enable with: LILARA_SKIP_EVAL=0 bash scripts/lilara-cli.sh ci
+    section "Eval gate (optional)"
+    LILARA_SKIP_EVAL="${LILARA_SKIP_EVAL:-1}" bash "${scripts}/check-evals.sh" || failed=1
+
     [ "$failed" -eq 0 ] && printf '\n%sAll CI checks passed.%s\n' "$GREEN" "$RESET" && exit 0
     printf '\n%sOne or more CI checks failed.%s\n' "$RED" "$RESET" >&2
     exit 1
     ;;
 
   # ── eval ──────────────────────────────────────────────────────────────────
+  # eval quality  — original FP/FN rate measurement (default when no sub given)
+  # eval run      — auto-discover evals/*.eval.js, run all, print summary (+ JUnit)
   eval)
-    exec bash "${scripts}/eval-decision-quality.sh" "$@"
+    sub="${1:-quality}"
+    shift || true
+    case "$sub" in
+      quality)
+        exec bash "${scripts}/eval-decision-quality.sh" "$@"
+        ;;
+      run)
+        junit_path=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --junit)   shift; junit_path="${1:-}" ;;
+            --junit=*) junit_path="${1#--junit=}" ;;
+            *) die "Unknown flag: $1" ;;
+          esac
+          shift
+        done
+        node - "$root" "$junit_path" <<'__EVAL_RUN_EOF__'
+"use strict";
+const path    = require("path");
+const fs      = require("fs");
+const root    = process.argv[2];
+const junitPath = process.argv[3] || "";
+
+const { runAll } = require(path.join(root, "runtime/eval-runner"));
+const corpusPath = path.join(root, "tests/eval-corpus.json");
+let corpus = [];
+try { corpus = JSON.parse(fs.readFileSync(corpusPath, "utf8")).entries || []; }
+catch { process.stderr.write("eval run: corpus not found at " + corpusPath + "\n"); }
+
+process.env.LILARA_DECISION_JOURNAL = "0";
+
+(async () => {
+  const { results, summary, junit } = await runAll({ corpus, format: junitPath ? "junit" : "text" });
+  for (const r of results) {
+    const status = r.error ? "ERROR" : r.failed === 0 ? "PASS" : "FAIL";
+    process.stdout.write(`  [${status}] ${r.name}: ${r.passed}/${r.total} passed`);
+    if (r.failed > 0) process.stdout.write(` (${r.failed} failed)`);
+    if (r.error)      process.stdout.write(` — ${r.error}`);
+    process.stdout.write("\n");
+    for (const f of r.failures) {
+      if (f.id === "_summary") continue;
+      process.stdout.write(`        FAIL ${f.id}: expected=${f.expected} got=${f.got} — ${f.note}\n`);
+    }
+  }
+  process.stdout.write(`\neval run: ${summary.evals} eval(s), ${summary.totalPassed}/${summary.totalEntries} passed`);
+  if (summary.totalFailed > 0) process.stdout.write(` (${summary.totalFailed} failed)`);
+  process.stdout.write("\n");
+  if (junitPath && junit) {
+    fs.writeFileSync(junitPath, junit);
+    process.stdout.write("JUnit XML written to: " + junitPath + "\n");
+  }
+  process.exit(summary.totalFailed > 0 ? 1 : 0);
+})();
+__EVAL_RUN_EOF__
+        ;;
+      --*)
+        # Legacy: bare flags forwarded to quality (e.g. lilara eval --verbose)
+        exec bash "${scripts}/eval-decision-quality.sh" "$sub" "$@"
+        ;;
+      *)
+        die "Unknown eval subcommand: $sub (try: quality, run)"
+        ;;
+    esac
     ;;
 
   # ── integrity ─────────────────────────────────────────────────────────────
@@ -1515,6 +1588,34 @@ if (jsonMode === "1") {
   }
 }
 __SANDBOX_EOF__
+    ;;
+
+  # ── session ───────────────────────────────────────────────────────────────
+  # Session-resume summary: compact prior-session context for operators.
+  session)
+    sub="${1:-summary}"
+    shift || true
+    case "$sub" in
+      summary)
+        node - "$root" <<'__SESSION_SUMMARY_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const { buildSummary } = require(path.join(root, "runtime/session-resume"));
+const s = buildSummary();
+if (!s.text) {
+  process.stdout.write("session summary: (no prior session data)\n");
+} else {
+  process.stdout.write("session summary:\n  " + s.text + "\n");
+}
+__SESSION_SUMMARY_EOF__
+        ;;
+      *)
+        printf '%sUnknown session subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: summary\n' >&2
+        exit 2
+        ;;
+    esac
     ;;
 
   # ── help ──────────────────────────────────────────────────────────────────
