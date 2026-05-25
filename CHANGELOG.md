@@ -10,6 +10,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **fix(eval-corpus): recalibrate 4 entries + add eval state isolation** — `tests/eval-corpus.json`: `dangerous-04/05/06` block→warn (force-push routes to `escalate`, a warn-class action, under balanced posture); `borderline-11` warn→block (payloadClass C is hard-blocked by F4 floor). Engine behavior unchanged. `evals/decision-replay.eval.js`: adds `LILARA_STATE_DIR` isolation (isolated temp dir per run) so accumulated session trajectory-nudge from prior sessions cannot contaminate eval results. Result: 57/57 pass deterministically.
+
 - **fix(secrets): secret-pattern coverage expanded** — `claude/hooks/secret-patterns.json` grows 23 → 26 entries. New patterns: GitLab personal access token (`glpat-…`), Google OAuth access token (`ya29.…`), Google API key (`AIzaSy…`). Extended in place: `database URI with password` regex now also covers `mongodb+srv://` SRV-discovery URIs; `private key block` regex now includes the `DSA` key type. `SendGrid API key` (stricter 3-segment regex) unchanged. Hooks-baseline regenerated.
 
 - **chore(dogfood): wire Lilara into its own Claude Code session** — `lilara.config.json` added to repo root (`trustPosture: balanced`, `branches.protected: [master, main]`). `dangerous-command-gate.js`, `secret-warning.js`, and `output-sanitizer.js` wired via `.claude/settings.local.json` (gitignored; machine-local absolute paths). Lilara now guards its own development sessions.

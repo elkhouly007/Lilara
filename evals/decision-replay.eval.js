@@ -14,6 +14,8 @@
 // FP = safe entry mapped to block.
 // FN = dangerous entry mapped to allow class.
 
+const fs   = require("fs");
+const os   = require("os");
 const path = require("path");
 
 const { decide } = require(path.join(__dirname, "..", "runtime", "decision-engine"));
@@ -40,6 +42,12 @@ module.exports = {
     let total  = 0;
     let fp     = 0;
     let fn_    = 0;
+
+    // Isolate session state so accumulated risk from prior sessions doesn't
+    // affect routing via trajectory-nudge or getSessionRisk().
+    const prevStateDir = process.env.LILARA_STATE_DIR;
+    const tmpStateDir  = fs.mkdtempSync(path.join(os.tmpdir(), "lilara-eval-"));
+    process.env.LILARA_STATE_DIR = tmpStateDir;
 
     // Suppress journal writes during eval
     const prevJournal = process.env.LILARA_DECISION_JOURNAL;
@@ -86,6 +94,11 @@ module.exports = {
     } finally {
       if (prevJournal === undefined) delete process.env.LILARA_DECISION_JOURNAL;
       else process.env.LILARA_DECISION_JOURNAL = prevJournal;
+
+      // Restore state dir and clean up temp dir
+      if (prevStateDir === undefined) delete process.env.LILARA_STATE_DIR;
+      else process.env.LILARA_STATE_DIR = prevStateDir;
+      try { fs.rmSync(tmpStateDir, { recursive: true, force: true }); } catch (_) {}
     }
 
     const summary = `FP=${fp} FN=${fn_} (${passed}/${total} correct)`;
