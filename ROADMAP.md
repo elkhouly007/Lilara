@@ -58,27 +58,29 @@ Real gaps, ordered by security and operability impact. None are on a fixed timel
 
 ### High priority
 
-**F15 manifest publication across non-Claude adapters.**
-`{codex, clawcode, openclaw, opencode, antegravity}/hooks/post-adapter.js:6` each carry a `TODO(F15/Task0.6)` to publish the harness manifest via `<harness>/manifest.json` so envelope reporting is auto-discoverable rather than relying on factory wiring. Mechanical, additive, but touches all five adapter dirs at once.
-
-**OpenCode PostToolUse output-sanitizer parity.**
-`claude/hooks/output-sanitizer.js` scans tool output for the 23-pattern secret set. OpenCode is a Claude Code fork and very likely supports the same `PostToolUse` event, but in-repo wiring (`opencode/WIRING_PLAN.md`) documents PreToolUse only. Extension deferred until a contributor confirms upstream PostToolUse support and documents the wiring path. ASI04 in `references/owasp-agentic-coverage.md` honestly records this as PARTIAL.
-
-**ASI04 runtime redaction.**
-`scripts/redact-payload.sh` is an offline audit tool, not wired into hook execution. The runtime control is `secret-warning.js`. Closing this gap would mean either renaming the offline tool to make its scope obvious, or porting its logic into the runtime path. Documented honestly in `references/owasp-agentic-coverage.md`.
+**ASI04 journal-redaction coverage gap.**
+`decision-journal.js:append()` enforces `contract.scopes.secrets.redactInJournal`; when true,
+`targetPath` and `notes` fields are scrubbed with the 23-pattern set before JSONL write.
+Remaining gap: other journal fields (`command`, `payload`, `reasonCodes` notes) are not yet
+covered by the redaction pass. Closing this means extending the redaction loop in
+`runtime/decision-journal.js` to cover the full entry rather than two named fields.
+Tracked in `references/owasp-agentic-coverage.md` as ASI04 PARTIAL.
 
 ### Medium priority
 
-**Live end-to-end hook confirmation for Codex and antegravity.**
-Both adapters are source-trace verified, but neither has confirmed a live hook fire with the corrected event names (`tool_call.output` / `BeforeTool` + `run_shell_command`). Live confirmation is documented as a re-check trigger in `codex/WIRING_PLAN.md` and `antegravity/WIRING_PLAN.md`. A contributor with a live `codex` or `agy` install can append a captured payload fixture and mark the item complete.
-
-**OpenClaw PostToolUse parity.**
-Same deferral as OpenCode but for the OpenClaw harness; PostToolUse event model is unverified upstream.
+**Live end-to-end hook confirmation for antegravity.**
+Codex (PR #60) and the protocol-shape verification are VERIFIED against upstream source.
+Antegravity `agy` still carries a live-fire caveat (`antegravity/WIRING_PLAN.md`): the
+corrected event names (`BeforeTool` / `AfterTool` + `run_shell_command` matcher) have not
+been confirmed with a live `agy` v1.0.1 session. A contributor with a live install can
+append a captured payload fixture and mark the item complete.
 
 ### Low priority
 
 **D23 — trademark clearance for "Lilara".**
-RESOLVED (2026-05-24). Khouly accepted the risk and proceeded with the Lilara name (PR #59). USPTO/EUIPO/WIPO searches deferred; no blocking conflict found in initial review. Domain selection (`lilara.dev` vs `.ai`) deferred to M9 commercial track.
+RESOLVED (2026-05-24). Khouly accepted the risk and proceeded with the Lilara name (PR #59).
+USPTO/EUIPO/WIPO searches deferred; no blocking conflict found in initial review.
+Domain selection (`lilara.dev` vs `.ai`) deferred to M9 commercial track.
 
 ---
 
