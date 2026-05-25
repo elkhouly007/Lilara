@@ -22,7 +22,8 @@
         "database-reviewer",
         "devops-reviewer",
         "flutter-reviewer",
-        "healthcare-reviewer"
+        "healthcare-reviewer",
+        "self-reviewer"
       ]
     },
 
@@ -192,7 +193,8 @@
     "opensource-forker":    ["opensource", "fork", "upstream"],
     "opensource-packager":  ["opensource", "packaging", "distribution"],
     "opensource-sanitizer": ["opensource", "security", "cleanup"],
-    "seo-specialist":       ["seo", "web", "content"]
+    "seo-specialist":       ["seo", "web", "content"],
+    "self-reviewer":        ["review", "self-assessment", "quality", "confidence-scoring"]
   },
 
   "quick_select": {

@@ -23,6 +23,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Exploring unfamiliar codebase | `code-explorer` |
 | UI accessibility issues | `a11y-architect` |
 | Healthcare / HIPAA compliance | `healthcare-reviewer` |
+| Self-assessing agent output before commit | `self-reviewer` |
 | ML / GAN / PyTorch work | `gan-planner` → `gan-generator` → `gan-evaluator` |
 | Open source fork or packaging | `opensource-forker`, `opensource-packager` |
 | Improving harness / agent config | `harness-optimizer` |
