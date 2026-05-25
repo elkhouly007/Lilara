@@ -91,6 +91,15 @@
             "command": "node /ABS_PATH/quality-gate.js"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /ABS_PATH/context-budget.js"
+          }
+        ]
       }
     ]
 

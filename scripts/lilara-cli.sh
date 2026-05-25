@@ -207,7 +207,7 @@ case "$cmd" in
     section "Contract module"
     bash "${scripts}/check-contract.sh" || failed=1
 
-    section "Kill-switch (all 13 hooks)"
+    section "Kill-switch (all 14 hooks)"
     bash "${scripts}/check-kill-switch.sh" || failed=1
 
     section "Pressure tests"
