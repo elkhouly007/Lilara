@@ -95,7 +95,7 @@ Set `LILARA_KILL_SWITCH=1` to immediately block all `runtime.decide()` calls reg
 
 Specialist reviewers, planners, and resolvers: security-reviewer, pr-reviewer, test-generator, architect, code-reviewer, tdd-guide, python/rust/go/kotlin/java/cpp/csharp/swift/typescript/flutter/dart reviewers, build-error-resolvers, performance-optimizer, a11y-architect, and more. Every agent follows the ARG amplification philosophy: clear Mission, ARG-aware Activation, numbered Protocol, and measurable Done When criteria. See `agents/ROUTING.md` for quick-reference dispatch guide.
 
-### Rules (`rules/`) — 99 rule files
+### Rules (`rules/`) — 100 rule files
 
 Security, coding-style, patterns, testing, hooks, and performance rules across 12 language directories (Python, TypeScript, Go, Rust, Java, C++, Kotlin, C#, Dart, Swift, Perl, PHP) plus common, database, infrastructure, and web domains. Every rule file is original content written for the ARG amplification philosophy.
 

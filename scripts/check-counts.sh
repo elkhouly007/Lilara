@@ -24,7 +24,7 @@ printf '[check-counts]\n'
 # Expected values — update these when adding files, then update README too.
 # ---------------------------------------------------------------------------
 EXPECTED_AGENTS=55
-EXPECTED_RULES=99          # +commit-conventions +self-review-protocol
+EXPECTED_RULES=100         # +commit-conventions +self-review-protocol +workflow-discipline
 EXPECTED_SKILLS=32         # excludes agents/README.md style files
 EXPECTED_HOOKS=16          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus

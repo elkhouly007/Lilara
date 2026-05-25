@@ -30,5 +30,11 @@
     "trust_posture": "balanced",
     "protected_branches": ["main", "master"],
     "sensitive_path_patterns": ["prod", "production", "secrets", "credentials", ".env", "terraform", "infra"]
+  },
+
+  "workflow": {
+    "required_steps": ["test", "review", "commit"],
+    "step_order": "strict",
+    "_comment": "Strict = steps must complete in declared order before commit; lenient = any order before commit. Remove this block to disable workflow enforcement."
   }
 }

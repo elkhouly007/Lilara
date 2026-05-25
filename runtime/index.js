@@ -33,7 +33,8 @@ const ambient = require("./ambient");
 // API (acquire/release) can grow under one surface without touching the
 // flat re-exports.
 const crossAgentLock = require("./cross-agent-lock");
-const sessionMemory  = require("./session-memory");
-const memorySearch   = require("./memory-search");
+const sessionMemory      = require("./session-memory");
+const memorySearch       = require("./memory-search");
+const workflowEnforcer   = require("./workflow-enforcer");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer };
