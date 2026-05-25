@@ -1,6 +1,6 @@
 # Skills
 
-High-level workflow definitions that orchestrate agents, rules, and tools for common development tasks. **30 skills** are available across ARG runtime management, code analysis, testing, security, deployment, and intelligence amplification.
+High-level workflow definitions that orchestrate agents, rules, and tools for common development tasks. **31 skills** are available across ARG runtime management, code analysis, testing, security, deployment, and intelligence amplification.
 
 ## Core Skills
 

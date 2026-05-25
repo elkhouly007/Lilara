@@ -1618,6 +1618,130 @@ __SESSION_SUMMARY_EOF__
     esac
     ;;
 
+  # ── memory ────────────────────────────────────────────────────────────────
+  # Cross-session semantic memory: add / search / list / consolidate facts.
+  memory)
+    sub="${1:-list}"
+    shift || true
+    case "$sub" in
+      add)
+        fact_text=""
+        source_arg="operator"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --source) shift; source_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory add "<fact>" [--source <src>]\n'
+              exit 0
+              ;;
+            *) fact_text="$1" ;;
+          esac
+          shift
+        done
+        [ -n "$fact_text" ] || die "Usage: lilara-cli.sh memory add \"<fact>\" [--source <src>]"
+        node - "$root" "$fact_text" "$source_arg" <<'__MEMORY_ADD_EOF__'
+"use strict";
+const path = require("path");
+const { addFact } = require(path.join(process.argv[2], "runtime/session-memory"));
+const { id } = addFact({ fact: process.argv[3], source: process.argv[4] });
+process.stdout.write("[Lilara memory] Fact added (id=" + id + ")\n");
+__MEMORY_ADD_EOF__
+        ;;
+      search)
+        query="${1:-}"
+        shift || true
+        limit_arg="3"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit) shift; limit_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory search <query> [--limit N]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$query" "$limit_arg" <<'__MEMORY_SEARCH_EOF__'
+"use strict";
+const path = require("path");
+const { search } = require(path.join(process.argv[2], "runtime/memory-search"));
+const query  = process.argv[3] || "";
+const topK   = parseInt(process.argv[4], 10) || 3;
+const results = search(query, { topK });
+if (results.length === 0) {
+  process.stdout.write("[Lilara memory] No facts found.\n");
+  process.exit(0);
+}
+process.stdout.write("[Lilara memory] Top " + results.length + " result(s) for \"" + query + "\":\n");
+results.forEach((f, i) => {
+  const ts = f.timestamp ? f.timestamp.slice(0, 10) : "?";
+  process.stdout.write("  " + (i + 1) + ". [" + ts + "] " + f.fact + "\n");
+  process.stdout.write("     source: " + f.source + "  score: " + f.score.toFixed(2) + "\n");
+});
+__MEMORY_SEARCH_EOF__
+        ;;
+      list)
+        limit_arg="20"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit) shift; limit_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory list [--limit N]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$limit_arg" <<'__MEMORY_LIST_EOF__'
+"use strict";
+const path = require("path");
+const { listFacts } = require(path.join(process.argv[2], "runtime/session-memory"));
+const limit = parseInt(process.argv[3], 10) || 20;
+const facts = listFacts({ limit });
+if (facts.length === 0) {
+  process.stdout.write("[Lilara memory] No facts stored.\n");
+  process.exit(0);
+}
+process.stdout.write("[Lilara memory] " + facts.length + " fact(s) (most recent first):\n");
+facts.forEach((f, i) => {
+  const ts = f.timestamp ? f.timestamp.slice(0, 10) : "?";
+  process.stdout.write("  " + (i + 1) + ". [" + ts + "] " + f.fact + "  (source: " + f.source + ")\n");
+});
+__MEMORY_LIST_EOF__
+        ;;
+      consolidate)
+        dry_run_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --dry-run) dry_run_arg="1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory consolidate [--dry-run]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$dry_run_arg" <<'__MEMORY_CONSOLIDATE_EOF__'
+"use strict";
+const path = require("path");
+const { consolidate } = require(path.join(process.argv[2], "runtime/memory-search"));
+const dryRun = process.argv[3] === "1";
+const r = consolidate({ dryRun });
+const label = dryRun ? " dry-run" : "";
+process.stdout.write("[Lilara memory] Consolidation" + label + ": " + r.merged + " duplicate(s) merged, " + r.survivors + " survivor(s).\n");
+__MEMORY_CONSOLIDATE_EOF__
+        ;;
+      *)
+        printf '%sUnknown memory subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: add, search, list, consolidate\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
   # ── help ──────────────────────────────────────────────────────────────────
   help|-h|--help)
     if [ $# -gt 0 ]; then
