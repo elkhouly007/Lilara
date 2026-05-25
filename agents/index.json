@@ -81,9 +81,10 @@
     },
 
     "docs": {
-      "description": "Documentation updates, doc sync",
+      "description": "Documentation updates, doc sync, doc generation",
       "agents": [
-        "doc-updater"
+        "doc-updater",
+        "technical-writer"
       ]
     },
 
@@ -180,6 +181,7 @@
     "conversation-analyzer":["explore", "chat", "user-feedback"],
     "silent-failure-hunter":["explore", "debugging", "errors"],
     "doc-updater":          ["docs", "sync", "maintenance"],
+    "technical-writer":     ["docs", "readme", "api-docs", "changelog", "onboarding"],
     "performance-optimizer":["performance", "profiling", "bottleneck"],
     "a11y-architect":       ["accessibility", "wcag", "ui", "forms"],
     "gan-planner":          ["ml", "gan", "architecture"],
@@ -203,6 +205,7 @@
     "Writing tests":                                ["tdd-guide"],
     "E2E tests broken":                             ["e2e-runner"],
     "Documentation out of date":                    ["doc-updater"],
+    "Generate README / API docs / changelog":        ["technical-writer"],
     "Performance is slow":                          ["performance-optimizer"],
     "UI accessibility issues":                      ["a11y-architect"],
     "Multiple tasks to coordinate":                 ["chief-of-staff"],

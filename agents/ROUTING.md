@@ -19,6 +19,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | E2E tests broken | `e2e-runner` |
 | Performance is slow | `performance-optimizer` |
 | Documentation out of sync | `doc-updater` |
+| Generate README, API docs, changelog, or onboarding guide | `technical-writer` |
 | Exploring unfamiliar codebase | `code-explorer` |
 | UI accessibility issues | `a11y-architect` |
 | Healthcare / HIPAA compliance | `healthcare-reviewer` |
