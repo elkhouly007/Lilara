@@ -1,4 +1,6 @@
 ---
+last_reviewed: 2026-05-24
+version_target: 0.1.0
 pattern_id: curl pipe to shell
 pattern_source: claude/hooks/dangerous-patterns.json
 severity: critical

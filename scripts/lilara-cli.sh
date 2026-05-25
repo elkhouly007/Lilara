@@ -1531,7 +1531,6 @@ __NOTIFY_HISTORY_EOF__
     esac
     ;;
 
-<<<<<<< HEAD
   # ── sandbox ───────────────────────────────────────────────────────────────
   sandbox)
     json_mode=0; tool_override="Bash"; harness_override="cli-sandbox"; explain=0
