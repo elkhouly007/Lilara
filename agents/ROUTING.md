@@ -13,6 +13,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Planning a new feature | `architect` + `planner` |
 | Breaking down a large task | `chief-of-staff` |
 | Code is too complex or hard to read | `code-simplifier`, `refactor-cleaner` |
+| Finding unused code / dead exports before a release or refactor | `dead-code-detector` |
 | Writing tests / TDD | `tdd-guide` |
 | Generating unit tests from source code | `test-generator` |
 | E2E tests broken | `e2e-runner` |

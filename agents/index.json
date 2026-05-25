@@ -50,11 +50,12 @@
     },
 
     "refactor": {
-      "description": "Code cleanup, simplification, type improvement",
+      "description": "Code cleanup, simplification, type improvement, dead code removal",
       "agents": [
         "refactor-cleaner",
         "code-simplifier",
-        "type-design-analyzer"
+        "type-design-analyzer",
+        "dead-code-detector"
       ]
     },
 
@@ -166,6 +167,7 @@
     "dart-build-resolver":  ["build", "dart", "flutter"],
     "pytorch-build-resolver":["build", "python", "pytorch", "ml"],
     "refactor-cleaner":     ["refactor", "quality", "cleanup"],
+    "dead-code-detector":   ["refactor", "dead-code", "unused-exports", "js", "typescript", "python", "go"],
     "code-simplifier":      ["refactor", "complexity", "readability"],
     "type-design-analyzer": ["refactor", "types", "typescript", "python"],
     "tdd-guide":            ["test", "tdd", "unit-testing"],
