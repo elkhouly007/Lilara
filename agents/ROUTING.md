@@ -8,6 +8,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 |-----------|----------|
 | Review a PR or code change | `pr-reviewer` (mechanics + merge-readiness), then `code-reviewer` + language-specific reviewer |
 | Security vulnerability suspected | `security-reviewer` |
+| Full codebase SAST security audit (34-class taxonomy) | `security-scanner` |
 | Build or compile is failing | `build-error-resolver` → language-specific build resolver |
 | Planning a new feature | `architect` + `planner` |
 | Breaking down a large task | `chief-of-staff` |
