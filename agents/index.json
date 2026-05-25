@@ -7,7 +7,9 @@
       "description": "Code review, quality checks, PR review",
       "agents": [
         "code-reviewer",
+        "pr-reviewer",
         "security-reviewer",
+        "security-scanner",
         "python-reviewer",
         "go-reviewer",
         "java-reviewer",
@@ -48,18 +50,20 @@
     },
 
     "refactor": {
-      "description": "Code cleanup, simplification, type improvement",
+      "description": "Code cleanup, simplification, type improvement, dead code removal",
       "agents": [
         "refactor-cleaner",
         "code-simplifier",
-        "type-design-analyzer"
+        "type-design-analyzer",
+        "dead-code-detector"
       ]
     },
 
     "test": {
-      "description": "TDD, E2E testing, PR test analysis",
+      "description": "TDD, E2E testing, PR test analysis, test generation",
       "agents": [
         "tdd-guide",
+        "test-generator",
         "e2e-runner",
         "pr-test-analyzer"
       ]
@@ -77,9 +81,10 @@
     },
 
     "docs": {
-      "description": "Documentation updates, doc sync",
+      "description": "Documentation updates, doc sync, doc generation",
       "agents": [
-        "doc-updater"
+        "doc-updater",
+        "technical-writer"
       ]
     },
 
@@ -135,7 +140,9 @@
 
   "tags": {
     "code-reviewer":        ["review", "quality", "security", "all-languages"],
+    "pr-reviewer":          ["review", "pr", "commit-hygiene", "ci", "merge-readiness"],
     "security-reviewer":    ["review", "security", "auth", "input-validation", "owasp"],
+    "security-scanner":     ["review", "security", "sast", "vulnerability-classes", "whole-codebase"],
     "python-reviewer":      ["review", "python"],
     "go-reviewer":          ["review", "golang"],
     "java-reviewer":        ["review", "java", "spring"],
@@ -161,9 +168,11 @@
     "dart-build-resolver":  ["build", "dart", "flutter"],
     "pytorch-build-resolver":["build", "python", "pytorch", "ml"],
     "refactor-cleaner":     ["refactor", "quality", "cleanup"],
+    "dead-code-detector":   ["refactor", "dead-code", "unused-exports", "js", "typescript", "python", "go"],
     "code-simplifier":      ["refactor", "complexity", "readability"],
     "type-design-analyzer": ["refactor", "types", "typescript", "python"],
     "tdd-guide":            ["test", "tdd", "unit-testing"],
+    "test-generator":       ["test", "unit-testing", "jest", "pytest", "go-test", "rust"],
     "e2e-runner":           ["test", "e2e", "playwright", "cypress"],
     "pr-test-analyzer":     ["test", "pr", "ci", "coverage"],
     "code-explorer":        ["explore", "navigation", "search"],
@@ -172,6 +181,7 @@
     "conversation-analyzer":["explore", "chat", "user-feedback"],
     "silent-failure-hunter":["explore", "debugging", "errors"],
     "doc-updater":          ["docs", "sync", "maintenance"],
+    "technical-writer":     ["docs", "readme", "api-docs", "changelog", "onboarding"],
     "performance-optimizer":["performance", "profiling", "bottleneck"],
     "a11y-architect":       ["accessibility", "wcag", "ui", "forms"],
     "gan-planner":          ["ml", "gan", "architecture"],
@@ -186,14 +196,16 @@
   },
 
   "quick_select": {
-    "I need to review a PR":                        ["code-reviewer", "security-reviewer"],
+    "I need to review a PR":                        ["pr-reviewer", "code-reviewer", "security-reviewer"],
     "Build is failing":                             ["build-error-resolver"],
-    "Security vulnerability suspected":             ["security-reviewer"],
+    "Security vulnerability suspected":             ["security-reviewer", "security-scanner"],
+    "Full codebase security audit":                  ["security-scanner"],
     "Planning a new feature":                       ["architect", "planner"],
     "Code is too complex":                          ["code-simplifier", "refactor-cleaner"],
     "Writing tests":                                ["tdd-guide"],
     "E2E tests broken":                             ["e2e-runner"],
     "Documentation out of date":                    ["doc-updater"],
+    "Generate README / API docs / changelog":        ["technical-writer"],
     "Performance is slow":                          ["performance-optimizer"],
     "UI accessibility issues":                      ["a11y-architect"],
     "Multiple tasks to coordinate":                 ["chief-of-staff"],

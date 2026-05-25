@@ -3,24 +3,24 @@
   "summary": {
     "agents": {
       "upstream_total": 0,
-      "current_total": 49,
+      "current_total": 54,
       "adopted": 0,
       "deferred": 0,
-      "current_only_total": 49
+      "current_only_total": 54
     },
     "rules": {
       "upstream_total": 0,
-      "current_total": 95,
+      "current_total": 98,
       "adopted": 0,
       "deferred": 0,
-      "current_only_total": 95
+      "current_only_total": 98
     },
     "skills": {
       "upstream_total": 0,
-      "current_total": 22,
+      "current_total": 30,
       "adopted": 0,
       "deferred": 0,
-      "current_only_total": 22
+      "current_only_total": 30
     }
   }
 }
