@@ -70,6 +70,8 @@ const FLOOR_CODES = Object.freeze({
   // ── F21 compaction-survival (ADR-016) ───────────────────────────────────────
   "compaction-survival":            "F21_COMPACTION_SURVIVAL",
   "compaction-survival-detected":   "F21_COMPACTION_SURVIVAL",
+  // ── F22 commit-format-violation ─────────────────────────────────────────────
+  "commit-format-violation":        "F22_COMMIT_FORMAT_VIOLATION",
 });
 
 function floorCodeFor(reasonCode) {

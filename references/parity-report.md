@@ -9,7 +9,7 @@ Source of truth: `references/parity-matrix.json`
 | Component | Upstream | Current | Adopted | Deferred | Current-only |
 |---|---:|---:|---:|---:|---:|
 | Agents | 0 | 53 | 0 | 0 | 53 |
-| Rules | 0 | 97 | 0 | 0 | 97 |
+| Rules | 0 | 98 | 0 | 0 | 98 |
 | Skills | 0 | 26 | 0 | 0 | 26 |
 
 ## Interpretation

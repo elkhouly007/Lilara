@@ -100,6 +100,15 @@
             "command": "node /ABS_PATH/context-budget.js"
           }
         ]
+      },
+      {
+        "matcher": "tool_name == \"Bash\"",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /ABS_PATH/commit-validator.js"
+          }
+        ]
       }
     ]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-kill-switch.sh — Verify LILARA_KILL_SWITCH=1 behavior across all 14 hooks.
+# check-kill-switch.sh — Verify LILARA_KILL_SWITCH=1 behavior across all 15 hooks.
 #
 # Kill-switch semantics:
 #   PreToolUse hooks  → exit 2 (block the tool call — no silent pass-through)
@@ -89,9 +89,10 @@ run_passthrough_hook "claude/hooks/pr-notifier.js"      "$SESSION"   "kill-switc
 run_passthrough_hook "claude/hooks/quality-gate.js"     "$SESSION"   "kill-switch: quality-gate"
 run_passthrough_hook "claude/hooks/output-sanitizer.js" "$SESSION"   "kill-switch: output-sanitizer"
 run_passthrough_hook "claude/hooks/context-budget.js"   "$SESSION"   "kill-switch: context-budget"
+run_passthrough_hook "claude/hooks/commit-validator.js" "$SESSION"   "kill-switch: commit-validator"
 
 if [ "$FAILED" -eq 0 ]; then
-  printf '\ncheck-kill-switch: all 14 hooks pass with LILARA_KILL_SWITCH=1\n'
+  printf '\ncheck-kill-switch: all 15 hooks pass with LILARA_KILL_SWITCH=1\n'
   exit 0
 fi
 printf '\ncheck-kill-switch: FAILED\n' >&2
