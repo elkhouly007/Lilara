@@ -73,7 +73,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 
 | Hook | Event | Purpose |
 |------|-------|---------|
-| `secret-warning.js` | PreToolUse | Scans prompt for 23 secret patterns (API keys, tokens, JWTs, etc.) |
+| `secret-warning.js` | PreToolUse | Scans prompt for 26 secret patterns (API keys, tokens, JWTs, etc.) |
 | `dangerous-command-gate.js` | PreToolUse Bash | Blocks/warns on 21 patterns: rm -rf, force-push, curl\|sh, DROP TABLE, prompt injection, etc. Claude also reports F15 execution envelopes from this hook path. |
 | `build-reminder.js` | PreToolUse Bash | Reminds to review build/test output before continuing |
 | `git-push-reminder.js` | PreToolUse Bash | Reminds before push; blocks force-push in enforce mode |

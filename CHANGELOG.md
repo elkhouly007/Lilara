@@ -10,6 +10,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **fix(secrets): secret-pattern coverage expanded** — `claude/hooks/secret-patterns.json` grows 23 → 26 entries. New patterns: GitLab personal access token (`glpat-…`), Google OAuth access token (`ya29.…`), Google API key (`AIzaSy…`). Extended in place: `database URI with password` regex now also covers `mongodb+srv://` SRV-discovery URIs; `private key block` regex now includes the `DSA` key type. `SendGrid API key` (stricter 3-segment regex) unchanged. Hooks-baseline regenerated.
+
 - **chore(dogfood): wire Lilara into its own Claude Code session** — `lilara.config.json` added to repo root (`trustPosture: balanced`, `branches.protected: [master, main]`). `dangerous-command-gate.js`, `secret-warning.js`, and `output-sanitizer.js` wired via `.claude/settings.local.json` (gitignored; machine-local absolute paths). Lilara now guards its own development sessions.
 - **docs(roadmap): post-v3.1 candidates pruned** — removed F15 manifest publication (resolved PR #56), OpenCode PostToolUse parity (resolved PR #57), and OpenClaw PostToolUse parity (resolved via all-6-harness ASI05 coverage). Codex live-E2E item narrowed to antegravity-only (Codex VERIFIED PR #60). ASI04 description updated to actual narrow gap: journal-level redaction covers only `targetPath`/`notes` fields; other fields not yet covered.
 
