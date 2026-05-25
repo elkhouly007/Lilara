@@ -7,6 +7,7 @@
       "description": "Code review, quality checks, PR review",
       "agents": [
         "code-reviewer",
+        "pr-reviewer",
         "security-reviewer",
         "python-reviewer",
         "go-reviewer",
@@ -135,6 +136,7 @@
 
   "tags": {
     "code-reviewer":        ["review", "quality", "security", "all-languages"],
+    "pr-reviewer":          ["review", "pr", "commit-hygiene", "ci", "merge-readiness"],
     "security-reviewer":    ["review", "security", "auth", "input-validation", "owasp"],
     "python-reviewer":      ["review", "python"],
     "go-reviewer":          ["review", "golang"],
@@ -186,7 +188,7 @@
   },
 
   "quick_select": {
-    "I need to review a PR":                        ["code-reviewer", "security-reviewer"],
+    "I need to review a PR":                        ["pr-reviewer", "code-reviewer", "security-reviewer"],
     "Build is failing":                             ["build-error-resolver"],
     "Security vulnerability suspected":             ["security-reviewer"],
     "Planning a new feature":                       ["architect", "planner"],

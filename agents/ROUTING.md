@@ -6,7 +6,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 
 | Situation | Agent(s) |
 |-----------|----------|
-| Review a PR or code change | `code-reviewer`, then language-specific reviewer |
+| Review a PR or code change | `pr-reviewer` (mechanics + merge-readiness), then `code-reviewer` + language-specific reviewer |
 | Security vulnerability suspected | `security-reviewer` |
 | Build or compile is failing | `build-error-resolver` → language-specific build resolver |
 | Planning a new feature | `architect` + `planner` |
