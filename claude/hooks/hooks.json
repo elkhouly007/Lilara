@@ -109,6 +109,15 @@
             "command": "node /ABS_PATH/commit-validator.js"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /ABS_PATH/error-recovery.js"
+          }
+        ]
       }
     ]
 

@@ -26,7 +26,7 @@ printf '[check-counts]\n'
 EXPECTED_AGENTS=53
 EXPECTED_RULES=98          # +commit-conventions
 EXPECTED_SKILLS=26         # excludes agents/README.md style files
-EXPECTED_HOOKS=15          # JS files in claude/hooks/
+EXPECTED_HOOKS=16          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus
 EXPECTED_SCRIPTS=88        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh
 
