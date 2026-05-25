@@ -40,5 +40,6 @@ const spendEstimator     = require("./spend-estimator");
 const sarifExport        = require("./sarif-export");
 const gitHistoryScanner  = require("./git-history-scanner");
 const skillScorer        = require("./skill-scorer");
+const vcsAdapter         = require("./vcs-adapter");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer, spendEstimator, sarifExport, gitHistoryScanner, skillScorer };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer, spendEstimator, sarifExport, gitHistoryScanner, skillScorer, vcsAdapter };
