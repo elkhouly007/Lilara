@@ -1767,6 +1767,56 @@ __MEMORY_CONSOLIDATE_EOF__
     esac
     ;;
 
+  # ── scan ──────────────────────────────────────────────────────────────────
+  # Secret scanning: history scanner uses git-history-scanner.js.
+  scan)
+    sub="${1:-history}"
+    shift || true
+    case "$sub" in
+      history)
+        format_arg="markdown"
+        since_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --since)       shift; since_arg="${1:-}" ;;
+            --since=*)     since_arg="${1#--since=}" ;;
+            --format)      shift; format_arg="${1:-markdown}" ;;
+            --format=*)    format_arg="${1#--format=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh scan history [--since YYYY-MM-DD] [--format json|markdown]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$format_arg" "$since_arg" <<'__SCAN_HISTORY_EOF__'
+"use strict";
+const path   = require("path");
+const root   = process.argv[2];
+const fmt    = process.argv[3] || "markdown";
+const since  = process.argv[4] || "";
+const { scanHistory } = require(path.join(root, "runtime/git-history-scanner"));
+const opts = { format: fmt };
+if (since) opts.since = since;
+scanHistory(opts).then((result) => {
+  if (fmt === "json") {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } else {
+    process.stdout.write(result);
+  }
+}).catch((e) => {
+  process.stderr.write("[Lilara scan history] error: " + e.message + "\n");
+  process.exit(1);
+});
+__SCAN_HISTORY_EOF__
+        ;;
+      *)
+        printf '%sUnknown scan subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: history\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
   # ── export ────────────────────────────────────────────────────────────────
   # Export decision-journal entries to SARIF 2.1.0 for security tooling.
   export)

@@ -23,9 +23,9 @@ printf '[check-counts]\n'
 # ---------------------------------------------------------------------------
 # Expected values — update these when adding files, then update README too.
 # ---------------------------------------------------------------------------
-EXPECTED_AGENTS=55
+EXPECTED_AGENTS=56
 EXPECTED_RULES=100         # +commit-conventions +self-review-protocol +workflow-discipline
-EXPECTED_SKILLS=33         # excludes agents/README.md style files
+EXPECTED_SKILLS=34         # excludes agents/README.md style files
 EXPECTED_HOOKS=17          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus
 EXPECTED_SCRIPTS=88        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh
@@ -71,10 +71,10 @@ check "scripts"  "$actual_scripts"  "$EXPECTED_SCRIPTS"
 # Spot-check README.md for at least one correct count (agents).
 # If README still says a known-wrong value, flag it.
 # ---------------------------------------------------------------------------
-if grep -q "55 agents" "$root/README.md"; then
-  pass "README.md mentions 55 agents"
+if grep -q "56 agents" "$root/README.md"; then
+  pass "README.md mentions 56 agents"
 else
-  fail "README.md does not mention '55 agents' — update README.md"
+  fail "README.md does not mention '56 agents' — update README.md"
 fi
 
 if [ "$FAILED" -ne 0 ]; then

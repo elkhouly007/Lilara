@@ -23,7 +23,8 @@
         "devops-reviewer",
         "flutter-reviewer",
         "healthcare-reviewer",
-        "self-reviewer"
+        "self-reviewer",
+        "secrets-historian"
       ]
     },
 
@@ -194,7 +195,8 @@
     "opensource-packager":  ["opensource", "packaging", "distribution"],
     "opensource-sanitizer": ["opensource", "security", "cleanup"],
     "seo-specialist":       ["seo", "web", "content"],
-    "self-reviewer":        ["review", "self-assessment", "quality", "confidence-scoring"]
+    "self-reviewer":        ["review", "self-assessment", "quality", "confidence-scoring"],
+    "secrets-historian":    ["security", "secrets", "git-history", "incident-response"]
   },
 
   "quick_select": {
