@@ -5,7 +5,6 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { findConfig } = require("./project-policy");
-const { getCurrentBranch } = require("./vcs-adapter");
 
 // Per-process memo for detectProjectShape. ~9 fs.existsSync per call when the
 // shape isn't cached; gitRoot is stable within a process for any given repo
@@ -79,7 +78,6 @@ function discover(input = {}) {
   const projectRoot = configPath ? path.dirname(configPath) : (rawProjectRoot || inferredRoot);
   const gitRoot = safeGit(["rev-parse", "--show-toplevel"], projectRoot) || projectRoot;
   const branch = String(input.branch || "").trim()
-    || getCurrentBranch({ cwd: gitRoot })
     || safeGit(["symbolic-ref", "--short", "HEAD"], gitRoot)
     || safeGit(["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
 
