@@ -147,6 +147,9 @@ case "$cmd" in
     section "Skills"
     bash "${scripts}/check-skills.sh" --errors-only || failed=1
 
+    section "Skill quality"
+    bash "${scripts}/check-skill-quality.sh" || failed=1
+
     section "Installation"
     bash "${scripts}/check-installation.sh" || failed=1
 
@@ -1762,6 +1765,56 @@ __MEMORY_CONSOLIDATE_EOF__
       *)
         printf '%sUnknown memory subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
         printf 'Available: add, search, list, consolidate\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── skills ────────────────────────────────────────────────────────────────
+  # Skill quality scoring: score each skills/*.md on 5 dimensions.
+  skills)
+    sub="${1:-score}"
+    shift || true
+    case "$sub" in
+      score)
+        threshold_arg="2.5"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --threshold)   shift; threshold_arg="${1:-2.5}" ;;
+            --threshold=*) threshold_arg="${1#--threshold=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh skills score [--threshold N]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$threshold_arg" <<'__SKILLS_SCORE_EOF__'
+"use strict";
+const path = require("path");
+const root      = process.argv[2];
+const threshold = parseFloat(process.argv[3]) || 2.5;
+const { scoreAll } = require(path.join(root, "runtime/skill-scorer"));
+const { results, average, count } = scoreAll({ skillsDir: path.join(root, "skills") });
+
+process.stdout.write("\nskill quality scores (threshold: " + threshold + ")\n\n");
+process.stdout.write(("skill".padEnd(44)) + " score  missing\n");
+process.stdout.write(("-".repeat(72)) + "\n");
+results.sort((a, b) => a.score - b.score).forEach((r) => {
+  const name    = path.basename(r.file).replace(".md", "").padEnd(44);
+  const score   = String(r.score).padEnd(6);
+  const missing = r.missing.length > 0 ? r.missing.join(",") : "-";
+  process.stdout.write(name + score + missing + "\n");
+});
+process.stdout.write("-".repeat(72) + "\n");
+process.stdout.write("average: " + average + " / 5  (" + count + " skills)\n");
+if (average < threshold) {
+  process.stderr.write("\nWARN: average " + average + " < threshold " + threshold + "\n");
+}
+__SKILLS_SCORE_EOF__
+        ;;
+      *)
+        printf '%sUnknown skills subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: score\n' >&2
         exit 2
         ;;
     esac
