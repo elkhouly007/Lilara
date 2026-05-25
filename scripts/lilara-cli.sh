@@ -1610,9 +1610,34 @@ if (!s.text) {
 }
 __SESSION_SUMMARY_EOF__
         ;;
+      spend)
+        node - "$root" <<'__SESSION_SPEND_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const { getSpend } = require(path.join(root, "runtime/spend-estimator"));
+const s = getSpend();
+const totalIn  = s.total.input  || 0;
+const totalOut = s.total.output || 0;
+const total    = totalIn + totalOut;
+process.stdout.write("session token spend (estimated):\n");
+process.stdout.write("  total   : " + total.toLocaleString() + " tokens\n");
+process.stdout.write("  input   : " + totalIn.toLocaleString() + "\n");
+process.stdout.write("  output  : " + totalOut.toLocaleString() + "\n");
+const tools = Object.keys(s.byTool || {});
+if (tools.length > 0) {
+  process.stdout.write("\nby tool:\n");
+  tools.sort().forEach((t) => {
+    const b = s.byTool[t];
+    const toolTotal = (b.input || 0) + (b.output || 0);
+    process.stdout.write("  " + t.padEnd(20) + " " + toolTotal.toLocaleString() + " tokens  (" + (b.calls || 0) + " calls)\n");
+  });
+}
+__SESSION_SPEND_EOF__
+        ;;
       *)
         printf '%sUnknown session subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
-        printf 'Available: summary\n' >&2
+        printf 'Available: summary, spend\n' >&2
         exit 2
         ;;
     esac

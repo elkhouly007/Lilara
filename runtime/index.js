@@ -36,5 +36,6 @@ const crossAgentLock = require("./cross-agent-lock");
 const sessionMemory      = require("./session-memory");
 const memorySearch       = require("./memory-search");
 const workflowEnforcer   = require("./workflow-enforcer");
+const spendEstimator     = require("./spend-estimator");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer, spendEstimator };

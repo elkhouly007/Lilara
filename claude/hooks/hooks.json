@@ -118,6 +118,15 @@
             "command": "node /ABS_PATH/error-recovery.js"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /ABS_PATH/spend-tracker.js"
+          }
+        ]
       }
     ]
 
