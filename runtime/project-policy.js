@@ -29,6 +29,12 @@ function normalizeRuntimeConfig(runtime = {}, projectRoot = "") {
     sensitivePathPatterns: Array.isArray(runtime.sensitive_path_patterns) && runtime.sensitive_path_patterns.length > 0
       ? runtime.sensitive_path_patterns.map(String)
       : fallback.sensitivePathPatterns,
+    // Taint defaults — preserved so a config file that omits the `taint` section
+    // still grants Grep/Read/Glob their F10 exemption (D37).  loadProjectPolicy
+    // overrides these below when taint.safeToolClasses / taint.minTokenLength
+    // are explicitly provided by the operator config.
+    taintMinTokenLength: fallback.taintMinTokenLength,
+    taintSafeToolClasses: fallback.taintSafeToolClasses,
   };
 
   if (Array.isArray(runtime.languages) && runtime.languages.length > 0) {
