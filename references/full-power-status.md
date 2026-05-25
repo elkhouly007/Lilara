@@ -12,7 +12,7 @@ Agent Runtime Guard currently includes:
 - ARG amplification philosophy throughout: every agent, rule, and skill is purpose-built for this project;
 - **55 specialist agents** following the ARG amplification philosophy — Mission, ARG-aware Activation, numbered Protocol, measurable Done When;
 - **100 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
-- **32 skills** for ARG debug, policy tuning, capability auditing, code analysis, orchestration design, and more;
+- **33 skills** for ARG debug, policy tuning, capability auditing, code analysis, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
 - executable fixture coverage with **359/359 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
@@ -49,7 +49,7 @@ Current verified state:
 |---|---:|---:|---:|---|
 | Agents | 0 | 55 | 55 | All written for ARG amplification philosophy |
 | Rules | 0 | 100 | 100 | 12 languages + common/database/infra/web domains |
-| Skills | 0 | 32 | 32 | ARG debug, policy, analysis, orchestration |
+| Skills | 0 | 33 | 33 | ARG debug, policy, analysis, orchestration |
 
 ## Sprint Status
 
@@ -82,7 +82,7 @@ All content in Agent Runtime Guard is original — written specifically for the 
 
 - **Agents**: 55 original specialists; every file encodes Mission, Activation, Protocol, Amplification Techniques, and measurable Done-When criteria
 - **Rules**: 100 original files; 12 language domains plus common/database/infra/web; YAML frontmatter with `last_reviewed` and `version_target` on every file
-- **Skills**: 32 original skills spanning ARG configuration, analysis, orchestration, and amplification workflows
+- **Skills**: 33 original skills spanning ARG configuration, analysis, orchestration, and amplification workflows
 - **Runtime**: fully verified; bounded autonomous decision layer with kill-switch, learned-allow, auto-allow-once, session-trajectory nudge, payload classification, and JSONL audit trail
 
 The correct current description is:

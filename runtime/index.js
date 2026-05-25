@@ -37,5 +37,6 @@ const sessionMemory      = require("./session-memory");
 const memorySearch       = require("./memory-search");
 const workflowEnforcer   = require("./workflow-enforcer");
 const spendEstimator     = require("./spend-estimator");
+const sarifExport        = require("./sarif-export");
 
-module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer, spendEstimator };
+module.exports = { decide, score, append, journalPaths, envelopeBuild: envelope.build, envelopeVerify: envelope.verify, ...policy, ...session, ...projectPolicy, ...contextDiscovery, ...actionPlanner, ...promotionGuidance, ...workflowRouter, classifyIntent, resolveRoute, DEFAULT_ROUTING_TABLE, KNOWN_INTENTS, actionIr, decisionLattice, journalChain, ambient, crossAgentLock, sessionMemory, memorySearch, workflowEnforcer, spendEstimator, sarifExport };

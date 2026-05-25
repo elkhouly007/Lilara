@@ -1767,6 +1767,48 @@ __MEMORY_CONSOLIDATE_EOF__
     esac
     ;;
 
+  # ── export ────────────────────────────────────────────────────────────────
+  # Export decision-journal entries to SARIF 2.1.0 for security tooling.
+  export)
+    sub="${1:-sarif}"
+    shift || true
+    case "$sub" in
+      sarif)
+        out_path="./lilara-decisions.sarif.json"
+        since_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --since)       shift; since_arg="${1:-}" ;;
+            --since=*)     since_arg="${1#--since=}" ;;
+            --output)      shift; out_path="${1:-./lilara-decisions.sarif.json}" ;;
+            --output=*)    out_path="${1#--output=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh export sarif [--since ISO8601] [--output PATH]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$out_path" "$since_arg" <<'__EXPORT_SARIF_EOF__'
+"use strict";
+const path   = require("path");
+const root   = process.argv[2];
+const outArg = process.argv[3];
+const since  = process.argv[4] || "";
+const { exportSarif } = require(path.join(root, "runtime/sarif-export"));
+const opts = { outputPath: outArg };
+if (since) opts.since = since;
+const result = exportSarif(opts);
+process.stdout.write("[Lilara] SARIF export: " + result.resultCount + " result(s), " + result.ruleCount + " rule(s) → " + result.outputPath + "\n");
+__EXPORT_SARIF_EOF__
+        ;;
+      *)
+        printf '%sUnknown export subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: sarif\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
   # ── help ──────────────────────────────────────────────────────────────────
   help|-h|--help)
     if [ $# -gt 0 ]; then
