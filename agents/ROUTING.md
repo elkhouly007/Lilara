@@ -25,6 +25,11 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Healthcare / HIPAA compliance | `healthcare-reviewer` |
 | Self-assessing agent output before commit | `self-reviewer` |
 | Scanning git history for leaked secrets | `secrets-historian` |
+| Reviewing Dockerfiles for security and reproducibility | `docker-reviewer` |
+| Auditing Kubernetes manifests for misconfigurations | `kubernetes-auditor` |
+| Reviewing GitHub Actions / GitLab CI / Bitbucket Pipelines | `ci-pipeline-reviewer` |
+| Auditing Terraform or CloudFormation IaC | `infrastructure-auditor` |
+| Checking dependencies for known CVEs | `dependency-auditor` |
 | ML / GAN / PyTorch work | `gan-planner` → `gan-generator` → `gan-evaluator` |
 | Open source fork or packaging | `opensource-forker`, `opensource-packager` |
 | Improving harness / agent config | `harness-optimizer` |

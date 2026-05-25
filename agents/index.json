@@ -115,11 +115,16 @@
     },
 
     "infra": {
-      "description": "DevOps, CI/CD, harness configuration, loop management",
+      "description": "DevOps, CI/CD, harness configuration, loop management, container and IaC security",
       "agents": [
         "devops-reviewer",
         "loop-operator",
-        "harness-optimizer"
+        "harness-optimizer",
+        "docker-reviewer",
+        "kubernetes-auditor",
+        "ci-pipeline-reviewer",
+        "infrastructure-auditor",
+        "dependency-auditor"
       ]
     },
 
@@ -196,7 +201,12 @@
     "opensource-sanitizer": ["opensource", "security", "cleanup"],
     "seo-specialist":       ["seo", "web", "content"],
     "self-reviewer":        ["review", "self-assessment", "quality", "confidence-scoring"],
-    "secrets-historian":    ["security", "secrets", "git-history", "incident-response"]
+    "secrets-historian":    ["security", "secrets", "git-history", "incident-response"],
+    "docker-reviewer":      ["infra", "docker", "containers", "security"],
+    "kubernetes-auditor":   ["infra", "kubernetes", "k8s", "security", "rbac"],
+    "ci-pipeline-reviewer": ["infra", "ci-cd", "github-actions", "gitlab-ci", "security"],
+    "infrastructure-auditor":["infra", "terraform", "cloudformation", "iac", "security"],
+    "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"]
   },
 
   "quick_select": {
