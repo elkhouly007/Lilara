@@ -1,0 +1,42 @@
+{
+  "_comment": "Lilara blueprint: Rust CLI / systems project. Copy to your project root as lilara.config.json.",
+
+  "profile": "full",
+
+  "languages": ["rust"],
+
+  "agents": [
+    "rust-reviewer",
+    "security-reviewer",
+    "performance-optimizer",
+    "pr-reviewer",
+    "tdd-guide"
+  ],
+
+  "skills": [
+    "code-review",
+    "security-review",
+    "tdd",
+    "semantic-refactor",
+    "self-review"
+  ],
+
+  "extra_rules": [],
+
+  "runtime": {
+    "trust_posture": "strict",
+    "protected_branches": ["main", "stable"],
+    "sensitive_path_patterns": [
+      "Cargo.lock",
+      ".cargo/credentials",
+      "src/config.rs",
+      "secrets.toml"
+    ]
+  },
+
+  "workflow": {
+    "required_steps": ["test", "clippy", "fmt"],
+    "step_order": "strict",
+    "_comment": "Strict trust posture and enforce cargo test → clippy → fmt before commit."
+  }
+}

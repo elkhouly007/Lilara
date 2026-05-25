@@ -1770,6 +1770,50 @@ __MEMORY_CONSOLIDATE_EOF__
     esac
     ;;
 
+  # ── init ──────────────────────────────────────────────────────────────────
+  # Initialize a project config from a blueprint template.
+  init)
+    blueprint="${1:-}"
+    shift || true
+    force=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --force|-f) force=1 ;;
+        -h|--help)
+          printf 'Usage: lilara-cli.sh init <blueprint> [--force]\n'
+          printf 'Blueprints: nextjs, fastapi, rust-cli, node-library\n'
+          exit 0 ;;
+      esac
+      shift
+    done
+    [ -n "$blueprint" ] || die "Usage: lilara-cli.sh init <blueprint> [--force]"
+    node - "$root" "$blueprint" "$force" <<'__INIT_EOF__'
+"use strict";
+const fs   = require("fs");
+const path = require("path");
+const root      = process.argv[2];
+const blueprint = process.argv[3];
+const force     = process.argv[4] === "1";
+
+const srcPath  = path.join(root, "templates", "blueprints", blueprint + ".json");
+const destPath = path.join(process.cwd(), "lilara.config.json");
+
+if (!fs.existsSync(srcPath)) {
+  process.stderr.write("[Lilara init] Unknown blueprint '" + blueprint + "'. Available: nextjs, fastapi, rust-cli, node-library\n");
+  process.exit(1);
+}
+
+if (fs.existsSync(destPath) && !force) {
+  process.stderr.write("[Lilara init] lilara.config.json already exists. Use --force to overwrite.\n");
+  process.exit(1);
+}
+
+fs.copyFileSync(srcPath, destPath);
+process.stdout.write("[Lilara init] Created lilara.config.json from blueprint '" + blueprint + "'\n");
+process.stdout.write("  Next: edit lilara.config.json to match your project, then run: bash scripts/install-local.sh\n");
+__INIT_EOF__
+    ;;
+
   # ── skills ────────────────────────────────────────────────────────────────
   # Skill quality scoring: score each skills/*.md on 5 dimensions.
   skills)
