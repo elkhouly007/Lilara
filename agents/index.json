@@ -58,9 +58,10 @@
     },
 
     "test": {
-      "description": "TDD, E2E testing, PR test analysis",
+      "description": "TDD, E2E testing, PR test analysis, test generation",
       "agents": [
         "tdd-guide",
+        "test-generator",
         "e2e-runner",
         "pr-test-analyzer"
       ]
@@ -166,6 +167,7 @@
     "code-simplifier":      ["refactor", "complexity", "readability"],
     "type-design-analyzer": ["refactor", "types", "typescript", "python"],
     "tdd-guide":            ["test", "tdd", "unit-testing"],
+    "test-generator":       ["test", "unit-testing", "jest", "pytest", "go-test", "rust"],
     "e2e-runner":           ["test", "e2e", "playwright", "cypress"],
     "pr-test-analyzer":     ["test", "pr", "ci", "coverage"],
     "code-explorer":        ["explore", "navigation", "search"],

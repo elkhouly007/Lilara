@@ -10,9 +10,9 @@ Agent Runtime Guard currently includes:
 - cross-tool policy layers for OpenClaw, OpenCode, and Claude Code;
 - reviewed capability packs for MCP, wrappers, plugins, browser, notifications, and daemons;
 - ARG amplification philosophy throughout: every agent, rule, and skill is purpose-built for this project;
-- **50 specialist agents** following the ARG amplification philosophy — Mission, ARG-aware Activation, numbered Protocol, measurable Done When;
-- **95 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
-- **23 skills** for ARG debug, policy tuning, capability auditing, code analysis, orchestration design, and more;
+- **51 specialist agents** following the ARG amplification philosophy — Mission, ARG-aware Activation, numbered Protocol, measurable Done When;
+- **96 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
+- **24 skills** for ARG debug, policy tuning, capability auditing, code analysis, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
 - executable fixture coverage with **359/359 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
@@ -47,9 +47,9 @@ Current verified state:
 
 | Component | Prior Baseline | Current | Original | Notes |
 |---|---:|---:|---:|---|
-| Agents | 0 | 50 | 50 | All written for ARG amplification philosophy |
-| Rules | 0 | 95 | 95 | 12 languages + common/database/infra/web domains |
-| Skills | 0 | 23 | 23 | ARG debug, policy, analysis, orchestration |
+| Agents | 0 | 51 | 51 | All written for ARG amplification philosophy |
+| Rules | 0 | 96 | 96 | 12 languages + common/database/infra/web domains |
+| Skills | 0 | 24 | 24 | ARG debug, policy, analysis, orchestration |
 
 ## Sprint Status
 
@@ -80,9 +80,9 @@ Note: Windows numbers are dominated by `fs.appendFileSync` / `fs.writeFileSync` 
 
 All content in Agent Runtime Guard is original — written specifically for the ARG amplification philosophy. There is no upstream comparison because this project has no upstream source.
 
-- **Agents**: 50 original specialists; every file encodes Mission, Activation, Protocol, Amplification Techniques, and measurable Done-When criteria
-- **Rules**: 95 original files; 12 language domains plus common/database/infra/web; YAML frontmatter with `last_reviewed` and `version_target` on every file
-- **Skills**: 23 original skills spanning ARG configuration, analysis, orchestration, and amplification workflows
+- **Agents**: 51 original specialists; every file encodes Mission, Activation, Protocol, Amplification Techniques, and measurable Done-When criteria
+- **Rules**: 96 original files; 12 language domains plus common/database/infra/web; YAML frontmatter with `last_reviewed` and `version_target` on every file
+- **Skills**: 24 original skills spanning ARG configuration, analysis, orchestration, and amplification workflows
 - **Runtime**: fully verified; bounded autonomous decision layer with kill-switch, learned-allow, auto-allow-once, session-trajectory nudge, payload classification, and JSONL audit trail
 
 The correct current description is:

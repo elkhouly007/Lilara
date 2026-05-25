@@ -13,6 +13,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Breaking down a large task | `chief-of-staff` |
 | Code is too complex or hard to read | `code-simplifier`, `refactor-cleaner` |
 | Writing tests / TDD | `tdd-guide` |
+| Generating unit tests from source code | `test-generator` |
 | E2E tests broken | `e2e-runner` |
 | Performance is slow | `performance-optimizer` |
 | Documentation out of sync | `doc-updater` |
