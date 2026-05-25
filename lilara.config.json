@@ -1,0 +1,6 @@
+{
+  "trustPosture": "balanced",
+  "branches": {
+    "protected": ["master", "main"]
+  }
+}
