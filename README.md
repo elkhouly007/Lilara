@@ -99,7 +99,7 @@ Specialist reviewers, planners, and resolvers: security-reviewer, pr-reviewer, t
 
 Security, coding-style, patterns, testing, hooks, and performance rules across 12 language directories (Python, TypeScript, Go, Rust, Java, C++, Kotlin, C#, Dart, Swift, Perl, PHP) plus common, database, infrastructure, and web domains. Every rule file is original content written for the ARG amplification philosophy.
 
-### Skills (`skills/`) — 36 skills
+### Skills (`skills/`) — 39 skills
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
