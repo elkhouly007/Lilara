@@ -34,7 +34,7 @@ const PATTERNS = Object.freeze([
   },
   {
     id: "CS-005",
-    re: /preserve (this|the following) through compaction/i,
+    re: /preserve (this|the following)\b.*\b(through|across|during) (compaction|summarization|compression)/i,
     severity: "high",
   },
   {
