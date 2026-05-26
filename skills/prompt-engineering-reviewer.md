@@ -32,7 +32,7 @@ Catch the prompt problems that cause model misbehaviour, wasted tokens, and inje
 3. **Prompt-injection resistance audit** — test the prompt for structural weaknesses:
 
    - **Delimiter discipline**: user-supplied content must be wrapped in clear delimiters (`<user_input>…</user_input>`, `"""…"""`, XML tags). Bare user content spliced into instruction text is injectable.
-   - **Instruction isolation**: the phrase "ignore previous instructions" or similar must not be able to cancel the system prompt. Check if XML/tool-response boundaries separate data from instructions.
+   - **Instruction isolation**: adversarial override attempts (jailbreak prefixes that instruct the model to discard its system prompt) must not succeed. Check whether XML/tool-response boundaries cleanly separate data from instructions, and whether the system prompt is structurally isolated from user-controlled content.
    - **Canary pattern** (optional): add a fixed phrase in the system prompt (`respond only in the language set in system_language`) that is easy to test for in output — if it disappears, injection succeeded.
    - **Output format lock**: if a JSON schema is required, the model should be instructed to emit JSON-only and the wrapper should parse/validate before display.
 
