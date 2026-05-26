@@ -10,7 +10,7 @@ Source of truth: `references/parity-matrix.json`
 |---|---:|---:|---:|---:|---:|
 | Agents | 0 | 63 | 0 | 0 | 63 |
 | Rules | 0 | 103 | 0 | 0 | 103 |
-| Skills | 0 | 45 | 0 | 0 | 45 |
+| Skills | 0 | 48 | 0 | 0 | 48 |
 
 ## Interpretation
 

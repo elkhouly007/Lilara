@@ -12,7 +12,7 @@ Agent Runtime Guard currently includes:
 - ARG amplification philosophy throughout: every agent, rule, and skill is purpose-built for this project;
 - **63 specialist agents** following the ARG amplification philosophy — Mission, ARG-aware Activation, numbered Protocol, measurable Done When;
 - **103 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
-- **45 skills** for ARG debug, policy tuning, capability auditing, code analysis, git workflows, architecture analysis, performance profiling, orchestration design, and more;
+- **48 skills** for ARG debug, policy tuning, capability auditing, code analysis, git workflows, architecture analysis, performance profiling, advanced security, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
 - executable fixture coverage with **359/359 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
@@ -49,7 +49,7 @@ Current verified state:
 |---|---:|---:|---:|---|
 | Agents | 0 | 63 | 63 | All written for ARG amplification philosophy |
 | Rules | 0 | 103 | 103 | 12 languages + common/database/infra/web domains |
-| Skills | 0 | 45 | 45 | ARG debug, policy, analysis, orchestration, git workflows, architecture, performance |
+| Skills | 0 | 48 | 48 | ARG debug, policy, analysis, orchestration, git, architecture, performance, security |
 
 ## Sprint Status
 
@@ -82,7 +82,7 @@ All content in Agent Runtime Guard is original — written specifically for the 
 
 - **Agents**: 63 original specialists; every file encodes Mission, Activation, Protocol, Amplification Techniques, and measurable Done-When criteria
 - **Rules**: 103 original files; 12 language domains plus common/database/infra/web; YAML frontmatter with `last_reviewed` and `version_target` on every file
-- **Skills**: 45 original skills spanning ARG configuration, analysis, orchestration, git workflows, architecture, performance, and amplification workflows
+- **Skills**: 48 original skills spanning ARG configuration, analysis, orchestration, git workflows, architecture, performance, advanced security, and amplification workflows
 - **Runtime**: fully verified; bounded autonomous decision layer with kill-switch, learned-allow, auto-allow-once, session-trajectory nudge, payload classification, and JSONL audit trail
 
 The correct current description is:
