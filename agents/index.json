@@ -29,11 +29,12 @@
     },
 
     "plan": {
-      "description": "Architecture, feature planning, task breakdown",
+      "description": "Architecture, feature planning, task breakdown, API design",
       "agents": [
         "architect",
         "planner",
-        "chief-of-staff"
+        "chief-of-staff",
+        "api-designer"
       ]
     },
 
@@ -206,7 +207,8 @@
     "kubernetes-auditor":   ["infra", "kubernetes", "k8s", "security", "rbac"],
     "ci-pipeline-reviewer": ["infra", "ci-cd", "github-actions", "gitlab-ci", "security"],
     "infrastructure-auditor":["infra", "terraform", "cloudformation", "iac", "security"],
-    "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"]
+    "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"],
+    "api-designer":         ["plan", "api", "rest", "openapi", "graphql"]
   },
 
   "quick_select": {
@@ -234,6 +236,7 @@
     "Working on a C# / .NET project":               ["csharp-reviewer"],
     "Working on healthcare / HIPAA system":         ["healthcare-reviewer"],
     "Working on ML / PyTorch / GAN":                ["gan-planner", "gan-generator", "gan-evaluator"],
-    "Forking or packaging an open source project":  ["opensource-forker", "opensource-packager"]
+    "Forking or packaging an open source project":  ["opensource-forker", "opensource-packager"],
+    "Designing or reviewing an API surface":         ["api-designer", "architect"]
   }
 }

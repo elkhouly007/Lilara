@@ -11,6 +11,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Full codebase SAST security audit (34-class taxonomy) | `security-scanner` |
 | Build or compile is failing | `build-error-resolver` → language-specific build resolver |
 | Planning a new feature | `architect` + `planner` |
+| Designing or reviewing an API surface | `api-designer` + `architect` |
 | Breaking down a large task | `chief-of-staff` |
 | Code is too complex or hard to read | `code-simplifier`, `refactor-cleaner` |
 | Finding unused code / dead exports before a release or refactor | `dead-code-detector` |
