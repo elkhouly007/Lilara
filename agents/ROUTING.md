@@ -33,6 +33,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Auditing Terraform or CloudFormation IaC | `infrastructure-auditor` |
 | Checking dependencies for known CVEs | `dependency-auditor` |
 | ML / GAN / PyTorch work | `gan-planner` → `gan-generator` → `gan-evaluator` |
+| Production ML lifecycle (training / eval / deployment) | `ml-engineer` |
 | Open source fork or packaging | `opensource-forker`, `opensource-packager` |
 | Improving harness / agent config | `harness-optimizer` |
 
