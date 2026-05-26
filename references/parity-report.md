@@ -8,9 +8,9 @@ Source of truth: `references/parity-matrix.json`
 
 | Component | Upstream | Current | Adopted | Deferred | Current-only |
 |---|---:|---:|---:|---:|---:|
-| Agents | 0 | 62 | 0 | 0 | 62 |
+| Agents | 0 | 63 | 0 | 0 | 63 |
 | Rules | 0 | 103 | 0 | 0 | 103 |
-| Skills | 0 | 42 | 0 | 0 | 42 |
+| Skills | 0 | 45 | 0 | 0 | 45 |
 
 ## Interpretation
 

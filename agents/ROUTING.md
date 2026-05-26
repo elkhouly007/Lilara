@@ -19,6 +19,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Generating unit tests from source code | `test-generator` |
 | E2E tests broken | `e2e-runner` |
 | Performance is slow | `performance-optimizer` |
+| End-to-end performance review (bundle + queries + load) | `performance-profiler` |
 | Documentation out of sync | `doc-updater` |
 | Generate README, API docs, changelog, or onboarding guide | `technical-writer` |
 | Exploring unfamiliar codebase | `code-explorer` |

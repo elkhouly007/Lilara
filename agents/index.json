@@ -92,9 +92,10 @@
     },
 
     "performance": {
-      "description": "Performance analysis, bottleneck detection",
+      "description": "Performance analysis, bottleneck detection, bundle and query profiling",
       "agents": [
-        "performance-optimizer"
+        "performance-optimizer",
+        "performance-profiler"
       ]
     },
 
@@ -208,7 +209,8 @@
     "ci-pipeline-reviewer": ["infra", "ci-cd", "github-actions", "gitlab-ci", "security"],
     "infrastructure-auditor":["infra", "terraform", "cloudformation", "iac", "security"],
     "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"],
-    "api-designer":         ["plan", "api", "rest", "openapi", "graphql"]
+    "api-designer":         ["plan", "api", "rest", "openapi", "graphql"],
+    "performance-profiler": ["performance", "profiling", "bundle", "query", "load"]
   },
 
   "quick_select": {
@@ -237,6 +239,7 @@
     "Working on healthcare / HIPAA system":         ["healthcare-reviewer"],
     "Working on ML / PyTorch / GAN":                ["gan-planner", "gan-generator", "gan-evaluator"],
     "Forking or packaging an open source project":  ["opensource-forker", "opensource-packager"],
-    "Designing or reviewing an API surface":         ["api-designer", "architect"]
+    "Designing or reviewing an API surface":         ["api-designer", "architect"],
+    "End-to-end performance review (bundle + queries + load)": ["performance-profiler"]
   }
 }
