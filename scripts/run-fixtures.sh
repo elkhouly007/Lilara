@@ -1638,7 +1638,10 @@ switch (name) {
     const link = path.join(repo, 'tracked-link.txt');
     fs.writeFileSync(a, 'alpha\n');
     fs.writeFileSync(b, 'beta\n');
-    fs.symlinkSync(a, link);
+    try { fs.symlinkSync(a, link); } catch (e) {
+      if (e.code === 'EPERM') { process.stdout.write('SKIP:symlink-EPERM (Windows Developer Mode required)'); process.exit(0); }
+      throw e;
+    }
     const env = envWith();
     const expected = build({ command: 'cat tracked-link.txt', cwd: repo, targetPath: link, projectRoot: repo, env, persistEnvBaseline: false, envBaseline: baselineFrom(env) });
     fs.unlinkSync(link);
@@ -1752,6 +1755,7 @@ process.stdout.write('PASS');
 NODE
 )
   if [ "$result" = "PASS" ]; then ok "f15:$name";
+  elif case "$result" in SKIP:*) true;; *) false;; esac; then skip "f15:$name" "${result#SKIP:}";
   else fail "f15:$name" "$result"; fi
   rm -rf "$tmpstate"
 }
