@@ -25,7 +25,7 @@ printf '[check-counts]\n'
 # ---------------------------------------------------------------------------
 EXPECTED_AGENTS=64
 EXPECTED_RULES=107         # +commit-conventions +self-review-protocol +workflow-discipline +docker-security +kubernetes-hardening +ci-cd-safety +error-handling +naming-conventions +api-design +concurrency-safety
-EXPECTED_SKILLS=51         # +supply-chain-audit +secrets-rotation-planner +threat-model-generator +prompt-engineering-reviewer +model-evaluation-harness +rag-pipeline-auditor
+EXPECTED_SKILLS=54         # +supply-chain-audit +secrets-rotation-planner +threat-model-generator +prompt-engineering-reviewer +model-evaluation-harness +rag-pipeline-auditor +codemod-generator +ci-pipeline-generator +dockerfile-generator
 EXPECTED_HOOKS=17          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus
 EXPECTED_SCRIPTS=89        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh +check-skill-quality.sh
