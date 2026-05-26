@@ -47,6 +47,11 @@ const PATTERNS = Object.freeze([
     re: /```(json|yaml)[\s\S]{0,40}"role"\s*:\s*"(system|assistant)"/i,
     severity: "high",
   },
+  {
+    id: "CS-008",
+    re: /disregard\s+(your|the|all)\s+(instructions|rules|guidelines)/i,
+    severity: "high",
+  },
 ]);
 
 /**
