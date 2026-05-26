@@ -136,6 +136,19 @@
       "severity": "medium",
       "reason": "Jailbreak framing — attempts to redefine the agent's identity or rules mid-session.",
       "flags": "i"
+    },
+
+    {
+      "name": "find with -delete",
+      "pattern": "\\bfind\\b[^|;&]*\\s-delete\\b",
+      "severity": "critical",
+      "reason": "find with -delete recursively removes files matching the predicate — equivalent destructive blast radius to rm -rf. Requires Ahmed's explicit approval per Agent Runtime Guard policy."
+    },
+    {
+      "name": "find with -exec rm/shred",
+      "pattern": "\\bfind\\b[^|;&]*\\s-exec(dir)?\\s+(rm|shred)\\b",
+      "severity": "critical",
+      "reason": "find -exec rm/shred chains a destructive command across every match — same blast radius as rm -rf. Requires Ahmed's explicit approval per Agent Runtime Guard policy."
     }
   ]
 }
