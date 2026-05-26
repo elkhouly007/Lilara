@@ -23,7 +23,7 @@ const { discover }    = require("./context-discovery");
 const { build: buildEnvelope, rememberPending } = require("./envelope");
 const { scanSecrets } = require("./secret-scan");
 const { build: buildIr } = require("./action-ir");
-const { extractCommand } = require("./command-normalize");
+const { extractCommand, normalizeCommand } = require("./command-normalize");
 
 // ---------------------------------------------------------------------------
 // Dangerous pattern loading
@@ -152,7 +152,10 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   // Dangerous pattern scan — collect all hits. Hits annotate the decision
   // but do NOT short-circuit it; decide() runs unconditionally on every call.
   const patterns = loadPatterns();
-  const hits = patterns.filter(({ regex }) => regex.test(cmd));
+  const cmdNorm = normalizeCommand(cmd);
+  const normDiffers = cmdNorm !== cmd;
+  const hits = patterns.filter(({ regex }) =>
+    regex.test(cmd) || (normDiffers && regex.test(cmdNorm)));
   hits.sort((a, b) => (SEVERITY_RANK[b.severity] || 0) - (SEVERITY_RANK[a.severity] || 0));
   const hit = hits.length > 0 ? hits[0] : null;
 

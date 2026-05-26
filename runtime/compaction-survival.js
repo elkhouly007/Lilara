@@ -34,7 +34,7 @@ const PATTERNS = Object.freeze([
   },
   {
     id: "CS-005",
-    re: /preserve (this|the following) through compaction/i,
+    re: /preserve (this|the following)\b.*\b(through|across|during) (compaction|summarization|compression)/i,
     severity: "high",
   },
   {
@@ -45,6 +45,11 @@ const PATTERNS = Object.freeze([
   {
     id: "CS-007",
     re: /```(json|yaml)[\s\S]{0,40}"role"\s*:\s*"(system|assistant)"/i,
+    severity: "high",
+  },
+  {
+    id: "CS-008",
+    re: /disregard\s+(your|the|all)\s+(instructions|rules|guidelines)/i,
     severity: "high",
   },
 ]);

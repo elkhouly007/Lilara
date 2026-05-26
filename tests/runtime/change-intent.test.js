@@ -156,8 +156,8 @@ test("change-intent: policy-edit-not-declared escalates to high", () => {
   const { diffEnvelopeVsIr } = require(path.join(REPO_ROOT, "runtime/change-intent"));
   const env = { declaredIntent: { allowedOps: { fileWrites: ["**"], policyEdits: false } } };
   const ir = {
-    fileTargets: [{ path: "/proj/lilara.contract.json", intent: "write" }],
-    networkTargets: [], command: "echo x > lilara.contract.json", argv0: "echo",
+    fileTargets: [{ path: "/proj/horus.contract.json", intent: "write" }],
+    networkTargets: [], command: "echo x > horus.contract.json", argv0: "echo",
   };
   const out = diffEnvelopeVsIr(env, ir);
   assert.equal(out.drift, true);
