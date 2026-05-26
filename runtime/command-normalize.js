@@ -216,6 +216,8 @@ function normalizeCommand(raw) {
     // the original string against destructive-verb regexes.
     nfkd = s;
   }
+  // Strip shell variable interpolation so r${x}m collapses to rm before matching.
+  nfkd = nfkd.replace(/\$\{[^}]*\}/g, "");
   // Fast path: pure ASCII after NFKD — no strip, no fold needed.
   let needsFold = false;
   for (let i = 0; i < nfkd.length; i++) {
