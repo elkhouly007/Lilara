@@ -11,6 +11,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Full codebase SAST security audit (34-class taxonomy) | `security-scanner` |
 | Build or compile is failing | `build-error-resolver` → language-specific build resolver |
 | Planning a new feature | `architect` + `planner` |
+| Designing or reviewing an API surface | `api-designer` + `architect` |
 | Breaking down a large task | `chief-of-staff` |
 | Code is too complex or hard to read | `code-simplifier`, `refactor-cleaner` |
 | Finding unused code / dead exports before a release or refactor | `dead-code-detector` |
@@ -18,6 +19,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Generating unit tests from source code | `test-generator` |
 | E2E tests broken | `e2e-runner` |
 | Performance is slow | `performance-optimizer` |
+| End-to-end performance review (bundle + queries + load) | `performance-profiler` |
 | Documentation out of sync | `doc-updater` |
 | Generate README, API docs, changelog, or onboarding guide | `technical-writer` |
 | Exploring unfamiliar codebase | `code-explorer` |
@@ -31,6 +33,7 @@ Quick reference for selecting the right agent. Full machine-readable index: `age
 | Auditing Terraform or CloudFormation IaC | `infrastructure-auditor` |
 | Checking dependencies for known CVEs | `dependency-auditor` |
 | ML / GAN / PyTorch work | `gan-planner` → `gan-generator` → `gan-evaluator` |
+| Production ML lifecycle (training / eval / deployment) | `ml-engineer` |
 | Open source fork or packaging | `opensource-forker`, `opensource-packager` |
 | Improving harness / agent config | `harness-optimizer` |
 

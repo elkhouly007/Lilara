@@ -29,11 +29,12 @@
     },
 
     "plan": {
-      "description": "Architecture, feature planning, task breakdown",
+      "description": "Architecture, feature planning, task breakdown, API design",
       "agents": [
         "architect",
         "planner",
-        "chief-of-staff"
+        "chief-of-staff",
+        "api-designer"
       ]
     },
 
@@ -91,9 +92,10 @@
     },
 
     "performance": {
-      "description": "Performance analysis, bottleneck detection",
+      "description": "Performance analysis, bottleneck detection, bundle and query profiling",
       "agents": [
-        "performance-optimizer"
+        "performance-optimizer",
+        "performance-profiler"
       ]
     },
 
@@ -105,12 +107,13 @@
     },
 
     "ml": {
-      "description": "Machine learning, GANs, PyTorch",
+      "description": "Machine learning, GANs, PyTorch, production ML lifecycle",
       "agents": [
         "gan-planner",
         "gan-generator",
         "gan-evaluator",
-        "pytorch-build-resolver"
+        "pytorch-build-resolver",
+        "ml-engineer"
       ]
     },
 
@@ -206,7 +209,10 @@
     "kubernetes-auditor":   ["infra", "kubernetes", "k8s", "security", "rbac"],
     "ci-pipeline-reviewer": ["infra", "ci-cd", "github-actions", "gitlab-ci", "security"],
     "infrastructure-auditor":["infra", "terraform", "cloudformation", "iac", "security"],
-    "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"]
+    "dependency-auditor":   ["infra", "dependencies", "cve", "osv", "supply-chain"],
+    "api-designer":         ["plan", "api", "rest", "openapi", "graphql"],
+    "performance-profiler": ["performance", "profiling", "bundle", "query", "load"],
+    "ml-engineer":          ["ml", "training", "evaluation", "deployment-safety", "data-pipeline"]
   },
 
   "quick_select": {
@@ -234,6 +240,9 @@
     "Working on a C# / .NET project":               ["csharp-reviewer"],
     "Working on healthcare / HIPAA system":         ["healthcare-reviewer"],
     "Working on ML / PyTorch / GAN":                ["gan-planner", "gan-generator", "gan-evaluator"],
-    "Forking or packaging an open source project":  ["opensource-forker", "opensource-packager"]
+    "Forking or packaging an open source project":  ["opensource-forker", "opensource-packager"],
+    "Designing or reviewing an API surface":         ["api-designer", "architect"],
+    "End-to-end performance review (bundle + queries + load)": ["performance-profiler"],
+    "Production ML lifecycle / training / eval / deployment safety": ["ml-engineer"]
   }
 }
