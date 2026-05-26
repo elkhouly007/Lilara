@@ -1,0 +1,45 @@
+{
+  "_comment": "Lilara blueprint: Next.js / React full-stack project. Copy to your project root as lilara.config.json.",
+
+  "profile": "full",
+
+  "languages": ["typescript", "web"],
+
+  "agents": [
+    "typescript-reviewer",
+    "security-reviewer",
+    "a11y-architect",
+    "performance-optimizer",
+    "pr-reviewer",
+    "tdd-guide",
+    "technical-writer"
+  ],
+
+  "skills": [
+    "code-review",
+    "security-review",
+    "tdd",
+    "deployment-safety",
+    "self-review"
+  ],
+
+  "extra_rules": [],
+
+  "runtime": {
+    "trust_posture": "balanced",
+    "protected_branches": ["main", "production"],
+    "sensitive_path_patterns": [
+      ".env*",
+      "next.config.js",
+      "next.config.mjs",
+      ".env.local",
+      ".env.production"
+    ]
+  },
+
+  "workflow": {
+    "required_steps": ["lint", "test", "typecheck"],
+    "step_order": "strict",
+    "_comment": "Enforce lint → test → typecheck before commit."
+  }
+}

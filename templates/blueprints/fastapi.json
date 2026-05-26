@@ -1,0 +1,43 @@
+{
+  "_comment": "Lilara blueprint: FastAPI / Python API project. Copy to your project root as lilara.config.json.",
+
+  "profile": "full",
+
+  "languages": ["python"],
+
+  "agents": [
+    "python-reviewer",
+    "security-reviewer",
+    "database-reviewer",
+    "tdd-guide",
+    "pr-reviewer"
+  ],
+
+  "skills": [
+    "code-review",
+    "security-review",
+    "tdd",
+    "deployment-safety",
+    "self-review"
+  ],
+
+  "extra_rules": [],
+
+  "runtime": {
+    "trust_posture": "balanced",
+    "protected_branches": ["main"],
+    "sensitive_path_patterns": [
+      ".env*",
+      "alembic/*",
+      "migrations/*",
+      "secrets.py",
+      "config.py"
+    ]
+  },
+
+  "workflow": {
+    "required_steps": ["test", "lint"],
+    "step_order": "strict",
+    "_comment": "Enforce test → lint before commit. Add 'security-scan' for HIPAA/PII projects."
+  }
+}

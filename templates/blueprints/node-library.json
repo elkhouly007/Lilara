@@ -1,0 +1,43 @@
+{
+  "_comment": "Lilara blueprint: Node.js / TypeScript library for npm publication. Copy to your project root as lilara.config.json.",
+
+  "profile": "full",
+
+  "languages": ["typescript"],
+
+  "agents": [
+    "typescript-reviewer",
+    "security-reviewer",
+    "pr-reviewer",
+    "tdd-guide",
+    "technical-writer"
+  ],
+
+  "skills": [
+    "code-review",
+    "security-review",
+    "tdd",
+    "deployment-safety",
+    "self-review",
+    "api-docs-generator"
+  ],
+
+  "extra_rules": [],
+
+  "runtime": {
+    "trust_posture": "strict",
+    "protected_branches": ["main"],
+    "sensitive_path_patterns": [
+      "package-lock.json",
+      ".npmrc",
+      ".env*",
+      "src/secrets.ts"
+    ]
+  },
+
+  "workflow": {
+    "required_steps": ["test", "typecheck", "lint"],
+    "step_order": "strict",
+    "_comment": "Strict posture: library consumers depend on correctness. Enforce test → typecheck → lint."
+  }
+}

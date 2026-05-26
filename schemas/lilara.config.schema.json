@@ -28,6 +28,23 @@
         }
       },
       "additionalProperties": false
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "required_steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Steps that must be marked complete before commit. E.g. [\"test\", \"review\", \"commit\"]."
+        },
+        "step_order": {
+          "type": "string",
+          "enum": ["strict", "lenient"],
+          "description": "strict = steps must complete in declared order; lenient = any order before commit."
+        },
+        "_comment": { "type": "string" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

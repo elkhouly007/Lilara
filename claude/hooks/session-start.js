@@ -20,6 +20,7 @@
 const utils = require("./instinct-utils");
 const { startSession } = require("../../runtime/session-context");
 const { buildSummary } = require("../../runtime/session-resume");
+const { search: memSearch } = require("../../runtime/memory-search");
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -42,17 +43,28 @@ readStdin()
     try { startSession(); } catch { /* non-critical */ }
 
     // Build prior-session summary and inject into hookSpecificOutput.
+    // Also inject top-3 memory facts (concatenated after resume summary).
     let out = raw || "";
     try {
       const resume = buildSummary();
-      if (resume.sessionCount >= 1 && resume.text) {
+      let facts = [];
+      try { facts = memSearch("", { topK: 3 }); } catch { /* memory optional */ }
+
+      let context = resume.sessionCount >= 1 ? resume.text : "";
+      if (facts.length > 0) {
+        const factLines = facts.map((f) => "- " + f.fact.slice(0, 120)).join("\n");
+        context = (context ? context + "\n\n" : "") + "[Lilara memory] Relevant prior facts:\n" + factLines;
+      }
+
+      if (context) {
+        context = context.slice(0, 500);
         const input = JSON.parse(raw);
         out = JSON.stringify({
           ...input,
           hookSpecificOutput: {
             ...(input.hookSpecificOutput || {}),
             hookEventName: "SessionStart",
-            additionalContext: resume.text,
+            additionalContext: context,
           },
         });
       }

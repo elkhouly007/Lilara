@@ -147,6 +147,9 @@ case "$cmd" in
     section "Skills"
     bash "${scripts}/check-skills.sh" --errors-only || failed=1
 
+    section "Skill quality"
+    bash "${scripts}/check-skill-quality.sh" || failed=1
+
     section "Installation"
     bash "${scripts}/check-installation.sh" || failed=1
 
@@ -1610,9 +1613,344 @@ if (!s.text) {
 }
 __SESSION_SUMMARY_EOF__
         ;;
+      spend)
+        node - "$root" <<'__SESSION_SPEND_EOF__'
+"use strict";
+const path = require("path");
+const root = process.argv[2];
+const { getSpend } = require(path.join(root, "runtime/spend-estimator"));
+const s = getSpend();
+const totalIn  = s.total.input  || 0;
+const totalOut = s.total.output || 0;
+const total    = totalIn + totalOut;
+process.stdout.write("session token spend (estimated):\n");
+process.stdout.write("  total   : " + total.toLocaleString() + " tokens\n");
+process.stdout.write("  input   : " + totalIn.toLocaleString() + "\n");
+process.stdout.write("  output  : " + totalOut.toLocaleString() + "\n");
+const tools = Object.keys(s.byTool || {});
+if (tools.length > 0) {
+  process.stdout.write("\nby tool:\n");
+  tools.sort().forEach((t) => {
+    const b = s.byTool[t];
+    const toolTotal = (b.input || 0) + (b.output || 0);
+    process.stdout.write("  " + t.padEnd(20) + " " + toolTotal.toLocaleString() + " tokens  (" + (b.calls || 0) + " calls)\n");
+  });
+}
+__SESSION_SPEND_EOF__
+        ;;
       *)
         printf '%sUnknown session subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
-        printf 'Available: summary\n' >&2
+        printf 'Available: summary, spend\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── memory ────────────────────────────────────────────────────────────────
+  # Cross-session semantic memory: add / search / list / consolidate facts.
+  memory)
+    sub="${1:-list}"
+    shift || true
+    case "$sub" in
+      add)
+        fact_text=""
+        source_arg="operator"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --source) shift; source_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory add "<fact>" [--source <src>]\n'
+              exit 0
+              ;;
+            *) fact_text="$1" ;;
+          esac
+          shift
+        done
+        [ -n "$fact_text" ] || die "Usage: lilara-cli.sh memory add \"<fact>\" [--source <src>]"
+        node - "$root" "$fact_text" "$source_arg" <<'__MEMORY_ADD_EOF__'
+"use strict";
+const path = require("path");
+const { addFact } = require(path.join(process.argv[2], "runtime/session-memory"));
+const { id } = addFact({ fact: process.argv[3], source: process.argv[4] });
+process.stdout.write("[Lilara memory] Fact added (id=" + id + ")\n");
+__MEMORY_ADD_EOF__
+        ;;
+      search)
+        query="${1:-}"
+        shift || true
+        limit_arg="3"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit) shift; limit_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory search <query> [--limit N]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$query" "$limit_arg" <<'__MEMORY_SEARCH_EOF__'
+"use strict";
+const path = require("path");
+const { search } = require(path.join(process.argv[2], "runtime/memory-search"));
+const query  = process.argv[3] || "";
+const topK   = parseInt(process.argv[4], 10) || 3;
+const results = search(query, { topK });
+if (results.length === 0) {
+  process.stdout.write("[Lilara memory] No facts found.\n");
+  process.exit(0);
+}
+process.stdout.write("[Lilara memory] Top " + results.length + " result(s) for \"" + query + "\":\n");
+results.forEach((f, i) => {
+  const ts = f.timestamp ? f.timestamp.slice(0, 10) : "?";
+  process.stdout.write("  " + (i + 1) + ". [" + ts + "] " + f.fact + "\n");
+  process.stdout.write("     source: " + f.source + "  score: " + f.score.toFixed(2) + "\n");
+});
+__MEMORY_SEARCH_EOF__
+        ;;
+      list)
+        limit_arg="20"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --limit) shift; limit_arg="$1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory list [--limit N]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$limit_arg" <<'__MEMORY_LIST_EOF__'
+"use strict";
+const path = require("path");
+const { listFacts } = require(path.join(process.argv[2], "runtime/session-memory"));
+const limit = parseInt(process.argv[3], 10) || 20;
+const facts = listFacts({ limit });
+if (facts.length === 0) {
+  process.stdout.write("[Lilara memory] No facts stored.\n");
+  process.exit(0);
+}
+process.stdout.write("[Lilara memory] " + facts.length + " fact(s) (most recent first):\n");
+facts.forEach((f, i) => {
+  const ts = f.timestamp ? f.timestamp.slice(0, 10) : "?";
+  process.stdout.write("  " + (i + 1) + ". [" + ts + "] " + f.fact + "  (source: " + f.source + ")\n");
+});
+__MEMORY_LIST_EOF__
+        ;;
+      consolidate)
+        dry_run_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --dry-run) dry_run_arg="1" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh memory consolidate [--dry-run]\n'
+              exit 0
+              ;;
+            *) ;;
+          esac
+          shift
+        done
+        node - "$root" "$dry_run_arg" <<'__MEMORY_CONSOLIDATE_EOF__'
+"use strict";
+const path = require("path");
+const { consolidate } = require(path.join(process.argv[2], "runtime/memory-search"));
+const dryRun = process.argv[3] === "1";
+const r = consolidate({ dryRun });
+const label = dryRun ? " dry-run" : "";
+process.stdout.write("[Lilara memory] Consolidation" + label + ": " + r.merged + " duplicate(s) merged, " + r.survivors + " survivor(s).\n");
+__MEMORY_CONSOLIDATE_EOF__
+        ;;
+      *)
+        printf '%sUnknown memory subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: add, search, list, consolidate\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── init ──────────────────────────────────────────────────────────────────
+  # Initialize a project config from a blueprint template.
+  init)
+    blueprint="${1:-}"
+    shift || true
+    force=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --force|-f) force=1 ;;
+        -h|--help)
+          printf 'Usage: lilara-cli.sh init <blueprint> [--force]\n'
+          printf 'Blueprints: nextjs, fastapi, rust-cli, node-library\n'
+          exit 0 ;;
+      esac
+      shift
+    done
+    [ -n "$blueprint" ] || die "Usage: lilara-cli.sh init <blueprint> [--force]"
+    node - "$root" "$blueprint" "$force" <<'__INIT_EOF__'
+"use strict";
+const fs   = require("fs");
+const path = require("path");
+const root      = process.argv[2];
+const blueprint = process.argv[3];
+const force     = process.argv[4] === "1";
+
+const srcPath  = path.join(root, "templates", "blueprints", blueprint + ".json");
+const destPath = path.join(process.cwd(), "lilara.config.json");
+
+if (!fs.existsSync(srcPath)) {
+  process.stderr.write("[Lilara init] Unknown blueprint '" + blueprint + "'. Available: nextjs, fastapi, rust-cli, node-library\n");
+  process.exit(1);
+}
+
+if (fs.existsSync(destPath) && !force) {
+  process.stderr.write("[Lilara init] lilara.config.json already exists. Use --force to overwrite.\n");
+  process.exit(1);
+}
+
+fs.copyFileSync(srcPath, destPath);
+process.stdout.write("[Lilara init] Created lilara.config.json from blueprint '" + blueprint + "'\n");
+process.stdout.write("  Next: edit lilara.config.json to match your project, then run: bash scripts/install-local.sh\n");
+__INIT_EOF__
+    ;;
+
+  # ── skills ────────────────────────────────────────────────────────────────
+  # Skill quality scoring: score each skills/*.md on 5 dimensions.
+  skills)
+    sub="${1:-score}"
+    shift || true
+    case "$sub" in
+      score)
+        threshold_arg="2.5"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --threshold)   shift; threshold_arg="${1:-2.5}" ;;
+            --threshold=*) threshold_arg="${1#--threshold=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh skills score [--threshold N]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$threshold_arg" <<'__SKILLS_SCORE_EOF__'
+"use strict";
+const path = require("path");
+const root      = process.argv[2];
+const threshold = parseFloat(process.argv[3]) || 2.5;
+const { scoreAll } = require(path.join(root, "runtime/skill-scorer"));
+const { results, average, count } = scoreAll({ skillsDir: path.join(root, "skills") });
+
+process.stdout.write("\nskill quality scores (threshold: " + threshold + ")\n\n");
+process.stdout.write(("skill".padEnd(44)) + " score  missing\n");
+process.stdout.write(("-".repeat(72)) + "\n");
+results.sort((a, b) => a.score - b.score).forEach((r) => {
+  const name    = path.basename(r.file).replace(".md", "").padEnd(44);
+  const score   = String(r.score).padEnd(6);
+  const missing = r.missing.length > 0 ? r.missing.join(",") : "-";
+  process.stdout.write(name + score + missing + "\n");
+});
+process.stdout.write("-".repeat(72) + "\n");
+process.stdout.write("average: " + average + " / 5  (" + count + " skills)\n");
+if (average < threshold) {
+  process.stderr.write("\nWARN: average " + average + " < threshold " + threshold + "\n");
+}
+__SKILLS_SCORE_EOF__
+        ;;
+      *)
+        printf '%sUnknown skills subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: score\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── scan ──────────────────────────────────────────────────────────────────
+  # Secret scanning: history scanner uses git-history-scanner.js.
+  scan)
+    sub="${1:-history}"
+    shift || true
+    case "$sub" in
+      history)
+        format_arg="markdown"
+        since_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --since)       shift; since_arg="${1:-}" ;;
+            --since=*)     since_arg="${1#--since=}" ;;
+            --format)      shift; format_arg="${1:-markdown}" ;;
+            --format=*)    format_arg="${1#--format=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh scan history [--since YYYY-MM-DD] [--format json|markdown]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$format_arg" "$since_arg" <<'__SCAN_HISTORY_EOF__'
+"use strict";
+const path   = require("path");
+const root   = process.argv[2];
+const fmt    = process.argv[3] || "markdown";
+const since  = process.argv[4] || "";
+const { scanHistory } = require(path.join(root, "runtime/git-history-scanner"));
+const opts = { format: fmt };
+if (since) opts.since = since;
+scanHistory(opts).then((result) => {
+  if (fmt === "json") {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } else {
+    process.stdout.write(result);
+  }
+}).catch((e) => {
+  process.stderr.write("[Lilara scan history] error: " + e.message + "\n");
+  process.exit(1);
+});
+__SCAN_HISTORY_EOF__
+        ;;
+      *)
+        printf '%sUnknown scan subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: history\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+
+  # ── export ────────────────────────────────────────────────────────────────
+  # Export decision-journal entries to SARIF 2.1.0 for security tooling.
+  export)
+    sub="${1:-sarif}"
+    shift || true
+    case "$sub" in
+      sarif)
+        out_path="./lilara-decisions.sarif.json"
+        since_arg=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --since)       shift; since_arg="${1:-}" ;;
+            --since=*)     since_arg="${1#--since=}" ;;
+            --output)      shift; out_path="${1:-./lilara-decisions.sarif.json}" ;;
+            --output=*)    out_path="${1#--output=}" ;;
+            -h|--help)
+              printf 'Usage: lilara-cli.sh export sarif [--since ISO8601] [--output PATH]\n'
+              exit 0 ;;
+          esac
+          shift
+        done
+        node - "$root" "$out_path" "$since_arg" <<'__EXPORT_SARIF_EOF__'
+"use strict";
+const path   = require("path");
+const root   = process.argv[2];
+const outArg = process.argv[3];
+const since  = process.argv[4] || "";
+const { exportSarif } = require(path.join(root, "runtime/sarif-export"));
+const opts = { outputPath: outArg };
+if (since) opts.since = since;
+const result = exportSarif(opts);
+process.stdout.write("[Lilara] SARIF export: " + result.resultCount + " result(s), " + result.ruleCount + " rule(s) → " + result.outputPath + "\n");
+__EXPORT_SARIF_EOF__
+        ;;
+      *)
+        printf '%sUnknown export subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
+        printf 'Available: sarif\n' >&2
         exit 2
         ;;
     esac

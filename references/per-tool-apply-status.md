@@ -2,7 +2,7 @@
 
 Tracks which Agent Runtime Guard components are applied (wired and active) vs. template-only (file exists but not yet configured) for each supported tool.
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 ---
 
@@ -21,9 +21,9 @@ Last updated: 2026-05-25
 
 | Component | Status | Notes |
 |---|---|---|
-| Agents (54) | ✅ | Registry present in-tree; project-local Claude wiring docs and hook assets verified |
-| Rules (98) | ✅ | Full rules tree present; project-local apply path documented |
-| Skills (30) | ✅ | Full skills tree present; structure verification passing |
+| Agents (61) | ✅ | Registry present in-tree; project-local Claude wiring docs and hook assets verified |
+| Rules (103) | ✅ | Full rules tree present; project-local apply path documented |
+| Skills (36) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in mcp.json |
 | Wrapper pack | ✅ | |
 | Plugin pack | ✅ | |
@@ -37,9 +37,9 @@ Last updated: 2026-05-25
 
 | Component | Status | Notes |
 |---|---|---|
-| Agents (54) | ✅ | Registry present in-tree; OpenCode wiring plan and config template present |
-| Rules (98) | ✅ | Full rules tree present; project-local apply path documented |
-| Skills (30) | ✅ | Full skills tree present; structure verification passing |
+| Agents (61) | ✅ | Registry present in-tree; OpenCode wiring plan and config template present |
+| Rules (103) | ✅ | Full rules tree present; project-local apply path documented |
+| Skills (36) | ✅ | Full skills tree present; structure verification passing |
 | MCP pack | ✅ | Configured in opencode.json |
 | Wrapper pack | ✅ | |
 | Plugin pack | ✅ | |
@@ -53,9 +53,9 @@ Last updated: 2026-05-25
 
 | Component | Status | Notes |
 |---|---|---|
-| Agents (54) | ✅ | Full agent registry present in-tree with OpenClaw wiring plan |
-| Rules (98) | ✅ | Full rules set present in-tree |
-| Skills (30) | ✅ | Full skill set present in-tree |
+| Agents (61) | ✅ | Full agent registry present in-tree with OpenClaw wiring plan |
+| Rules (103) | ✅ | Full rules set present in-tree |
+| Skills (36) | ✅ | Full skill set present in-tree |
 | MCP pack | ✅ | Active |
 | Wrapper pack | ✅ | Active |
 | Plugin pack | ✅ | Active |

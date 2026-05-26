@@ -23,12 +23,12 @@ printf '[check-counts]\n'
 # ---------------------------------------------------------------------------
 # Expected values — update these when adding files, then update README too.
 # ---------------------------------------------------------------------------
-EXPECTED_AGENTS=54
-EXPECTED_RULES=98          # +commit-conventions
-EXPECTED_SKILLS=30         # excludes agents/README.md style files
-EXPECTED_HOOKS=16          # JS files in claude/hooks/
+EXPECTED_AGENTS=61
+EXPECTED_RULES=103         # +commit-conventions +self-review-protocol +workflow-discipline +docker-security +kubernetes-hardening +ci-cd-safety
+EXPECTED_SKILLS=36         # excludes agents/README.md style files
+EXPECTED_HOOKS=17          # JS files in claude/hooks/
 EXPECTED_FIXTURES=359      # fixture pairs; +8 for ADR-016 F21 corpus
-EXPECTED_SCRIPTS=88        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh
+EXPECTED_SCRIPTS=89        # sh + js files in scripts/; +check-pressure-tests.sh +check-evals.sh +check-skill-quality.sh
 
 # ---------------------------------------------------------------------------
 # Count from filesystem
@@ -71,10 +71,10 @@ check "scripts"  "$actual_scripts"  "$EXPECTED_SCRIPTS"
 # Spot-check README.md for at least one correct count (agents).
 # If README still says a known-wrong value, flag it.
 # ---------------------------------------------------------------------------
-if grep -q "54 agents" "$root/README.md"; then
-  pass "README.md mentions 54 agents"
+if grep -q "61 agents" "$root/README.md"; then
+  pass "README.md mentions 61 agents"
 else
-  fail "README.md does not mention '54 agents' — update README.md"
+  fail "README.md does not mention '61 agents' — update README.md"
 fi
 
 if [ "$FAILED" -ne 0 ]; then
