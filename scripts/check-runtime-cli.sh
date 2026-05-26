@@ -176,7 +176,7 @@ printf '%s\n' "$route_output" | grep -q 'workflow-lane: checks' || fail 'runtime
 printf '%s\n' "$route_output" | grep -q 'workflow-target: lilara-cli.check' || fail 'runtime explain prints checks workflow target'
 printf '%s\n' "$route_output" | grep -q 'workflow-command: lilara-cli.sh check' || fail 'runtime explain prints checks workflow command'
 
-source_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'update module' --target src/runtime/app.ts)"
+source_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'update module' --target src/runtime/app.ts --branch feature/ci-test)"
 printf '%s\n' "$source_route_output" | grep -q 'workflow-lane: checks' || fail 'runtime explain routes source-file work into checks lane'
 printf '%s\n' "$source_route_output" | grep -q 'workflow-target: lilara-cli.check' || fail 'runtime explain prints source-file checks target'
 
@@ -185,7 +185,7 @@ printf '%s\n' "$source_shape_output" | grep -q 'workflow-lane: checks' || fail '
 printf '%s\n' "$source_shape_output" | grep -q 'workflow-reason: This target looks like source code in a node project, so the safest default route is through stack-aware checks.' || fail 'runtime explain prints stack-aware source route reason'
 printf '%s\n' "$source_shape_output" | grep -q 'workflow-command: lilara-cli.sh check && npm test' || fail 'runtime explain prints stack-aware source route command'
 
-source_edit_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Edit --command 'edit module' --target src/runtime/app.ts)"
+source_edit_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Edit --command 'edit module' --target src/runtime/app.ts --branch feature/ci-test)"
 printf '%s\n' "$source_edit_output" | grep -q 'workflow-lane: checks' || fail 'runtime explain routes direct source edits into checks lane'
 printf '%s\n' "$source_edit_output" | grep -q 'workflow-reason: This target looks like source code, so direct edits should route through local checks first.' || fail 'runtime explain prints tool-aware source edit reason'
 
@@ -205,10 +205,10 @@ protected_source_edit_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" ba
 printf '%s\n' "$protected_source_edit_output" | grep -q 'workflow-lane: review' || fail 'runtime explain routes protected-branch source edits into review lane'
 printf '%s\n' "$protected_source_edit_output" | grep -q 'workflow-reason: This target looks like source code on protected branch release, so direct edits should route through review first.' || fail 'runtime explain prints protected source edit review reason'
 
- docs_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'update docs' --target docs/runtime-notes.md)"
+ docs_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'update docs' --target docs/runtime-notes.md --branch feature/ci-test)"
 printf '%s\n' "$docs_route_output" | grep -q 'workflow-lane: direct' || fail 'runtime explain keeps docs updates on direct lane by default'
 
-setup_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'setup profile full' --target lilara.config.json)"
+setup_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'setup profile full' --target lilara.config.json --branch feature/ci-test)"
 printf '%s\n' "$setup_route_output" | grep -q 'workflow-lane: setup' || fail 'runtime explain routes setup work into setup lane'
 printf '%s\n' "$setup_route_output" | grep -q 'workflow-target: lilara-cli.setup' || fail 'runtime explain prints setup workflow target'
 printf '%s\n' "$setup_route_output" | grep -q 'workflow-command: lilara-cli.sh setup' || fail 'runtime explain prints setup workflow command'
@@ -242,7 +242,7 @@ printf '%s\n' "$payload_route_output" | grep -q 'workflow-lane: payload' || fail
 printf '%s\n' "$payload_route_output" | grep -q 'workflow-target: lilara-cli.redact' || fail 'runtime explain prints payload redact target'
 printf '%s\n' "$payload_route_output" | grep -q 'workflow-command: lilara-cli.sh redact <file>' || fail 'runtime explain prints payload workflow command'
 
-class_b_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'open customer export' --target exports/customer.csv --payloadClass B)"
+class_b_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'open customer export' --target exports/customer.csv --payloadClass B --branch feature/ci-test)"
 printf '%s\n' "$class_b_route_output" | grep -q 'workflow-lane: payload' || fail 'runtime explain routes class B payloads into payload lane'
 printf '%s\n' "$class_b_route_output" | grep -q 'workflow-target: lilara-cli.review' || fail 'runtime explain prints class B review target'
 
@@ -258,10 +258,10 @@ printf '%s\n' "$class_c_route_output" | grep -q 'workflow-target: lilara-cli.rev
 class_c_blocked_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'inspect incident bundle' --target bundle.zip --payloadClass C --branch feature/incidents)"
 printf '%s\n' "$class_c_blocked_output" | grep -q 'workflow-lane: blocked' || fail 'runtime explain routes class C payloads to blocked without demote token'
 
-classify_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'classify payload.json' --target payload.json)"
+classify_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'classify payload.json' --target payload.json --branch feature/ci-test)"
 printf '%s\n' "$classify_route_output" | grep -q 'workflow-target: lilara-cli.classify' || fail 'runtime explain prints payload classify target'
 
-payload_review_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'review payload.json' --target payload.json)"
+payload_review_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'review payload.json' --target payload.json --branch feature/ci-test)"
 printf '%s\n' "$payload_review_output" | grep -q 'workflow-lane: payload' || fail 'runtime explain keeps payload review in payload lane'
 printf '%s\n' "$payload_review_output" | grep -q 'workflow-target: lilara-cli.review' || fail 'runtime explain prints payload review target'
 printf '%s\n' "$payload_review_output" | grep -q 'workflow-command: lilara-cli.sh review <file>' || fail 'runtime explain prints payload review command'
@@ -270,7 +270,7 @@ review_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root
 printf '%s\n' "$review_route_output" | grep -q 'workflow-lane: review' || fail 'runtime explain routes review work into review lane'
 printf '%s\n' "$review_route_output" | grep -q 'workflow-target: lilara-cli.review' || fail 'runtime explain prints review workflow target'
 printf '%s\n' "$review_route_output" | grep -q 'workflow-command: lilara-cli.sh review' || fail 'runtime explain prints review workflow command'
-escalate_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'git push --force origin main' --target src/app.ts)"
+escalate_route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'git push --force origin main' --target src/app.ts --branch feature/ci-test)"
 printf '%s\n' "$escalate_route_output" | grep -q 'workflow-lane: escalation' || fail 'runtime explain routes force-push into escalation lane'
 printf '%s\n' "$escalate_route_output" | grep -q 'workflow-target: human-gate' || fail 'runtime explain prints human-gate target for escalation'
 pass 'runtime escalation lane routing works'

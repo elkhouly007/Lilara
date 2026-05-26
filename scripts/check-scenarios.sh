@@ -41,7 +41,9 @@ const root = process.argv[2];
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
 
 // Scenario 1 / 7 / 8: safe read-only / local non-destructive -> allow
-const lint = decide({ command: 'npm test', targetPath: 'src/index.ts', tool: 'Bash', sessionRisk: 0 });
+// Pass an explicit non-protected branch so the test isn't sensitive to which
+// git branch CI is running on (protected-branch scoring adds +3 to risk).
+const lint = decide({ command: 'npm test', targetPath: 'src/index.ts', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (lint.action !== 'allow') throw new Error(`Scenario 1/7/8: expected allow for npm test, got ${lint.action}`);
 
 // Scenario 4: delete generated files -> require-tests or block

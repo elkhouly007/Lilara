@@ -77,7 +77,12 @@ function discover(input = {}) {
   const inferredRoot = fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath);
   const projectRoot = configPath ? path.dirname(configPath) : (rawProjectRoot || inferredRoot);
   const gitRoot = safeGit(["rev-parse", "--show-toplevel"], projectRoot) || projectRoot;
+  // Respect LILARA_BRANCH_OVERRIDE so adapter/fixture check scripts can
+  // isolate from the live git HEAD without modifying the input object.
+  // input.branch (explicitly supplied by callers) always wins first.
+  const _branchEnvOverride = String(process.env.LILARA_BRANCH_OVERRIDE || "").trim();
   const branch = String(input.branch || "").trim()
+    || _branchEnvOverride
     || safeGit(["symbolic-ref", "--short", "HEAD"], gitRoot)
     || safeGit(["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
 

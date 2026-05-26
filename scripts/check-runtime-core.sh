@@ -77,7 +77,10 @@ if (blocked.action !== 'block') throw new Error(`expected block, got ${blocked.a
 if (blocked.riskLevel !== 'critical') throw new Error(`expected critical, got ${blocked.riskLevel}`);
 
 step('decide-medium-route');
-const mediumInput = { command: ['sudo', 'systemctl', 'restart', 'app'].join(' '), targetPath: 'ops/service', tool: 'Bash', sessionRisk: 0 };
+// Pass an explicit non-protected branch so the test isn't sensitive to which
+// git branch CI is running on (protected-branch scoring adds +3 to risk,
+// pushing this from route to require-review on master/main).
+const mediumInput = { command: ['sudo', 'systemctl', 'restart', 'app'].join(' '), targetPath: 'ops/service', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' };
 const routed = decide(mediumInput);
 if (routed.action !== 'route') throw new Error(`expected route, got ${routed.action}`);
 
@@ -184,7 +187,7 @@ const lowRoute = decide({ command: 'npm test', targetPath: 'web/app.ts', tool: '
 if (lowRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected checks lane, got ${lowRoute.workflowRoute?.lane}`);
 if (lowRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.check') throw new Error(`expected checks target lilara-cli.check, got ${lowRoute.workflowRoute?.suggestedTarget}`);
 
-const sourceRoute = decide({ command: 'update module', targetPath: 'src/runtime/app.ts', tool: 'Bash', sessionRisk: 0 });
+const sourceRoute = decide({ command: 'update module', targetPath: 'src/runtime/app.ts', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (sourceRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected source route checks lane, got ${sourceRoute.workflowRoute?.lane}`);
 if (sourceRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.check') throw new Error(`expected source route target lilara-cli.check, got ${sourceRoute.workflowRoute?.suggestedTarget}`);
 
@@ -198,7 +201,7 @@ if (sourceShapeRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected
 if (!String(sourceShapeRoute.workflowRoute?.reason || '').includes('node project')) throw new Error('expected stack-aware source route reason');
 if (sourceShapeRoute.workflowRoute?.suggestedCommand !== 'lilara-cli.sh check && npm test') throw new Error(`expected stack-aware source route command, got ${sourceShapeRoute.workflowRoute?.suggestedCommand}`);
 
-const sourceEditRoute = decide({ command: 'edit module', targetPath: 'src/runtime/app.ts', tool: 'Edit', sessionRisk: 0 });
+const sourceEditRoute = decide({ command: 'edit module', targetPath: 'src/runtime/app.ts', tool: 'Edit', sessionRisk: 0, branch: 'feature/ci-test' });
 if (sourceEditRoute.workflowRoute?.lane !== 'checks') throw new Error(`expected source edit checks lane, got ${sourceEditRoute.workflowRoute?.lane}`);
 if (!String(sourceEditRoute.workflowRoute?.reason || '').includes('direct edits')) throw new Error('expected tool-aware source edit reason');
 
@@ -218,10 +221,10 @@ const protectedSourceEditRoute = decide({ command: 'edit module', targetPath: 's
 if (protectedSourceEditRoute.workflowRoute?.lane !== 'review') throw new Error(`expected protected source edit review lane, got ${protectedSourceEditRoute.workflowRoute?.lane}`);
 if (!String(protectedSourceEditRoute.workflowRoute?.reason || '').includes('direct edits should route through review first')) throw new Error('expected protected branch source edit reason');
 
-const docsRoute = decide({ command: 'update docs', targetPath: 'docs/runtime-notes.md', tool: 'Bash', sessionRisk: 0 });
+const docsRoute = decide({ command: 'update docs', targetPath: 'docs/runtime-notes.md', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (docsRoute.workflowRoute?.lane !== 'direct') throw new Error(`expected docs route direct lane, got ${docsRoute.workflowRoute?.lane}`);
 
-const setupRoute = decide({ command: 'setup profile full', targetPath: 'lilara.config.json', tool: 'Bash', sessionRisk: 0 });
+const setupRoute = decide({ command: 'setup profile full', targetPath: 'lilara.config.json', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (setupRoute.workflowRoute?.lane !== 'setup') throw new Error(`expected setup lane, got ${setupRoute.workflowRoute?.lane}`);
 if (setupRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.setup') throw new Error(`expected setup target lilara-cli.setup, got ${setupRoute.workflowRoute?.suggestedTarget}`);
 
@@ -265,7 +268,7 @@ const payloadRoute = decide({ command: 'redact payload.json', targetPath: 'paylo
 if (payloadRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected payload lane, got ${payloadRoute.workflowRoute?.lane}`);
 if (payloadRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.redact') throw new Error(`expected payload target lilara-cli.redact, got ${payloadRoute.workflowRoute?.suggestedTarget}`);
 
-const classBRoute = decide({ command: 'open customer export', targetPath: 'exports/customer.csv', tool: 'Bash', sessionRisk: 0, payloadClass: 'B' });
+const classBRoute = decide({ command: 'open customer export', targetPath: 'exports/customer.csv', tool: 'Bash', sessionRisk: 0, payloadClass: 'B', branch: 'feature/ci-test' });
 if (classBRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected class B payload lane, got ${classBRoute.workflowRoute?.lane}`);
 if (classBRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected class B payload target lilara-cli.review, got ${classBRoute.workflowRoute?.suggestedTarget}`);
 
@@ -286,10 +289,10 @@ const classCBlockedRoute = decide({ command: 'inspect incident bundle', targetPa
 if (classCBlockedRoute.workflowRoute?.lane !== 'blocked') throw new Error(`expected class C blocked lane (without demote token), got ${classCBlockedRoute.workflowRoute?.lane}`);
 if (classCBlockedRoute.floorFired !== 'secret-class-C') throw new Error(`expected class C secret-class-C floor, got ${classCBlockedRoute.floorFired}`);
 
-const classifyRoute = decide({ command: 'classify inbound.txt', targetPath: 'payload.txt', tool: 'Bash', sessionRisk: 0 });
+const classifyRoute = decide({ command: 'classify inbound.txt', targetPath: 'payload.txt', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (classifyRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.classify') throw new Error(`expected classify target lilara-cli.classify, got ${classifyRoute.workflowRoute?.suggestedTarget}`);
 
-const payloadReviewRoute = decide({ command: 'review payload.json', targetPath: 'payload.json', tool: 'Bash', sessionRisk: 0 });
+const payloadReviewRoute = decide({ command: 'review payload.json', targetPath: 'payload.json', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (payloadReviewRoute.workflowRoute?.lane !== 'payload') throw new Error(`expected payload review lane, got ${payloadReviewRoute.workflowRoute?.lane}`);
 if (payloadReviewRoute.workflowRoute?.suggestedTarget !== 'lilara-cli.review') throw new Error(`expected payload review target lilara-cli.review, got ${payloadReviewRoute.workflowRoute?.suggestedTarget}`);
 if (payloadReviewRoute.workflowRoute?.suggestedCommand !== 'lilara-cli.sh review <file>') throw new Error(`expected payload review command, got ${payloadReviewRoute.workflowRoute?.suggestedCommand}`);
@@ -341,7 +344,7 @@ if (adaptiveTestsDecision.actionPlan.promotionHint == null) throw new Error('exp
 // --- W2: escalate lane, payloadClass routing, sessionRisk routing ---
 step('W2-escalate');
 // force-push without protectedBranch → high risk, non-protected-branch, non-destructive → escalate
-const escalateDecision = decide({ command: 'git push --force origin main', targetPath: 'src/app.ts', tool: 'Bash', sessionRisk: 0 });
+const escalateDecision = decide({ command: 'git push --force origin main', targetPath: 'src/app.ts', tool: 'Bash', sessionRisk: 0, branch: 'feature/ci-test' });
 if (escalateDecision.action !== 'escalate') throw new Error(`expected escalate, got ${escalateDecision.action}`);
 if (escalateDecision.workflowRoute?.lane !== 'escalation') throw new Error(`expected escalation lane, got ${escalateDecision.workflowRoute?.lane}`);
 if (escalateDecision.workflowRoute?.suggestedSurface !== 'security-reviewer') throw new Error(`expected security-reviewer surface, got ${escalateDecision.workflowRoute?.suggestedSurface}`);
@@ -357,7 +360,9 @@ delete process.env.LILARA_F4_DEMOTE_TOKEN;
 if (classifyCDecision.workflowRoute?.lane !== 'review') throw new Error(`expected class C → review lane (with demote token), got ${classifyCDecision.workflowRoute?.lane}`);
 
 // sessionRisk bump: elevated sessionRisk should add score and affect route for borderline commands
-const sessionRiskDecision = decide({ command: 'sudo systemctl restart app', targetPath: 'ops/service', tool: 'Bash', sessionRisk: 3 });
+// Pass an explicit non-protected branch so the test isn't sensitive to which branch CI runs on
+// (protected-branch +3 stacks with sessionRisk+3 → critical/block, invalidating the assertion).
+const sessionRiskDecision = decide({ command: 'sudo systemctl restart app', targetPath: 'ops/service', tool: 'Bash', sessionRisk: 3, branch: 'feature/ci-test' });
 if (!['route', 'escalate', 'require-review'].includes(sessionRiskDecision.action)) throw new Error(`expected non-allow action with session risk, got ${sessionRiskDecision.action}`);
 if (!sessionRiskDecision.explanation.includes('session-risk')) throw new Error('expected session-risk in explanation');
 
