@@ -128,10 +128,6 @@ $skills_clean
 
   "extra_rules": [],
 
-  "hooks": {
-    "enforce_secrets": false
-  },
-
   "runtime": {
     "trust_posture": "balanced",
     "protected_branches": ["main", "master"],

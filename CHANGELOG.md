@@ -512,7 +512,7 @@ Contract scaffolding behind `LILARA_CONTRACT_ENABLED=0`. Runtime ignores contrac
 - `claude/hooks/memory-load.js`: removed hardcoded developer-machine path (`-home-khouly--openclaw-workspace-sand`). Closes W8 leaked developer path.
 - `claude/hooks/session-start.js`, `session-end.js`, `strategic-compact.js`, `memory-load.js`, `pr-notifier.js`, `build-reminder.js`, `quality-gate.js`: added `LILARA_KILL_SWITCH` guard — all 7 non-decide hooks now honor the kill switch. Closes W4 (kill-switch 7/12 gap).
 - `CLAUDE_CODE_HANDOFF.md`: replaced with redirect notice pointing to the archive.
-- `lilara.config.json.example`: removed dead `hooks.enforce_secrets` field.
+- `hooks.enforce_secrets` (dead field): fully removed from `schemas/lilara.config.schema.json`, `scripts/generate-config.sh`, `scripts/setup-wizard.sh`, `scripts/install-local.sh` (dead read into unused `config_enforce`), and `scripts/check-config-integration.sh` fixtures. Previously only removed from `lilara.config.json.example`.
 - `README.md`: corrected rule count (81→82), script count (51→54), added `check-zero-deps.sh` and `check-counts.sh` to the scripts table.
 
 ### Fixed

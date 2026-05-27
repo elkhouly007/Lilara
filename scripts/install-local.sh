@@ -83,7 +83,6 @@ config_profile=""
 config_langs=""
 config_agents=""
 config_skills=""
-config_enforce=""
 
 load_ecc_config() {
   local cfg="$1"
@@ -104,13 +103,11 @@ const profile  = typeof cfg.profile   === "string" ? cfg.profile : "";
 const langs    = Array.isArray(cfg.languages) ? cfg.languages.join(" ") : "";
 const agents   = Array.isArray(cfg.agents)    ? cfg.agents.join(" ")    : "";
 const skills   = Array.isArray(cfg.skills)    ? cfg.skills.join(" ")    : "";
-const enforce  = cfg.hooks && cfg.hooks.enforce_secrets === true ? "1" : "";
 // Output as key=value pairs for eval
 console.log("config_profile=" + JSON.stringify(profile));
 console.log("config_langs="   + JSON.stringify(langs));
 console.log("config_agents="  + JSON.stringify(agents));
 console.log("config_skills="  + JSON.stringify(skills));
-console.log("config_enforce=" + JSON.stringify(enforce));
 JSEOF
   )" || return 0
 

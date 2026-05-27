@@ -71,7 +71,6 @@ cat > "$sample_repo/lilara.config.json" <<'EOF'
   "agents": [],
   "skills": [],
   "extra_rules": [],
-  "hooks": {"enforce_secrets": false},
   "runtime": {
     "trust_posture": "strict",
     "protected_branches": ["release"],
@@ -106,7 +105,6 @@ cat > "$sample_repo/lilara.config.json" <<'EOF'
   "agents": [],
   "skills": [],
   "extra_rules": [],
-  "hooks": {"enforce_secrets": false},
   "runtime": {
     "trust_posture": "balanced",
     "protected_branches": ["release"]

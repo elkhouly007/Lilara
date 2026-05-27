@@ -45,6 +45,24 @@
         "_comment": { "type": "string" }
       },
       "additionalProperties": false
+    },
+    "taint": {
+      "type": "object",
+      "description": "Controls taint-tracking behaviour for secret/sensitive token detection.",
+      "properties": {
+        "minTokenLength": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 32,
+          "description": "Minimum token length considered for taint analysis (4–32)."
+        },
+        "safeToolClasses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tool classes whose outputs are not treated as taint sources."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
