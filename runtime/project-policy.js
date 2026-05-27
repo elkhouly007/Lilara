@@ -110,6 +110,19 @@ function loadProjectPolicy(input = {}) {
           keys: unknown.slice(0, 8).join(","),
         });
       }
+      try {
+        const { validateConfig } = require("./config-validator");
+        const validationResult = validateConfig(parsed);
+        if (validationResult && !validationResult.valid && Array.isArray(validationResult.errors) && validationResult.errors.length > 0) {
+          process.stderr.write(
+            `[Lilara] WARNING: ${path.basename(candidate)} failed schema validation: ${validationResult.errors.slice(0, 3).join("; ")}\n`
+          );
+          emitEvent("project-policy-schema-invalid", {
+            file: path.basename(candidate),
+            errorCount: String(validationResult.errors.length),
+          });
+        }
+      } catch { /* config-validator unavailable — validation is best-effort */ }
       _warnedConfigs.add(candidate);
     }
     const normalized = normalizeRuntimeConfig(parsed.runtime || {}, path.dirname(candidate));
