@@ -159,11 +159,29 @@ case "$cmd" in
     section "Runtime core"
     bash "${scripts}/check-runtime-core.sh" || failed=1
 
+    section "Floor F16 fixtures"
+    bash "${scripts}/check-floor-f16.sh" || failed=1
+
+    section "Lattice ordering"
+    bash "${scripts}/check-lattice-ordering.sh" || failed=1
+
+    section "Lattice receipts"
+    bash "${scripts}/check-lattice-receipts.sh" || failed=1
+
+    section "No implicit demotion"
+    bash "${scripts}/check-no-implicit-demotion.sh" || failed=1
+
+    section "Receipt schema"
+    bash "${scripts}/check-receipt-schema.sh" || failed=1
+
     section "Runtime CLI"
     bash "${scripts}/check-runtime-cli.sh" || failed=1
 
     section "Hook edge cases"
     bash "${scripts}/check-hook-edge-cases.sh" || failed=1
+
+    section "Session isolation"
+    bash "${scripts}/check-session-isolation.sh" || failed=1
 
     section "Apply status"
     bash "${scripts}/check-apply-status.sh" || failed=1
@@ -210,8 +228,20 @@ case "$cmd" in
     section "Contract module"
     bash "${scripts}/check-contract.sh" || failed=1
 
+    section "Migrate v2 → v3"
+    bash "${scripts}/check-migrate-v2-v3.sh" || failed=1
+
+    section "Decide on every call"
+    bash "${scripts}/check-decide-on-every-call.sh" || failed=1
+
     section "Kill-switch (all 16 hooks)"
     bash "${scripts}/check-kill-switch.sh" || failed=1
+
+    section "No stale Horus brand tokens"
+    bash "${scripts}/check-no-horus.sh" || failed=1
+
+    section "Version / CHANGELOG consistency"
+    bash "${scripts}/check-version.sh" || failed=1
 
     section "Pressure tests"
     bash "${scripts}/check-pressure-tests.sh" || failed=1
