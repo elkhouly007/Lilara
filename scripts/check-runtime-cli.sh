@@ -171,7 +171,7 @@ printf '%s\n' "$stack_tests_output" | grep -q '    - npm test' || fail 'runtime 
 printf '%s\n' "$stack_tests_output" | grep -q '    - npm run lint' || fail 'runtime explain prints stack-aware npm lint command'
 pass 'runtime adaptive action plan and promotion guidance works'
 
-route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'npm test' --target web/app.ts)"
+route_output="$(HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" bash "$root/scripts/lilara-cli.sh" runtime explain --tool Bash --command 'npm test' --target web/app.ts --branch feature/ci-test)"
 printf '%s\n' "$route_output" | grep -q 'workflow-lane: checks' || fail 'runtime explain routes low-risk verification into checks lane'
 printf '%s\n' "$route_output" | grep -q 'workflow-target: lilara-cli.check' || fail 'runtime explain prints checks workflow target'
 printf '%s\n' "$route_output" | grep -q 'workflow-command: lilara-cli.sh check' || fail 'runtime explain prints checks workflow command'

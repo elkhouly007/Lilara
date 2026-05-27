@@ -58,6 +58,15 @@ function normalizeRuntimeConfig(runtime = {}, projectRoot = "") {
 // is the dominant lever for the macOS p99. Cache is invalidated only on
 // process restart - acceptable because lilara.config.json is project-level
 // and not expected to materialize mid-session.
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  // schema-defined (schemas/lilara.config.schema.json)
+  "_comment", "profile", "languages", "agents", "skills", "extra_rules", "runtime", "workflow",
+  // used by installer scripts but not yet in schema
+  "hooks",
+  // used by runtime parser (loadProjectPolicy + taint.js) but not yet in schema
+  "taint",
+]);
+const _warnedConfigs = new Set();
 const _findConfigCache = new Map();
 function findConfig(startPath = "") {
   const start = path.resolve(startPath || process.cwd());
@@ -90,6 +99,19 @@ function loadProjectPolicy(input = {}) {
 
   try {
     const parsed = JSON.parse(fs.readFileSync(candidate, "utf8"));
+    if (!_warnedConfigs.has(candidate)) {
+      const unknown = Object.keys(parsed).filter((k) => !KNOWN_TOP_LEVEL_KEYS.has(k));
+      if (unknown.length > 0) {
+        process.stderr.write(
+          `[Lilara] WARNING: ${path.basename(candidate)} has unrecognized top-level keys (${unknown.join(", ")}) — see schemas/lilara.config.schema.json. These will be ignored; runtime falls back to defaults for the affected sections.\n`
+        );
+        emitEvent("project-policy-unknown-keys", {
+          file: path.basename(candidate),
+          keys: unknown.slice(0, 8).join(","),
+        });
+      }
+      _warnedConfigs.add(candidate);
+    }
     const normalized = normalizeRuntimeConfig(parsed.runtime || {}, path.dirname(candidate));
     if (Array.isArray(parsed.languages) && parsed.languages.length > 0) {
       const markers = parsed.languages.map(String).filter(Boolean);

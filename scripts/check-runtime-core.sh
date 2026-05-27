@@ -638,4 +638,13 @@ pass 'markdown-link-scan scanMarkdownLinks'
 node "$root/tests/runtime/protected-branch-gating.test.js" || exit 1
 pass 'protected-branch-gating hasExplicitProtectedBranches + branchExplicit'
 
+# dogfood-config regression guard — locks runtime.* schema on repo lilara.config.json
+node "$root/tests/runtime/dogfood-config.test.js" || exit 1
+pass 'dogfood-config loadProjectPolicy returns explicit protected branches'
+
+# replay-corpus drift gate — catches runtime/* changes that shift action,
+# decisionSource, floorFired, or irHash on any recorded corpus entry.
+bash "$root/scripts/check-replay-corpus.sh" || exit 1
+pass 'replay-corpus drift (corpus.jsonl, adversarial.jsonl, f16-adversarial.jsonl)'
+
 printf '\nRuntime core checks passed.\n'
