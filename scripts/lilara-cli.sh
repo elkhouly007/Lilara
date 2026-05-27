@@ -225,6 +225,18 @@ case "$cmd" in
     section "Cross-harness equivalence"
     bash "${scripts}/check-cross-harness-equivalence.sh" || failed=1
 
+    section "Adapter manifests"
+    bash "${scripts}/check-adapter-manifests.sh" || failed=1
+
+    section "Antegravity adapter"
+    bash "${scripts}/check-antegravity-adapter.sh" || failed=1
+
+    section "Codex adapter"
+    bash "${scripts}/check-codex-adapter.sh" || failed=1
+
+    section "PostToolUse adapter parity"
+    bash "${scripts}/check-post-adapter-parity.sh" || failed=1
+
     section "Contract module"
     bash "${scripts}/check-contract.sh" || failed=1
 
