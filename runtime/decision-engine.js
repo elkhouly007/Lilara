@@ -563,6 +563,7 @@ function decide(input = {}) {
     primaryStack: explicit.primaryStack || projectPolicy.primaryStack || discovered.primaryStack || null,
     repeatedApprovals: input.repeatedApprovals != null ? input.repeatedApprovals : getApprovalCount({ ...projectPolicy, ...discovered, ...explicit }),
     sessionRisk: input.sessionRisk != null ? input.sessionRisk : getSessionRisk(),
+    branchExplicit: input.branch != null && input.branch !== "",
   };
 
   // ADR-009 PR-C: classify ambient-touch ONCE per decide(); threaded into

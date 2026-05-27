@@ -634,4 +634,8 @@ pass 'eval-runner discover/runAll/toJUnit'
 node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
 pass 'markdown-link-scan scanMarkdownLinks'
 
+# protected-branch gating unit test
+node "$root/tests/runtime/protected-branch-gating.test.js" || exit 1
+pass 'protected-branch-gating hasExplicitProtectedBranches + branchExplicit'
+
 printf '\nRuntime core checks passed.\n'

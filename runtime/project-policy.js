@@ -11,6 +11,7 @@ function defaultPolicy() {
     projectScope: "global",
     trustPosture: "balanced",
     protectedBranches: ["main", "master"],
+    hasExplicitProtectedBranches: false,
     sensitivePathPatterns: ["prod", "production", "secrets", "credentials", ".env", "terraform", "infra"],
     taintMinTokenLength: 6,
   taintSafeToolClasses: ["Read", "Grep", "Glob", "LS", "NotebookRead"],
@@ -26,6 +27,8 @@ function normalizeRuntimeConfig(runtime = {}, projectRoot = "") {
     protectedBranches: Array.isArray(runtime.protected_branches) && runtime.protected_branches.length > 0
       ? runtime.protected_branches.map(String)
       : fallback.protectedBranches,
+    hasExplicitProtectedBranches:
+      Array.isArray(runtime.protected_branches) && runtime.protected_branches.length > 0,
     sensitivePathPatterns: Array.isArray(runtime.sensitive_path_patterns) && runtime.sensitive_path_patterns.length > 0
       ? runtime.sensitive_path_patterns.map(String)
       : fallback.sensitivePathPatterns,
@@ -115,4 +118,4 @@ function loadProjectPolicy(input = {}) {
   }
 }
 
-module.exports = { defaultPolicy, findConfig, loadProjectPolicy };
+module.exports = { defaultPolicy, normalizeRuntimeConfig, findConfig, loadProjectPolicy };

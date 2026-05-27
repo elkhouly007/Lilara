@@ -12,6 +12,8 @@ function normalize(input = {}) {
     payloadClass: String(input.payloadClass || "A").trim().toUpperCase(),
     branch: String(input.branch || "").trim(),
     protectedBranch: Boolean(input.protectedBranch),
+    hasExplicitProtectedBranches: Boolean(input.hasExplicitProtectedBranches),
+    branchExplicit: Boolean(input.branchExplicit),
     repeatedApprovals: Number(input.repeatedApprovals || 0),
     sessionRisk: Number(input.sessionRisk || 0),
     trustPosture: String(input.trustPosture || "balanced").trim(),
@@ -122,7 +124,11 @@ function score(input = {}) {
     reasons.push("payload-class-c");
   }
 
-  const branchProtected = ctx.protectedBranch || (ctx.branch && ctx.protectedBranches.some((p) => globMatch(ctx.branch, p)));
+  const branchProtected = ctx.protectedBranch || (
+    ctx.branch
+    && ctx.protectedBranches.some((p) => globMatch(ctx.branch, p))
+    && (ctx.hasExplicitProtectedBranches || ctx.branchExplicit)
+  );
   if (branchProtected) {
     value += 3;
     reasons.push("protected-branch");
