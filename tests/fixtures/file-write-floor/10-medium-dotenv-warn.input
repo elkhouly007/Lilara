@@ -1,0 +1,18 @@
+{
+  "title": "F24/10: Edit in-project .env → modify/warn (medium sensitivity, score 3) — borderline control",
+  "input": {
+    "tool": "Edit",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/.env",
+    "file_path": "{{projectRoot}}/.env"
+  },
+  "expected": {
+    "action": "modify",
+    "floorFired": null,
+    "rung": null,
+    "irHashPresent": true
+  }
+}

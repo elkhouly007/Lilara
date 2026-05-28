@@ -1,0 +1,19 @@
+{
+  "title": "F24/11: Edit in-project .github/workflows/ci.yml → route/warn (CI/CD config, score 3) — borderline control",
+  "input": {
+    "tool": "Edit",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/.github/workflows/ci.yml",
+    "file_path": "{{projectRoot}}/.github/workflows/ci.yml"
+  },
+  "expected": {
+    "action": "route",
+    "floorFired": null,
+    "rung": null,
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["file-write-cicd-config"]
+  }
+}

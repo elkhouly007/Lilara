@@ -1,0 +1,21 @@
+{
+  "title": "F24/07: Write to ~/.ssh/id_rsa (outside project) → F16 fires (ambient-authority), NOT F24 — boundary test",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "/home/user/.ssh/id_rsa",
+    "file_path": "/home/user/.ssh/id_rsa"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "ambient-authority-denied",
+    "floorFired": "ambient-authority",
+    "rung": 17.5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["ambient-authority-denied"]
+  }
+}

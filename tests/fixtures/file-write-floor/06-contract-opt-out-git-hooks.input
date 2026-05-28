@@ -1,0 +1,32 @@
+{
+  "title": "F24/06: Write to .git/hooks/pre-commit WITH contract scopes.files.allow=[**/.git/hooks/*] → allow (operator opt-out)",
+  "contract": {
+    "version": 1,
+    "contractId": "lilara-20260101-000000000f24",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "operator",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "files": {
+        "allow": ["**/.git/hooks/*"]
+      }
+    }
+  },
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/.git/hooks/pre-commit",
+    "file_path": "{{projectRoot}}/.git/hooks/pre-commit"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "irHashPresent": true
+  }
+}

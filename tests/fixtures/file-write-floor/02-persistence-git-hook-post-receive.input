@@ -1,0 +1,21 @@
+{
+  "title": "F24/02: Write to in-project .git/hooks/post-receive → block (persistence variant, nonAmbient)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/.git/hooks/post-receive",
+    "file_path": "{{projectRoot}}/.git/hooks/post-receive"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "credential-persistence-write-denied",
+    "floorFired": "credential-persistence-write",
+    "rung": 17.625,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["credential-persistence-write-denied"]
+  }
+}

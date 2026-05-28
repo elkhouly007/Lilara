@@ -1,0 +1,19 @@
+{
+  "title": "F24/09: Edit in-project package-lock.json → allow (lockfile +1 score, below threshold) — FP control",
+  "input": {
+    "tool": "Edit",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/package-lock.json",
+    "file_path": "{{projectRoot}}/package-lock.json"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["file-write-lockfile"]
+  }
+}

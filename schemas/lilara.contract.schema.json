@@ -283,6 +283,19 @@
               "default": []
             }
           }
+        },
+        "files": {
+          "description": "F24: in-project credential/persistence write opt-out. Contract opt-out for the credential-persistence-write floor. Paths are matched as glob patterns against the write target. Use sparingly — F24 blocks paths that are almost never legitimate for an autonomous agent to modify.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow": {
+              "type": "array",
+              "description": "F24 opt-out: list of glob patterns (same syntax as scopes.ambient.allow pathPrefix). Writes to paths matching any of these globs bypass the credential-persistence-write hard floor. Example: ['**/.git/hooks/*'] to permit git-hook scaffolding tools.",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
         }
       },
       "additionalProperties": false

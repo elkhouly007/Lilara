@@ -162,11 +162,17 @@ case "$cmd" in
     section "Floor F16 fixtures"
     bash "${scripts}/check-floor-f16.sh" || failed=1
 
+    section "File-write floor fixtures (F24)"
+    bash "${scripts}/check-file-write-floor.sh" || failed=1
+
     section "Lattice ordering"
     bash "${scripts}/check-lattice-ordering.sh" || failed=1
 
     section "Lattice receipts"
     bash "${scripts}/check-lattice-receipts.sh" || failed=1
+
+    section "Kill chain"
+    bash "${scripts}/check-kill-chain.sh" || failed=1
 
     section "No implicit demotion"
     bash "${scripts}/check-no-implicit-demotion.sh" || failed=1

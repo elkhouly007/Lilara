@@ -350,10 +350,6 @@ function score(input = {}) {
       const eff = sens || classifyPathSensitivity(p);
       const persist = PERSISTENCE_PATTERNS.some((re) => re.test(p));
       const deploy  = classifyDeployTarget(p);
-      // Whether this path is the flat-field path that already went through
-      // the sensitivePattern check above (ctx.targetPath or file_path fallback).
-      const isFlatFieldPath = p === ctx.targetPath || p === String(input.file_path || "");
-
       let s = 0;
       let r = null;
       if (eff === "high") {
@@ -362,8 +358,10 @@ function score(input = {}) {
         s = 5; r = "file-write-persistence";
       } else if (deploy === "system") {
         s = 5; r = "file-write-system-path";
-      } else if (eff === "medium" && !(sensitiveTargetAlreadyScored && isFlatFieldPath)) {
-        // Skip if the pre-existing sensitive-target-path check already fired on this path.
+      } else if (eff === "medium" && !(sensitiveTargetAlreadyScored && sensitivePattern.test(p))) {
+        // Skip if the pre-existing sensitive-target-path check already scored this same
+        // path class. Checked via sensitivePattern.test(p) to avoid Windows path
+        // normalization differences between IR-derived and flat-field paths.
         s = 3; r = "file-write-medium-sensitivity";
       } else if (deploy === "cicd") {
         s = 3; r = "file-write-cicd-config";

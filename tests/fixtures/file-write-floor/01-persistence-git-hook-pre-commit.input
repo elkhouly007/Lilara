@@ -1,0 +1,21 @@
+{
+  "title": "F24/01: Write to in-project .git/hooks/pre-commit → block (persistence, nonAmbient — F16 skips, F24 fires)",
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/.git/hooks/pre-commit",
+    "file_path": "{{projectRoot}}/.git/hooks/pre-commit"
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "credential-persistence-write-denied",
+    "floorFired": "credential-persistence-write",
+    "rung": 17.625,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["credential-persistence-write-denied"]
+  }
+}
