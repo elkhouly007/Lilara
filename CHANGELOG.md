@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - **docs(owasp): note Cap 1 universal tool coverage** — `references/owasp-agentic-coverage.md` ASI02 records `**Cap 1 (Universal Tool Coverage):**` (F24 floor + file-write scoring arms, MCP scoring, WebFetch network scoring). ASI04 records `**Cap 1 (F4 MCP arg scan):**` (F4 extended to scan `JSON.stringify(tool_input)` for class-C secrets in MCP calls) and `**Cap 1 (F18 WebFetch):**` (F18 evaluates `ir.networkTargets` for native WebFetch tool calls, not just command strings).
 
+### Fixed
+
+- **fix(universal-coverage): F24 and file-write scoring must gate on toolKind + skip ambient paths** — Two boundary conditions corrected: (1) `_evalCredPersistFloor` (F24) and the file-write scoring arm in `risk-score.js` must check `isFileWriteTool` (Edit/Write toolKind) before firing. Bash commands carry `targetPath` as project-scope metadata, not as a file being written; F24 on Bash `targetPath` incorrectly overrode the normal trust=strict explanation for commands like `sudo systemctl restart api` that happen to target a `vault/` directory. (2) Both F24 and the file-write scoring arm must skip paths classified as ambient by `isAmbientPath()` from `runtime/ambient.js`. F16 (rung 17.5) owns ambient paths (ssh, shell-rc, credentialHelper, etc.) — when an operator uses `scopes.ambient.allow` to opt in, the allowed path must not be re-blocked by F24 or re-scored by the file-write arm. Fixed: F16 fixture 08 (AWS credentials pathprefix opt-in → allow); F20 fixture (change-intent-drift blocked before rung 18.5 by `file-write-system-path` score); `check-config-integration.sh` strict trust posture explanation test.
+
 ---
 
 ## [0.1.5] — 2026-05-28
