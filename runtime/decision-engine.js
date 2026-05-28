@@ -1374,8 +1374,15 @@ function decide(input = {}) {
       // by F4 just like a command string carrying the same content.
       if (!secretInCommand && (enriched.ir?.toolKind === "mcp" || String(input.tool || "").startsWith("mcp__"))) {
         try {
-          const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
-          secretInCommand = Boolean(_scanSecrets(mcpPayload));
+          // NEW (Task 3): if contract explicitly allows this MCP server, skip secret scan —
+          // credential args are legitimate for trusted servers (DB connectors, secrets managers, etc.).
+          const _mcpSrv = enriched.ir?.mcpServer || _contractExtractMcpServerName(input.tool);
+          if (_contractGetMcpPolicy(contract, _mcpSrv) === "allow") {
+            // server is explicitly trusted; credential args are legitimate — no scan
+          } else {
+            const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
+            secretInCommand = Boolean(_scanSecrets(mcpPayload));
+          }
         } catch { /* scan or serialize unavailable — skip */ }
       }
     }
