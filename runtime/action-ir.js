@@ -297,7 +297,7 @@ function _classifyPathSensitivity(p) {
 
 function _extractMcpServer(tool) {
   if (typeof tool !== "string") return null;
-  const m = tool.match(/^mcp__([^_]+)__/);
+  const m = tool.match(/^mcp__([^_]+(?:_[^_]+)*?)__/);
   return m ? m[1] : null;
 }
 

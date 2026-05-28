@@ -164,6 +164,8 @@ const RULES = Object.freeze([
   { cls: "mcpConfig", re: /(^|\/)\.continue(\/|$)/i },
   { cls: "mcpConfig", re: /(^|\/)\.codeium(\/|$)/i },
   { cls: "mcpConfig", re: /(^|\/)\.cline(\/|$)/i },
+  { cls: "mcpConfig", re: /(^|\/)\.mcp\.json$/i },
+  { cls: "mcpConfig", re: /(^|\/)mcp\.json$/i },
 
   // -- Browser profiles (cookies, login data, autofill) --
   { cls: "browserProfile", re: /(^|\/)\.mozilla\/firefox(\/|$)/i },
