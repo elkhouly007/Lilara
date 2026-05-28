@@ -6,6 +6,7 @@ const { detectBypassPatterns } = require("./shell-bypass-detector");
 const { normalizeCommand }     = require("./command-normalize");
 const { classifyDeployTarget, classifyPathSensitivity } = require("./action-ir");
 const { PERSISTENCE_PATTERNS } = require("./provenance-graph");
+const { isAmbientPath } = require("./ambient");
 
 // Package registries that are always allow (no egress warning) even without
 // a network policy — fetching from these is routine CI/dev work.
@@ -320,23 +321,32 @@ function score(input = {}) {
   // Flat-field fallback (targetPath/file_path) fires even in replay where
   // decide() is called without an attached IR.
 
-  // --- File-write scoring ---
+  // --- File-write scoring (Edit/Write tools only) ---
+  // Only score when the tool is an explicit file-write (Edit/Write). Bash
+  // commands that carry fileTargets in the IR are already scored by the
+  // pattern-matching arms above; applying file-write arms to them would
+  // double-count and push legitimate commands into critical.
   {
     const ir = input.ir;
+    const isFileWriteTool =
+      (ir && ir.toolKind === "file-write") ||
+      /^(edit|write)$/i.test(String(input.tool || ""));
     // Collect (path, sensitivity) tuples from IR fileTargets (write/delete) and
     // flat-field fallback so replay still works.
     const writePaths = [];
-    if (ir && Array.isArray(ir.fileTargets)) {
-      for (const t of ir.fileTargets) {
-        if (t && (t.intent === "write" || t.intent === "delete") && typeof t.path === "string") {
-          writePaths.push({ path: t.path, sensitivity: t.sensitivity || null });
+    if (isFileWriteTool) {
+      if (ir && Array.isArray(ir.fileTargets)) {
+        for (const t of ir.fileTargets) {
+          if (t && (t.intent === "write" || t.intent === "delete") && typeof t.path === "string") {
+            writePaths.push({ path: t.path, sensitivity: t.sensitivity || null });
+          }
         }
       }
-    }
-    if (writePaths.length === 0) {
-      // flat-field fallback
-      const fp = ctx.targetPath || String(input.file_path || "");
-      if (fp) writePaths.push({ path: fp, sensitivity: null });
+      if (writePaths.length === 0) {
+        // flat-field fallback
+        const fp = ctx.targetPath || String(input.file_path || "");
+        if (fp) writePaths.push({ path: fp, sensitivity: null });
+      }
     }
 
     // Guard: the pre-existing sensitive-target-path check already scores +3 for
@@ -347,6 +357,11 @@ function score(input = {}) {
     let maxFileScore = 0;
     let fileReason = null;
     for (const { path: p, sensitivity: sens } of writePaths) {
+      // Ambient paths (ssh, shell-rc, aws-credentials, etc.) are governed by
+      // the F16 ambient-authority floor. Skip them here so a contract with
+      // scopes.ambient.allow can allow the path without triggering a critical
+      // score that bypasses the F16 gating decision.
+      if (isAmbientPath(p)) continue;
       const eff = sens || classifyPathSensitivity(p);
       const persist = PERSISTENCE_PATTERNS.some((re) => re.test(p));
       const deploy  = classifyDeployTarget(p);

@@ -118,7 +118,7 @@ const { globMatch: _globMatch } = require("./glob-match");
 // ADR-009 PR-B: ambient-authority classifier. Hoisted import; the F16 wiring
 // site wraps evaluation in try/catch so an unexpected runtime throw inside
 // ambient.js fails open (zero-dep / fail-open policy).
-const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
+const { classifyAmbientPath: _classifyAmbientPath, isAmbientPath: _isAmbientPath } = require("./ambient");
 // F17 PR-A: cross-agent-lock helper. State-dir-local; reads
 // `<LILARA_STATE_DIR>/cross-agent-locks/*.json` to detect a conflicting
 // lock owned by another agent/session for a write-like call.
@@ -458,6 +458,9 @@ function _evalCredPersistFloor(input, contract) {
   const allow = contract && contract.scopes && contract.scopes.files && Array.isArray(contract.scopes.files.allow)
     ? contract.scopes.files.allow : null;
   for (const { path, sensitivity } of targets) {
+    // F16 owns ambient paths (ssh, shell-rc, packageCache, etc.) — skip so F16
+    // opt-ins via scopes.ambient.allow are not overridden by F24.
+    if (_isAmbientPath(path)) continue;
     const highSens = sensitivity === "high" || _isHighSensitivityPath(path);
     const persist  = _isPersistencePath(path);
     if (!highSens && !persist) continue;
