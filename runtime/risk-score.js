@@ -4,6 +4,20 @@
 const { globMatch }  = require("./glob-match");
 const { detectBypassPatterns } = require("./shell-bypass-detector");
 const { normalizeCommand }     = require("./command-normalize");
+const { classifyDeployTarget, classifyPathSensitivity } = require("./action-ir");
+const { PERSISTENCE_PATTERNS } = require("./provenance-graph");
+
+// Package registries that are always allow (no egress warning) even without
+// a network policy — fetching from these is routine CI/dev work.
+const _REGISTRY_HOSTS = new Set([
+  "registry.npmjs.org", "registry.yarnpkg.com",
+  "pypi.org", "files.pythonhosted.org",
+  "crates.io", "static.crates.io",
+  "pkg.go.dev", "sum.golang.org", "proxy.golang.org",
+  "rubygems.org", "api.rubygems.org",
+  "packagist.org", "repo1.maven.org",
+  "nuget.org", "api.nuget.org",
+]);
 
 function normalize(input = {}) {
   return {
@@ -297,6 +311,151 @@ function score(input = {}) {
   } else if (pathSensitivity === "medium") {
     value += 1;
     reasons.push("path-sensitivity-medium");
+  }
+
+  // ── Universal tool coverage (file-write / MCP / network) ─────────────────
+  // Scores non-Bash tool calls whose targets are classified in the IR but
+  // previously received no numeric risk. Takes MAX per category, never sums
+  // across many targets, to avoid spurious spikes from large edit sets.
+  // Flat-field fallback (targetPath/file_path) fires even in replay where
+  // decide() is called without an attached IR.
+
+  // --- File-write scoring ---
+  {
+    const ir = input.ir;
+    // Collect (path, sensitivity) tuples from IR fileTargets (write/delete) and
+    // flat-field fallback so replay still works.
+    const writePaths = [];
+    if (ir && Array.isArray(ir.fileTargets)) {
+      for (const t of ir.fileTargets) {
+        if (t && (t.intent === "write" || t.intent === "delete") && typeof t.path === "string") {
+          writePaths.push({ path: t.path, sensitivity: t.sensitivity || null });
+        }
+      }
+    }
+    if (writePaths.length === 0) {
+      // flat-field fallback
+      const fp = ctx.targetPath || String(input.file_path || "");
+      if (fp) writePaths.push({ path: fp, sensitivity: null });
+    }
+
+    // Guard: the pre-existing sensitive-target-path check already scores +3 for
+    // prod/infra/terraform/secrets paths on ctx.targetPath. Skip the medium
+    // classification for those flat-field paths to avoid double-counting.
+    const sensitiveTargetAlreadyScored = reasons.includes("sensitive-target-path");
+
+    let maxFileScore = 0;
+    let fileReason = null;
+    for (const { path: p, sensitivity: sens } of writePaths) {
+      const eff = sens || classifyPathSensitivity(p);
+      const persist = PERSISTENCE_PATTERNS.some((re) => re.test(p));
+      const deploy  = classifyDeployTarget(p);
+      // Whether this path is the flat-field path that already went through
+      // the sensitivePattern check above (ctx.targetPath or file_path fallback).
+      const isFlatFieldPath = p === ctx.targetPath || p === String(input.file_path || "");
+
+      let s = 0;
+      let r = null;
+      if (eff === "high") {
+        s = 7; r = "file-write-high-sensitivity";
+      } else if (persist) {
+        s = 5; r = "file-write-persistence";
+      } else if (deploy === "system") {
+        s = 5; r = "file-write-system-path";
+      } else if (eff === "medium" && !(sensitiveTargetAlreadyScored && isFlatFieldPath)) {
+        // Skip if the pre-existing sensitive-target-path check already fired on this path.
+        s = 3; r = "file-write-medium-sensitivity";
+      } else if (deploy === "cicd") {
+        s = 3; r = "file-write-cicd-config";
+      } else if (deploy === "lockfile") {
+        s = 1; r = "file-write-lockfile";
+      }
+      if (s > maxFileScore) { maxFileScore = s; fileReason = r; }
+    }
+    if (maxFileScore > 0 && fileReason) {
+      value += maxFileScore;
+      reasons.push(fileReason);
+    }
+  }
+
+  // --- MCP scoring ---
+  {
+    const ir = input.ir;
+    const isMcp = (ir && ir.toolKind === "mcp") ||
+                  String(input.tool || "").startsWith("mcp__");
+    if (isMcp) {
+      // Baseline: every MCP call adds +1 (visibility, stays allow)
+      value += 1;
+      reasons.push("mcp-baseline");
+
+      // Arg payload path scan — check if MCP arguments reference sensitive paths
+      let argStr = "";
+      try {
+        argStr = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
+      } catch { /* ignore */ }
+      if (argStr) {
+        // Extract path-like segments from arg payload and classify
+        const pathRe = /(?:[A-Za-z]:[\\/]|\/)[^\s"'`,;{}[\]]+/g;
+        let maxArgScore = 0;
+        let argReason = null;
+        let m;
+        while ((m = pathRe.exec(argStr)) !== null) {
+          const ap = m[0];
+          const s = classifyPathSensitivity(ap);
+          if (s === "high" && 4 > maxArgScore) { maxArgScore = 4; argReason = "mcp-sensitive-path-arg"; }
+          else if (s === "medium" && 2 > maxArgScore) { maxArgScore = 2; argReason = "mcp-sensitive-path-arg"; }
+        }
+        if (maxArgScore > 0 && argReason) {
+          value += maxArgScore;
+          reasons.push(argReason);
+        }
+      }
+    }
+  }
+
+  // --- Network scoring (numeric visibility even without a network policy) ---
+  {
+    const ir = input.ir;
+    let maxNetScore = 0;
+    let netReason = null;
+
+    const evalTarget = (host, scheme, ipLiteral, isLoopback) => {
+      if (isLoopback) return;
+      if (ipLiteral) {
+        if (3 > maxNetScore) { maxNetScore = 3; netReason = "network-ip-literal"; }
+        return;
+      }
+      const h = String(host || "").toLowerCase();
+      if (_REGISTRY_HOSTS.has(h)) return;       // package registry — exempt
+      if (scheme === "http") {
+        if (2 > maxNetScore) { maxNetScore = 2; netReason = "network-plaintext"; }
+      } else {
+        if (1 > maxNetScore) { maxNetScore = 1; netReason = "network-egress-observed"; }
+      }
+    };
+
+    if (ir && Array.isArray(ir.networkTargets) && ir.networkTargets.length > 0) {
+      for (const t of ir.networkTargets) {
+        if (t && t.host) evalTarget(t.host, t.scheme, t.ipLiteral, t.isLoopback);
+      }
+    }
+    // flat-field fallback: extract from command string for replay
+    if (maxNetScore === 0 && ctx.command) {
+      const urlRe = /\bhttps?:\/\/([^\s'"<>`|;&)]+)/gi;
+      let um;
+      while ((um = urlRe.exec(ctx.command)) !== null) {
+        try {
+          const u = new URL(um[0].replace(/[.,;:'"`)]+$/, ""));
+          const isIp = /^[0-9.]+$/.test(u.hostname) || /^\[?[0-9a-f:]+\]?$/i.test(u.hostname);
+          const isLoop = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "::1";
+          evalTarget(u.hostname, u.protocol.replace(/:$/, ""), isIp, isLoop);
+        } catch { /* skip unparseable */ }
+      }
+    }
+    if (maxNetScore > 0 && netReason) {
+      value += maxNetScore;
+      reasons.push(netReason);
+    }
   }
 
   // ── Shell-AST bypass detection ───────────────────────────────────────────

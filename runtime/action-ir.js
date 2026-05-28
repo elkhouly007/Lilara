@@ -748,4 +748,5 @@ module.exports = {
   canonicalize,
   irHash,
   classifyDeployTarget,
+  classifyPathSensitivity: _classifyPathSensitivity,
 };
