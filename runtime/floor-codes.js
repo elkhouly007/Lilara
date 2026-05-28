@@ -78,6 +78,9 @@ const FLOOR_CODES = Object.freeze({
   // ── F24 credential-persistence-write ─────────────────────────────────────────
   "credential-persistence-write":         "F24_CRED_PERSISTENCE_WRITE",
   "credential-persistence-write-denied":  "F24_CRED_PERSISTENCE_WRITE",
+  // ── F25 mcp-arg-danger ───────────────────────────────────────────────────────
+  "mcp-arg-danger":                        "F25_MCP_ARG_DANGER",
+  "mcp-arg-danger-denied":                 "F25_MCP_ARG_DANGER",
 });
 
 function floorCodeFor(reasonCode) {
