@@ -182,6 +182,10 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // mcp-result-injection reason code and reinforce the F23 provenance record
         // (lower token threshold) so downstream dangerous commands trip the kill chain.
         //
+        // Note: for the literal toolName "mcp" (in EXTERNAL_TOOLS), scanForInjection
+        // also ran in block 2b. The double-scan and double-journal for that case is
+        // intentional — 2b logs the generic F21 signal; 2d logs the MCP-specific F23b.
+        //
         // Coverage limitation (same as F23 / ADR-017): full on Claude Code only;
         // OpenCode/OpenClaw partial (PostToolUse may not fire for all tools);
         // Codex, ClawCode, Antegravity: none — these harnesses lack PostToolUse hooks.
@@ -203,12 +207,18 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
                   targetPath: "",
                   notes: `F23:mcp-injection:${harnessName}:${mcpIds}`,
                   floorFired: "mcp-result-injection",
-                  code: "F23_PROVENANCE_TAINT",
+                  code: "F23_MCP_RESULT_INJECTION",
                 });
               } catch { /* journal is best-effort */ }
               if (_tokenHashSet && _recordProvenanceStep) {
                 try {
                   const injTokens = _tokenHashSet(text.slice(0, 8192));
+                  // Intentionally lower than the standard MIN_SHARED_COUNT (3) threshold
+                  // used in block 2c. Injection signals provide independent evidence of
+                  // danger; even a single-token node extends the provenance graph and
+                  // ensures subsequent high-risk commands see this source in kill-chain
+                  // evaluation. Nodes with < 3 tokens won't drive kill-chain overlap
+                  // alone but combine with other nodes from the current session.
                   if (injTokens.length > 0) {
                     _recordProvenanceStep({
                       role:        "source",

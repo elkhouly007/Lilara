@@ -84,6 +84,10 @@ const FLOOR_CODES = Object.freeze({
   // ── F26 mcp-registration-write ───────────────────────────────────────────────
   "mcp-registration-write":               "F26_MCP_REGISTRATION_WRITE",
   "mcp-registration-write-denied":        "F26_MCP_REGISTRATION_WRITE",
+  // ── F23b mcp-result-injection (ADR-017 extension) ─────────────────────────────
+  // Observe-only sub-signal of F23: injection patterns detected in MCP tool
+  // output. Reinforces the F23 provenance graph (PostToolUse only, Claude Code).
+  "mcp-result-injection":                 "F23_MCP_RESULT_INJECTION",
 });
 
 function floorCodeFor(reasonCode) {
