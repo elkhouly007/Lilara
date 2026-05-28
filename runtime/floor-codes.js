@@ -72,6 +72,12 @@ const FLOOR_CODES = Object.freeze({
   "compaction-survival-detected":   "F21_COMPACTION_SURVIVAL",
   // ── F22 commit-format-violation ─────────────────────────────────────────────
   "commit-format-violation":        "F22_COMMIT_FORMAT_VIOLATION",
+  // ── F23 data-flow-kill-chain ─────────────────────────────────────────────────
+  "data-flow-kill-chain":           "F23_DATA_FLOW_KILL_CHAIN",
+  "data-flow-kill-chain-detected":  "F23_DATA_FLOW_KILL_CHAIN",
+  // ── F24 credential-persistence-write ─────────────────────────────────────────
+  "credential-persistence-write":         "F24_CRED_PERSISTENCE_WRITE",
+  "credential-persistence-write-denied":  "F24_CRED_PERSISTENCE_WRITE",
 });
 
 function floorCodeFor(reasonCode) {
