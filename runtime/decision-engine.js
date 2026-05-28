@@ -1376,12 +1376,11 @@ function decide(input = {}) {
         try {
           // NEW (Task 3): if contract explicitly allows this MCP server, skip secret scan —
           // credential args are legitimate for trusted servers (DB connectors, secrets managers, etc.).
-          const _mcpSrv = enriched.ir?.mcpServer || _contractExtractMcpServerName(input.tool);
-          if (_contractGetMcpPolicy(contract, _mcpSrv) === "allow") {
-            // server is explicitly trusted; credential args are legitimate — no scan
-          } else {
+          const mcpSrv = enriched.ir?.mcpServer || _contractExtractMcpServerName(input.tool);
+          if (_contractGetMcpPolicy(contract, mcpSrv) !== "allow") {
             const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
             secretInCommand = Boolean(_scanSecrets(mcpPayload));
+            // policy === "allow" → server explicitly trusted; credential args legitimate, skip scan
           }
         } catch { /* scan or serialize unavailable — skip */ }
       }

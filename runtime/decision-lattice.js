@@ -151,8 +151,8 @@ const LATTICE = Object.freeze([
     // operator token (LILARA_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
     // authority to demote `block` → `require-review`. No other source qualifies.
     demotableBy: ["operator-token:class-c-review-demote"],
-    predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets)",
-    notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token.",
+    predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets); scopes.mcp[server].policy==='allow' suppresses MCP arg scan arm",
+    notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token. scopes.mcp[server].policy === 'allow' suppresses the MCP arg scan arm for explicitly trusted servers.",
   }),
   Object.freeze({
     id: "F10",
