@@ -10,6 +10,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.4] — 2026-05-28
+
+### Added
+
+- **feat(risk-score): add 8 new detection patterns for critical threat coverage** — `runtime/risk-score.js` gains eight pattern groups, all using the dual-path `matches()` helper (ADR-008 Unicode-bypass resistance): `reverse-shell-pattern` (+9; `/dev/tcp/host/port` bash redirect, `nc -e /bin/sh`, `socat exec:/bin/bash` — the `/dev/tcp/` arm also catches data-out exfil), `authorized-keys-modification` (+7; `>>`/`>`/`tee` to `~/.ssh/authorized_keys`), `sensitive-file-network-exfil` (+8; `cat` of `/etc/passwd|shadow|sudoers`, `id_rsa`, `.aws/credentials`, `.env`, etc. piped to `curl|wget|nc|ncat|socat`), `env-exfil-pattern` (+7; `env`/`printenv`/`export -p` piped to a network tool), `persistence-crontab` (+5; `| crontab -` stdin install or `crontab <` heredoc), `shell-startup-modification` (+4; write/append to `~/.bashrc`/`~/.bash_profile`/`~/.zshrc`/`~/.profile` etc.), `suid-chmod-pattern` (+6; `chmod u+s`/`g+s`/`o+s` or 4-digit octal with leading `[4-7]`), and `interpreter-exec-system` (+5; `python|perl|node|ruby -c/-e` combined with `os.system`/`subprocess`/`child_process`/`execSync`/`popen` indicators). `tests/eval-corpus.json` grows 57 → 82 entries (+9 dangerous block-class, +6 borderline warn-class, +10 safe controls). No regressions: FP 0.0% (0/39), FN 0.0% (0/21), fixtures 370/370, replay corpus 97/97 with zero drift.
+
+### Fixed
+
+- **fix(hardening): wire adapter check scripts into the `check` body** — `scripts/lilara-cli.sh` now invokes `check-adapter-manifests.sh`, `check-antegravity-adapter.sh`, `check-codex-adapter.sh`, and `check-post-adapter-parity.sh` from the fast `check` loop (immediately after Cross-harness equivalence); all four pass cleanly on Windows. `check-action-ir-parity.sh` is intentionally not wired — its `rm-rf` scenario fails on Windows because the expected fixture IR uses POSIX-absolute paths while `path.resolve('/data/old')` resolves to `C:\data\old`; the other 5 scenarios pass byte-identical. Tracked for follow-up.
+
+### Changed
+
+- **docs(owasp): note new ASI01/ASI02/ASI04 coverage** — `references/owasp-agentic-coverage.md` records the new detections: ASI01 (A5) reverse-shell, interpreter shell-out, and sensitive-file-to-network exfil; ASI02 (B3) persistence vectors (`crontab -`, shell-init writes, setuid bit); ASI04 (A5) SSH backdoor, env-dump exfil, and sensitive-file-to-network exfil now scored at critical.
+
+---
+
 ## [0.1.3] — 2026-05-27
 
 ### Added
