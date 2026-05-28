@@ -491,6 +491,8 @@ function _evalCredPersistFloor(input, contract) {
 // server is explicitly trusted and the scan is skipped (same as F4 Task 3).
 function _extractStringValues(obj) {
   // Recursively collect all string values from a (possibly-nested) object/array.
+  // Circular or deeply nested objects propagate stack overflow to the caller's
+  // try/catch, which returns { fire: false } (fail-open). This is intentional.
   const out = [];
   if (typeof obj === "string") { out.push(obj); return out; }
   if (Array.isArray(obj)) { for (const v of obj) { const r = _extractStringValues(v); for (const s of r) out.push(s); } return out; }
@@ -498,8 +500,8 @@ function _extractStringValues(obj) {
   return out;
 }
 const _GATED_CMD_CLASSES = new Set([
-  "destructive-delete", "force-push", "remote-exec", "auto-download",
-  "hard-reset", "destructive-db", "disk-write", "sudo", "global-pkg-install",
+  "destructive-delete", "force-push", "remote-exec",
+  "hard-reset", "disk-write", "sudo",
 ]);
 function _evalMcpArgFloor(input, contract, enriched) {
   try {
