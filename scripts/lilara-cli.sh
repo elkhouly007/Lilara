@@ -225,6 +225,9 @@ case "$cmd" in
     section "Cross-harness equivalence"
     bash "${scripts}/check-cross-harness-equivalence.sh" || failed=1
 
+    section "Action IR parity"
+    bash "${scripts}/check-action-ir-parity.sh" || failed=1
+
     section "Adapter manifests"
     bash "${scripts}/check-adapter-manifests.sh" || failed=1
 
