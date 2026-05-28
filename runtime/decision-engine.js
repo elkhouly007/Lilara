@@ -45,6 +45,8 @@ const _F17 = getEntry("F17");         // cross-agent-lock (PR-A)
 const _F19 = getEntry("F19");         // output-channel-exfiltration (ADR-010)
 const _F20 = getEntry("F20");         // change-intent-drift (ADR-012)
 const _F21 = getEntry("F21");         // compaction-survival (ADR-016)
+const _F23 = getEntry("F23");         // data-flow-kill-chain (ADR-017)
+const _F24 = getEntry("F24");         // credential-persistence-write
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -107,11 +109,16 @@ const {
   evaluate: _evalNet,
   evaluateDns: _evalNetDns,
   evaluateIpSet: _evalNetIpSet,
+  evaluateTargets: _evalNetTargets,
+  irTargetsToEgressTargets: _irToEgressTargets,
 } = require("./network-egress");
+const { classifyDeployTarget: _classifyDeployTarget } = require("./action-ir");
+const { PERSISTENCE_PATTERNS: _PERSISTENCE_PATTERNS } = require("./provenance-graph");
+const { globMatch: _globMatch } = require("./glob-match");
 // ADR-009 PR-B: ambient-authority classifier. Hoisted import; the F16 wiring
 // site wraps evaluation in try/catch so an unexpected runtime throw inside
 // ambient.js fails open (zero-dep / fail-open policy).
-const { classifyAmbientPath: _classifyAmbientPath } = require("./ambient");
+const { classifyAmbientPath: _classifyAmbientPath, isAmbientPath: _isAmbientPath } = require("./ambient");
 // F17 PR-A: cross-agent-lock helper. State-dir-local; reads
 // `<LILARA_STATE_DIR>/cross-agent-locks/*.json` to detect a conflicting
 // lock owned by another agent/session for a write-like call.
@@ -145,6 +152,17 @@ let _scanSecrets = null;
 try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
 let _correlateCommand = null;
 try { _correlateCommand = require("./taint").correlateCommand; } catch { /* optional */ }
+// ADR-017 F23: provenance-graph + session-context graph storage. Guarded the
+// same way as other optional modules so a broken module fails open — F23 will
+// simply not fire. The graph helpers are pure; I/O lives in session-context.
+let _provenanceGraph = null;
+let _loadProvenanceGraph = null, _recordProvenanceStep = null;
+try {
+  _provenanceGraph = require("./provenance-graph");
+  const _sc = require("./session-context");
+  _loadProvenanceGraph  = _sc.loadProvenanceGraph;
+  _recordProvenanceStep = _sc.recordProvenanceStep;
+} catch { /* optional — F23 fails open */ }
 let _getCounters = null, _recordDestructiveOp = null;
 try {
   const sb = require("./session-budget");
@@ -187,6 +205,10 @@ let _earlyBlockContract = null;
 // ADR-016: when dryRun is true, skip journal appends across all early-block
 // paths. Populated by decide() at the top of each call.
 let _earlyBlockDryRun = false;
+// ADR-017 F23: kill-chain detail for early-block paths (F16/F17/etc.) that
+// fire after the F23 preview is computed but before the normal result path.
+// Populated by decide() when F23 fires; cleared at top of each decide() call.
+let _earlyBlockF23 = null;
 function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   // ADR-009 PR-C: any early-block decision that touched an ambient path
   // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
@@ -213,6 +235,8 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   // fields (outputChannel, matchClasses, redactedSample,
   // compensatingRestrictionApplied) as the non-block F19 path below.
   const _f19            = extra.f19Detail || null;
+  // ADR-017 F23: include kill-chain receipt when detection fired before this early block.
+  const _killChain      = _earlyBlockF23 || null;
   const _code           = extra.code || floorCodeFor(reasonCode) || null;
   const _coaching       = extra.coaching || null;
   const result = {
@@ -252,6 +276,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       compensatingRestrictionApplied: Boolean(_f19.compensatingRestrictionApplied),
     } : {}),
     ...(_coaching     != null ? { coaching: _coaching } : {}),
+    ...(_killChain    != null ? { killChain: _killChain } : {}),
   };
   // Still journal the early block so diff-decisions can replay it
   if (_earlyBlockDryRun) return result;
@@ -278,6 +303,7 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
       ...(_f19          != null ? { f19Detail:     _f19           } : {}),
       ...(_code         != null ? { code:          _code          } : {}),
       ...(_coaching     != null ? { coaching:      _coaching      } : {}),
+      ...(_killChain    != null ? { killChain:     _killChain     } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
@@ -388,6 +414,70 @@ function _evalAmbientFloor(input, discovered, contract) {
     if (_f16Shape && (!_f16Abs || !projectRoot)) continue;
     if (allow && _matchAmbientAllow(allow, cls, _normAmbientPath(raw).toLowerCase())) continue;
     return { fire: true, ambientClass: cls, path: raw };
+  }
+  return { fire: false };
+}
+
+// F24: credential-persistence-write floor helpers. Pure; zero I/O.
+// Collects in-project write targets and checks whether any touch a credential
+// or execution-persistence path that should always be blocked by default.
+function _collectWriteTargets(input) {
+  const out = []; const seen = Object.create(null);
+  const push = (p, sens) => {
+    if (typeof p === "string" && p.length > 0 && !seen[p]) {
+      seen[p] = true; out.push({ path: p, sensitivity: sens || null });
+    }
+  };
+  // flat-field fallback for replay (replay calls decide() without building IR)
+  if (input && typeof input.targetPath === "string") push(input.targetPath, null);
+  if (input && typeof input.file_path  === "string") push(input.file_path,  null);
+  // IR fileTargets (write/delete only; sensitivity already classified)
+  const irT = input && input.ir && input.ir.fileTargets;
+  if (Array.isArray(irT)) {
+    for (const t of irT) {
+      if (t && (t.intent === "write" || t.intent === "delete")) push(t.path, t.sensitivity);
+    }
+  }
+  return out;
+}
+function _isHighSensitivityPath(p) {
+  const s = String(p || "").replace(/\\/g, "/");
+  return (
+    /\/\.ssh\b/.test(s) || /\/\.aws\b/.test(s) || /\/\.gnupg\b/.test(s) ||
+    /\/\.password-store\b/.test(s) || /\/\.kube\b/.test(s) ||
+    /\/(vault|secrets?)\b/i.test(s) || /\/(id_rsa|id_ed25519|id_ecdsa)\b/.test(s) ||
+    /\/(payments?|billing)\b/i.test(s) || /\/private[-_]?key\b/i.test(s)
+  );
+}
+function _isPersistencePath(p) {
+  return _PERSISTENCE_PATTERNS.some((re) => re.test(p));
+}
+function _evalCredPersistFloor(input, contract) {
+  // F24 only applies to explicit file-write tool calls (Edit/Write). For Bash
+  // commands, `targetPath` is metadata about the project scope — the actual risk
+  // from writing credential/persistence files via shell is handled by pattern
+  // matching (authorized-keys-modification, persistence-crontab, etc.). Firing
+  // F24 on Bash targetPath would trigger on legitimate `sudo service restart`
+  // commands whose targetPath happens to be in a vault/payments directory.
+  const toolKindIr = input && input.ir && input.ir.toolKind;
+  const toolName   = String((input && input.tool) || "").toLowerCase();
+  const isFileWrite = toolKindIr === "file-write" || toolName === "edit" || toolName === "write";
+  if (!isFileWrite) return { fire: false };
+  const targets = _collectWriteTargets(input);
+  if (targets.length === 0) return { fire: false };
+  const allow = contract && contract.scopes && contract.scopes.files && Array.isArray(contract.scopes.files.allow)
+    ? contract.scopes.files.allow : null;
+  for (const { path, sensitivity } of targets) {
+    // F16 owns ambient paths (ssh, shell-rc, packageCache, etc.) — skip so F16
+    // opt-ins via scopes.ambient.allow are not overridden by F24.
+    if (_isAmbientPath(path)) continue;
+    const highSens = sensitivity === "high" || _isHighSensitivityPath(path);
+    const persist  = _isPersistencePath(path);
+    if (!highSens && !persist) continue;
+    if (allow && allow.some((pat) => {
+      try { return _globMatch(path, pat); } catch { return false; }
+    })) continue;
+    return { fire: true, path, reason: highSens ? "high-sensitivity" : "persistence" };
   }
   return { fire: false };
 }
@@ -593,6 +683,8 @@ function decide(input = {}) {
   _earlyBlockContract = contract;
   // ADR-016: thread dryRun to early-block paths so sandbox previews skip journal.
   _earlyBlockDryRun = Boolean(input.dryRun || process.env.LILARA_DRY_RUN === "1");
+  // ADR-017 F23: reset per-call so the early-block path doesn't carry a stale receipt.
+  _earlyBlockF23 = null;
 
   // B2 commit 2: contextTrust per-branch posture override.
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
@@ -777,7 +869,15 @@ function decide(input = {}) {
         typeof netPolicy.allowPlaintext === "boolean"
       );
       if (hasF18Signal) {
-        const ne = _evalNet(input.command || "", netPolicy);
+        // Primary target extraction: command string. If empty (e.g. native
+        // WebFetch with URL in tool_input rather than command), fall back to
+        // IR networkTargets so WebFetch calls are covered without a policy gap.
+        const cmdStr = input.command || "";
+        let ne = _evalNet(cmdStr, netPolicy);
+        if (!ne.fired && ne.reason === "no-network-target" &&
+            input.ir && Array.isArray(input.ir.networkTargets) && input.ir.networkTargets.length > 0) {
+          ne = _evalNetTargets(_irToEgressTargets(input.ir.networkTargets), netPolicy);
+        }
         if (ne.fired) {
           if (ne.reason === "plaintext-target-blocked") {
             return buildEarlyBlock(
@@ -810,7 +910,7 @@ function decide(input = {}) {
         // the per-entry `allowOnLookupFailure` flag is true. Dormant when
         // input.dnsResolutions is absent (callers may skip resolution).
         if (input.dnsResolutions && typeof input.dnsResolutions === "object") {
-          const dnsCheck = _evalNetDns(input.command || "", netPolicy, input.dnsResolutions);
+          const dnsCheck = _evalNetDns(cmdStr, netPolicy, input.dnsResolutions);
           if (dnsCheck.fired) {
             return buildEarlyBlock(
               "network-egress-denied",
@@ -910,6 +1010,88 @@ function decide(input = {}) {
     }
   }
 
+  // F23 (ADR-017): cross-call data-flow / kill-chain detection — rung 18.6.
+  //
+  // Evaluation is placed HERE (before F16/F17) so that kill-chain context
+  // is available in buildEarlyBlock receipts when ambient-authority or
+  // cross-agent-lock floors fire first. The detected chain is surfaced via
+  // _earlyBlockF23 (module-level, cleared per decide() call) so buildEarlyBlock
+  // can include it without requiring a parameter change at every call site.
+  //
+  // Observe mode (default): adds only the killChain receipt field — action /
+  // source / floorFired are UNCHANGED. Enforce mode (LILARA_KILL_CHAIN_ENFORCE=1)
+  // applies block (exfil) or escalate (exec / persistence) via the late-override
+  // block near line 1489, after F20.
+  //
+  // Side-effect: for write/edit IR calls, records a "derivative" node in the
+  // provenance graph when write content overlaps a known source. Determinism-safe:
+  // single-command replay uses a fresh isolated stateDir (cleaned after).
+  let _f23Detail = null;
+  let _f23PreviewAction = null; // only set in enforce mode when chain fires
+  try {
+    if (_provenanceGraph && _loadProvenanceGraph) {
+      const _f23Graph = _loadProvenanceGraph();
+      const _ir23 = input && input.ir;
+
+      if (_ir23) {
+        // Extract write content for propagation + persistence detection
+        const _writeContent = String(
+          (input.tool_input && (input.tool_input.content || input.tool_input.new_string || "")) ||
+          (typeof input.content === "string" ? input.content : "") ||
+          (typeof input.new_string === "string" ? input.new_string : "")
+        );
+        const _writeTokens = _writeContent.length >= 20
+          ? _provenanceGraph.tokenHashSet(_writeContent)
+          : [];
+
+        // Evaluate whether pending call closes a kill chain
+        const _f23Eval = _provenanceGraph.evaluate(_ir23, _f23Graph, {
+          writeContentTokenHashes: _writeTokens,
+        });
+
+        if (_f23Eval.detected) {
+          const _enforce = process.env.LILARA_KILL_CHAIN_ENFORCE === "1";
+          _f23Detail = {
+            chainType:   _f23Eval.chainType,
+            severity:    _f23Eval.severity,
+            detected:    true,
+            enforced:    _enforce,
+            wouldAction: _f23Eval.wouldAction,
+            confidence:  _f23Eval.confidence,
+            evidence:    Array.isArray(_f23Eval.evidence) ? _f23Eval.evidence : [],
+            steps:       Array.isArray(_f23Eval.steps)    ? _f23Eval.steps    : [],
+          };
+          _earlyBlockF23 = _f23Detail; // thread to buildEarlyBlock for F16/F17/etc.
+          if (_enforce) {
+            _f23PreviewAction = _f23Eval.wouldAction; // "block" or "escalate"
+          }
+        }
+
+        // Propagation recording: if writing tainted data, mark target as derivative.
+        // Gated on interesting IR (file-write with content, non-empty graph).
+        if (_ir23.toolKind === "file-write" && _writeTokens.length >= 3 &&
+            _f23Graph.length > 0 && _recordProvenanceStep) {
+          const _srcNode = _provenanceGraph.findPropagationSource(_writeTokens, _f23Graph);
+          if (_srcNode) {
+            for (const ft of (_ir23.fileTargets || [])) {
+              if (ft && ft.intent === "write" && ft.path) {
+                try {
+                  _recordProvenanceStep({
+                    role:           "derivative",
+                    sourceClass:    _srcNode.sourceClass,
+                    targetPathHash: _provenanceGraph.pathHash(ft.path),
+                    tokenHashes:    _writeTokens.slice(0, 32),
+                    ts:             Date.now(),
+                  });
+                } catch { /* best-effort */ }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch { /* F23 must never throw out — fail open */ }
+
   // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)
   // and before the contract-allow demotion path. Non-demotable; the only legitimate
   // bypass is a matching `scopes.ambient.allow[]` entry. Fail-open on internal throw.
@@ -920,6 +1102,22 @@ function decide(input = {}) {
         "ambient-authority-denied", enriched, discovered, input,
         `ambient-authority write blocked: class=${f16.ambientClass} path=${f16.path}`,
         { floorFired: _F16.name, decisionSource: _F16.source, ambientClass: f16.ambientClass, ambientPath: f16.path }
+      );
+    }
+  } catch { /* fail-open per zero-dep policy */ }
+
+  // F24: credential-persistence-write floor — rung 17.625, after F16 and before
+  // F17. Fires for in-project credential files (high-sensitivity) or execution-
+  // persistence paths (.git/hooks, cron, systemd, shell-rc) that F16 skips.
+  // Default-deny; opt out via contract scopes.files.allow glob list.
+  // Fail-open on internal throw (F16 already caught the ambient cases).
+  try {
+    const f24 = _evalCredPersistFloor(input, contract);
+    if (f24 && f24.fire) {
+      return buildEarlyBlock(
+        "credential-persistence-write-denied", enriched, discovered, input,
+        `credential/persistence write blocked: ${f24.reason} path=${f24.path}`,
+        { floorFired: _F24.name, decisionSource: _F24.source, ambientTouch: _ambientTouch }
       );
     }
   } catch { /* fail-open per zero-dep policy */ }
@@ -1171,6 +1369,15 @@ function decide(input = {}) {
       try {
         secretInCommand = Boolean(_scanSecrets(input.command || ""));
       } catch { /* secret-scan unavailable — skip */ }
+      // Extend scan to MCP argument payloads — an mcp__ tool call whose args
+      // contain a class-C secret (API key, token, private key) is hard-blocked
+      // by F4 just like a command string carrying the same content.
+      if (!secretInCommand && (enriched.ir?.toolKind === "mcp" || String(input.tool || "").startsWith("mcp__"))) {
+        try {
+          const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
+          secretInCommand = Boolean(_scanSecrets(mcpPayload));
+        } catch { /* scan or serialize unavailable — skip */ }
+      }
     }
     if (isClassC || secretInCommand) {
       // ADR-002 Option B: demotion authorization is the LATTICE.F4.demotableBy
@@ -1390,6 +1597,26 @@ function decide(input = {}) {
     floorFired = floorFired || _F20.name;
   }
 
+  // F23 (ADR-017): kill-chain late override — applied AFTER F20 so no demotion
+  // path can undo it. In enforce mode only (LILARA_KILL_CHAIN_ENFORCE=1):
+  //   - staged-exfil  → block  (never weakens block; replaces weaker actions)
+  //   - injection-to-exec / persistence → escalate
+  // In observe mode (default): action/source/floorFired are UNCHANGED — F23
+  // is a true zero-impact path, adding only the killChain receipt field + coaching.
+  if (_f23PreviewAction) {
+    if (_f23PreviewAction === "block") {
+      action = "block";
+      source = _F23.source[0];
+      floorFired = floorFired || _F23.name;
+    } else if (_f23PreviewAction === "escalate") {
+      if (action !== "block") {
+        action = "escalate";
+        source = _F23.source[0];
+      }
+      floorFired = floorFired || _F23.name;
+    }
+  }
+
   // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
   // chain has failed verify (or LILARA_DEGRADED_MODE=1) AND this call is
   // write-like, any final `allow` is rerouted to `require-review`. Floors
@@ -1440,6 +1667,13 @@ function decide(input = {}) {
   if (_degradedState.degraded) {
     explanationParts.push(`degraded-mode=${_degradedState.reason}`);
     if (_degradedWriteRouted) explanationParts.push("degraded-write-routed=allow→require-review");
+  }
+  // ADR-017 F23: surface kill-chain detection in explanation (observe or enforce).
+  if (_f23Detail) {
+    const _f23Tag = _f23Detail.enforced
+      ? `kill-chain-enforced=${_f23Detail.chainType}`
+      : `kill-chain-observed=${_f23Detail.chainType}`;
+    explanationParts.push(_f23Tag);
   }
 
   const actionPlan = build(action, enriched, risk, discovered, policyFacts);
@@ -1537,6 +1771,10 @@ function decide(input = {}) {
     ...(_changeIntent ? { changeIntent: _changeIntent } : {}),
     // ADR-013: additive snapshot receipt key on destructive-allow only.
     ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
+    // ADR-017 F23: kill-chain observability field. Present when a chain was
+    // detected (observe or enforce mode). Absent on clean calls so existing
+    // receipts stay byte-identical.
+    ...(_f23Detail ? { killChain: _f23Detail } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1570,6 +1808,8 @@ function decide(input = {}) {
       // entry verbatim. Absent on non-destructive / non-allow decisions so
       // existing journals stay byte-identical.
       ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
+      // ADR-017 F23: kill-chain receipt field in journal (same presence rule as result).
+      ...(_f23Detail ? { killChain: _f23Detail } : {}),
       ...(irExtras || {}),
       redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
     });

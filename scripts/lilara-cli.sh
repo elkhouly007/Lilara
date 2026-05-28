@@ -35,6 +35,7 @@
 #   notify      ADR-015 notification routing (test/show/history).
 #   sandbox     ADR-016 dry-run a command through the decision lattice; print which floors fire.
 #   session     Session-resume ops (summary).
+#   dashboard   Start the read-only observability dashboard (default port 7917).
 #   help        Show this help, or help for a specific subcommand.
 #
 # Examples:
@@ -73,7 +74,7 @@ else
 fi
 
 usage() {
-  sed -n '3,37p' "$0" | sed 's/^# //' | grep -v '^#'
+  sed -n '3,38p' "$0" | sed 's/^# //' | grep -v '^#'
 }
 
 die() { printf '%sError: %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
@@ -162,11 +163,20 @@ case "$cmd" in
     section "Floor F16 fixtures"
     bash "${scripts}/check-floor-f16.sh" || failed=1
 
+    section "File-write floor fixtures (F24)"
+    bash "${scripts}/check-file-write-floor.sh" || failed=1
+
     section "Lattice ordering"
     bash "${scripts}/check-lattice-ordering.sh" || failed=1
 
     section "Lattice receipts"
     bash "${scripts}/check-lattice-receipts.sh" || failed=1
+
+    section "Kill chain"
+    bash "${scripts}/check-kill-chain.sh" || failed=1
+
+    section "Dashboard"
+    bash "${scripts}/check-dashboard.sh" || failed=1
 
     section "No implicit demotion"
     bash "${scripts}/check-no-implicit-demotion.sh" || failed=1
@@ -1999,6 +2009,11 @@ __EXPORT_SARIF_EOF__
         exit 2
         ;;
     esac
+    ;;
+
+  # ── dashboard ────────────────────────────────────────────────────────────
+  dashboard)
+    exec node "${scripts}/dashboard-server.js" "$@"
     ;;
 
   # ── help ──────────────────────────────────────────────────────────────────

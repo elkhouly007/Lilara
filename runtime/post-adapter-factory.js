@@ -44,6 +44,10 @@ function sourceLabel(toolName) {
  * @param {string} opts.rateLimitKey  — unique per-harness key for rateLimitCheck + hookLog
  * @param {boolean} [opts.envelopeReporting=false] — adapter can report exec-time F15 envelopes
  */
+// Sensitive source path patterns — mirrors provenance-graph.js but inline here
+// so post-adapter-factory has no import-time dependency on provenance-graph.
+const _SENSITIVE_PATH_RX = /[/\\]\.ssh[/\\]|[/\\]\.aws[/\\]|[/\\]\.gnupg[/\\]|[/\\]\.password-store[/\\]|[/\\]\.kube[/\\]|[/\\](vault|secrets?)[/\\]|[/\\](id_rsa|id_ed25519|id_ecdsa)$|[/\\]credentials$|[/\\]\.env[^/\\]*$|[/\\]\.envrc$|[/\\](prod(uction)?|staging|infra)[/\\]|[/\\]private[-_]?key/i;
+
 function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = false }) {
   const { readStdin, collectText, hookLog, rateLimitCheck } = require(
     path.join(__dirname, "..", "claude", "hooks", "hook-utils")
@@ -54,6 +58,16 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
   const { recordExternalRead } = require("./taint");
   const { scanForInjection } = require("./compaction-survival");
   const { buildCoachingEnvelope } = require("./coaching");
+  // ADR-017 F23: provenance graph source recording. Optional — if module unavailable,
+  // F23 simply won't detect chains on this harness (fails open silently).
+  let _tokenHashSet = null, _pHash = null, _recordProvenanceStep = null;
+  try {
+    const pg = require("./provenance-graph");
+    _tokenHashSet = pg.tokenHashSet;
+    _pHash        = pg.pathHash;
+    const sc      = require("./session-context");
+    _recordProvenanceStep = sc.recordProvenanceStep;
+  } catch { /* optional */ }
 
   readStdin()
     .then((raw) => {
@@ -120,6 +134,47 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
               if (env.stderr) process.stderr.write(env.stderr);
             }
           } catch { /* F21 scan is best-effort */ }
+        }
+
+        // 2c. F23 (ADR-017): provenance-graph source recording.
+        // Record source nodes (sensitive file reads, untrusted web/mcp content)
+        // for later kill-chain evaluation at decide() PreToolUse. Content is
+        // NEVER stored — only irreversible token hashes + path/url hashes.
+        //
+        // Coverage: Claude Code only in v1 (other harnesses lack PostToolUse).
+        // See references/adr-017-provenance-graph.md §Coverage Limitations.
+        if (EXTERNAL_TOOLS.has(toolName) && text && _tokenHashSet && _recordProvenanceStep) {
+          try {
+            const _srcLabel = sourceLabel(toolName);
+            const _isRead    = _srcLabel === "read";
+            const _isUntrst  = !_isRead; // web-fetch / mcp / curl / external
+            const _toolInput = input.tool_input || {};
+            const _filePath  = _isRead  ? String(_toolInput.file_path || _toolInput.file || "") : "";
+            const _url       = !_isRead ? String(_toolInput.url || _toolInput.URL || _toolInput.uri || "") : "";
+            const _host = _url ? (() => { try { return new URL(_url).hostname; } catch { return ""; } })() : "";
+
+            // Classify sensitivity
+            const _secretHit = (() => { try { return Boolean(scanSecrets && scanSecrets(text.slice(0, 2048))); } catch { return false; } })();
+            const _pathSensitive = _isRead && _filePath && _SENSITIVE_PATH_RX.test(_filePath);
+            let _sourceClass = null;
+            if (_isRead  && (_secretHit || _pathSensitive)) _sourceClass = "sensitive";
+            else if (_isUntrst)                              _sourceClass = "untrusted";
+
+            if (_sourceClass) {
+              const _tokens = _tokenHashSet(text.slice(0, 8192));
+              if (_tokens.length >= 3) {
+                _recordProvenanceStep({
+                  role:        "source",
+                  sourceClass: _sourceClass,
+                  pathHash:    _filePath ? _pHash(_filePath) : null,
+                  urlHash:     _url      ? _pHash(_url)      : null,
+                  host:        _host     || null,
+                  tokenHashes: _tokens,
+                  ts:          Date.now(),
+                });
+              }
+            }
+          } catch { /* provenance recording is best-effort */ }
         }
 
         // 3. Optional envelope verification — only active for adapters that can

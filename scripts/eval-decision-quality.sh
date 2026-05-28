@@ -75,6 +75,7 @@ process.env.LILARA_TRAJECTORY_THRESHOLD = "9999";
 const corpusDir  = path.dirname(path.resolve(corpusPath));
 const repoRoot   = path.resolve(corpusDir, "..");
 const decide     = require(path.join(repoRoot, "runtime", "decision-engine")).decide;
+const { build: buildIr } = require(path.join(repoRoot, "runtime", "action-ir"));
 
 const corpus = JSON.parse(fs.readFileSync(corpusPath, "utf8"));
 const entries = corpus.entries || [];
@@ -119,6 +120,13 @@ for (const entry of entries) {
       sessionRisk:    0,
       repeatedApprovals: 0,
     };
+    // Attach IR so non-Bash tool calls (Edit/Write/MCP/WebFetch) score correctly.
+    // toolInput passthrough supports MCP entries that carry argument payloads
+    // (used by the F4 MCP secret-scan extension).
+    if (entry.toolInput) callInput.tool_input = entry.toolInput;
+    try {
+      callInput.ir = buildIr(callInput, { harness: "claude", tool: callInput.tool });
+    } catch { /* IR build failure → run without IR (fail-open) */ }
     result = decide(callInput);
   } catch (err) {
     errors++;

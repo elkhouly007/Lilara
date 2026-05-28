@@ -258,6 +258,22 @@ const LATTICE = Object.freeze([
     notes: "ADR-009 PR-B: write into ambient-authority path outside projectRoot. Demotion only via scopes.ambient.allow[<class>]=true or path-prefix entry.",
   }),
   Object.freeze({
+    id: "F24",
+    rung: 17.625,
+    // F24: credential-persistence-write floor. Rung 17.625 is intentional and
+    // remains strictly increasing per assertOrdered(); F16 (17.5) < F24 (17.625)
+    // < F17 (17.75). F16 early-blocks out-of-project ambient paths (e.g.
+    // ~/.ssh); F24 covers in-project credential/persistence paths that F16
+    // deliberately skips (.git/hooks, in-project private keys). Default-deny;
+    // contract opt-out via scopes.files.allow glob list.
+    name: "credential-persistence-write",
+    action: "block",
+    source: "credential-persistence-write-denied",
+    demotableBy: ["scopes.files.allow"],
+    predicateRef: "runtime/decision-engine.js:_evalCredPersistFloor",
+    notes: "F24: Write/Edit to in-project credential or execution-persistence paths. Default-deny; opt out via contract scopes.files.allow glob list.",
+  }),
+  Object.freeze({
     id: "F17",
     rung: 17.75,
     // F17 (v0.5 cross-agent-lock floor PR-A). Non-integer rung is intentional
@@ -351,6 +367,31 @@ const LATTICE = Object.freeze([
     demotableBy: ["operator-token-medium-only"],
     predicateRef: "runtime/change-intent.js + decision-engine wiring",
     notes: "F20: declared-envelope vs Action-IR drift. high blocks; medium routes to require-review (demotable only by a one-shot scoped operator token bound to change-intent-drift-medium); low is receipt-only. Fail-open on helper exception.",
+  }),
+  Object.freeze({
+    id: "F23",
+    rung: 18.6,
+    // F23 (ADR-017): cross-call data-flow / kill-chain detection. Rung 18.6 sits
+    // after F20 (change-intent-drift @ 18.5) and before F21 (compaction-survival
+    // @ 18.7). The action override is applied via the late-override preview
+    // pattern so D-CONTRACT-ALLOW (18) / D-LEARNED-ALLOW (19) cannot undo it.
+    //
+    // Non-demotable: kill chains are classified by multi-step evidence (content
+    // token-hash overlap OR structural file reference); no operator token or
+    // contract scope can downgrade a detected chain.
+    //
+    // Ships in observe-only mode by default (LILARA_KILL_CHAIN_ENFORCE=1 to
+    // enforce). Observe mode adds only the killChain receipt field — action,
+    // source, and floorFired are unchanged.
+    //
+    // See references/adr-017-provenance-graph.md for chain shapes, evidence
+    // bar, FP mitigations, and harness coverage limitations.
+    name: "data-flow-kill-chain",
+    action: "escalate",
+    source: ["data-flow-kill-chain", "data-flow-kill-chain-detected"],
+    demotableBy: [],
+    predicateRef: "runtime/provenance-graph.js:evaluate",
+    notes: "ADR-017: multi-step kill-chain. staged-exfil→block; injection-to-exec+persistence→escalate. Observe-only by default; LILARA_KILL_CHAIN_ENFORCE=1 to enforce.",
   }),
   Object.freeze({
     id: "F21",

@@ -181,11 +181,18 @@ function roundTrip(buffer, format) {
   return { ok: true, reEmitted, parsedCount: parsed.length };
 }
 
+// Stable public surface — dashboard and other consumers depend on these names.
+// Underscore aliases kept so existing internal callers continue to work.
+const readJournal  = _readJournal;
+const redactEntry  = _redactEntry;
+
 module.exports = {
   EXPORT_VERSION,
   exportReceipts,
   buildExportManifest,
   roundTrip,
+  readJournal,
+  redactEntry,
   _readJournal,
   _redactEntry,
   _redactString,

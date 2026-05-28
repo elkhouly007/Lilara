@@ -301,6 +301,42 @@ function _extractMcpServer(tool) {
   return m ? m[1] : null;
 }
 
+/**
+ * Classify a file path's deployment category for risk scoring.
+ * Returns "cicd" | "lockfile" | "system" | null.
+ *
+ * Deliberately NOT stored on the IR (no IR field, no irHash churn).
+ * Called on-the-fly by risk-score.js and decision-engine.js F24.
+ */
+function classifyDeployTarget(p) {
+  const s = String(p || "").replace(/\\/g, "/");
+  if (
+    /\/\.github\/workflows\b/i.test(s) ||
+    /\/\.gitlab-ci\.ya?ml$/i.test(s) ||
+    /\/\.circleci\b/i.test(s) ||
+    /(^|\/)Jenkinsfile(\.[^/]+)?$/i.test(s) ||
+    /\/azure-pipelines\.ya?ml$/i.test(s) ||
+    /\/(\.travis\.yml|bitbucket-pipelines\.yml)$/i.test(s)
+  ) return "cicd";
+  if (
+    /\/package-lock\.json$/.test(s) ||
+    /\/yarn\.lock$/.test(s) ||
+    /\/pnpm-lock\.ya?ml$/.test(s) ||
+    /\/go\.sum$/.test(s) ||
+    /\/Cargo\.lock$/.test(s) ||
+    /\/poetry\.lock$/.test(s) ||
+    /\/composer\.lock$/.test(s) ||
+    /\/Gemfile\.lock$/.test(s)
+  ) return "lockfile";
+  if (
+    /^\/etc\//.test(s) || /^\/usr\//.test(s) ||
+    /^\/bin\//.test(s) || /^\/sbin\//.test(s) ||
+    /^\/boot\//.test(s) || /^\/lib\//.test(s) ||
+    /^\/Windows\//i.test(s) || /^[A-Z]:\/Windows\//i.test(s)
+  ) return "system";
+  return null;
+}
+
 function _extractNetworkTargets(command) {
   if (!command) return [];
   const matches = String(command).match(/https?:\/\/[^\s'"|]+/g) || [];
@@ -711,4 +747,6 @@ module.exports = {
   validate,
   canonicalize,
   irHash,
+  classifyDeployTarget,
+  classifyPathSensitivity: _classifyPathSensitivity,
 };

@@ -175,8 +175,13 @@ function getSessionTrajectory() {
 
 // Reset the in-process cache. Used by test scripts only to prevent cross-call
 // state contamination when multiple runPreToolGate calls share one Node process.
+// IMPORTANT: also clears the provenance-graph cache — this is load-bearing for
+// replay isolation (scripts/replay-decisions.js calls resetCache() + fresh
+// LILARA_STATE_DIR per entry; the graph cache must be cleared too or entry N
+// could bleed into entry N+1 via the in-memory cache).
 function resetCache() {
-  _stateCache = null;
+  _stateCache  = null;
+  _graphCache  = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +190,81 @@ function resetCache() {
 
 const PROVENANCE_MAX_AGE_MS  = 300_000; // 5 minutes hard TTL
 const PROVENANCE_MAX_ENTRIES = 20;
+
+// ---------------------------------------------------------------------------
+// Provenance graph — session-scoped data-flow graph for F23 kill-chain floor.
+//
+// Nodes represent sources (file reads / web-fetch / mcp outputs) and
+// derivatives (writes whose content overlaps a source). The graph is stored
+// in provenance-graph.json under the stateDir, mirroring the provenance-
+// window.json pattern: same atomic-write, same readonly guard, same TTL prune.
+//
+// NOTE: _graphCache is a separate module-level variable from _stateCache so
+// that resetCache() clears BOTH (load-bearing for replay isolation — see the
+// resetCache comment above). Never fold this into _stateCache.
+// ---------------------------------------------------------------------------
+
+const PROVENANCE_GRAPH_MAX_AGE_MS  = 300_000; // 5-minute TTL (one session's tail)
+const PROVENANCE_GRAPH_MAX_NODES   = 40;      // Cap so the file stays small
+
+let _graphCache = null;
+
+function provenanceGraphPath() {
+  return path.join(paths().baseDir, "provenance-graph.json");
+}
+
+function loadProvenanceGraph() {
+  if (_graphCache !== null) return _graphCache;
+  try {
+    const p = provenanceGraphPath();
+    if (!fs.existsSync(p)) { _graphCache = []; return _graphCache; }
+    const raw = fs.readFileSync(p, "utf8");
+    const parsed = JSON.parse(raw);
+    _graphCache = Array.isArray(parsed) ? parsed : [];
+  } catch { _graphCache = []; }
+  return _graphCache;
+}
+
+function saveProvenanceGraph(nodes) {
+  _graphCache = Array.isArray(nodes) ? nodes : [];
+  if (process.env.LILARA_READONLY_CONTRACT === "1") return;
+  try {
+    ensureBaseDir();
+    const p = provenanceGraphPath();
+    const data = JSON.stringify(_graphCache);
+    const tmp = p + ".tmp";
+    fs.writeFileSync(tmp, data, { mode: 0o600 });
+    try {
+      fs.renameSync(tmp, p);
+    } catch {
+      try { fs.writeFileSync(p, data, { mode: 0o600 }); } catch { /* best-effort */ }
+      try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+    }
+  } catch { /* provenance-graph I/O is best-effort */ }
+}
+
+/**
+ * Append a node to the provenance graph.
+ * Prunes nodes older than PROVENANCE_GRAPH_MAX_AGE_MS and caps at
+ * PROVENANCE_GRAPH_MAX_NODES. Content is NEVER stored — only token hashes.
+ *
+ * Node shape (caller is responsible for building):
+ *   { role, sourceClass, pathHash?, urlHash?, targetPathHash?, host?,
+ *     tokenHashes: string[], ts: number }
+ */
+function recordProvenanceStep(node) {
+  try {
+    const now = Date.now();
+    let graph = loadProvenanceGraph();
+    // Prune stale nodes
+    graph = graph.filter((n) => (now - (n.ts || 0)) < PROVENANCE_GRAPH_MAX_AGE_MS);
+    graph.push(node);
+    if (graph.length > PROVENANCE_GRAPH_MAX_NODES) {
+      graph = graph.slice(-PROVENANCE_GRAPH_MAX_NODES);
+    }
+    saveProvenanceGraph(graph);
+  } catch { /* best-effort */ }
+}
 
 function provenanceWindowPath() {
   return path.join(paths().baseDir, "provenance-window.json");
@@ -217,4 +297,4 @@ function getProvenanceWindow(windowSeconds) {
   } catch { return []; }
 }
 
-module.exports = { paths, loadState, saveState, getSessionRisk, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache, recordExternalRead, getProvenanceWindow };
+module.exports = { paths, loadState, saveState, getSessionRisk, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache, recordExternalRead, getProvenanceWindow, loadProvenanceGraph, saveProvenanceGraph, recordProvenanceStep };

@@ -2468,6 +2468,45 @@ fi
 
 rm -f "$_f16_tmp_out"
 
+# ── file-write-floor fixtures (F24 credential-persistence-write + universal scoring) ─────
+# Exercises F24 hard floor, scoring arms, contract opt-out, and F16/F24 boundary.
+printf '\n[file-write-floor]\n'
+
+_fwf_tmp_out="$(mktemp)"
+trap 'rm -f "$_fwf_tmp_out"' EXIT
+
+if bash scripts/check-file-write-floor.sh > "$_fwf_tmp_out" 2>&1; then
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "file-write-floor:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "file-write-floor:$name" "$rest"
+        ;;
+    esac
+  done < "$_fwf_tmp_out"
+else
+  while IFS= read -r line; do
+    case "$line" in
+      "  ok      "*)
+        ok "file-write-floor:${line#"  ok      "}"
+        ;;
+      "  FAIL    "*)
+        body="${line#"  FAIL    "}"
+        name="${body%% — *}"
+        rest="${body#* — }"
+        fail "file-write-floor:$name" "$rest"
+        ;;
+    esac
+  done < "$_fwf_tmp_out"
+fi
+
+rm -f "$_fwf_tmp_out"
+
 # ── lattice-receipts fixtures (Lilara ADR-007 PR-C) ─────────────────────────────
 # Each fixture pins a stable receipt shape (irHash, floorFired, rung,
 # latticeVersion, decisionSource, action) for one floor in LATTICE.

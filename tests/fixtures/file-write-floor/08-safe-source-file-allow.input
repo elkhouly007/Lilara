@@ -1,0 +1,18 @@
+{
+  "title": "F24/08: Edit in-project src/app.ts → allow (plain source file, score 0) — FP control",
+  "input": {
+    "tool": "Edit",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "projectRoot": "{{projectRoot}}",
+    "targetPath": "{{projectRoot}}/src/app.ts",
+    "file_path": "{{projectRoot}}/src/app.ts"
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "irHashPresent": true
+  }
+}
