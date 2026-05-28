@@ -81,6 +81,9 @@ const FLOOR_CODES = Object.freeze({
   // ── F25 mcp-arg-danger ───────────────────────────────────────────────────────
   "mcp-arg-danger":                        "F25_MCP_ARG_DANGER",
   "mcp-arg-danger-denied":                 "F25_MCP_ARG_DANGER",
+  // ── F26 mcp-registration-write ───────────────────────────────────────────────
+  "mcp-registration-write":               "F26_MCP_REGISTRATION_WRITE",
+  "mcp-registration-write-denied":        "F26_MCP_REGISTRATION_WRITE",
 });
 
 function floorCodeFor(reasonCode) {

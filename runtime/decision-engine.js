@@ -48,6 +48,7 @@ const _F21 = getEntry("F21");         // compaction-survival (ADR-016)
 const _F23 = getEntry("F23");         // data-flow-kill-chain (ADR-017)
 const _F24 = getEntry("F24");         // credential-persistence-write
 const _F25 = getEntry("F25");         // mcp-arg-danger
+const _F26 = getEntry("F26");         // mcp-registration-write
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -522,6 +523,50 @@ function _evalMcpArgFloor(input, contract, enriched) {
       const cls = classifyCommand(argStr);
       if (_GATED_CMD_CLASSES.has(cls)) {
         return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
+      }
+    }
+    return { fire: false };
+  } catch { return { fire: false }; } // fail-open
+}
+
+// F26: mcp-registration-write floor helpers. Pure; zero I/O.
+// Content-aware second line after F16 (ambient-authority). Fires when a
+// file-write tool call targets an MCP config path AND the written JSON
+// content registers a server with a dangerous-command-shaped launch command.
+// Fires even when F16 has been opted out via scopes.ambient.allow. Default-
+// deny; opt out via contract scopes.files.allow glob list.
+function _evalMcpRegistrationFloor(input, contract) {
+  try {
+    // 1. Gate: file-write tools only (Edit/Write or toolKind==="file-write")
+    const tool = String(input.tool || "");
+    if (tool !== "Write" && tool !== "Edit" && input.ir?.toolKind !== "file-write") return { fire: false };
+
+    // 2. Collect write target path
+    const targetPath = input.targetPath || input.file_path || input.path || "";
+    if (!targetPath) return { fire: false };
+
+    // 3. Check if target is an MCP config path (mcpConfig ambient class)
+    if (_classifyAmbientPath(targetPath) !== "mcpConfig") return { fire: false };
+
+    // 4. Opt-out: contract scopes.files.allow glob matches the target → skip
+    const allow = contract && contract.scopes && contract.scopes.files && Array.isArray(contract.scopes.files.allow)
+      ? contract.scopes.files.allow : null;
+    if (allow && allow.some((pat) => { try { return _globMatch(targetPath, pat); } catch { return false; } })) {
+      return { fire: false };
+    }
+
+    // 5. Get the write content
+    const content = input.content ?? input.new_string ?? input.file_text ?? "";
+    if (!content || content.length > 100_000) return { fire: false }; // size guard, fail-open
+
+    // 6. Parse content as JSON and scan all strings for dangerous-command patterns
+    let parsed;
+    try { parsed = JSON.parse(content); } catch { return { fire: false }; } // non-JSON writes don't apply
+    const strings = _extractStringValues(parsed);
+    for (const str of strings) {
+      const cls = classifyCommand(str);
+      if (_GATED_CMD_CLASSES.has(cls)) {
+        return { fire: true, reason: cls, command: str.slice(0, 80) };
       }
     }
     return { fire: false };
@@ -1184,6 +1229,23 @@ function decide(input = {}) {
       );
     }
   } catch { /* fail-open */ }
+
+  // F26: mcp-registration-write floor — rung 17.6875, after F25 and before
+  // F17. Content-aware second line after F16 (ambient-authority). Fires when
+  // a file-write to an MCP config path registers a server with a dangerous-
+  // command-shaped launch command. Fires even when F16 has been opted out via
+  // scopes.ambient.allow. Default-deny; opt out via scopes.files.allow.
+  // Fail-open on internal throw.
+  try {
+    const f26 = _evalMcpRegistrationFloor(input, contract);
+    if (f26 && f26.fire) {
+      return buildEarlyBlock(
+        "mcp-registration-write-denied", enriched, discovered, input,
+        `MCP config write registers server with dangerous command: ${f26.reason}`,
+        { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
+      );
+    }
+  } catch (_) { /* fail-open */ }
 
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a
