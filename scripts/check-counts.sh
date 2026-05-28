@@ -28,7 +28,7 @@ EXPECTED_RULES=107         # +commit-conventions +self-review-protocol +workflow
 EXPECTED_SKILLS=57         # +supply-chain-audit +secrets-rotation-planner +threat-model-generator +prompt-engineering-reviewer +model-evaluation-harness +rag-pipeline-auditor +codemod-generator +ci-pipeline-generator +dockerfile-generator +architecture-decision-record +runbook-generator +diagram-generator
 EXPECTED_HOOKS=17          # JS files in claude/hooks/
 EXPECTED_FIXTURES=381      # fixture pairs; +11 for file-write-floor F24 fixtures
-EXPECTED_SCRIPTS=91        # sh + js files in scripts/; +check-file-write-floor.sh
+EXPECTED_SCRIPTS=93        # sh + js files in scripts/; +check-file-write-floor.sh +dashboard-server.js +check-dashboard.sh
 
 # ---------------------------------------------------------------------------
 # Count from filesystem
