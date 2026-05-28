@@ -348,6 +348,20 @@ function _normalizeOutputRecords(arr) {
   return Object.freeze(out);
 }
 
+// Deterministic, platform-independent POSIX resolve. Unlike path.resolve(),
+// never injects a host drive for a POSIX-absolute input — path.resolve("/data/old")
+// becomes "C:\\data\\old" on Windows, which would make the Action IR and its irHash
+// diverge across platforms. Output is byte-identical to path.resolve() on Linux for
+// the absolute-cwd / relative-or-absolute-target inputs the IR sees.
+function _resolvePosix(cwd, p) {
+  const fold  = (s) => String(s == null ? "" : s).replace(/\\/g, "/");
+  const strip = (s) => (s.length > 1 ? s.replace(/\/+$/, "") : s);
+  const pp = fold(p);
+  if (/^\//.test(pp) || /^[A-Za-z]:\//.test(pp)) return strip(path.posix.normalize(pp));
+  const base = cwd != null && cwd !== "" ? fold(cwd) : fold(process.cwd());
+  return strip(path.posix.normalize(base.replace(/\/+$/, "") + "/" + pp));
+}
+
 function _extractFileTargets(command, cwd, toolKind, commandClass, input) {
   const targets = [];
   // Explicit file_path on file tools wins (Edit/Read on Claude shape).
@@ -356,7 +370,7 @@ function _extractFileTargets(command, cwd, toolKind, commandClass, input) {
     input.file_path ||
     null;
   if (explicitPath && (toolKind === "file-write" || toolKind === "file-read")) {
-    const abs = cwd ? path.resolve(cwd, explicitPath) : explicitPath;
+    const abs = cwd ? _resolvePosix(cwd, explicitPath) : explicitPath;
     const intent = toolKind === "file-write" ? "write" : "read";
     targets.push({
       path: abs,
@@ -375,7 +389,7 @@ function _extractFileTargets(command, cwd, toolKind, commandClass, input) {
     intent = "write";
   }
   for (const p of paths) {
-    const abs = cwd ? path.resolve(cwd, p) : p;
+    const abs = cwd ? _resolvePosix(cwd, p) : p;
     targets.push({
       path: abs,
       intent,
@@ -444,7 +458,7 @@ function build(input, ctx) {
     typeof safeCtx.cwd === "string" && safeCtx.cwd.length > 0
       ? safeCtx.cwd
       : _pickCwd(safeInput, safeCtx);
-  const cwd = cwdRaw ? path.resolve(cwdRaw) : null;
+  const cwd = cwdRaw ? _resolvePosix(null, cwdRaw) : null;
 
   const projectRoot = _strOrNull(
     safeInput.projectRoot || safeCtx.projectRoot
