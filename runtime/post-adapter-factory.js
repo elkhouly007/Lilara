@@ -177,6 +177,55 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
           } catch { /* provenance recording is best-effort */ }
         }
 
+        // 2d. MCP result-injection reinforcement (Feature 5 / ADR-017 extension).
+        // When MCP tool output contains injection signals, log a dedicated
+        // mcp-result-injection reason code and reinforce the F23 provenance record
+        // (lower token threshold) so downstream dangerous commands trip the kill chain.
+        //
+        // Coverage limitation (same as F23 / ADR-017): full on Claude Code only;
+        // OpenCode/OpenClaw partial (PostToolUse may not fire for all tools);
+        // Codex, ClawCode, Antegravity: none — these harnesses lack PostToolUse hooks.
+        // Do not assume this scan guards all six harnesses.
+        if (sourceLabel(toolName) === "mcp" && text) {
+          try {
+            const mcpInj = scanForInjection(text);
+            if (mcpInj.matched) {
+              const mcpIds = mcpInj.hits.map(h => h.id).join(", ");
+              try {
+                append({
+                  kind: "runtime-decision",
+                  action: "warn",
+                  riskLevel: "high",
+                  riskScore: 7,
+                  reasonCodes: ["mcp-result-injection"],
+                  tool: toolName,
+                  branch: "",
+                  targetPath: "",
+                  notes: `F23:mcp-injection:${harnessName}:${mcpIds}`,
+                  floorFired: "mcp-result-injection",
+                  code: "F23_PROVENANCE_TAINT",
+                });
+              } catch { /* journal is best-effort */ }
+              if (_tokenHashSet && _recordProvenanceStep) {
+                try {
+                  const injTokens = _tokenHashSet(text.slice(0, 8192));
+                  if (injTokens.length > 0) {
+                    _recordProvenanceStep({
+                      role:        "source",
+                      sourceClass: "untrusted",
+                      pathHash:    null,
+                      urlHash:     null,
+                      host:        null,
+                      tokenHashes: injTokens,
+                      ts:          Date.now(),
+                    });
+                  }
+                } catch { /* provenance reinforcement is best-effort */ }
+              }
+            }
+          } catch { /* MCP result-injection scan is best-effort */ }
+        }
+
         // 3. Optional envelope verification — only active for adapters that can
         // report an exec-time envelope in PostToolUse payloads.
         if (envelopeReporting) {
