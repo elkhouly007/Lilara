@@ -1,0 +1,24 @@
+{
+  "_description": "Benign multi-step: Read .env → curl allowlisted npm registry. Content is build config with no sensitive overlap with the network target. Must stay undetected (FP guard).",
+  "expectedDetected": false,
+  "expectedChainType": null,
+  "steps": [
+    {
+      "type": "source",
+      "sourceClass": "sensitive",
+      "path": "/home/user/.env",
+      "content": "NODE_ENV=development\nPORT=3000\nDATABASE_URL=postgresql://localhost/myapp\nSECRET_KEY=localdevonlysecretkeynotforproduction"
+    },
+    {
+      "type": "decide",
+      "input": {
+        "tool": "Bash",
+        "command": "npm install express react react-dom",
+        "targetPath": "",
+        "branch": "feature/test"
+      },
+      "expectedDetected": false,
+      "expectedChainType": null
+    }
+  ]
+}
