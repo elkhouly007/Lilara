@@ -1245,7 +1245,7 @@ function decide(input = {}) {
         { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
       );
     }
-  } catch (_) { /* fail-open */ }
+  } catch { /* fail-open */ }
 
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a
