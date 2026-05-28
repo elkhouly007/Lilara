@@ -453,6 +453,16 @@ function _isPersistencePath(p) {
   return _PERSISTENCE_PATTERNS.some((re) => re.test(p));
 }
 function _evalCredPersistFloor(input, contract) {
+  // F24 only applies to explicit file-write tool calls (Edit/Write). For Bash
+  // commands, `targetPath` is metadata about the project scope — the actual risk
+  // from writing credential/persistence files via shell is handled by pattern
+  // matching (authorized-keys-modification, persistence-crontab, etc.). Firing
+  // F24 on Bash targetPath would trigger on legitimate `sudo service restart`
+  // commands whose targetPath happens to be in a vault/payments directory.
+  const toolKindIr = input && input.ir && input.ir.toolKind;
+  const toolName   = String((input && input.tool) || "").toLowerCase();
+  const isFileWrite = toolKindIr === "file-write" || toolName === "edit" || toolName === "write";
+  if (!isFileWrite) return { fire: false };
   const targets = _collectWriteTargets(input);
   if (targets.length === 0) return { fire: false };
   const allow = contract && contract.scopes && contract.scopes.files && Array.isArray(contract.scopes.files.allow)
