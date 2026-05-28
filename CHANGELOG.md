@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.1.5] — 2026-05-28
+
 ### Added
 
 - **feat(risk-score): add docker-security container-escape pattern family** — `runtime/risk-score.js` gains eight docker-security pattern groups using the dual-path `matches()` helper (ADR-008 Unicode-bypass resistance): `docker-privileged-pattern` (+9; `docker/podman/nerdctl --privileged`), `docker-socket-mount-pattern` (+9; bind-mount of `docker.sock`/`containerd.sock`/`podman.sock`), `docker-host-mount-pattern` (+8; host `/`, `/etc`, `/root`, `/proc`, `/sys`, `/var/run` mounted in), `docker-cap-add-pattern` (+8; `--cap-add` of `ALL`, `SYS_ADMIN`, `SYS_PTRACE`, `SYS_MODULE`, `DAC_READ_SEARCH`), `docker-host-namespace-pattern` (+8; `--pid=host`, `--userns=host`), `container-namespace-escape-pattern` (+8; `nsenter` targeting PID 1), `docker-unconfined-pattern` (+6; `--security-opt seccomp|apparmor=unconfined`), `docker-host-network-pattern` (+3; `--net=host`). `claude/hooks/dangerous-patterns.json` gains matching static entries for dual-layer defense-in-depth (warn-mode stderr name + block-mode defense). `tests/eval-corpus.json` grows 82 → 98 entries (+7 dangerous block-class, +2 borderline warn-class, +7 safe controls). FP 0.0% / FN 0.0%, replay corpus 97/97 zero drift.
@@ -21,6 +25,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **chore(check): wire `check-action-ir-parity.sh` into `lilara-cli.sh check`** — Added `section "Action IR parity"` block after the Cross-harness equivalence section in `scripts/lilara-cli.sh`. The parity check now runs as part of the standard `check` gate; requires the `fix(action-ir)` root-cause fix to pass on Windows.
+
+- **docs(owasp): note ASI02 docker container-escape / privilege-escalation coverage** — Appended `**B4:**` clause to the ASI02 Coverage cell in `references/owasp-agentic-coverage.md` describing the docker-security pattern family (`--privileged`, docker socket bind-mount, host root/critical dir mount, escape-grade `--cap-add`, `--pid=host`/`--userns=host`, `nsenter` PID 1; plus warn-class `--security-opt unconfined` and `--net=host`). Added `runtime/risk-score.js` and `claude/hooks/dangerous-patterns.json` to the ASI02 File(s) column. `check-owasp-coverage.sh` passes with all cited files verified present.
 
 ---
 
