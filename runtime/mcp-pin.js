@@ -5,10 +5,11 @@
 // never raw values) for each {server, tool} pair. On subsequent calls, flags
 // if the shape has changed (arg-schema drift, a.k.a. rug-pull signal).
 //
-// All I/O is on LILARA_STATE_DIR/<session>/mcp-pins.json. Fail-open: any I/O
+// All I/O is on LILARA_STATE_DIR/mcp-pins/pins.json. Fail-open: any I/O
 // error returns { drift: false } so detection failures never block the agent.
 
 const fs     = require("fs");
+const os     = require("os");
 const path   = require("path");
 const crypto = require("crypto");
 
@@ -21,17 +22,20 @@ function _typeClass(v) {
 
 // Compute a stable shape-hash for an argument object.
 // The hash covers only the sorted key names + coarse value-type classes.
+// null, undefined, and {} all normalize to "empty" to avoid false drift
+// between MCP clients that represent no-args differently.
+// exported for unit-test access — not part of the public API.
 function argShapeHash(args) {
-  if (!args || typeof args !== "object") return "empty";
+  if (!args || typeof args !== "object" || Object.keys(args).length === 0) return "empty";
   const pairs = Object.keys(args).sort().map(k => `${k}:${_typeClass(args[k])}`);
   return crypto.createHash("sha256").update(pairs.join(",")).digest("hex").slice(0, 16);
 }
 
 // Returns the path to the pin store file, creating directories as needed.
 function _pinStorePath() {
-  const stateDir = process.env.LILARA_STATE_DIR || require("os").tmpdir();
+  const stateDir = process.env.LILARA_STATE_DIR || os.tmpdir();
   const dir = path.join(stateDir, "mcp-pins");
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return path.join(dir, "pins.json");
 }
 
@@ -47,7 +51,7 @@ function _readPins() {
 
 // Write the pin store.
 function _writePins(pins) {
-  fs.writeFileSync(_pinStorePath(), JSON.stringify(pins), "utf8");
+  fs.writeFileSync(_pinStorePath(), JSON.stringify(pins), { encoding: "utf8", mode: 0o600 });
 }
 
 /**
