@@ -8,6 +8,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **feat(risk-score): add docker-security container-escape pattern family** — `runtime/risk-score.js` gains eight docker-security pattern groups using the dual-path `matches()` helper (ADR-008 Unicode-bypass resistance): `docker-privileged-pattern` (+9; `docker/podman/nerdctl --privileged`), `docker-socket-mount-pattern` (+9; bind-mount of `docker.sock`/`containerd.sock`/`podman.sock`), `docker-host-mount-pattern` (+8; host `/`, `/etc`, `/root`, `/proc`, `/sys`, `/var/run` mounted in), `docker-cap-add-pattern` (+8; `--cap-add` of `ALL`, `SYS_ADMIN`, `SYS_PTRACE`, `SYS_MODULE`, `DAC_READ_SEARCH`), `docker-host-namespace-pattern` (+8; `--pid=host`, `--userns=host`), `container-namespace-escape-pattern` (+8; `nsenter` targeting PID 1), `docker-unconfined-pattern` (+6; `--security-opt seccomp|apparmor=unconfined`), `docker-host-network-pattern` (+3; `--net=host`). `claude/hooks/dangerous-patterns.json` gains matching static entries for dual-layer defense-in-depth (warn-mode stderr name + block-mode defense). `tests/eval-corpus.json` grows 82 → 98 entries (+7 dangerous block-class, +2 borderline warn-class, +7 safe controls). FP 0.0% / FN 0.0%, replay corpus 97/97 zero drift.
+
+- **test(fixtures): add 11 docker-security dangerous-command-gate fixtures, bump fixture count 359→370** — Six warn fixtures (`dcg-docker-privileged`, `dcg-docker-socket-mount`, `dcg-docker-host-root-mount`, `dcg-docker-cap-sysadmin`, `dcg-docker-pid-host`, `dcg-nsenter-host`) and five enforce fixtures (`dcg-enforce-docker-privileged`, `dcg-enforce-docker-socket-mount`, `dcg-enforce-docker-host-root-mount`, `dcg-enforce-docker-cap-add-all`, `dcg-enforce-nsenter-host`). Fixture count bumped 359→370 in `scripts/check-counts.sh`, `README.md`, `references/full-power-status.md`, and this CHANGELOG. All 370 fixtures pass; `check-counts.sh` gate clean.
+
+### Fixed
+
+- **fix(action-ir): resolve file-target paths to platform-independent POSIX form** — `runtime/action-ir.js` gains a `_resolvePosix(cwd, p)` helper that uses `path.posix.normalize()` for absolute inputs (never injects a host drive letter) and forward-slash folding for relative inputs, producing output byte-identical to `path.resolve()` on Linux. Three `path.resolve()` call sites swapped: cwd normalization (~line 447), Edit/Read explicit `file_path` (~line 359), and shell command path resolution (~line 378). Root cause: `path.resolve('/data/old')` returns `C:\data\old` on Windows, diverging the `irHash` from the POSIX value stored in replay fixtures. `bash scripts/check-action-ir-parity.sh` now passes on Windows; replay corpus 97/97 zero drift confirms Linux byte-identity preserved. Completes the follow-up noted in fix(hardening) in v0.1.4.
+
+### Changed
+
+- **chore(check): wire `check-action-ir-parity.sh` into `lilara-cli.sh check`** — Added `section "Action IR parity"` block after the Cross-harness equivalence section in `scripts/lilara-cli.sh`. The parity check now runs as part of the standard `check` gate; requires the `fix(action-ir)` root-cause fix to pass on Windows.
+
 ---
 
 ## [0.1.4] — 2026-05-28

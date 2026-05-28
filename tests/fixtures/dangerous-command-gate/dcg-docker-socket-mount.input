@@ -1,0 +1,1 @@
+{"tool_name":"Bash","args":{"command":"docker run -v /var/run/docker.sock:/var/run/docker.sock docker:cli sh"}}

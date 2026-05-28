@@ -1,0 +1,1 @@
+{"tool_name":"Bash","args":{"command":"nsenter --target 1 --mount --uts --ipc --net --pid -- bash"}}
