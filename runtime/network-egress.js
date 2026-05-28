@@ -214,27 +214,26 @@ function validatePattern(pattern) {
 }
 
 /**
- * Evaluate a command against a network policy.
- * Returns { fired: bool, reason, host?, target?, scheme? } where fired=true
- * means F18 should block.
+ * Evaluate a pre-built targets array against a network policy.
+ * Same semantics as evaluate() but accepts an already-extracted target list
+ * so IR-derived targets (e.g. from native WebFetch tool_input) can be assessed
+ * without going through a command string. See irTargetsToEgressTargets().
  *
  * Fire conditions (per ADR-005 §F18):
  *   1. URL host is an IP literal (non-loopback) → "ip-literal-blocked".
  *   2. URL host explicitly in denyDomains → "deny-domain-match".
  *   3. URL host not in allowDomains (after wildcard match) → "host-not-in-allowlist".
- *   4. (D-007) Target is plaintext http:// (or bare host) and allowPlaintext !== true → "plaintext-target-blocked".
+ *   4. (D-007) Target is plaintext http:// and allowPlaintext !== true → "plaintext-target-blocked".
  *
  * Backwards-compat: returns { fired: false, reason: "no-allow-domains" } when
- * the contract carries no F18 enforcement signal (no allowDomains, no
- * denyDomains, no allowPlaintext). This keeps existing v1/v2/v3 contracts
- * (additive schema) operating unchanged.
+ * the contract carries no F18 enforcement signal.
  */
-function evaluate(command, networkPolicy) {
+function evaluateTargets(targets, networkPolicy) {
   if (!networkPolicy || typeof networkPolicy !== "object") {
     return { fired: false, reason: "no-policy" };
   }
-  const hasAllowDomains  = Array.isArray(networkPolicy.allowDomains);
-  const hasDenyDomains   = Array.isArray(networkPolicy.denyDomains);
+  const hasAllowDomains   = Array.isArray(networkPolicy.allowDomains);
+  const hasDenyDomains    = Array.isArray(networkPolicy.denyDomains);
   const hasAllowPlaintext = typeof networkPolicy.allowPlaintext === "boolean";
   // D-007: default-deny applies only when the contract carries an F18 signal.
   if (!hasAllowDomains && !hasDenyDomains && !hasAllowPlaintext) {
@@ -255,8 +254,7 @@ function evaluate(command, networkPolicy) {
         .filter((p) => typeof p === "string" && p.length > 0)
     : [];
 
-  const targets = extractTargets(command);
-  if (targets.length === 0) {
+  if (!Array.isArray(targets) || targets.length === 0) {
     return { fired: false, reason: "no-network-target" };
   }
 
@@ -300,6 +298,38 @@ function evaluate(command, networkPolicy) {
   }
 
   return { fired: false, reason: "all-targets-allowed" };
+}
+
+/**
+ * Evaluate a command against a network policy.
+ * Thin wrapper around evaluateTargets — extracts targets from the command
+ * string then delegates. See evaluateTargets() for full semantics.
+ */
+function evaluate(command, networkPolicy) {
+  return evaluateTargets(extractTargets(String(command || "")), networkPolicy);
+}
+
+/**
+ * Convert IR networkTargets (from action-ir.js buildIr) to the target shape
+ * accepted by evaluateTargets(). Used by the F18 block in decision-engine.js
+ * to assess native WebFetch calls whose URL lives in tool_input rather than
+ * a command string.
+ */
+function irTargetsToEgressTargets(irNetworkTargets) {
+  if (!Array.isArray(irNetworkTargets)) return [];
+  const out = [];
+  for (const t of irNetworkTargets) {
+    if (!t || typeof t !== "object" || !t.host) continue;
+    out.push({
+      raw: t.raw || t.host,
+      scheme: t.scheme || null,
+      host: String(t.host).toLowerCase(),
+      port: null,
+      hostDisplay: t.host,
+      source: "ir-network-target",
+    });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -549,6 +579,8 @@ module.exports = {
   hostMatches,
   validatePattern,
   evaluate,
+  evaluateTargets,
+  irTargetsToEgressTargets,
   evaluateDns,
   evaluateIpSet,
   resolveTargets,
