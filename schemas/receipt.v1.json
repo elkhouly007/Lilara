@@ -360,6 +360,101 @@
           "maxLength": 256
         }
       }
+    },
+    "killChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chainType",
+        "severity",
+        "detected",
+        "enforced"
+      ],
+      "properties": {
+        "chainType": {
+          "type": "string",
+          "enum": [
+            "staged-exfil",
+            "injection-to-exec",
+            "persistence"
+          ],
+          "description": "Which kill-chain shape was detected. ADR-017."
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "detected": {
+          "type": "boolean",
+          "description": "Whether a chain was detected (true in both observe and enforce modes)."
+        },
+        "enforced": {
+          "type": "boolean",
+          "description": "Whether the floor changed the action (true in enforce mode only; false in observe mode)."
+        },
+        "wouldAction": {
+          "type": "string",
+          "enum": [
+            "block",
+            "escalate",
+            "warn"
+          ],
+          "description": "The action that would fire in enforce mode."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "structural",
+            "content-overlap"
+          ],
+          "description": "Evidence type that triggered detection."
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "description": "Redacted evidence strings describing the detected linkage."
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "class",
+              "redactedRef"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "class": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "redactedRef": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Privacy-safe reference (path hash or host). Never raw file content or full paths."
+              }
+            }
+          },
+          "description": "Prior provenance steps that form the chain. Paths are redacted."
+        }
+      },
+      "description": "F23 kill-chain detection result. Present when a multi-step chain was detected (observe or enforce). Absent on clean calls so existing receipts stay byte-identical. ADR-017."
     }
   }
 }
