@@ -126,6 +126,7 @@ const { classifyAmbientPath: _classifyAmbientPath, isAmbientPath: _isAmbientPath
 // lock owned by another agent/session for a write-like call.
 const { readLockState: _readLockState, findConflict: _findLockConflict } = require("./cross-agent-lock");
 const { stateDir: _statePathStateDir } = require("./state-paths");
+const { checkArgShapeDrift: _checkArgShapeDrift } = require("./mcp-pin");
 // ADR-004 PR 37B: degraded-mode descriptor + write-like classifier. The
 // descriptor is computed once per process from journal-chain.verify(); when
 // degraded, F4 operator-token demotion is suppressed and write-like `allow`
@@ -1247,6 +1248,35 @@ function decide(input = {}) {
     }
   } catch { /* fail-open */ }
 
+  // mcp-tool-drift (rug-pull / behavioral pin): observe-only advisory.
+  // Checks whether an MCP tool's argument shape has changed since first seen.
+  // Fires flag-only: attaches a `mcpToolDrift` advisory field on the result
+  // but NEVER changes `action`, `source`, or `floorFired`. Fail-open.
+  let _mcpToolDrift = null;
+  try {
+    const _isMcpCall = (enriched.ir && enriched.ir.toolKind === "mcp") ||
+                       String(input.tool || "").startsWith("mcp__");
+    if (_isMcpCall && !_earlyBlockDryRun) {
+      const _mcpSrv  = (enriched.ir && enriched.ir.mcpServer) ||
+                       _contractExtractMcpServerName(input.tool);
+      const _toolName = String(input.tool || "");
+      const _args     = input.tool_input ?? input.args ?? input.params ?? null;
+      const _driftResult = _checkArgShapeDrift({
+        server: _mcpSrv || _toolName,
+        tool: _toolName,
+        args: _args,
+      });
+      if (_driftResult.drift) {
+        _mcpToolDrift = {
+          code:   "mcp-tool-drift",
+          server: _mcpSrv || null,
+          tool:   _toolName,
+          reason: _driftResult.reason || "arg-shape changed",
+        };
+      }
+    }
+  } catch { /* fail-open: rug-pull detection must never block the engine */ }
+
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a
   // path/project already held by a different agent's lock that is not
@@ -1790,6 +1820,7 @@ function decide(input = {}) {
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
   if (validityWarning) explanationParts.push("validity-warn=outside-window");
   if (mcpWarning)            explanationParts.push(`mcp-warn=${mcpWarning.name}`);
+  if (_mcpToolDrift)         explanationParts.push(`mcp-tool-drift=${_mcpToolDrift.tool}`);
   if (skillWarning)          explanationParts.push(`skill-warn=${skillWarning.name}`);
   if (sessionDurationWarning) explanationParts.push(`session-over-duration=age:${sessionDurationWarning.ageMin}min/limit:${sessionDurationWarning.limitMin}min`);
   if (input.envelope?.hash) explanationParts.push(`envelope=${input.envelope.hash}`);
@@ -1881,6 +1912,9 @@ function decide(input = {}) {
     ...(mcpWarning            ? { mcpWarning }            : {}),
     ...(skillWarning          ? { skillWarning }          : {}),
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+    // mcp-tool-drift: rug-pull advisory field. Present only when arg-shape
+    // drift was detected for this MCP tool call. Flag-only — action unchanged.
+    ...(_mcpToolDrift ? { mcpToolDrift: _mcpToolDrift } : {}),
     // ADR-009 PR-C: receipt enrichment on every ambient-touch decision.
     ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
@@ -1930,6 +1964,7 @@ function decide(input = {}) {
       ...(mcpWarning            ? { mcpWarning }            : {}),
       ...(skillWarning          ? { skillWarning }          : {}),
       ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+      ...(_mcpToolDrift ? { mcpToolDrift: _mcpToolDrift } : {}),
       ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
       ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
       ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),
