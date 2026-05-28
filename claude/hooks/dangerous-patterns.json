@@ -139,6 +139,57 @@
     },
 
     {
+      "name": "docker privileged container",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*--privileged\\b",
+      "severity": "critical",
+      "reason": "Grants the container all Linux capabilities and full host device access — equivalent to running as root on the host. Requires Ahmed's explicit approval per Agent Runtime Guard policy."
+    },
+    {
+      "name": "docker socket mount",
+      "pattern": "-v\\s+[^:]*(?:docker|containerd|podman)\\.sock\\b|--volume[= ][^:]*(?:docker|containerd|podman)\\.sock\\b",
+      "severity": "critical",
+      "reason": "Bind-mounting the container runtime socket gives the container full control of the host daemon — trivial host escape by launching a new privileged container."
+    },
+    {
+      "name": "docker host filesystem mount",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*-v\\s+/(?::|root[/:]|etc[/:]|proc[/:]|sys[/:]|var/run[/:])|\\b(docker|podman|nerdctl)\\b[^\\n]*--volume[= ]/(?::|root[/:]|etc[/:]|proc[/:]|sys[/:]|var/run[/:])",
+      "severity": "critical",
+      "reason": "Mounts host root or critical system directories into the container, enabling backdoor installation, credential theft, and cgroup/namespace escape."
+    },
+    {
+      "name": "docker dangerous capability",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*--cap-add[= ](ALL|SYS_ADMIN|SYS_PTRACE|SYS_MODULE|DAC_READ_SEARCH)\\b",
+      "severity": "critical",
+      "reason": "Grants escape-grade Linux capabilities: SYS_ADMIN enables cgroup namespace escape; ALL grants every capability; SYS_PTRACE enables host process injection; SYS_MODULE allows kernel module loading.",
+      "flags": "i"
+    },
+    {
+      "name": "docker host namespace",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*--(?:pid|userns)[= ]host\\b",
+      "severity": "critical",
+      "reason": "Shares the host PID or user namespace with the container. --pid=host exposes all host processes (nsenter into PID 1); --userns=host runs as the host UID, defeating user isolation."
+    },
+    {
+      "name": "container namespace escape (nsenter)",
+      "pattern": "\\bnsenter\\b[^\\n]*(?:-t\\s*1\\b|--target[= ]\\s*1\\b)",
+      "severity": "critical",
+      "reason": "nsenter targeting host PID 1 enters the host's mount/network/PID namespace — a classic privileged-container or --pid=host breakout primitive."
+    },
+    {
+      "name": "docker sandbox disabled",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*--security-opt[= ](seccomp|apparmor)=unconfined\\b",
+      "severity": "high",
+      "reason": "Disabling the seccomp or AppArmor sandbox removes the syscall/MAC filter, weakening container isolation. Not a standalone escape but removes a defence-in-depth layer.",
+      "flags": "i"
+    },
+    {
+      "name": "docker host network",
+      "pattern": "\\b(docker|podman|nerdctl)\\b[^\\n]*--net(?:work)?[= ]host\\b",
+      "severity": "medium",
+      "reason": "Shares the host network namespace with the container. Not a standalone escape, but stacks with other flags (--privileged, --cap-add, --pid=host) to reach critical risk."
+    },
+
+    {
       "name": "find with -delete",
       "pattern": "\\bfind\\b[^|;&]*\\s-delete\\b",
       "severity": "critical",

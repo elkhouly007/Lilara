@@ -165,6 +165,89 @@ function score(input = {}) {
     reasons.push("interpreter-exec-system");
   }
 
+  // ── Docker / container-escape and privilege-escalation (docker-security) ────
+  // Container runtime escapes that give a container effective host-root access.
+  // Scored alongside reverse-shell (+9) and disk-write (+8): the blast radius is
+  // equivalent — full host compromise. ADR-008 dual-path: every check goes through
+  // matches() for Unicode-bypass resistance. Per ADR-008 §6.3, docker/podman/
+  // nsenter vocabulary letters fall within the existing CONFUSABLES coverage.
+  const _containerCmd = matches(/\b(docker|podman|nerdctl)\b/);
+
+  // --privileged: all Linux capabilities + host device access — root on host.
+  // Scored at +9 (= reverse-shell tier) because the host is fully compromised.
+  if (_containerCmd && matches(/--privileged\b/)) {
+    value += 9;
+    reasons.push("docker-privileged-pattern");
+  }
+
+  // Container runtime socket bind-mounted into a container (-v …docker.sock or
+  // --volume=…docker.sock). Gives the container full control of the host daemon
+  // — trivial host escape via a new privileged container. No _containerCmd gate:
+  // the socket path is self-identifying and the risk is the same regardless of
+  // which runtime issued the mount.
+  if (matches(/-v\s+[^:]*(?:docker|containerd|podman)\.sock\b/) ||
+      matches(/--volume[= ][^:]*(?:docker|containerd|podman)\.sock\b/)) {
+    value += 9;
+    reasons.push("docker-socket-mount-pattern");
+  }
+
+  // Host root or critical system directories bind-mounted into a container.
+  // -v /:/host, -v /etc:/etc, -v /proc:..., -v /sys:..., -v /var/run:...
+  // Read/write access to the host filesystem enables backdoor installation,
+  // credential theft, and cgroup/namespace escape. Score +8 = disk-write tier.
+  // Note: -v ./relpath or named volumes (no leading /) are excluded by the regex.
+  if (_containerCmd && (
+      matches(/-v\s+\/(?::|root[/:]|etc[/:]|proc[/:]|sys[/:]|var\/run[/:])/) ||
+      matches(/--volume[= ]\/(?::|root[/:]|etc[/:]|proc[/:]|sys[/:]|var\/run[/:])/))) {
+    value += 8;
+    reasons.push("docker-host-mount-pattern");
+  }
+
+  // Escape-grade Linux capabilities. SYS_ADMIN alone is sufficient for cgroup
+  // namespace escape; ALL grants every capability; SYS_PTRACE enables process
+  // injection into host processes; SYS_MODULE allows kernel module loading;
+  // DAC_READ_SEARCH bypasses discretionary access enforcement.
+  // Note: --cap-drop ALL (safe, capability reduction) is not matched.
+  if (_containerCmd && matches(/--cap-add[= ](ALL|SYS_ADMIN|SYS_PTRACE|SYS_MODULE|DAC_READ_SEARCH)\b/i)) {
+    value += 8;
+    reasons.push("docker-cap-add-pattern");
+  }
+
+  // Host PID or user-namespace sharing. --pid=host exposes all host processes
+  // (enabling nsenter into PID 1 without extra tools); --userns=host runs as
+  // the host UID directly, defeating container user isolation.
+  if (_containerCmd && matches(/--pid[= ]host\b|--userns[= ]host\b/)) {
+    value += 8;
+    reasons.push("docker-host-namespace-pattern");
+  }
+
+  // nsenter targeting host init (PID 1) — direct host-namespace breakout primitive.
+  // Classic privileged-container or --pid=host escape: enters the host mount/net/pid
+  // namespace by attaching to PID 1. Scored +8: requires the caller already be in
+  // a position to run nsenter (elevated or inside a privileged container).
+  if (matches(/\bnsenter\b/) && matches(/-t\s*1\b|--target[= ]\s*1\b/)) {
+    value += 8;
+    reasons.push("container-namespace-escape-pattern");
+  }
+
+  // Disabling seccomp or AppArmor weakens container isolation by removing the
+  // syscall / MAC filter. Scored high (+6 → value 7 with base → high/escalate)
+  // rather than critical: alone it is not an escape, but it removes a
+  // defence-in-depth layer. Stacks to critical with any +1 context modifier.
+  if (_containerCmd && matches(/--security-opt[= ](seccomp|apparmor)=unconfined\b/i)) {
+    value += 6;
+    reasons.push("docker-unconfined-pattern");
+  }
+
+  // Host network namespace shared with container. Medium signal (+3) on its own
+  // (route/warn), but stacks with privileged/cap-add/pid=host to push into
+  // critical. Included as a standing signal so combinations are escalated even
+  // when a more-dangerous flag is detected only via the normalised arm.
+  if (_containerCmd && matches(/--net(?:work)?[= ]host\b/)) {
+    value += 3;
+    reasons.push("docker-host-network-pattern");
+  }
+
   if (ctx.targetPath === "/" || ctx.targetPath === "/*") {
     value += 4;
     reasons.push("filesystem-root-target");
