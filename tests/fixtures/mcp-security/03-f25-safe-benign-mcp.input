@@ -1,0 +1,14 @@
+{
+  "title": "F25/03: Benign MCP tool call → allow (no dangerous arg)",
+  "input": {
+    "tool": "mcp__github__search_repos",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "query": "lilara security" }
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null
+  }
+}

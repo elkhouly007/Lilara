@@ -166,6 +166,9 @@ case "$cmd" in
     section "File-write floor fixtures (F24)"
     bash "${scripts}/check-file-write-floor.sh" || failed=1
 
+    section "MCP security fixtures (F25/F4-opt-out/rug-pull)"
+    bash "${scripts}/check-mcp-security.sh" || failed=1
+
     section "Lattice ordering"
     bash "${scripts}/check-lattice-ordering.sh" || failed=1
 
