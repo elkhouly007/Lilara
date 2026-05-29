@@ -147,3 +147,25 @@ The runtime sprint (R1–R3, now closed) delivered:
 - `tests/fixtures/replay-corpus/mcp-security.jsonl` — 4 replay entries (F25 block ×2, benign allow, F4 PAT block)
 - `tests/eval-corpus.json` — 2 new entries (dangerous-32, safe-53); corpus 110→112
 - 386/386 fixtures passing; 94 scripts.
+
+## Post-PR70 MCP Hardening (feat/mcp-floor-hardening)
+
+**Adversarial probe results (5 defects found and fixed, 4 held):**
+- F25/F26 Unicode bypass — FIXED (classifyCommandDual, ADR-008 dual-path; Cyrillic `рm -rf /` now blocks)
+- F25 arg-shape `arguments` / empty masking — FIXED (all-container union, Fix B)
+- F26 MultiEdit content — FIXED (_collectMcpWriteContent, Fix C)
+- Walker cap → require-review — HELD (iterative stack, _ESV_NODE_CAP=1000, fail-safe)
+- F26 raw fallback + oversize — HELD (sudo-anchor value extraction, 256KB cap)
+
+**Graduated protection added:**
+- Dual-use MCP args (`destructive-db`, `auto-download`, `global-pkg-install`) now gate to require-review on the Bash-path parity principle (Fix D / P1). Hard-block set unchanged (6 unambiguous classes).
+- F25 rug-pull seam closed: `policy:allow` trusted server with HARD_BLOCK arg → require-review, not silent allow (Fix E / P2). F4 trust semantics unchanged.
+
+**Result-injection comment corrected:**
+- Block 2d in `post-adapter-factory.js` is harness-agnostic; "lack PostToolUse" claim removed. OWASP ASI01/ASI04 reconciled with ASI05.
+
+**Test coverage added:**
+- T8–T14 in `tests/runtime/mcp-floor-adversarial.test.js` (Unicode, arg-shape, MultiEdit, graduated gate, rug-pull)
+- `tests/runtime/post-adapter-mcp-injection.test.js` (5 harness-agnostic assertions)
+- 3 new fixtures: `06-f25-unicode-arg-danger`, `07-f26-multiedit-mcp-config`, `08-f25-dual-use-drop-table`
+- 389/389 fixtures; corpus 112→114 (dangerous-33, safe-54); FP 0.0% / FN 0.0%.
