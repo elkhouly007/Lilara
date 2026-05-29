@@ -59,6 +59,7 @@ function _writePins(pins) {
  *
  * On first call: records the arg shape hash and returns { drift: false }.
  * On subsequent calls: if the hash differs, returns { drift: true, reason }.
+ * On drift: updates pin to new hash; sets lastChangedAt and increments changeCount.
  * Always fail-open: I/O errors return { drift: false }.
  */
 function checkArgShapeDrift({ server, tool, args }) {

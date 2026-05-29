@@ -325,6 +325,13 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
 function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, extra = {}) {
   const _code     = extra.code || floorCodeFor(reasonCode) || null;
   const _degraded = extra.degradedMode !== undefined ? extra.degradedMode : _earlyBlockDegradedDefault;
+  // ADR-009 PR-C: carry ambient-touch fields into require-review receipts so
+  // audit can identify which ambient path was being touched when the gate fired.
+  // Mirrors the identical pattern in buildEarlyBlock (lines ~219-222).
+  const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
+  const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
+  // ADR-017 F23: include kill-chain receipt when detection fired before this early review.
+  const _killChain    = _earlyBlockF23 || null;
   const result = {
     action: "require-review",
     enforcementAction: "require-review",
@@ -348,7 +355,10 @@ function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, 
     envelopeVerification: null,
     networkEgress: null,
     context: {},
-    ...(_degraded != null ? { degradedMode: _degraded } : {}),
+    ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+    ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+    ...(_degraded    != null ? { degradedMode: _degraded } : {}),
+    ...(_killChain   != null ? { killChain: _killChain } : {}),
   };
   // ADR-016: dry-run mode skips journal/notify side-effects (sandbox previews).
   if (_earlyBlockDryRun) return result;
@@ -365,7 +375,10 @@ function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, 
       targetPath: input.targetPath || "",
       notes: `${result.decisionSource}:${reasonCode}`,
       ...(result.floorFired ? { floorFired: result.floorFired } : {}),
-      ...(_degraded != null ? { degradedMode: _degraded } : {}),
+      ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+      ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+      ...(_degraded    != null ? { degradedMode: _degraded } : {}),
+      ...(_killChain   != null ? { killChain:    _killChain } : {}),
       ...(irExtras || {}),
     });
     recordDecision({ action: "require-review", riskLevel: "medium", reasonCodes: [reasonCode] });
@@ -573,7 +586,7 @@ function _extractStringValues(obj) {
     const stack   = [obj];
     let   nodes   = 0;
     while (stack.length > 0) {
-      if (nodes++ >= _ESV_NODE_CAP) return { strings, truncated: true };
+      if (++nodes > _ESV_NODE_CAP) return { strings, truncated: true };
       const cur = stack.pop();
       if (typeof cur === "string") { strings.push(cur); continue; }
       if (cur === null || typeof cur !== "object") continue;
