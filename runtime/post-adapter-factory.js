@@ -141,8 +141,9 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // for later kill-chain evaluation at decide() PreToolUse. Content is
         // NEVER stored — only irreversible token hashes + path/url hashes.
         //
-        // Coverage: Claude Code only in v1 (other harnesses lack PostToolUse).
-        // See references/adr-017-provenance-graph.md §Coverage Limitations.
+        // Coverage (kill-chain provenance): all 6 harness adapters delegate here;
+        // effective coverage depends on MCP-output dispatch per-harness — see the
+        // block-2d coverage comment below.  ADR-017 §Coverage Limitations.
         if (EXTERNAL_TOOLS.has(toolName) && text && _tokenHashSet && _recordProvenanceStep) {
           try {
             const _srcLabel = sourceLabel(toolName);
@@ -186,10 +187,18 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // also ran in block 2b. The double-scan and double-journal for that case is
         // intentional — 2b logs the generic F21 signal; 2d logs the MCP-specific F23b.
         //
-        // Coverage limitation (same as F23 / ADR-017): full on Claude Code only;
-        // OpenCode/OpenClaw partial (PostToolUse may not fire for all tools);
-        // Codex, ClawCode, Antegravity: none — these harnesses lack PostToolUse hooks.
-        // Do not assume this scan guards all six harnesses.
+        // Coverage (harness-agnostic scan): this block runs unconditionally for any
+        // harness whose adapter delegates here — the factory has no per-harness
+        // branching. All 6 harnesses have wired adapters enforced by
+        // check-post-adapter-parity.sh. Effective coverage depends on whether the
+        // harness actually surfaces MCP tool output at its PostToolUse event:
+        //   - Claude Code: full (output-sanitizer.js wired, MCP output confirmed).
+        //   - OpenCode, OpenClaw: partial (PostToolUse may not fire for all MCP tools).
+        //   - Codex, ClawCode, Antegravity: adapters wired + PostToolUse/AfterTool
+        //     surface confirmed via source-trace (2026-05-23/24); live E2E pending.
+        //     Codex mcpInterception=partial (upstream dispatch reliability issue,
+        //     see codex/WIRING_PLAN.md). ClawCode/Antegravity mcpInterception=unverified.
+        // PREVIOUS COMMENT WAS WRONG: "lack PostToolUse hooks" — all 6 have adapters.
         if (sourceLabel(toolName) === "mcp" && text) {
           try {
             const mcpInj = scanForInjection(text);

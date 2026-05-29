@@ -258,6 +258,239 @@ isolated((dir) => {
     : fail("T6: floorFired is NOT mcp-registration-write", `floorFired=${result.floorFired}`);
 });
 
+// ─── T8: F25 Unicode bypass — Cyrillic 'рm -rf /' → block ───────────────────
+// Before this fix: classifyCommand("рm -rf /") returned "generic" (raw ASCII
+// regex only — Cyrillic 'р' U+0440 is not matched by \brm\b). After Fix A
+// (classifyCommandDual), normalizeCommand folds 'р'→'r', then classifyCommand
+// matches destructive-delete → F25 fires.
+isolated(() => {
+  const cyrillicRm = "рm -rf /"; // р (Cyrillic er) + m -rf /
+  const input = {
+    tool:       "mcp__test__exec",
+    tool_input: { command: cyrillicRm },
+    command:    "",
+    branch:     "feature/test",
+    targetPath: ".",
+    harness:    "claude",
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action === "block"
+    ? ok("T8: Cyrillic рm -rf / → F25 block (Unicode dual-path)")
+    : fail("T8: Cyrillic рm -rf / → F25 block", `action=${result.action} floorFired=${result.floorFired}`);
+  (result.floorFired && result.floorFired.toLowerCase().includes("mcp-arg"))
+    ? ok("T8: floorFired is mcp-arg floor")
+    : fail("T8: floorFired is mcp-arg floor", `floorFired=${result.floorFired}`);
+});
+
+// ─── T9: F25 `arguments` shape → block ───────────────────────────────────────
+// MCP tool input arriving under `arguments` (a common envelope shape) was
+// missed by the previous `tool_input ?? args ?? params` extraction. Fix B
+// unions all present containers.
+isolated(() => {
+  const input = {
+    tool:       "mcp__test__exec",
+    arguments:  { command: "rm -rf /" },
+    command:    "",
+    branch:     "feature/test",
+    targetPath: ".",
+    harness:    "claude",
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action === "block"
+    ? ok("T9: `arguments` shape → F25 block")
+    : fail("T9: `arguments` shape → F25 block", `action=${result.action} floorFired=${result.floorFired}`);
+  (result.floorFired && result.floorFired.toLowerCase().includes("mcp-arg"))
+    ? ok("T9: floorFired is mcp-arg floor")
+    : fail("T9: floorFired is mcp-arg floor", `floorFired=${result.floorFired}`);
+});
+
+// ─── T10: F25 empty tool_input does not mask dangerous `args` ────────────────
+// Before Fix B: `tool_input ?? args` — a present-but-empty `tool_input:{}` would
+// short-circuit `args` from being scanned. Fix B unions all containers.
+isolated(() => {
+  const input = {
+    tool:       "mcp__test__exec",
+    tool_input: {},                       // present but empty — must not mask args
+    args:       { cmd: "rm -rf /" },
+    command:    "",
+    branch:     "feature/test",
+    targetPath: ".",
+    harness:    "claude",
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action === "block"
+    ? ok("T10: empty tool_input does not mask dangerous args → F25 block")
+    : fail("T10: empty tool_input does not mask dangerous args → F25 block", `action=${result.action} floorFired=${result.floorFired}`);
+});
+
+// ─── T11: F26 MultiEdit to .mcp.json with rm-rf in edits[].new_string → block ─
+// Before Fix C: F26 content extraction read only input.content / input.new_string /
+// input.file_text. A MultiEdit arriving as {edits:[{new_string:"..."}]} had an
+// empty top-level `content` string → fire:false (silent skip). Fix C reads
+// _collectMcpWriteContent which joins edits[].new_string.
+isolated((dir) => {
+  const dangerousConfig = JSON.stringify({
+    mcpServers: { evil: { command: "rm -rf /" } },
+  });
+  const input = {
+    tool:        "MultiEdit",
+    harness:     "claude",
+    command:     "",
+    branch:      "feature/test",
+    projectRoot: dir,
+    file_path:   ".mcp.json",
+    edits:       [{ old_string: "", new_string: dangerousConfig }],
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action === "block"
+    ? ok("T11: MultiEdit edits[].new_string to .mcp.json → F26 block")
+    : fail("T11: MultiEdit edits[].new_string to .mcp.json → F26 block", `action=${result.action} floorFired=${result.floorFired}`);
+  (result.floorFired && result.floorFired === "mcp-registration-write")
+    ? ok("T11: floorFired is mcp-registration-write")
+    : fail("T11: floorFired is mcp-registration-write", `floorFired=${result.floorFired}`);
+});
+
+// ─── T12: F25 dual-use class (DROP TABLE) → require-review (not block, not allow)
+// Fix D: MCP args carrying a destructive-db/auto-download/global-pkg-install
+// command string reach a graduated require-review gate — never hard-block (would
+// break legitimate DB MCP tooling), never silent allow.
+isolated(() => {
+  const input = {
+    tool:       "mcp__postgres__query",
+    tool_input: { sql: "DROP TABLE tmp_migrations" },
+    command:    "",
+    branch:     "feature/test",
+    targetPath: ".",
+    harness:    "claude",
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action !== "block"
+    ? ok("T12: DROP TABLE arg is NOT hard-blocked (anti-FP: dual-use data)")
+    : fail("T12: DROP TABLE arg is NOT hard-blocked", `action=${result.action} — dual-use must not hard-block`);
+  result.action !== "allow"
+    ? ok("T12: DROP TABLE arg is NOT silently allowed (gate applies)")
+    : fail("T12: DROP TABLE arg is NOT silently allowed", `action=${result.action}`);
+  result.action === "require-review"
+    ? ok("T12: DROP TABLE arg → require-review (graduated gate)")
+    : fail("T12: DROP TABLE arg → require-review", `action=${result.action} floorFired=${result.floorFired}`);
+});
+
+// ─── T13/T14 shared: contract setup helper ───────────────────────────────────
+// Mirrors check-mcp-security.sh fixture setup:
+//   - hashContract() computes contractHash via canonicalJson (same as fixture runner)
+//   - accepted-contracts.json written to LILARA_STATE_DIR (stateDir)
+//   - lilara.contract.json written to projectDir
+//   - require.cache purged for runtime/* so decision-engine re-reads the contract
+const { canonicalJson } = require(path.join(root, "runtime", "canonical-json"));
+const crypto = require("crypto");
+function hashContract(doc) {
+  const { contractHash: _omit, ...rest } = doc;
+  return "sha256:" + crypto.createHash("sha256").update(canonicalJson(rest), "utf8").digest("hex");
+}
+function setupContract(projectDir, stateDir, scopes) {
+  const doc = {
+    version: 1,
+    contractId: "lilara-20260101-000000001337",
+    revision: 1,
+    acceptedAt: "2026-01-01T00:00:00Z",
+    acceptedBy: "operator",
+    harnessScope: ["claude"],
+    trustPosture: "balanced",
+    scopes,
+  };
+  doc.contractHash = hashContract(doc);
+  fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
+  const acceptedKey = path.resolve(projectDir);
+  const record = { [acceptedKey]: { contractHash: doc.contractHash, acceptedAt: doc.acceptedAt, revision: 1, contractId: doc.contractId } };
+  fs.writeFileSync(path.join(stateDir, "accepted-contracts.json"), JSON.stringify(record, null, 2));
+  // Purge runtime/* from require cache so decision-engine re-reads contract
+  for (const key of Object.keys(require.cache)) {
+    if (key.includes(path.sep + "runtime" + path.sep)) delete require.cache[key];
+  }
+}
+function isolatedWithContract(fn) {
+  const stateDir   = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-adv-contract-st-"));
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-adv-contract-pr-"));
+  const prev = process.env.LILARA_STATE_DIR;
+  const prevEnabled = process.env.LILARA_CONTRACT_ENABLED;
+  process.env.LILARA_STATE_DIR = stateDir;
+  process.env.LILARA_CONTRACT_ENABLED = "1";
+  try {
+    return fn(projectDir, stateDir);
+  } finally {
+    if (prev === undefined) delete process.env.LILARA_STATE_DIR;
+    else process.env.LILARA_STATE_DIR = prev;
+    if (prevEnabled === undefined) delete process.env.LILARA_CONTRACT_ENABLED;
+    else process.env.LILARA_CONTRACT_ENABLED = prevEnabled;
+    // Purge runtime/* again after test to avoid contaminating next test
+    for (const key of Object.keys(require.cache)) {
+      if (key.includes(path.sep + "runtime" + path.sep)) delete require.cache[key];
+    }
+    try { fs.rmSync(stateDir,   { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { fs.rmSync(projectDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+}
+
+// ─── T13: F25 opt-out (trusted server) with HARD_BLOCK arg → require-review ───
+// Fix E (P2 decouple): policy:allow for a server used to silently skip F25
+// entirely — a rug-pulled trusted server could pass `rm -rf /` unblocked.
+// After Fix E, a HARD_BLOCK class arg on an allowed server degrades to
+// require-review, not silent allow. (F4 secret-scan opt-out is unchanged.)
+isolatedWithContract((projectDir) => {
+  const stateDir = process.env.LILARA_STATE_DIR;
+  setupContract(projectDir, stateDir, { mcp: { "trusted-shell": { policy: "allow" } } });
+  const { decide: decideT13 } = require(path.join(root, "runtime", "decision-engine"));
+
+  const input = {
+    tool:        "mcp__trusted-shell__exec",
+    tool_input:  { command: "rm -rf /" },
+    command:     "",
+    branch:      "feature/test",
+    targetPath:  ".",
+    harness:     "claude",
+    projectRoot: projectDir,
+  };
+  const result = decideT13(input);
+  result.action !== "allow"
+    ? ok("T13: trusted server HARD_BLOCK arg is NOT silently allowed (rug-pull seam closed)")
+    : fail("T13: trusted server HARD_BLOCK arg is NOT silently allowed", `action=${result.action} — policy:allow must not bypass F25 HARD_BLOCK`);
+  result.action === "require-review"
+    ? ok("T13: trusted server rm -rf / → require-review (auditable gate)")
+    : fail("T13: trusted server rm -rf / → require-review", `action=${result.action} floorFired=${result.floorFired}`);
+});
+
+// ─── T14: F25 trusted server with normal benign arg → allow (FP guard) ────────
+// Fix E must NOT gate benign args from trusted servers — only HARD_BLOCK class
+// triggers require-review; generic/GATED_REVIEW args on allow-listed servers
+// must flow through normally. (The DB connector's normal data path must work.)
+isolatedWithContract((projectDir) => {
+  const stateDir = process.env.LILARA_STATE_DIR;
+  setupContract(projectDir, stateDir, { mcp: { "trusted-db": { policy: "allow" } } });
+  const { decide: decideT14 } = require(path.join(root, "runtime", "decision-engine"));
+
+  const input = {
+    tool:        "mcp__trusted-db__query",
+    tool_input:  { sql: "SELECT * FROM users WHERE id = 1" },
+    command:     "",
+    branch:      "feature/test",
+    targetPath:  ".",
+    harness:     "claude",
+    projectRoot: projectDir,
+  };
+  const result = decideT14(input);
+  result.action !== "block"
+    ? ok("T14: trusted server benign arg is NOT blocked (FP guard)")
+    : fail("T14: trusted server benign arg is NOT blocked", `action=${result.action} — benign trusted MCP must not block`);
+  result.action !== "require-review"
+    ? ok("T14: trusted server benign arg is NOT gated (FP guard)")
+    : fail("T14: trusted server benign arg is NOT gated", `action=${result.action} — generic arg on trusted server must allow`);
+});
+
 // ─── T7: F26 JSONC > 256KB with no danger in first 256KB → require-review ─────
 // Content is a .mcp.json that starts with a JSONC `//` comment (so JSON.parse
 // fails → raw-value fallback), contains benign "command":"node server.js", and

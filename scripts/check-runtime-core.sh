@@ -634,9 +634,14 @@ pass 'eval-runner discover/runAll/toJUnit'
 node "$root/tests/runtime/mcp-pin.test.js" || exit 1
 pass 'mcp-pin argShapeHash + checkArgShapeDrift'
 
-# mcp-floor adversarial test: cycle-safe walker + require-review degrade
+# mcp-floor adversarial test: cycle-safe walker + require-review degrade +
+# hardening: Unicode dual-path, all-shape arg coverage, MultiEdit F26, P1/P2 gates
 node "$root/tests/runtime/mcp-floor-adversarial.test.js" || exit 1
 pass 'mcp-floor-adversarial: cycle-safe walker + require-review degrade'
+
+# post-adapter result-injection harness-agnostic regression
+node "$root/tests/runtime/post-adapter-mcp-injection.test.js" || exit 1
+pass 'post-adapter-mcp-injection: harness-agnostic MCP result-injection scan'
 
 # markdown-link-scan unit test
 node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
