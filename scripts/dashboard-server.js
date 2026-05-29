@@ -132,6 +132,8 @@ function buildCoverage(entries) {
   const byToolKind  = { bash: 0, "file-write": 0, mcp: 0, network: 0, other: 0 };
   const reasonCount = {};
   let   f24Hits     = 0;
+  let   byMcpServer = {};
+  let   mcpDenyCount = 0, mcpArgDangerCount = 0, mcpRegWriteCount = 0, rugPullCount = 0;
 
   for (const e of runtimeDecisions) {
     const tool = String(e.tool || "").toLowerCase();
@@ -146,16 +148,36 @@ function buildCoverage(entries) {
     }
 
     if (e.floorFired === "credential-persistence-write") f24Hits++;
+
+    // MCP server breakdown
+    if (tool.startsWith("mcp__")) {
+      const m = tool.match(/^mcp__([^_]+(?:_[^_]+)*?)__/);
+      const srv = m ? m[1] : "unknown";
+      byMcpServer[srv] = (byMcpServer[srv] || 0) + 1;
+    }
+
+    if (e.floorFired === "mcp-deny")                     mcpDenyCount++;
+    if (e.floorFired === "mcp-arg-danger-denied")         mcpArgDangerCount++;
+    if (e.floorFired === "mcp-registration-write-denied") mcpRegWriteCount++;
+
+    if (e.mcpToolDrift) rugPullCount++;
   }
 
   const newReasonCodes = ["file-write-high-sensitivity", "file-write-medium-sensitivity",
     "file-write-persistence", "file-write-cicd-config", "file-write-lockfile",
     "file-write-system-path", "mcp-sensitive-path-arg", "network-plaintext",
-    "network-ip-literal", "network-egress-observed", "credential-persistence-write-denied"];
+    "network-ip-literal", "network-egress-observed", "credential-persistence-write-denied",
+    "mcp-arg-danger-denied", "mcp-registration-write-denied", "mcp-result-injection"];
   const newReasonSummary = {};
   for (const r of newReasonCodes) newReasonSummary[r] = reasonCount[r] || 0;
 
-  return { byToolKind, f24Hits, newReasonCodes: newReasonSummary, allReasonCodes: reasonCount };
+  return {
+    byToolKind, f24Hits, newReasonCodes: newReasonSummary, allReasonCodes: reasonCount,
+    byMcpServer,
+    mcpDenials: { f12Deny: mcpDenyCount, f25ArgDanger: mcpArgDangerCount, f26RegWrite: mcpRegWriteCount },
+    rugPullFlags: rugPullCount,
+    resultInjectionHits: reasonCount["mcp-result-injection"] || 0,
+  };
 }
 
 function buildKillChains(entries) {
@@ -359,7 +381,16 @@ async function loadView(v) {
         '<div class="section-title">F24 Credential-Persistence Hits</div>'+
         '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">F24 Blocks</div><div class="card-value">'+c.f24Hits+'</div></div>'+
         '<div class="section-title">New Coverage Reason Codes</div>'+barChart(c.newReasonCodes)+
-        '<div class="section-title">All Reason Codes</div>'+barChart(c.allReasonCodes);
+        '<div class="section-title">All Reason Codes</div>'+barChart(c.allReasonCodes)+
+        '<div class="section-title">MCP Server Breakdown</div>'+
+        (Object.keys(c.byMcpServer).length ? barChart(c.byMcpServer) : '<div class="card" style="display:inline-block"><div class="card-label">No MCP tool calls recorded</div></div>')+
+        '<div class="section-title">MCP Denial Counts</div>'+
+        '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">F12 Server Deny</div><div class="card-value">'+c.mcpDenials.f12Deny+'</div></div>'+
+        '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">F25 Arg Danger</div><div class="card-value">'+c.mcpDenials.f25ArgDanger+'</div></div>'+
+        '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">F26 Reg Write</div><div class="card-value">'+c.mcpDenials.f26RegWrite+'</div></div>'+
+        '<div class="section-title">MCP Advisories</div>'+
+        '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">Rug-Pull Flags</div><div class="card-value">'+c.rugPullFlags+'</div></div>'+
+        '<div class="card" style="display:inline-block;min-width:160px"><div class="card-label">Result-Injection Hits</div><div class="card-value">'+c.resultInjectionHits+'</div></div>';
     } catch(e) { el.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
   }
   else if (v === 'kill-chains') {
