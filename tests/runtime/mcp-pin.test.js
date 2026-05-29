@@ -52,11 +52,15 @@ withPins(() => {
   r.drift === false ? ok("drift: same shape no drift") : fail("drift: same shape no drift", JSON.stringify(r));
 });
 
-// checkArgShapeDrift: type change causes drift
+// checkArgShapeDrift: type change causes drift, then re-pins so same shape no longer drifts
 withPins(() => {
   checkArgShapeDrift({ server: "github", tool: "search", args: { q: "hello" } });
-  const r = checkArgShapeDrift({ server: "github", tool: "search", args: { q: 42 } }); // type change string→number
-  r.drift === true ? ok("drift: type change detected") : fail("drift: type change detected", JSON.stringify(r));
+  const r1 = checkArgShapeDrift({ server: "github", tool: "search", args: { q: 42 } }); // type change string→number
+  r1.drift === true ? ok("drift: type change detected") : fail("drift: type change detected", JSON.stringify(r1));
+  const r2 = checkArgShapeDrift({ server: "github", tool: "search", args: { q: 99 } }); // same shape (number) after re-pin
+  r2.drift === false ? ok("drift: re-pins after first change — same shape no drift") : fail("drift: re-pins after first change — same shape no drift", JSON.stringify(r2));
+  const r3 = checkArgShapeDrift({ server: "github", tool: "search", args: { q: true } }); // second change: number→boolean
+  (r3.drift === true && r3.changeCount === 2) ? ok("drift: second change increments changeCount to 2") : fail("drift: second change increments changeCount to 2", JSON.stringify(r3));
 });
 
 // checkArgShapeDrift: fail-open on missing server/tool

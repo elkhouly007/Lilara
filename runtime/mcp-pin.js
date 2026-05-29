@@ -70,13 +70,16 @@ function checkArgShapeDrift({ server, tool, args }) {
     const stored = pins[key];
     if (!stored) {
       // First sight — record the hash.
-      pins[key] = { hash, seenAt: new Date().toISOString() };
+      pins[key] = { hash, seenAt: new Date().toISOString(), changeCount: 0 };
       _writePins(pins);
       return { drift: false };
     }
     if (stored.hash !== hash) {
-      // Shape changed — drift detected.
-      return { drift: true, reason: `arg-shape changed: ${stored.hash} → ${hash}` };
+      // Shape changed — drift detected; re-pin so subsequent identical calls return drift:false.
+      const changeCount = (stored.changeCount || 0) + 1;
+      pins[key] = { hash, seenAt: stored.seenAt, lastChangedAt: new Date().toISOString(), changeCount };
+      _writePins(pins);
+      return { drift: true, reason: `arg-shape changed: ${stored.hash} → ${hash}`, changeCount };
     }
     return { drift: false };
   } catch {
