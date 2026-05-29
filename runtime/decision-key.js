@@ -12,6 +12,7 @@
 // as a fallback for backward-compat with existing learned-allow entries.
 
 const path = require("path");
+const { normalizeCommand } = require("./command-normalize");
 
 // ---------------------------------------------------------------------------
 // Command class detection (mirrors policy-store.js — kept in sync)
@@ -29,6 +30,47 @@ function classifyCommand(cmd) {
   if (/^\s*sudo\s+/.test(c))                                             return "sudo";
   if (/\b(npm|yarn)\s+(install|add|i)\b.*\s(-g|--global)\b/.test(c))   return "global-pkg-install";
   return "generic";
+}
+
+// ---------------------------------------------------------------------------
+// Command-class buckets for the MCP floors (F25/F26).
+//
+//   HARD_BLOCK_CLASSES  — unambiguous: there is no legitimate reason for an MCP
+//                         tool to receive these as data. Non-demotable hard block.
+//   GATED_REVIEW_CLASSES — dual-use: legitimate INPUT DATA for whole classes of
+//                         MCP servers (DB connectors receive `DROP TABLE`,
+//                         code-assist MCPs receive `npx -y create-react-app`,
+//                         package MCPs receive `npm i -g`). The classifier cannot
+//                         tell "will execute" from "is data", so these reach a
+//                         configurable gate (require-review) — never a blind block,
+//                         never a blind allow. (Khouly decision, 2026-05-29.)
+// ---------------------------------------------------------------------------
+const HARD_BLOCK_CLASSES = new Set([
+  "destructive-delete", "force-push", "remote-exec",
+  "hard-reset", "disk-write", "sudo",
+]);
+const GATED_REVIEW_CLASSES = new Set([
+  "destructive-db", "auto-download", "global-pkg-install",
+]);
+
+// classifyCommandDual — dual-path classifier mirroring risk-score.js's ADR-008
+// dual-path matching: classify the raw string, and if (and only if) that is
+// generic AND Unicode normalization changes the string, classify the NFKD +
+// confusables-folded form too. Defeats Unicode look-alike bypass (Cyrillic
+// 'рm -rf /', full-width 'ｒｍ', etc.) in the MCP arg/registration paths, which
+// previously called the raw-only classifyCommand.
+//
+// ASCII fast-path: a direct (raw) match returns immediately with no second
+// classify; a pure-ASCII string (normalizeCommand is identity) also skips the
+// second classify. The second pass runs only when the raw form is generic and
+// normalization actually changed the string.
+function classifyCommandDual(cmd) {
+  const raw    = String(cmd || "");
+  const rawCls = classifyCommand(raw);
+  if (rawCls !== "generic") return rawCls;          // direct match — no redundant second pass
+  const norm = normalizeCommand(raw);
+  if (norm === raw) return rawCls;                  // pure-ASCII / identity — nothing new to scan
+  return classifyCommand(norm);                     // normalized second arm (Unicode-folded)
 }
 
 // ---------------------------------------------------------------------------
@@ -104,4 +146,7 @@ function legacyKey(input = {}) {
   return [tool, cmdClass, targetClass, payloadClass].join("|");
 }
 
-module.exports = { fineKey, legacyKey, classifyCommand, pathBucket, branchBucket };
+module.exports = {
+  fineKey, legacyKey, classifyCommand, classifyCommandDual,
+  HARD_BLOCK_CLASSES, GATED_REVIEW_CLASSES, pathBucket, branchBucket,
+};
