@@ -29,7 +29,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - **test(eval): add MCP arg-danger and safe-MCP corpus entries** — `tests/eval-corpus.json` grows 110→112 entries: `dangerous-32` (F25 mcp-arg-danger block), `safe-53` (benign MCP search FP control). FP 0.0% / FN 0.0%.
 
-- **test(fixtures): add MCP security fixture sweep** — `scripts/check-mcp-security.sh` + 3 `.input` fixtures in `tests/fixtures/mcp-security/`: F25 arg-danger, F4 opt-out with `policy:allow` contract, benign MCP FP control. Inline rug-pull multi-call test. Wired into `scripts/run-fixtures.sh` and `scripts/lilara-cli.sh check`. Fixture count 381→384; script count 93→94.
+- **test(fixtures): add MCP security fixture sweep** — `scripts/check-mcp-security.sh` + 3 `.input` fixtures in `tests/fixtures/mcp-security/`: F25 arg-danger, F4 opt-out with `policy:allow` contract, benign MCP FP control. Inline rug-pull multi-call test. Wired into `scripts/run-fixtures.sh` and `scripts/lilara-cli.sh check`. 384 fixture files total (was 381); script count 93→94.
 
 - **test(runtime): add mcp-pin.test.js unit tests** — 9 assertions: `argShapeHash` (same-shape/type-change/key-change/null-sentinel) and `checkArgShapeDrift` (first-call/same-shape/type-change/fail-open). Wired into `scripts/check-runtime-core.sh`.
 
