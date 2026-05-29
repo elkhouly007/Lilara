@@ -318,6 +318,62 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   return result;
 }
 
+// buildEarlyReview — mirrors buildEarlyBlock but produces action:"require-review"
+// with riskLevel:"medium" / riskScore:5.  Used by F25/F26 when a payload is
+// unscannable (too complex / circular) — we gate rather than hard-block to
+// prevent false positives on large benign bulk payloads.
+function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, extra = {}) {
+  const _code     = extra.code || floorCodeFor(reasonCode) || null;
+  const _degraded = extra.degradedMode !== undefined ? extra.degradedMode : _earlyBlockDegradedDefault;
+  const result = {
+    action: "require-review",
+    enforcementAction: "require-review",
+    floorFired: extra.floorFired || null,
+    ...(_code != null ? { code: _code } : {}),
+    riskScore: 5,
+    riskLevel: "medium",
+    reasonCodes: [reasonCode],
+    confidence: 0.5,
+    decisionSource: extra.decisionSource || "contract-floor",
+    policyKey: reasonCode,
+    explanation,
+    pendingSuggestion: null,
+    promotionGuidance: null,
+    promotionState: null,
+    promotionLifecycleSummary: null,
+    workflowRoute: null,
+    actionPlan: null,
+    trajectoryNudge: null,
+    envelope: input.envelope || null,
+    envelopeVerification: null,
+    networkEgress: null,
+    context: {},
+    ...(_degraded != null ? { degradedMode: _degraded } : {}),
+  };
+  // ADR-016: dry-run mode skips journal/notify side-effects (sandbox previews).
+  if (_earlyBlockDryRun) return result;
+  try {
+    const irExtras = _irJournalExtras(input, result.floorFired);
+    append({
+      kind: "runtime-decision",
+      action: "require-review",
+      riskLevel: "medium",
+      riskScore: 5,
+      reasonCodes: [reasonCode],
+      tool: input.tool || "",
+      branch: input.branch || "",
+      targetPath: input.targetPath || "",
+      notes: `${result.decisionSource}:${reasonCode}`,
+      ...(result.floorFired ? { floorFired: result.floorFired } : {}),
+      ...(_degraded != null ? { degradedMode: _degraded } : {}),
+      ...(irExtras || {}),
+    });
+    recordDecision({ action: "require-review", riskLevel: "medium", reasonCodes: [reasonCode] });
+  } catch { /* journal is best-effort */ }
+  try { _fireNotifyHook(result, _earlyBlockContract, result.policyKey || null); } catch { /* */ }
+  return result;
+}
+
 // F16 (ADR-009 PR-B) — ambient-authority floor helpers. Pure; zero I/O.
 // Path normalization mirrors runtime/ambient.js (backslash→slash, strip
 // `file://`, trim trailing slash); comparisons lowercase for parity with
@@ -491,15 +547,45 @@ function _evalCredPersistFloor(input, contract) {
 // Uses the same classifyCommand classifier already used for Bash commands so
 // pattern lists are never duplicated. Opt-out: if getMcpPolicy === "allow" the
 // server is explicitly trusted and the scan is skipped (same as F4 Task 3).
+// NODE_CAP: iterative walk limit for _extractStringValues.
+// Measured cost: ~0.4µs/node; p99 budget ~1.2ms, bench cap ~2.1ms.
+// 1,000 nodes → worst-case added latency ≈0.4ms, well within budget.
+const _ESV_NODE_CAP = 1_000;
+
 function _extractStringValues(obj) {
-  // Recursively collect all string values from a (possibly-nested) object/array.
-  // Circular or deeply nested objects propagate stack overflow to the caller's
-  // try/catch, which returns { fire: false } (fail-open). This is intentional.
-  const out = [];
-  if (typeof obj === "string") { out.push(obj); return out; }
-  if (Array.isArray(obj)) { for (const v of obj) { const r = _extractStringValues(v); for (const s of r) out.push(s); } return out; }
-  if (obj !== null && typeof obj === "object") { for (const v of Object.values(obj)) { const r = _extractStringValues(v); for (const s of r) out.push(s); } }
-  return out;
+  // Iterative (non-recursive), cycle-safe string-value collector.
+  // Uses an explicit stack + WeakSet to skip already-visited objects.
+  // Returns { strings: string[], truncated: boolean }.
+  //   truncated=true  → node cap hit OR internal error; caller must gate
+  //                     rather than silently allow (fail-safe, not fail-open).
+  // Key anti-FP principle: truncation does NOT hard-block.  A benign bulk
+  // payload with no dangerous string found before the cap → require-review
+  // (gate), not block.  Danger buried past the cap → also require-review.
+  // This is correct and intentional.
+  try {
+    const strings = [];
+    const visited = new WeakSet();
+    const stack   = [obj];
+    let   nodes   = 0;
+    while (stack.length > 0) {
+      if (nodes++ >= _ESV_NODE_CAP) return { strings, truncated: true };
+      const cur = stack.pop();
+      if (typeof cur === "string") { strings.push(cur); continue; }
+      if (cur === null || typeof cur !== "object") continue;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      if (Array.isArray(cur)) {
+        for (let i = cur.length - 1; i >= 0; i--) stack.push(cur[i]);
+      } else {
+        const vals = Object.values(cur);
+        for (let i = vals.length - 1; i >= 0; i--) stack.push(vals[i]);
+      }
+    }
+    return { strings, truncated: false };
+  } catch {
+    // Belt-and-suspenders: any unexpected internal error → truncated=true
+    return { strings: [], truncated: true };
+  }
 }
 const _GATED_CMD_CLASSES = new Set([
   "destructive-delete", "force-push", "remote-exec",
@@ -517,7 +603,7 @@ function _evalMcpArgFloor(input, contract, enriched) {
     // 3. Extract all string values from the arg payload
     const rawArgs = input.tool_input ?? input.args ?? input.params;
     if (!rawArgs) return { fire: false };
-    const argStrings = _extractStringValues(rawArgs);
+    const { strings: argStrings, truncated: argTruncated } = _extractStringValues(rawArgs);
 
     // 4. Check each string against the dangerous-command classifier
     for (const argStr of argStrings) {
@@ -526,6 +612,9 @@ function _evalMcpArgFloor(input, contract, enriched) {
         return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
       }
     }
+    // 5. Fail-safe on truncation: payload too complex to fully scan → require-review gate.
+    //    Truncation does NOT hard-block (anti-FP principle: benign bulk must not block).
+    if (argTruncated) return { unscannable: true, reason: "arg-payload-too-complex" };
     return { fire: false };
   } catch { return { fire: false }; } // fail-open
 }
@@ -563,13 +652,15 @@ function _evalMcpRegistrationFloor(input, contract) {
     // 6. Parse content as JSON and scan all strings for dangerous-command patterns
     let parsed;
     try { parsed = JSON.parse(content); } catch { return { fire: false }; } // non-JSON writes don't apply
-    const strings = _extractStringValues(parsed);
+    const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
     for (const str of strings) {
       const cls = classifyCommand(str);
       if (_GATED_CMD_CLASSES.has(cls)) {
         return { fire: true, reason: cls, command: str.slice(0, 80) };
       }
     }
+    // Fail-safe on truncation: config too complex to fully scan → require-review gate.
+    if (cfgTruncated) return { unscannable: true, reason: "content-too-complex" };
     return { fire: false };
   } catch { return { fire: false }; } // fail-open
 }
@@ -1229,6 +1320,13 @@ function decide(input = {}) {
         { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
       );
     }
+    if (f25 && f25.unscannable) {
+      return buildEarlyReview(
+        "mcp-arg-shape-unscannable", enriched, discovered, input,
+        `MCP arg payload too complex to fully scan: ${f25.reason}`,
+        { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
+      );
+    }
   } catch { /* fail-open */ }
 
   // F26: mcp-registration-write floor — rung 17.6875, after F25 and before
@@ -1243,6 +1341,13 @@ function decide(input = {}) {
       return buildEarlyBlock(
         "mcp-registration-write-denied", enriched, discovered, input,
         `MCP config write registers server with dangerous command: ${f26.reason}`,
+        { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
+      );
+    }
+    if (f26 && f26.unscannable) {
+      return buildEarlyReview(
+        "mcp-config-unscannable", enriched, discovered, input,
+        `MCP config content too complex to fully scan: ${f26.reason}`,
         { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
       );
     }
