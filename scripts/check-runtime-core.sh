@@ -630,6 +630,10 @@ pass 'session-resume buildSummary'
 node "$root/tests/runtime/eval-runner.test.js" || exit 1
 pass 'eval-runner discover/runAll/toJUnit'
 
+# mcp-pin unit test
+node "$root/tests/runtime/mcp-pin.test.js" || exit 1
+pass 'mcp-pin argShapeHash + checkArgShapeDrift'
+
 # markdown-link-scan unit test
 node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
 pass 'markdown-link-scan scanMarkdownLinks'
