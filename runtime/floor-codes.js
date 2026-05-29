@@ -78,6 +78,18 @@ const FLOOR_CODES = Object.freeze({
   // ── F24 credential-persistence-write ─────────────────────────────────────────
   "credential-persistence-write":         "F24_CRED_PERSISTENCE_WRITE",
   "credential-persistence-write-denied":  "F24_CRED_PERSISTENCE_WRITE",
+  // ── F25 mcp-arg-danger ───────────────────────────────────────────────────────
+  "mcp-arg-danger":                        "F25_MCP_ARG_DANGER",
+  "mcp-arg-danger-denied":                 "F25_MCP_ARG_DANGER",
+  "mcp-arg-shape-unscannable":             "F25_MCP_ARG_DANGER",
+  // ── F26 mcp-registration-write ───────────────────────────────────────────────
+  "mcp-registration-write":               "F26_MCP_REGISTRATION_WRITE",
+  "mcp-registration-write-denied":        "F26_MCP_REGISTRATION_WRITE",
+  "mcp-config-unscannable":               "F26_MCP_REGISTRATION_WRITE",
+  // ── F23b mcp-result-injection (ADR-017 extension) ─────────────────────────────
+  // Observe-only sub-signal of F23: injection patterns detected in MCP tool
+  // output. Reinforces the F23 provenance graph (PostToolUse only, Claude Code).
+  "mcp-result-injection":                 "F23_MCP_RESULT_INJECTION",
 });
 
 function floorCodeFor(reasonCode) {

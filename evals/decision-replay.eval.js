@@ -56,7 +56,7 @@ module.exports = {
     try {
       for (const entry of corpus) {
         total += 1;
-        const ir = {
+        const callInput = {
           command:          entry.command || "",
           tool:             entry.tool    || "Bash",
           targetPath:       entry.targetPath || ".",
@@ -66,10 +66,13 @@ module.exports = {
           sessionRisk:      0,
           repeatedApprovals: 0,
         };
+        // toolInput passthrough — MCP entries carry argument payloads that F4/F25 need.
+        // Mirrors the eval-decision-quality.sh pattern (line 126).
+        if (entry.toolInput) callInput.tool_input = entry.toolInput;
 
         let result;
         try {
-          result = decide(ir);
+          result = decide(callInput);
         } catch (err) {
           failures.push({ id: entry.id, expected: entry.expected_action_class, got: "error", note: String(err.message || err) });
           failed += 1;

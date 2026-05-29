@@ -27,8 +27,8 @@ EXPECTED_AGENTS=64
 EXPECTED_RULES=107         # +commit-conventions +self-review-protocol +workflow-discipline +docker-security +kubernetes-hardening +ci-cd-safety +error-handling +naming-conventions +api-design +concurrency-safety
 EXPECTED_SKILLS=57         # +supply-chain-audit +secrets-rotation-planner +threat-model-generator +prompt-engineering-reviewer +model-evaluation-harness +rag-pipeline-auditor +codemod-generator +ci-pipeline-generator +dockerfile-generator +architecture-decision-record +runbook-generator +diagram-generator
 EXPECTED_HOOKS=17          # JS files in claude/hooks/
-EXPECTED_FIXTURES=381      # fixture pairs; +11 for file-write-floor F24 fixtures
-EXPECTED_SCRIPTS=93        # sh + js files in scripts/; +check-file-write-floor.sh +dashboard-server.js +check-dashboard.sh
+EXPECTED_FIXTURES=386      # fixture pairs; +11 for file-write-floor F24 fixtures; +3 for mcp-security (F25/F4-opt-out/benign); +2 for F26 raw-value fallback (JSONC comment + trailing-comma sudo)
+EXPECTED_SCRIPTS=94        # sh + js files in scripts/; +check-file-write-floor.sh +dashboard-server.js +check-dashboard.sh +check-mcp-security.sh
 
 # ---------------------------------------------------------------------------
 # Count from filesystem

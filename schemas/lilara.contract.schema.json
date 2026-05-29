@@ -192,7 +192,11 @@
             "additionalProperties": false,
             "required": ["policy"],
             "properties": {
-              "policy": { "type": "string", "enum": ["allow", "warn", "block"] }
+              "policy": {
+                "type": "string",
+                "enum": ["allow", "warn", "block"],
+                "description": "allow — explicitly trusts this server; F4 secret-in-args and F25 arg-danger (planned) floors are suppressed for its tool calls. warn — tool calls are permitted but a warning annotation is attached. block — all tool calls from this server are hard-blocked."
+              }
             }
           }
         },

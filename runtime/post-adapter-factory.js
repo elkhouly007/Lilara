@@ -177,6 +177,65 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
           } catch { /* provenance recording is best-effort */ }
         }
 
+        // 2d. MCP result-injection reinforcement (Feature 5 / ADR-017 extension).
+        // When MCP tool output contains injection signals, log a dedicated
+        // mcp-result-injection reason code and reinforce the F23 provenance record
+        // (lower token threshold) so downstream dangerous commands trip the kill chain.
+        //
+        // Note: for the literal toolName "mcp" (in EXTERNAL_TOOLS), scanForInjection
+        // also ran in block 2b. The double-scan and double-journal for that case is
+        // intentional — 2b logs the generic F21 signal; 2d logs the MCP-specific F23b.
+        //
+        // Coverage limitation (same as F23 / ADR-017): full on Claude Code only;
+        // OpenCode/OpenClaw partial (PostToolUse may not fire for all tools);
+        // Codex, ClawCode, Antegravity: none — these harnesses lack PostToolUse hooks.
+        // Do not assume this scan guards all six harnesses.
+        if (sourceLabel(toolName) === "mcp" && text) {
+          try {
+            const mcpInj = scanForInjection(text);
+            if (mcpInj.matched) {
+              const mcpIds = mcpInj.hits.map(h => h.id).join(", ");
+              try {
+                append({
+                  kind: "runtime-decision",
+                  action: "warn",
+                  riskLevel: "high",
+                  riskScore: 7,
+                  reasonCodes: ["mcp-result-injection"],
+                  tool: toolName,
+                  branch: "",
+                  targetPath: "",
+                  notes: `F23:mcp-injection:${harnessName}:${mcpIds}`,
+                  floorFired: "mcp-result-injection",
+                  code: "F23_MCP_RESULT_INJECTION",
+                });
+              } catch { /* journal is best-effort */ }
+              if (_tokenHashSet && _recordProvenanceStep) {
+                try {
+                  const injTokens = _tokenHashSet(text.slice(0, 8192));
+                  // Intentionally lower than the standard MIN_SHARED_COUNT (3) threshold
+                  // used in block 2c. Injection signals provide independent evidence of
+                  // danger; even a single-token node extends the provenance graph and
+                  // ensures subsequent high-risk commands see this source in kill-chain
+                  // evaluation. Nodes with < 3 tokens won't drive kill-chain overlap
+                  // alone but combine with other nodes from the current session.
+                  if (injTokens.length > 0) {
+                    _recordProvenanceStep({
+                      role:        "source",
+                      sourceClass: "untrusted",
+                      pathHash:    null,
+                      urlHash:     null,
+                      host:        null,
+                      tokenHashes: injTokens,
+                      ts:          Date.now(),
+                    });
+                  }
+                } catch { /* provenance reinforcement is best-effort */ }
+              }
+            }
+          } catch { /* MCP result-injection scan is best-effort */ }
+        }
+
         // 3. Optional envelope verification — only active for adapters that can
         // report an exec-time envelope in PostToolUse payloads.
         if (envelopeReporting) {
