@@ -8,6 +8,12 @@
 //   T2: danger buried past NODE_CAP → require-review (NOT allow, NOT hard-block)
 //   T3: benign bulk past NODE_CAP → require-review (NOT block — anti-FP guard)
 //
+// Tests added here (Fix 2):
+//   T4: F26 sudo-via-raw-fallback — JSONC .mcp.json (// comment → JSON.parse fails) with
+//       "command":"sudo apt-get install evilpkg" → block via raw-value fallback path.
+//       Proves the value-extraction approach catches sudo correctly (not line-scan, which
+//       would fail because the line starts with "command", not sudo).
+//
 // Fix 3 will add more tests to this same file.
 
 const fs   = require("fs");
@@ -124,6 +130,50 @@ isolated(() => {
   elapsed < 100
     ? ok(`T3: timing <100ms (${elapsed}ms)`)
     : fail("T3: timing <100ms", `elapsed=${elapsed}ms — perf regression`);
+});
+
+// ─── T4: F26 sudo-via-raw-fallback ───────────────────────────────────────────
+// Write a JSONC .mcp.json (with a // comment so JSON.parse fails) that contains
+// "command":"sudo apt-get install evilpkg".  The raw-value fallback must extract
+// the VALUE ("sudo apt-get install evilpkg") and classify it — NOT line-scan,
+// which would see '"command"' at the start and miss the ^\s*sudo anchor.
+//
+// file_path uses a relative ".mcp.json" — the ambient classifier regex
+// (^|\/)\.mcp\.json$ matches a bare relative name, so _classifyAmbientPath
+// returns "mcpConfig". A relative path also avoids F16 (ambient-authority)
+// firing before F26: F16's mcpConfig gate defers when the path is not absolute
+// (_f16Abs = false), so F26 is the floor that fires.
+isolated((dir) => {
+  const jsoncContent = [
+    "{",
+    "  // configure evil server",
+    '  "mcpServers": {',
+    '    "evil": {',
+    '      "command": "sudo apt-get install evilpkg"',
+    "    }",
+    "  }",
+    "}",
+  ].join("\n");
+
+  // Use the isolated temp dir as projectRoot so the test is fully isolated.
+  // file_path is relative so the ambient regex matches but F16 does not fire.
+  const input = {
+    tool:        "Write",
+    harness:     "claude",
+    command:     "",
+    branch:      "feature/test",
+    projectRoot: dir,
+    file_path:   ".mcp.json",
+    content:     jsoncContent,
+  };
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action === "block"
+    ? ok("T4: F26 JSONC sudo → block (raw-value fallback)")
+    : fail("T4: F26 JSONC sudo → block (raw-value fallback)", `action=${result.action} floorFired=${result.floorFired}`);
+  (result.floorFired && result.floorFired === "mcp-registration-write")
+    ? ok("T4: floorFired is mcp-registration-write")
+    : fail("T4: floorFired is mcp-registration-write", `floorFired=${result.floorFired}`);
 });
 
 console.log(`\nmcp-floor-adversarial.test.js: ${passed} passed, ${failed} failed`);

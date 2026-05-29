@@ -14,7 +14,7 @@ Agent Runtime Guard currently includes:
 - **107 rule files** covering 12 language directories plus common, database, infrastructure, and web domains;
 - **57 skills** for ARG debug, policy tuning, capability auditing, code analysis, git workflows, architecture analysis, performance profiling, advanced security, AI/ML workflows, automation, documentation power, orchestration design, and more;
 - 20 approval-boundary scenarios and 14 prompt-injection scenarios;
-- executable fixture coverage with **384/384 passing**;
+- executable fixture coverage with **386/386 passing**;
 - clean verification across audit, smoke, payload protection, fixtures, integration smoke, installation/profile checks, config/settings integration checks, apply-status validation, executable hygiene, setup-wizard edge cases, per-tool wiring-doc coverage, unified status-artifact checks, policy-lint, sensitive-data-detection, and superiority-evidence checks.
 
 ## Verification Snapshot
@@ -25,7 +25,7 @@ Current verified state:
 - `audit-examples.sh` — passing
 - `check-registries.sh` — passing
 - `check-scenarios.sh` — passing
-- `run-fixtures.sh` — passing (384/384)
+- `run-fixtures.sh` — passing (386/386)
 - `test-payload-protection.sh` — passing
 - `check-integration-smoke.sh` — passing
 - `smoke-test.sh` — passing
@@ -141,9 +141,9 @@ The runtime sprint (R1–R3, now closed) delivered:
 **F4 opt-out:** `scopes.mcp[server].policy=allow` in a signed contract suppresses F4 secret scan for that server's tool calls.
 
 **Test coverage added:**
-- `tests/fixtures/mcp-security/` — 3 fixture files (F25, F4 opt-out, benign FP control)
+- `tests/fixtures/mcp-security/` — 5 fixture files (F25, F4 opt-out, benign FP control, F26 JSONC, F26 trailing-comma sudo)
 - `scripts/check-mcp-security.sh` — fixture sweep + inline rug-pull multi-call test
 - `tests/runtime/mcp-pin.test.js` — 9 unit tests for argShapeHash + checkArgShapeDrift
 - `tests/fixtures/replay-corpus/mcp-security.jsonl` — 4 replay entries (F25 block ×2, benign allow, F4 PAT block)
 - `tests/eval-corpus.json` — 2 new entries (dangerous-32, safe-53); corpus 110→112
-- 384/384 fixtures passing; 94 scripts.
+- 386/386 fixtures passing; 94 scripts.

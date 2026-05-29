@@ -649,18 +649,42 @@ function _evalMcpRegistrationFloor(input, contract) {
     const content = input.content ?? input.new_string ?? input.file_text ?? "";
     if (!content || content.length > 100_000) return { fire: false }; // size guard, fail-open
 
-    // 6. Parse content as JSON and scan all strings for dangerous-command patterns
+    // 6. Parse content as JSON; on failure use raw-value fallback for JSONC / trailing commas.
     let parsed;
-    try { parsed = JSON.parse(content); } catch { return { fire: false }; } // non-JSON writes don't apply
-    const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
-    for (const str of strings) {
-      const cls = classifyCommand(str);
-      if (_GATED_CMD_CLASSES.has(cls)) {
-        return { fire: true, reason: cls, command: str.slice(0, 80) };
+    let useRawFallback = false;
+    try { parsed = JSON.parse(content); }
+    catch { useRawFallback = true; }
+
+    if (!useRawFallback) {
+      // Structured path: walk parsed JSON, classify each string value.
+      const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
+      for (const str of strings) {
+        const cls = classifyCommand(str);
+        if (_GATED_CMD_CLASSES.has(cls)) {
+          return { fire: true, reason: cls, command: str.slice(0, 80) };
+        }
       }
+      // Fail-safe on truncation: config too complex to fully scan → require-review gate.
+      if (cfgTruncated) return { unscannable: true, reason: "content-too-complex" };
+      return { fire: false };
     }
-    // Fail-safe on truncation: config too complex to fully scan → require-review gate.
-    if (cfgTruncated) return { unscannable: true, reason: "content-too-complex" };
+
+    // Raw-value fallback for non-strict JSON (JSONC with // comments, trailing commas, partial writes).
+    // IMPORTANT: extract quoted STRING VALUES then classify each — do NOT line-scan.
+    // Rationale: classifyCommand's sudo rule is ^\s*sudo-anchored. A naive line-scan of
+    //   "command":"sudo apt-get install evilpkg"
+    // starts with `"command"`, not `sudo`, so the anchor would never fire. By extracting the
+    // VALUE (`sudo apt-get install evilpkg`) first we correctly match the anchor.
+    const scanText = content; // NOTE: Fix 3 will add a SCAN_CAP slice here
+    const literals = scanText.match(/"(?:[^"\\]|\\.)*"/g) || [];
+    let n = 0;
+    for (const lit of literals) {
+      if (++n > _ESV_NODE_CAP) return { unscannable: true, reason: "content-too-complex" };
+      let val;
+      try { val = JSON.parse(lit); } catch { val = lit.slice(1, -1); } // unescape or strip quotes
+      const cls = classifyCommand(String(val));
+      if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
+    }
     return { fire: false };
   } catch { return { fire: false }; } // fail-open
 }

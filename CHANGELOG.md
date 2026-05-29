@@ -31,6 +31,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - **test(fixtures): add MCP security fixture sweep** — `scripts/check-mcp-security.sh` + 3 `.input` fixtures in `tests/fixtures/mcp-security/`: F25 arg-danger, F4 opt-out with `policy:allow` contract, benign MCP FP control. Inline rug-pull multi-call test. Wired into `scripts/run-fixtures.sh` and `scripts/lilara-cli.sh check`. 384 fixture files total (was 381); script count 93→94.
 
+### Fixed
+
+- **fix(mcp): F26 two-defect security hardening (Fix 1 + Fix 2)** — Two boundary-condition fixes to the MCP security layer:
+  (1) **Fix 1 — iterative cycle-safe `_extractStringValues` + require-review degrade**: replaced the recursive JSON-walk with an iterative stack+WeakSet walker capped at `_ESV_NODE_CAP` (1,000 nodes); cycle-safe; truncation returns `{ truncated: true }` which gates as `require-review` rather than silently allowing (fail-safe, not fail-open). Applied to both F25 (`_evalMcpArgFloor`) and F26 (`_evalMcpRegistrationFloor`). New adversarial tests T1–T3 in `tests/runtime/mcp-floor-adversarial.test.js`.
+  (2) **Fix 2 — F26 raw-value fallback on non-strict JSON (JSONC/trailing-comma), sudo-anchor-safe**: `_evalMcpRegistrationFloor` previously returned `{ fire: false }` (fail-open) on any `JSON.parse` failure, leaving JSONC files (with `//` comments) and trailing-comma configs unscanned. Added a raw-value fallback path that extracts quoted string literals via regex and classifies each VALUE (not each line) — critical because `classifyCommand`'s sudo rule is `^\s*sudo`-anchored; a naive line-scan of `"command":"sudo apt-get install evilpkg"` starts with `"command"`, not `sudo`, so the anchor would miss. New fixtures `04-f26-jsonc-comment.input` and `05-f26-trailing-comma-sudo.input`; adversarial test T4 in `tests/runtime/mcp-floor-adversarial.test.js`. 386 fixture files total (was 384).
+
 - **test(runtime): add mcp-pin.test.js unit tests** — 9 assertions: `argShapeHash` (same-shape/type-change/key-change/null-sentinel) and `checkArgShapeDrift` (first-call/same-shape/type-change/fail-open). Wired into `scripts/check-runtime-core.sh`.
 
 - **test(replay): add MCP security replay corpus** — `tests/fixtures/replay-corpus/build-mcp.js` + `mcp-security.jsonl` (4 entries: F25 block, F25 curl-pipe-sh block, benign allow, F4 PAT block). `check-replay-corpus.sh` passes with all 5 corpus files.
