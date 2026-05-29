@@ -156,9 +156,10 @@ function buildCoverage(entries) {
       byMcpServer[srv] = (byMcpServer[srv] || 0) + 1;
     }
 
-    if (e.floorFired === "mcp-deny")                     mcpDenyCount++;
-    if (e.floorFired === "mcp-arg-danger-denied")         mcpArgDangerCount++;
-    if (e.floorFired === "mcp-registration-write-denied") mcpRegWriteCount++;
+    if (e.floorFired === "mcp-deny")               mcpDenyCount++;
+    // floorFired is set from the lattice .name field, not the .source suffix
+    if (e.floorFired === "mcp-arg-danger")         mcpArgDangerCount++;
+    if (e.floorFired === "mcp-registration-write") mcpRegWriteCount++;
 
     if (e.mcpToolDrift) rugPullCount++;
   }
