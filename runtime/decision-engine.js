@@ -550,7 +550,12 @@ function _evalCredPersistFloor(input, contract) {
 // NODE_CAP: iterative walk limit for _extractStringValues.
 // Measured cost: ~0.4µs/node; p99 budget ~1.2ms, bench cap ~2.1ms.
 // 1,000 nodes → worst-case added latency ≈0.4ms, well within budget.
-const _ESV_NODE_CAP = 1_000;
+const _ESV_NODE_CAP  = 1_000;
+// _RAW_SCAN_CAP: byte limit for the raw-value fallback in _evalMcpRegistrationFloor.
+// Caps the content slice scanned when JSON.parse fails (JSONC / non-strict JSON).
+// Aligned with F26 budget: 256KB is enough to cover any plausible hand-authored
+// .mcp.json while bounding worst-case regex/loop time to ~1ms.
+const _RAW_SCAN_CAP  = 262_144; // 256 KB
 
 function _extractStringValues(obj) {
   // Iterative (non-recursive), cycle-safe string-value collector.
@@ -647,7 +652,7 @@ function _evalMcpRegistrationFloor(input, contract) {
 
     // 5. Get the write content
     const content = input.content ?? input.new_string ?? input.file_text ?? "";
-    if (!content || content.length > 100_000) return { fire: false }; // size guard, fail-open
+    if (!content) return { fire: false };
 
     // 6. Parse content as JSON; on failure use raw-value fallback for JSONC / trailing commas.
     let parsed;
@@ -675,7 +680,11 @@ function _evalMcpRegistrationFloor(input, contract) {
     //   "command":"sudo apt-get install evilpkg"
     // starts with `"command"`, not `sudo`, so the anchor would never fire. By extracting the
     // VALUE (`sudo apt-get install evilpkg`) first we correctly match the anchor.
-    const scanText = content; // NOTE: Fix 3 will add a SCAN_CAP slice here
+    const scanText = content.length > _RAW_SCAN_CAP ? content.slice(0, _RAW_SCAN_CAP) : content;
+    // If content is large enough to require slicing, we may miss danger past the cap.
+    // Rather than fail-open, we fail-safe: if we scan the full slice and find nothing,
+    // but the content was oversized, return unscannable → require-review (not allow).
+    const contentWasTruncated = content.length > _RAW_SCAN_CAP;
     const literals = scanText.match(/"(?:[^"\\]|\\.)*"/g) || [];
     let n = 0;
     for (const lit of literals) {
@@ -685,6 +694,7 @@ function _evalMcpRegistrationFloor(input, contract) {
       const cls = classifyCommand(String(val));
       if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
     }
+    if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };
     return { fire: false };
   } catch { return { fire: false }; } // fail-open
 }
