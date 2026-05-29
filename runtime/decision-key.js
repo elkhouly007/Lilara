@@ -12,7 +12,6 @@
 // as a fallback for backward-compat with existing learned-allow entries.
 
 const path = require("path");
-const { normalizeCommand } = require("./command-normalize");
 
 // ---------------------------------------------------------------------------
 // Command class detection (mirrors policy-store.js — kept in sync)
@@ -52,26 +51,6 @@ const HARD_BLOCK_CLASSES = new Set([
 const GATED_REVIEW_CLASSES = new Set([
   "destructive-db", "auto-download", "global-pkg-install",
 ]);
-
-// classifyCommandDual — dual-path classifier mirroring risk-score.js's ADR-008
-// dual-path matching: classify the raw string, and if (and only if) that is
-// generic AND Unicode normalization changes the string, classify the NFKD +
-// confusables-folded form too. Defeats Unicode look-alike bypass (Cyrillic
-// 'рm -rf /', full-width 'ｒｍ', etc.) in the MCP arg/registration paths, which
-// previously called the raw-only classifyCommand.
-//
-// ASCII fast-path: a direct (raw) match returns immediately with no second
-// classify; a pure-ASCII string (normalizeCommand is identity) also skips the
-// second classify. The second pass runs only when the raw form is generic and
-// normalization actually changed the string.
-function classifyCommandDual(cmd) {
-  const raw    = String(cmd || "");
-  const rawCls = classifyCommand(raw);
-  if (rawCls !== "generic") return rawCls;          // direct match — no redundant second pass
-  const norm = normalizeCommand(raw);
-  if (norm === raw) return rawCls;                  // pure-ASCII / identity — nothing new to scan
-  return classifyCommand(norm);                     // normalized second arm (Unicode-folded)
-}
 
 // ---------------------------------------------------------------------------
 // Path bucket: project-relative first-two-segment prefix
@@ -147,6 +126,6 @@ function legacyKey(input = {}) {
 }
 
 module.exports = {
-  fineKey, legacyKey, classifyCommand, classifyCommandDual,
+  fineKey, legacyKey, classifyCommand,
   HARD_BLOCK_CLASSES, GATED_REVIEW_CLASSES, pathBucket, branchBucket,
 };
