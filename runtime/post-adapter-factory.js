@@ -86,7 +86,13 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
         // PostToolUse payload shape: { tool_use_id, tool_name, output, ... }
         const toolName   = String(input.tool_name || input.tool || "");
         // tool_response is the verified Codex PostToolUse field (codex-rs/hooks/src/events/post_tool_use.rs).
-        const outputText = String(input.tool_response || input.output || input.tool_output || input.content || "");
+        // Defensive: upstream shape may be an object (e.g. Antegravity AfterToolInput.tool_response:
+        // Record<string,unknown>). String(obj) yields "[object Object]" — truthy but unscannable —
+        // so block 2d would scan that literal and miss injection text inside. Use collectText (already
+        // imported, claude/hooks/hook-utils.js:62-70) to flatten objects/arrays into newline-joined
+        // values; primitives still go through String() → byte-identical to the prior behaviour.
+        const rawOutput  = input.tool_response || input.output || input.tool_output || input.content || "";
+        const outputText = (rawOutput && typeof rawOutput === "object") ? collectText(rawOutput) : String(rawOutput);
         const text = outputText || collectText(input);
 
         // 1. Secret scan — warn if tool output contains a credential pattern.

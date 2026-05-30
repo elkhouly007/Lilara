@@ -16,10 +16,12 @@ that the harness emits it.
 Block 2d is harness-agnostic — it has no per-harness branching and runs for every adapter that
 delegates to `createPostAdapter()` (all 6, enforced by `check-post-adapter-parity.sh`). It fires
 when `sourceLabel(toolName) === "mcp"` and the extracted output text matches an injection pattern,
-journaling `mcp-result-injection`. Output text is extracted at `post-adapter-factory.js:89`:
+journaling `mcp-result-injection`. Output text is extracted at `post-adapter-factory.js:94-95` (updated — see object-vs-string
+hardening below):
 
 ```js
-const outputText = String(input.tool_response || input.output || input.tool_output || input.content || "");
+const rawOutput  = input.tool_response || input.output || input.tool_output || input.content || "";
+const outputText = (rawOutput && typeof rawOutput === "object") ? collectText(rawOutput) : String(rawOutput);
 ```
 
 Effective coverage therefore depends on two things the factory cannot self-verify:
@@ -36,16 +38,22 @@ end-to-end with a synthetic payload built from the harness's *documented* output
 
 | Harness | Event (documented) | Field tested | Asserted |
 |---------|--------------------|--------------|----------|
-| Codex | `PostToolUse` | `tool_response` | injection → `mcp-result-injection`; benign → none; stdin passthrough intact |
+| Codex | `PostToolUse` | `tool_response` (string) | injection → `mcp-result-injection`; benign → none; stdin passthrough intact |
 | ClawCode | `PostToolUse` | `tool_output` (with `tool_response` absent — proves the fallback) | same |
 | Antegravity | `AfterTool` | `tool_response` (+ `hook_event_name:"AfterTool"`) | same |
-| Claude (control) | `PostToolUse` | `tool_response` | same |
+| Claude (control) | `PostToolUse` | `tool_response` (string) | same |
+| Codex | `PostToolUse` | `tool_response` **object** `{stdout, stderr, exitCode}` | injection inside object → `mcp-result-injection`; benign object → none |
+| Antegravity | `AfterTool` | `tool_response` **object** (primary risk — `AfterToolInput.tool_response: Record<string,unknown>`) | same |
+| ClawCode | `PostToolUse` | `tool_output` **object** | same (parity) |
+| Claude (control) | `PostToolUse` | `tool_response` **object** | same (parity) |
 
-This closes the gap the PR #71 test (`post-adapter-mcp-injection.test.js`) left open: PR #71 tests
-the scanner + gate in isolation; it never exercises the `:89` field-extraction chain through a real
-adapter. A regression that broke, say, the `tool_output` fallback would now be caught for ClawCode.
+This closes two gaps: (1) the PR #71 isolation gap (PR #71 tests the scanner alone; string-field
+extraction now covered per-harness); (2) the object-vs-string ambiguity — `collectText` flatten
+at `:94-95` is exercised end-to-end through each adapter for both injection (must fire) and benign
+(must not fire). A regression that broke the `tool_output` fallback or the object-flatten path
+would now be caught.
 
-OpenCode/OpenClaw use the same factory and are covered by the same `:89` extractor + parity check;
+OpenCode/OpenClaw use the same factory and are covered by the same `:94-95` extractor + parity check;
 they are out of this track's scope (`mcpInterception: partial`, same shared path).
 
 ---
@@ -76,16 +84,24 @@ binary and asserting block 2d fires on it. Capture recipes already live in each 
 ### Antegravity — `mcpInterception: unverified`
 - **Open question (event):** Antegravity uses `AfterTool` (not `PostToolUse`); a live `agy` fire with
   the corrected event names + `run_shell_command` matcher has not been confirmed end-to-end.
-- **Open question (field shape) — discovered during this work:** the adapter's own source cites the
-  upstream type as `AfterToolInput.tool_response: Record<string, unknown>` (an **object**), whereas
-  the WIRING_PLAN example shows `tool_response` as a **string**. The `:89` extractor does
-  `String(input.tool_response)`, which yields `"[object Object]"` for an object → block 2d would
-  **miss** the injection. The static test covers the documented *string* shape; **if** live capture
-  shows an object, the extractor needs a flatten step (and a follow-up hardening PR). This must be
-  resolved by a real capture, not assumed.
+- **Field-shape ambiguity — DEFENDED in factory (live-emit residual still open):** the adapter's
+  own source cites the upstream type as `AfterToolInput.tool_response: Record<string, unknown>` (an
+  **object**), whereas the WIRING_PLAN example shows `tool_response` as a **string**. The prior
+  `String(input.tool_response)` yielded `"[object Object]"` for an object → block 2d would miss
+  the injection. Fixed in `post-adapter-factory.js:94-95`: non-string payloads are now routed
+  through `collectText` (recursive flatten, `claude/hooks/hook-utils.js:62-70`) so injection text
+  inside an object is extracted and scanned. Covered by `post-adapter-harness-payloads.test.js`
+  (object-payload section — both string and object `tool_response` for antegravity, plus anti-FP).
+  **Known bound:** `collectText` flattens to depth 4 (`claude/hooks/hook-utils.js:63`). Injection
+  text nested deeper than 4 levels inside an object payload remains a theoretical residual — not
+  observed in any documented harness shape, but worth recording.
+  **Live residual remains open:** whether `agy` actually *emits* an object for MCP tool calls
+  (rather than a string, null, or absent field) is still unverified — that requires a real capture.
 - **Needed:** installed `agy` v1.0.1; `.gemini/settings.json` with `AfterTool` + `run_shell_command`;
-  a real MCP tool call; capture the AfterTool payload; record whether `tool_response` is a string or
-  an object. Assertion as above against `antegravity/hooks/post-adapter.js`.
+  a real MCP tool call; capture the AfterTool payload; confirm `tool_response` is present and
+  record its actual shape (string or object). Assertion: the captured payload, piped to
+  `antegravity/hooks/post-adapter.js`, yields an `mcp-result-injection` journal entry when the
+  output contains an injection marker — regardless of whether the field is a string or an object.
 
 ---
 

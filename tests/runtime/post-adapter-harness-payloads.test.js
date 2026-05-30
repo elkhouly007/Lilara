@@ -30,6 +30,13 @@
 // Runs with no external deps (node:assert-style counters). Each case uses an isolated
 // LILARA_STATE_DIR (mkdtempSync + process.on('exit') cleanup — same isolation pattern as the
 // fixtures suite) so the test introduces no tmp-dir leak of its own.
+//
+// Object-payload hardening (post-adapter-factory.js:94-95 fix):
+//   Also verifies the factory correctly flattens a tool_response OBJECT (e.g. Antegravity's
+//   AfterToolInput.tool_response: Record<string,unknown>) so block 2d still fires on injection
+//   text inside the object, and does NOT fire on a benign object (anti-FP).
+//   String path is unchanged — existing string-field cases above already cover byte-identical
+//   pass-through for all four harnesses.
 
 const fs   = require("fs");
 const os   = require("os");
@@ -37,6 +44,10 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..", "..");
+
+// Each runAdapter() call registers one process.on('exit') listener for tmp-dir cleanup.
+// Raise the limit to avoid MaxListenersExceededWarning as the case count grows.
+process.setMaxListeners(50);
 
 let passed = 0;
 let failed = 0;
@@ -133,6 +144,56 @@ for (const c of CASES) {
              `unexpected mcp-result-injection entry (journal=${JSON.stringify(journal)})`);
   } catch (e) {
     fail(`${c.label}: adapter run (benign) threw`, String(e && e.message || e));
+  }
+}
+
+// ─── Object-payload hardening tests ─────────────────────────────────────────
+// Exercises the factory's non-string branch (rawOutput && typeof rawOutput === "object")
+// → collectText flatten. The two harnesses whose upstream type is documented as an object
+// are Antegravity (AfterToolInput.tool_response: Record<string,unknown>) and, defensively,
+// Codex (same field name; string in practice but hardened for any future shape change).
+// ClawCode and Claude use string fields; included with a realistic object anyway for parity.
+
+const OBJ_CASES = [
+  { label: "codex/obj",       adapter: ADAPTERS.codex,       field: "tool_response", extra: {} },
+  { label: "antegravity/obj", adapter: ADAPTERS.antegravity, field: "tool_response", extra: { hook_event_name: "AfterTool" } },
+  { label: "clawcode/obj",    adapter: ADAPTERS.clawcode,    field: "tool_output",   extra: {} },
+  { label: "claude/obj",      adapter: ADAPTERS.claude,      field: "tool_response", extra: {} },
+];
+
+for (const c of OBJ_CASES) {
+  // (a) Object payload with injection text in .stdout → block 2d must fire.
+  // Shape mirrors a realistic CLI tool output object (stdout/stderr/exitCode).
+  try {
+    const payload = {
+      tool_name: "mcp__db__query",
+      ...c.extra,
+      [c.field]: { stdout: INJECTION, stderr: "", exitCode: 0 },
+    };
+    const { journal } = runAdapter(c.adapter, payload);
+    const fired = firedMcpInjection(journal);
+    fired
+      ? ok(`${c.label}: injection inside object payload → block 2d fires (collectText flatten)`)
+      : fail(`${c.label}: injection inside object payload should fire block 2d`,
+             `no mcp-result-injection entry (journal=${JSON.stringify(journal)})`);
+  } catch (e) {
+    fail(`${c.label}: adapter run (object injection) threw`, String(e && e.message || e));
+  }
+
+  // (b) Benign object → block 2d must NOT fire (anti-FP).
+  try {
+    const payload = {
+      tool_name: "mcp__db__query",
+      ...c.extra,
+      [c.field]: { stdout: BENIGN, exitCode: 0 },
+    };
+    const { journal } = runAdapter(c.adapter, payload);
+    !firedMcpInjection(journal)
+      ? ok(`${c.label}: benign object payload does NOT fire block 2d (anti-FP)`)
+      : fail(`${c.label}: benign object must not fire block 2d`,
+             `unexpected mcp-result-injection (journal=${JSON.stringify(journal)})`);
+  } catch (e) {
+    fail(`${c.label}: adapter run (object benign) threw`, String(e && e.message || e));
   }
 }
 
