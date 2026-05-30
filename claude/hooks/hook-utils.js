@@ -57,14 +57,34 @@ function commandFrom(input) {
 
 /**
  * Recursively collect all string values from a JSON structure.
- * Used to scan prompt text for secrets or dangerous patterns.
+ * Used to scan tool output / prompt text for secrets or dangerous patterns.
+ *
+ * Depth cap: the post-adapter secret-scan and F21 compaction-survival
+ * injection-scan both run on collectText(toolOutput). A shallow depth cap
+ * silently dropped strings nested inside deeply-wrapped MCP/API JSON
+ * responses (e.g. {result:{data:[{meta:{token:"sk-…"}}]}}), so a secret or
+ * injection payload nested past the cap escaped both scans. The cap is raised
+ * to COLLECT_MAX_DEPTH so realistic nesting is covered while still bounding
+ * recursion (stack-safe; also bounds any pathological/cyclic structure, though
+ * JSON-sourced input cannot cycle).
+ *
+ * Byte budget: a cumulative byte cap (== MAX_STDIN_BYTES) bounds total work on
+ * a pathological deep/wide payload. It equals the upstream stdin cap, so it
+ * never truncates legitimately-sized input — it is a local, explicit runaway
+ * backstop that also applies when collectText is called on a non-stdin object.
+ * Fail-safe: once the budget is exhausted, remaining branches return "" (scan
+ * what was collected) rather than running away.
  */
-function collectText(value, depth = 0) {
-  if (depth > 4 || value == null) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map((item) => collectText(item, depth + 1)).join("\n");
+const COLLECT_MAX_DEPTH = 16;
+
+function collectText(value, depth = 0, budget) {
+  if (!budget) budget = { bytes: 0 };
+  if (depth > COLLECT_MAX_DEPTH || value == null) return "";
+  if (budget.bytes >= MAX_STDIN_BYTES) return "";
+  if (typeof value === "string") { budget.bytes += value.length; return value; }
+  if (Array.isArray(value)) return value.map((item) => collectText(item, depth + 1, budget)).join("\n");
   if (typeof value === "object") {
-    return Object.values(value).map((item) => collectText(item, depth + 1)).join("\n");
+    return Object.values(value).map((item) => collectText(item, depth + 1, budget)).join("\n");
   }
   return "";
 }

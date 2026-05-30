@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(post-adapter): `collectText` depth cap dropped deeply-nested tool output** — `collectText` (`claude/hooks/hook-utils.js`) flattens a tool-output JSON structure into newline-joined strings; the post-adapter secret-scan and F21 compaction-survival injection scan both run on its result (`post-adapter-factory.js`). The depth cap was `depth > 4`, so a secret or injection payload nested past 4 levels inside a wrapped MCP/API response (e.g. `{result:{data:[{meta:{token:"sk-…"}}]}}`) was silently dropped and escaped **both** scans (verified: a 6-deep nested secret returned `""`). Fix: raise the cap to `COLLECT_MAX_DEPTH = 16` (covers realistic nesting; still bounds recursion / stack-safe) and add an explicit cumulative byte budget (`== MAX_STDIN_BYTES`, 5 MB) as a local runaway backstop — it equals the upstream stdin cap so it never truncates legitimately-sized input, but bounds a pathological deep/wide payload fail-safe. Recursive structure unchanged. New `tests/runtime/collect-text.test.js` (10 cases: depth-6/10/14 collection, realistic wrapped shape, 5000-deep no-throw stack safety, wide-shallow no node regression) wired into `scripts/check-runtime-core.sh`. No eval impact (`decide()` not in this path).
+
 ## [0.1.6] — 2026-05-29
 
 ### Added
