@@ -92,6 +92,9 @@ binary and asserting block 2d fires on it. Capture recipes already live in each 
   through `collectText` (recursive flatten, `claude/hooks/hook-utils.js:62-70`) so injection text
   inside an object is extracted and scanned. Covered by `post-adapter-harness-payloads.test.js`
   (object-payload section — both string and object `tool_response` for antegravity, plus anti-FP).
+  **Known bound:** `collectText` flattens to depth 4 (`claude/hooks/hook-utils.js:63`). Injection
+  text nested deeper than 4 levels inside an object payload remains a theoretical residual — not
+  observed in any documented harness shape, but worth recording.
   **Live residual remains open:** whether `agy` actually *emits* an object for MCP tool calls
   (rather than a string, null, or absent field) is still unverified — that requires a real capture.
 - **Needed:** installed `agy` v1.0.1; `.gemini/settings.json` with `AfterTool` + `run_shell_command`;
