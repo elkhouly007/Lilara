@@ -21,7 +21,10 @@ printf '[check-runtime-core]\n'
 pass 'runtime core files present'
 
 tmp_home="$(mktemp -d)"
-cleanup() { rm -rf "$tmp_home"; }
+# session_resume_dir is defined later (line ~626); include it here so the trap
+# cleans it on exit even if the node test fails before the inline rm -rf runs.
+# ${session_resume_dir:-} safely expands to nothing when the variable is unset.
+cleanup() { rm -rf "$tmp_home" "${session_resume_dir:-}"; }
 trap cleanup EXIT
 
 HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || exit 1
@@ -31,17 +34,18 @@ const fs = require('fs');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
-// On Windows, bash provides POSIX paths (e.g. /tmp/xxx) that Node.js path.resolve()
-// converts to Windows paths (e.g. C:\tmp\xxx) — a different location than the bash
-// temp dir. Override LILARA_STATE_DIR and HOME with Node.js os.tmpdir() paths so all
-// file I/O uses a valid, writable, platform-native location.
+// Use a fresh unique state dir per run (mkdtempSync, not PID-keyed mkdirSync).
+// A PID-keyed dir with mkdirSync({recursive:true}) can collide with a leftover from a
+// prior run that happened to share this PID — stale learned-policy.json entries from that
+// run contaminate the policy cache and cause spurious test results (e.g. adaptive-tests-
+// decision sees learnedAllow=true for a key that should have pendingSuggestion=pending,
+// flipping action to "allow" and dropping the expected "consider" summary wording).
 //
-// Additionally, os.tmpdir() on Windows can return an 8.3 short path
-// (e.g. C:\Users\RUNNER~1\AppData\Local\Temp on GitHub Actions) while git
-// returns the canonical long path. Resolve to canonical form so that path
-// comparisons in discover-git-repo tests don't fail due to short/long mismatch.
-const _testStateDirRaw = path.join(os.tmpdir(), 'ecc-runtime-test-' + process.pid);
-fs.mkdirSync(_testStateDirRaw, { recursive: true, mode: 0o700 });
+// Windows note: bash's mktemp -d produces a POSIX path (/c/Users/...) that Node.js
+// path.resolve() maps to a different location. Use os.tmpdir() as the base for a valid
+// platform-native path. Resolve to canonical form (GetFinalPathNameByHandleW on Windows)
+// to avoid 8.3 short-path vs long-path mismatches in discover-git-repo comparisons.
+const _testStateDirRaw = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-runtime-test-'));
 // realpathSync.native calls GetFinalPathNameByHandleW on Windows which resolves 8.3 short
 // names (e.g. RUNNER~1 → runneradmin); plain realpathSync only resolves symlinks/./../
 const _realpathFn = typeof fs.realpathSync.native === 'function' ? fs.realpathSync.native : fs.realpathSync;
@@ -49,6 +53,7 @@ const _testStateDir = (function() { try { return _realpathFn(_testStateDirRaw); 
 process.env.LILARA_STATE_DIR = _testStateDir;
 process.env.HOME = _testStateDir;
 process.env.LILARA_DECISION_JOURNAL = '0'; // suppress journal file writes during tests
+process.on('exit', () => { try { fs.rmSync(_testStateDir, { recursive: true, force: true }); } catch { /* best-effort */ } });
 const { score } = require(path.join(root, 'runtime/risk-score.js'));
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
 const { build: buildEnvelope, verify: verifyEnvelope } = require(path.join(root, 'runtime/envelope.js'));
@@ -589,6 +594,9 @@ NODE
 pass 'runtime scoring, learned policy, suggestions, and session behavior'
 
 # classifyPathSensitivity unit tests
+# Isolation: NODE2 intentionally reuses $tmp_home (already mktemp-unique, EXIT-trapped).
+# classifyPathSensitivity is a pure function — no file I/O, no policy-store writes —
+# so sharing the suite-level state dir is safe and correct; no separate mkdtempSync needed.
 HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE2' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
@@ -621,10 +629,17 @@ NODE2
 pass 'classifyPathSensitivity low/medium/high classification'
 
 # session-resume unit test
+# Isolation: fresh mktemp -d, cleaned by the EXIT trap above (via ${session_resume_dir:-})
+# and also inline on success. The trap covers the failure path (node exits non-zero →
+# || exit 1 fires before the inline rm -rf) so the dir is never orphaned.
 session_resume_dir="$(mktemp -d)"
 LILARA_STATE_DIR="$session_resume_dir" node "$root/tests/runtime/session-resume.test.js" || exit 1
 rm -rf "$session_resume_dir" 2>/dev/null || true
 pass 'session-resume buildSummary'
+
+# Each test-file block below (eval-runner through dogfood-config) self-isolates
+# internally: the test file sets its own LILARA_STATE_DIR via fs.mkdtempSync and
+# restores or cleans it before exit. No additional bash-level isolation is needed.
 
 # eval-runner unit test
 node "$root/tests/runtime/eval-runner.test.js" || exit 1
