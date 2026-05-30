@@ -5,9 +5,10 @@
 
 ## Problem
 
-`scripts/check-no-horus.sh` is the rebrand-drift gate. It searches for the *token shapes*
-`HORUS_`, `.horus`, `hap-`, and the product name (stored via string concatenation so the gate does
-not flag itself). It does **not** match bare lowercase `horus`. As a result, nine bare-`horus`
+`scripts/check-no-horus.sh` is the rebrand-drift gate. It searches for a handful of pre-rebrand
+*token shapes* — the upper-case env-var prefix, the dotfile/state-dir form, the old
+contract-id prefix, and the old product name (each stored via string concatenation so the gate
+does not flag itself). It does **not** match bare lowercase `horus`. As a result, nine bare-`horus`
 references survived the rebrand undetected in `runtime/` and `scripts/` (PR #85): comments
 (`horus doctor`, `horus envelope`), SMTP defaults (`horus@localhost`, `EHLO horus`), a notify
 user-agent (`horus-notify/1` ×2), and two temp-dir prefixes (`horus-audit.$$`, `horus-e2e-`). And a
