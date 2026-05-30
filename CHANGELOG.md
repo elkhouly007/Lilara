@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **chore(tmp-isolation): single accumulating EXIT cleanup in `run-fixtures.sh` (trap-clobber fix)** — `scripts/run-fixtures.sh` registered **8 separate `trap … EXIT`** handlers. Bash keeps only the **last** registered EXIT trap, so the other 7 were silently disabled. The dominant leak source is the per-iteration `tmp_stderr` file in `run_hook_fixtures` (created with `mktemp`, cleaned only by a per-call trap that is re-registered each loop iteration and then clobbered, with **no inline `rm`**) — one file leaks per hook-fixture iteration; the two `mktemp -d` state dirs whose sole cleanup was also a trap (`hooks_tmp_state`, `_tmpstate_d44`) leak alongside them. **Measured** in a private `TMPDIR`, in place, across 3 serial trials: master leaks **~172 temp entries per run** (172 on run 1, 344 cumulative after run 2); the fix leaves **0** (runs 1/2/3). The remaining trap-guarded temps also carry inline `rm`s that cover the happy path, but their disabled traps meant a `set -e` early-exit would leak them too. Fix (PR #73/#75/#79 isolation class): one global tracked-path list (`_LILARA_TMP_PATHS` + `_track_tmp`) and a **single** `trap _cleanup_all_tmp EXIT`; every `mktemp`/`mktemp -d` site appends its path at creation; the 8 clobbering traps and 2 now-dead cleanup functions are removed. Existing inline `rm`s stay (prompt disk reuse; `rm -rf` on an already-removed path is a no-op). Verified: `run-fixtures.sh` 405/405; **0** residual across runs (vs master ~172/run); forced mid-script `set -e` failure leaves **0** residual.
+
 ## [0.1.6] — 2026-05-29
 
 ### Added
