@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **fix(mcp-security): F25/F26 `${IFS}` whitespace-evasion bypass** — MCP danger floors (F25 `mcp-arg-danger`, F26 `mcp-registration-write`) classify arg/config strings through `normalizeCommand` (`runtime/command-normalize.js`). That spine stripped `${…}` shell interpolation to the empty string, so `${IFS}` (which expands to whitespace in a real shell) collapsed the verb onto its argument: `rm${IFS}-rf${IFS}/` → `rm-rf/` → `generic`, silently bypassing the floor (verified: `decide()` on an MCP arg `rm${IFS}-rf${IFS}/` returned `route`/risk-4, no floor; plain `rm -rf /` correctly returned `block`). Bare `$IFS` was not stripped at all. The Bash path already blocked both forms via `detectBypassPatterns` (`ifs-bypass`); only the MCP floors were affected. Fix: a dedicated IFS→space fold (`/\$\{IFS(?![A-Za-z0-9_])[^}]*\}|\$IFS\b/g` → `" "`) runs **before** the generic `${…}`→"" strip, so `rm${IFS}-rf${IFS}/`→`rm -rf /` (destructive-delete), `git${IFS}push${IFS}--force`→`git push --force` (force-push), `dd${IFS}if=…of=/dev/sda`→`dd if=… of=/dev/sda` (disk-write). Negative-lookahead + `\b` keep unrelated variables (`${IFSFOO}`, `$IFSFOO`) on the generic-strip path — no false fold. New fixture `tests/fixtures/mcp-security/09-f25-ifs-arg-danger.input` (MCP `${IFS}` arg → `block`/`mcp-arg-danger`) and six `command-normalize.test.js` IFS cases. 390 fixtures total (was 389). Eval FP 0.0% / FN 0.0% (no `${IFS}`/`$IFS` in corpus).
+
 ## [0.1.6] — 2026-05-29
 
 ### Added
