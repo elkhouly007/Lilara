@@ -1240,7 +1240,7 @@ const fs     = require("fs");
 const os     = require("os");
 
 const root = process.argv[2];
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "horus-e2e-"));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lilara-e2e-"));
 process.on('exit', () => { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
 
 process.env.LILARA_STATE_DIR  = tmpDir;

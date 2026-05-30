@@ -151,7 +151,7 @@ function postJson(targetUrl, body) {
     const req = mod.request({
       method: "POST", hostname: u.hostname, port: u.port || (isHttp ? 80 : 443),
       path: (u.pathname || "/") + (u.search || ""),
-      headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload), "user-agent": "horus-notify/1" },
+      headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload), "user-agent": "lilara-notify/1" },
     }, (res) => {
       let chunks = "";
       res.on("data", (d) => { chunks += d; });
