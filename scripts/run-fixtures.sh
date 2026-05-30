@@ -1609,6 +1609,7 @@ function assert(condition, message) {
 
 function mkrepo(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} });
   execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   execFileSync('git', ['config', 'user.email', 'f15@example.com'], { cwd: dir, stdio: 'ignore' });
   execFileSync('git', ['config', 'user.name', 'F15 Test'], { cwd: dir, stdio: 'ignore' });
@@ -1665,6 +1666,7 @@ switch (name) {
   }
   case 'cwd-change': {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-cwd-'));
+    process.on('exit', () => { try { fs.rmSync(root, { recursive: true, force: true }); } catch {} });
     const a = path.join(root, 'a');
     const b = path.join(root, 'b');
     fs.mkdirSync(a, { recursive: true });
@@ -1678,6 +1680,7 @@ switch (name) {
   }
   case 'path-shadow': {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-path-'));
+    process.on('exit', () => { try { fs.rmSync(root, { recursive: true, force: true }); } catch {} });
     const bin1 = path.join(root, 'bin1');
     const bin2 = path.join(root, 'bin2');
     fs.mkdirSync(bin1, { recursive: true });
@@ -1738,6 +1741,7 @@ switch (name) {
   }
   case 'shell-alias-change': {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f15-alias-'));
+    process.on('exit', () => { try { fs.rmSync(root, { recursive: true, force: true }); } catch {} });
     const expectedEnv = envWith({ BASH_ALIASES: "safe-tool='echo one'" });
     const observedEnv = envWith({ BASH_ALIASES: "safe-tool='echo two'" });
     const expected = build({ command: 'safe-tool', cwd: root, targetPath: root, projectRoot: root, env: expectedEnv, persistEnvBaseline: false, envBaseline: baselineFrom(expectedEnv) });
@@ -1944,6 +1948,7 @@ switch (name) {
     const { canonicalJson } = require('./runtime/canonical-json');
 
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-int-'));
+    process.on('exit', () => { try { fs.rmSync(proj, { recursive: true, force: true }); } catch {} });
     const body = {
       version: 3,
       contractId: 'lilara-20260101-000000000001',
@@ -2019,6 +2024,7 @@ switch (name) {
     const crypto = require('crypto');
     const { canonicalJson } = require('./runtime/canonical-json');
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-fc4-deny-'));
+    process.on('exit', () => { try { fs.rmSync(proj, { recursive: true, force: true }); } catch {} });
     const body = {
       version: 3,
       contractId: 'lilara-20260101-000000000004',
@@ -2175,6 +2181,7 @@ switch (name) {
     const { canonicalJson } = require('./runtime/canonical-json');
     const { build: buildEnv } = require('./runtime/envelope');
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'f18-fc5-'));
+    process.on('exit', () => { try { fs.rmSync(proj, { recursive: true, force: true }); } catch {} });
     const body = {
       version: 3,
       contractId: 'lilara-20260101-000000000005',
