@@ -658,6 +658,10 @@ pass 'mcp-floor-adversarial: cycle-safe walker + require-review degrade'
 node "$root/tests/runtime/post-adapter-mcp-injection.test.js" || exit 1
 pass 'post-adapter-mcp-injection: harness-agnostic MCP result-injection scan'
 
+# post-adapter per-harness synthetic-payload regression (Codex/ClawCode/Antegravity + Claude)
+node "$root/tests/runtime/post-adapter-harness-payloads.test.js" || exit 1
+pass 'post-adapter-harness-payloads: per-harness synthetic PostToolUse → block 2d fires'
+
 # markdown-link-scan unit test
 node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
 pass 'markdown-link-scan scanMarkdownLinks'
