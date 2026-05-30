@@ -274,6 +274,9 @@ case "$cmd" in
     section "Pressure tests"
     bash "${scripts}/check-pressure-tests.sh" || failed=1
 
+    section "Replay corpus"
+    bash "${scripts}/check-replay-corpus.sh" || failed=1
+
     if [ "$failed" -eq 0 ]; then
       printf '\n%sAll checks passed.%s\n' "$GREEN" "$RESET"
       printf 'This is the fast loop. For the full CI set (fixtures, audit, bench), run: %s ci\n' "$0"
