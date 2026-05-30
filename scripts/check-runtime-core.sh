@@ -21,7 +21,10 @@ printf '[check-runtime-core]\n'
 pass 'runtime core files present'
 
 tmp_home="$(mktemp -d)"
-cleanup() { rm -rf "$tmp_home"; }
+# session_resume_dir is defined later (line ~626); include it here so the trap
+# cleans it on exit even if the node test fails before the inline rm -rf runs.
+# ${session_resume_dir:-} safely expands to nothing when the variable is unset.
+cleanup() { rm -rf "$tmp_home" "${session_resume_dir:-}"; }
 trap cleanup EXIT
 
 HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || exit 1
@@ -591,6 +594,9 @@ NODE
 pass 'runtime scoring, learned policy, suggestions, and session behavior'
 
 # classifyPathSensitivity unit tests
+# Isolation: NODE2 intentionally reuses $tmp_home (already mktemp-unique, EXIT-trapped).
+# classifyPathSensitivity is a pure function — no file I/O, no policy-store writes —
+# so sharing the suite-level state dir is safe and correct; no separate mkdtempSync needed.
 HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE2' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
@@ -623,10 +629,17 @@ NODE2
 pass 'classifyPathSensitivity low/medium/high classification'
 
 # session-resume unit test
+# Isolation: fresh mktemp -d, cleaned by the EXIT trap above (via ${session_resume_dir:-})
+# and also inline on success. The trap covers the failure path (node exits non-zero →
+# || exit 1 fires before the inline rm -rf) so the dir is never orphaned.
 session_resume_dir="$(mktemp -d)"
 LILARA_STATE_DIR="$session_resume_dir" node "$root/tests/runtime/session-resume.test.js" || exit 1
 rm -rf "$session_resume_dir" 2>/dev/null || true
 pass 'session-resume buildSummary'
+
+# Each test-file block below (eval-runner through dogfood-config) self-isolates
+# internally: the test file sets its own LILARA_STATE_DIR via fs.mkdtempSync and
+# restores or cleans it before exit. No additional bash-level isolation is needed.
 
 # eval-runner unit test
 node "$root/tests/runtime/eval-runner.test.js" || exit 1
