@@ -156,8 +156,10 @@ test("change-intent: policy-edit-not-declared escalates to high", () => {
   const { diffEnvelopeVsIr } = require(path.join(REPO_ROOT, "runtime/change-intent"));
   const env = { declaredIntent: { allowedOps: { fileWrites: ["**"], policyEdits: false } } };
   const ir = {
-    fileTargets: [{ path: "/proj/horus.contract.json", intent: "write" }],
-    networkTargets: [], command: "echo x > horus.contract.json", argv0: "echo",
+    // Live contract filename after the Lilara rebrand (was horus.contract.json,
+    // which the POLICY_PATH_PATTERNS regex no longer matches — see change-intent.js).
+    fileTargets: [{ path: "/proj/lilara.contract.json", intent: "write" }],
+    networkTargets: [], command: "echo x > lilara.contract.json", argv0: "echo",
   };
   const out = diffEnvelopeVsIr(env, ir);
   assert.equal(out.drift, true);
@@ -167,6 +169,14 @@ test("change-intent: policy-edit-not-declared escalates to high", () => {
   // Negative: policyEdits = true → no drift.
   const env2 = { declaredIntent: { allowedOps: { fileWrites: ["**"], policyEdits: true } } };
   assert.equal(diffEnvelopeVsIr(env2, ir).drift, false);
+
+  // Negative: the DEAD pre-rebrand name must NOT be treated as a policy path
+  // (proves the stale horus.contract pattern is gone, not merely renamed).
+  const irDead = { ...ir, fileTargets: [{ path: "/proj/horus.contract.json", intent: "write" }] };
+  assert.ok(
+    !diffEnvelopeVsIr(env, irDead).classes.includes("policy-edit-not-declared"),
+    "horus.contract.json (dead rebrand name) must not trigger policy-edit drift"
+  );
 });
 
 test("change-intent: ≥2 drift classes escalates to high", () => {
@@ -290,7 +300,13 @@ test("engine: F20 medium severity → require-review, demotable by operator-toke
       irVersion: "1",
       command: "edit src/x.js",
       argv0: "edit",
-      fileTargets: [{ path: "/proj/src/secret.js", intent: "write" }],
+      // Must be a NON-credential path. F24 (credential-persistence-write, rung
+      // 17.625, added in v0.1.6 AFTER this test) hard-blocks any write to a path
+      // matching /secret/ BEFORE F20 (rung 18.5) is reached. The original fixture
+      // ("/proj/src/secret.js") is shadowed by F24 → block/credential-persistence-
+      // write-denied, never F20. Use a plain module path so this test exercises
+      // F20 medium severity as intended.
+      fileTargets: [{ path: "/proj/src/module.js", intent: "write" }],
       networkTargets: [],
       destructive: false,
       commandTokens: ["edit"],
