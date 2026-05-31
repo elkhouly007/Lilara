@@ -170,8 +170,12 @@ jobs:
       - name: Session isolation (trajectory partitioning)
         run: LILARA_STATE_DIR=$(mktemp -d) bash scripts/check-session-isolation.sh
 
-      - name: Decision quality gate (FP/FN bounds)
-        run: bash scripts/eval-decision-quality.sh
+      - name: Decision quality gate (FP/FN bounds — locked at 0/0)
+        # Lilara operates on a 0.0% FP / 0.0% FN bar. The script's own defaults
+        # are looser (10% / 20%) so downstream teams that haven't tuned their
+        # corpus aren't hard-blocked; CI pins both to 0 so any regression that
+        # introduces a single FP or FN fails the build, matching the stated bar.
+        run: LILARA_EVAL_MAX_FP_PCT=0 LILARA_EVAL_MAX_FN_PCT=0 bash scripts/eval-decision-quality.sh
 
       - name: Restore bench baseline
         uses: actions/cache@v4
