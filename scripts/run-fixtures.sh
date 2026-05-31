@@ -43,9 +43,28 @@ fi
 pass=0
 fail=0
 
+# Single accumulating EXIT cleanup for every temp file/dir this script creates.
+# Bash retains only the LAST `trap ... EXIT`, so the previous one-trap-per-temp
+# pattern silently disabled all but the final handler — leaking the state dirs,
+# the per-iteration stderr temps, and several never-cleaned temps
+# (_toolallow_contract, _tmpstate_b3, _d45_tmp2 had no cleanup at all) on every
+# run, and everything on a `set -e` early exit. Register ONE trap and append
+# each temp's path to a global list at creation (PR #73 / #75 / #79 isolation
+# class). Inline `rm`s elsewhere stay — they free disk promptly during the run;
+# the EXIT sweep is the failure-path backstop (`rm -rf` on an already-removed
+# path is a no-op).
+_LILARA_TMP_PATHS=()
+_track_tmp() { _LILARA_TMP_PATHS+=("$1"); }
+_cleanup_all_tmp() {
+  local _p
+  for _p in "${_LILARA_TMP_PATHS[@]:-}"; do
+    [ -n "${_p:-}" ] && rm -rf "$_p"
+  done
+}
+trap _cleanup_all_tmp EXIT
+
 hooks_tmp_state="$(mktemp -d)"
-cleanup_hooks_state() { rm -rf "$hooks_tmp_state"; }
-trap cleanup_hooks_state EXIT
+_track_tmp "$hooks_tmp_state"
 export LILARA_STATE_DIR="$hooks_tmp_state"
 
 ok()     { printf '  PASS  %s\n' "$1"; pass=$((pass + 1)); }
@@ -76,8 +95,7 @@ run_hook_fixtures() {
     enforce_val="0"
     case "$name" in *enforce*) enforce_val="1" ;; esac
 
-    tmp_stderr="$(mktemp)"
-    trap 'rm -f "$tmp_stderr"' EXIT
+    tmp_stderr="$(mktemp)"; _track_tmp "$tmp_stderr"
 
     actual_exit=0
     fix_state="$(mktemp -d)"
@@ -211,7 +229,7 @@ run_ks() {
   local hook="$1" input_file="$2" expected_exit="$3" label="$4"
   [ -f "$input_file" ] || { skip "$label" "fixture missing: $input_file"; return; }
   [ -f "$hook" ]       || { skip "$label" "hook missing: $hook"; return; }
-  local tmp_stderr; tmp_stderr="$(mktemp)"
+  local tmp_stderr; tmp_stderr="$(mktemp)"; _track_tmp "$tmp_stderr"
   local actual_exit=0
   LILARA_KILL_SWITCH=1 LILARA_ENFORCE=1 node "$hook" < "$input_file" > /dev/null 2>"$tmp_stderr" \
     || actual_exit=$?
@@ -264,7 +282,7 @@ if [ -d "$contract_dir" ]; then
     case "$name" in *critical*) cc_enforce="1" ;; esac
 
     tmp_state="$(mktemp -d)"
-    tmp_stderr="$(mktemp)"
+    tmp_stderr="$(mktemp)"; _track_tmp "$tmp_stderr"
     actual_exit=0
     LILARA_STATE_DIR="$tmp_state" LILARA_CONTRACT_REQUIRED="$contract_required" \
       LILARA_CONTRACT_ENABLED="1" LILARA_ENFORCE="$cc_enforce" LILARA_RATE_LIMIT=0 \
@@ -358,6 +376,7 @@ printf '\nToolAllow pre-approval tests (W11 fix)...\n'
 
 # Build a contract with toolAllow entries and a valid contractHash.
 _toolallow_contract="$(mktemp)"
+_track_tmp "$_toolallow_contract"
 node -e "
 const crypto = require('crypto');
 const { canonicalJson } = require('./runtime/canonical-json');
@@ -415,7 +434,7 @@ _jredact_secret="sk-testfakekey0000000000000000001"
 
 _run_jredact() {
   local name="$1" redact_flag="$2" secret_should_be_absent="$3"
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local actual_exit=0
   # Call append() directly — tests the redaction mechanism in isolation.
   node -e "
@@ -493,7 +512,7 @@ process.stdout.write(val !== undefined ? String(val) : '');
 
 _run_taint() {
   local name="$1" field="$2" expect="$3" command="$4" content="$5"
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local actual actual_exit=0
   actual=$(_taint_node "$tmpstate" "$command" "$content" "$field") || actual_exit=$?
   rm -rf "$tmpstate"
@@ -507,7 +526,7 @@ _run_taint() {
 
 _run_taint_not() {
   local name="$1" field="$2" not_expect="$3" command="$4" content="$5"
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local actual actual_exit=0
   actual=$(_taint_node "$tmpstate" "$command" "$content" "$field") || actual_exit=$?
   rm -rf "$tmpstate"
@@ -533,7 +552,7 @@ _run_taint_not "clean-window-no-taint" "decisionSource" "taint-floor" \
 
 # (4) provenance recorded in journal: taintSource + taintReason fields present
 _taint_journal_check() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local actual_exit=0
   node -e "
 const { recordExternalRead } = require('./runtime/taint');
@@ -565,7 +584,7 @@ _taint_journal_check
 
 # (5) broken taint module → taint-floor-disabled logged once, decision continues
 _taint_disabled_check() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local taint_src; taint_src="$(pwd)/runtime/taint.js"
   local taint_bak; taint_bak="$(pwd)/runtime/taint.js.disabled-test-bak"
   local ok_flag=1
@@ -656,6 +675,7 @@ fi
 printf '\nAccept-gate (B3) operator-token tests...\n'
 
 _tmpstate_b3="$(mktemp -d)"
+_track_tmp "$_tmpstate_b3"
 
 # 1. mint returns a 64-char hex token
 _b3_token=$(node -e "
@@ -743,7 +763,7 @@ rm -rf "$_tmpstate_b3"
 printf '\nValidity-window (B2) tests...\n'
 
 _validity_in_window() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -762,7 +782,7 @@ process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
 _validity_in_window
 
 _validity_out_window() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -781,7 +801,7 @@ process.stdout.write(JSON.stringify(isInActiveWindow(contract, now)));
 _validity_out_window
 
 _validity_wrong_dow() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -803,7 +823,7 @@ _validity_wrong_dow
 printf '\nContextTrust (B2) tests...\n'
 
 _ct_main_strict() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -821,7 +841,7 @@ process.stdout.write(String(getContextTrust(contract, 'main')));
 _ct_main_strict
 
 _ct_feature_relaxed() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -839,7 +859,7 @@ process.stdout.write(String(getContextTrust(contract, 'feature/x')));
 _ct_feature_relaxed
 
 _ct_specificity() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -863,7 +883,7 @@ _ct_specificity
 printf '\nTool-scope (B2) tests...\n'
 
 _ts_bash_allow() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -884,7 +904,7 @@ process.stdout.write(JSON.stringify(sm));
 _ts_bash_allow
 
 _ts_bash_deny() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -905,7 +925,7 @@ process.stdout.write(JSON.stringify(sm));
 _ts_bash_deny
 
 _ts_per_tool_overrides_general() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -929,7 +949,7 @@ _ts_per_tool_overrides_general
 printf '\nB2 Phase 1 integration tests...\n'
 
 _b2_integration_all_three() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -966,8 +986,7 @@ _b2_integration_all_three
 # ── inline: operator-token D44/D45 tests ──────────────────────────────────────
 printf '\nOperator-token (D44/D45) tests...\n'
 _tmpstate_d44="$(mktemp -d)"
-_cleanup_d44() { rm -rf "$_tmpstate_d44"; }
-trap _cleanup_d44 EXIT
+_track_tmp "$_tmpstate_d44"
 
 # D44: O_EXCL contention — simulate two concurrent consumers; second must return false.
 _d44_contend="$(node - "$root" "$_tmpstate_d44" <<'NODEEOF'
@@ -999,6 +1018,7 @@ fi
 
 # D45: list — after mint, list shows id prefix but never the full secret.
 _d45_tmp2="$(mktemp -d)"
+_track_tmp "$_d45_tmp2"
 _d45_tok="$(LILARA_STATE_DIR="$_d45_tmp2" node - "$root" <<'NODEEOF'
 const path = require("path");
 const { mintOperatorToken } = require(path.join(process.argv[2], "runtime/contract"));
@@ -1314,7 +1334,7 @@ fi
 printf '\nMCP policy (B2) tests...\n'
 
 _mcp_server_block() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1329,7 +1349,7 @@ process.stdout.write(String(getMcpPolicy(c, 'context7')));
 _mcp_server_block
 
 _mcp_server_warn() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1344,7 +1364,7 @@ process.stdout.write(String(getMcpPolicy(c, 'context7')));
 _mcp_server_warn
 
 _mcp_server_allow_default() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1362,7 +1382,7 @@ _mcp_server_allow_default
 printf '\nSkill policy (B2) tests...\n'
 
 _skill_skill_block() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1377,7 +1397,7 @@ process.stdout.write(String(getSkillPolicy(c, 'evil-skill')));
 _skill_skill_block
 
 _skill_skill_warn() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1392,7 +1412,7 @@ process.stdout.write(String(getSkillPolicy(c, 'audited-skill')));
 _skill_skill_warn
 
 _skill_skill_allow_default() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1410,7 +1430,7 @@ _skill_skill_allow_default
 printf '\nBudget/session policy (B2) tests...\n'
 
 _budget_destructive_block() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   mkdir -p "$tmpstate/session-budget"
   printf '{"destructiveOps":5,"externalBytes":0,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bd.json"
   local result; result=$(node -e "
@@ -1427,7 +1447,7 @@ process.stdout.write(String(c.destructiveOps));
 _budget_destructive_block
 
 _budget_bytes_block() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   mkdir -p "$tmpstate/session-budget"
   printf '{"destructiveOps":0,"externalBytes":1048576,"startTime":%s}' "$(node -e 'process.stdout.write(String(Date.now()))')" > "$tmpstate/session-budget/test-session-bb.json"
   local result; result=$(node -e "
@@ -1444,7 +1464,7 @@ process.stdout.write(String(c.externalBytes));
 _budget_bytes_block
 
 _session_over_duration_require_review() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   mkdir -p "$tmpstate/session-budget"
   local old_time; old_time=$(node -e 'process.stdout.write(String(Date.now() - 7200000))')
   printf '{"destructiveOps":0,"externalBytes":0,"startTime":%s}' "$old_time" > "$tmpstate/session-budget/test-session-od.json"
@@ -1470,7 +1490,7 @@ _session_over_duration_require_review
 printf '\nMigration v2→v3 (B2) tests...\n'
 
 _migrate_v2_to_v3_lossless() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   # Write a minimal v2 contract fixture
   node -e "
 const fs = require('fs');
@@ -1507,7 +1527,7 @@ process.stdout.write(same ? 'ok' : 'scopes-changed');
 _migrate_v2_to_v3_lossless
 
 _migrate_v3_idempotent_noop() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   # Write a v3 draft to use as input
   node -e "
 const fs = require('fs');
@@ -1545,7 +1565,7 @@ _migrate_v3_idempotent_noop
 printf '\nB2 Phase 2 integration tests...\n'
 
 _b2_phase2_integration_all_four() {
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node -e "
 process.env.LILARA_STATE_DIR        = process.argv[1];
 process.env.LILARA_CONTRACT_ENABLED = '0';
@@ -1591,7 +1611,7 @@ printf '\nF15 execution-envelope fixtures...\n'
 
 _run_f15_case() {
   local name="$1"
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node - <<'NODE' "$tmpstate" "$name"
 const fs = require('fs');
 const os = require('os');
@@ -1782,7 +1802,7 @@ printf '\nF18 network-egress fixtures...\n'
 
 _run_f18_case() {
   local name="$1"
-  local tmpstate; tmpstate="$(mktemp -d)"
+  local tmpstate; tmpstate="$(mktemp -d)"; _track_tmp "$tmpstate"
   local result; result=$(node - <<'NODE' "$tmpstate" "$name"
 'use strict';
 const tmpstate = process.argv[2];
@@ -2301,10 +2321,10 @@ else
     enforce_val="0"
     case "$name" in *enforce*) enforce_val="1" ;; esac
 
-    tmp_proj="$(mktemp -d)"
-    tmp_state="$(mktemp -d)"
-    tmp_stderr="$(mktemp)"
-    tmp_input="$(mktemp)"
+    tmp_proj="$(mktemp -d)"; _track_tmp "$tmp_proj"
+    tmp_state="$(mktemp -d)"; _track_tmp "$tmp_state"
+    tmp_stderr="$(mktemp)"; _track_tmp "$tmp_stderr"
+    tmp_input="$(mktemp)"; _track_tmp "$tmp_input"
 
     if ! node - "$input_file" "$tmp_proj" "$tmp_input" >/dev/null 2>&1 <<'NODE'
 'use strict';
@@ -2445,7 +2465,7 @@ fi
 printf '\n[floor-f16]\n'
 
 _f16_tmp_out="$(mktemp)"
-trap 'rm -f "$_f16_tmp_out"' EXIT
+_track_tmp "$_f16_tmp_out"
 
 if bash scripts/check-floor-f16.sh > "$_f16_tmp_out" 2>&1; then
   while IFS= read -r line; do
@@ -2484,7 +2504,7 @@ rm -f "$_f16_tmp_out"
 printf '\n[file-write-floor]\n'
 
 _fwf_tmp_out="$(mktemp)"
-trap 'rm -f "$_fwf_tmp_out"' EXIT
+_track_tmp "$_fwf_tmp_out"
 
 if bash scripts/check-file-write-floor.sh > "$_fwf_tmp_out" 2>&1; then
   while IFS= read -r line; do
@@ -2523,7 +2543,7 @@ rm -f "$_fwf_tmp_out"
 printf '\n[mcp-security]\n'
 
 _mcp_sec_tmp_out="$(mktemp)"
-trap 'rm -f "$_mcp_sec_tmp_out"' EXIT
+_track_tmp "$_mcp_sec_tmp_out"
 
 if bash scripts/check-mcp-security.sh > "$_mcp_sec_tmp_out" 2>&1; then
   while IFS= read -r line; do
@@ -2563,7 +2583,7 @@ rm -f "$_mcp_sec_tmp_out"
 printf '\n[lattice-receipts]\n'
 
 _lr_tmp_out="$(mktemp)"
-trap 'rm -f "$_lr_tmp_out"' EXIT
+_track_tmp "$_lr_tmp_out"
 
 if bash scripts/check-lattice-receipts.sh > "$_lr_tmp_out" 2>&1; then
   # Tally per-fixture lines: ok = pass, FAIL = fail
@@ -2604,7 +2624,7 @@ rm -f "$_lr_tmp_out"
 printf '\n[replay-corpus]\n'
 
 _rc_tmp_out="$(mktemp)"
-trap 'rm -f "$_rc_tmp_out"' EXIT
+_track_tmp "$_rc_tmp_out"
 
 if bash scripts/check-replay-corpus.sh > "$_rc_tmp_out" 2>&1; then
   while IFS= read -r line; do
