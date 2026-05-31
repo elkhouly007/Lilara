@@ -666,6 +666,10 @@ pass 'post-adapter-harness-payloads: per-harness synthetic PostToolUse → block
 node "$root/tests/runtime/markdown-link-scan.test.js" || exit 1
 pass 'markdown-link-scan scanMarkdownLinks'
 
+# collectText depth + byte-budget coverage (post-adapter secret/injection scan input)
+node "$root/tests/runtime/collect-text.test.js" || exit 1
+pass 'collect-text depth cap + byte budget (nested tool-output scanning)'
+
 # protected-branch gating unit test
 node "$root/tests/runtime/protected-branch-gating.test.js" || exit 1
 pass 'protected-branch-gating hasExplicitProtectedBranches + branchExplicit'

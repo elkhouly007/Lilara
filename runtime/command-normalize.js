@@ -216,6 +216,17 @@ function normalizeCommand(raw) {
     // the original string against destructive-verb regexes.
     nfkd = s;
   }
+  // ${IFS} / $IFS canonically expand to whitespace; fold them to a single space
+  // so word-boundary destructive-verb regexes still match (rm${IFS}-rf → rm -rf;
+  // git${IFS}push${IFS}--force → git push --force; dd${IFS}if=… → dd if=…). This
+  // MUST run before the generic ${…}→"" strip below — that strip would otherwise
+  // delete ${IFS} and glue the verb to its argument (rm${IFS}-rf → rm-rf →
+  // generic), a silent bypass of the MCP danger floors. Precision: the ${…} arm
+  // uses a negative lookahead so it folds only the IFS variable itself (${IFS},
+  // ${IFS:-x}, ${IFS#…}) and NOT a different variable whose name merely starts
+  // with IFS (e.g. ${IFSFOO}); the bare-$IFS arm is \b-anchored for the same
+  // reason. Non-IFS variables fall through to the generic strip unchanged.
+  nfkd = nfkd.replace(/\$\{IFS(?![A-Za-z0-9_])[^}]*\}|\$IFS\b/g, " ");
   // Strip shell variable interpolation so r${x}m collapses to rm before matching.
   nfkd = nfkd.replace(/\$\{[^}]*\}/g, "");
   // Fast path: pure ASCII after NFKD — no strip, no fold needed.
