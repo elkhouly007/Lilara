@@ -1,0 +1,16 @@
+{
+  "title": "F25/09: MCP tool with ${IFS} whitespace-evasion 'rm${IFS}-rf${IFS}/' in arg → block (IFS fold, ADR-008)",
+  "input": {
+    "tool": "mcp__test__execute",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "cmd": "rm${IFS}-rf${IFS}/" }
+  },
+  "expected": {
+    "action": "block",
+    "floorFired": "mcp-arg-danger",
+    "rung": null,
+    "reasonCodesIncludes": ["mcp-arg-danger-denied"]
+  }
+}

@@ -334,6 +334,41 @@ test("normalizeCommand: variation selector (U+FE0F) between letters is stripped"
 });
 
 // ---------------------------------------------------------------------------
+// ${IFS} / $IFS whitespace-evasion folding
+//
+// ${IFS} and $IFS expand to whitespace in a real shell. The generic ${…}→""
+// strip alone would delete them and GLUE the verb to its argument
+// (rm${IFS}-rf → rm-rf → generic), silently bypassing the MCP danger floors,
+// which classify via normalizeCommand. A dedicated IFS→space arm (running
+// before the generic strip) folds them to a separator so the destructive-verb
+// regexes still match.
+// ---------------------------------------------------------------------------
+
+test("normalizeCommand: ${IFS} braces fold to space (rm${IFS}-rf → rm -rf)", () => {
+  assert.strictEqual(normalizeCommand("rm${IFS}-rf${IFS}/"), "rm -rf /");
+});
+
+test("normalizeCommand: bare $IFS folds to space (rm$IFS-rf → rm -rf)", () => {
+  assert.strictEqual(normalizeCommand("rm$IFS-rf$IFS/"), "rm -rf /");
+});
+
+test("normalizeCommand: ${IFS} folds for git force-push and dd disk-write", () => {
+  assert.strictEqual(normalizeCommand("git${IFS}push${IFS}--force"), "git push --force");
+  assert.strictEqual(normalizeCommand("dd${IFS}if=/dev/zero${IFS}of=/dev/sda"), "dd if=/dev/zero of=/dev/sda");
+});
+
+test("normalizeCommand: ${IFS:-x} modifier form still folds to space", () => {
+  assert.strictEqual(normalizeCommand("rm${IFS:-X}-rf /"), "rm -rf /");
+});
+
+test("normalizeCommand: precision — ${IFSFOO}/$IFSFOO are NOT folded as IFS", () => {
+  // A different variable whose name merely starts with IFS must fall through to
+  // the generic ${…}→"" strip (or be left intact), never the IFS→space arm.
+  assert.strictEqual(normalizeCommand("echo ${IFSFOO}done"), "echo done");
+  assert.strictEqual(normalizeCommand("echo $IFSFOO"), "echo $IFSFOO");
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 
