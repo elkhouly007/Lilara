@@ -30,7 +30,12 @@ const DRIFT_CLASSES = Object.freeze({
 // these — when allowedOps.policyEdits is not explicitly true — escalates
 // severity to `high` regardless of the other drift classes.
 const POLICY_PATH_PATTERNS = Object.freeze([
-  /(^|\/)horus\.contract(\.v\d+)?\.json(\.example)?$/i,
+  // The contract file is lilara.contract.json (renamed from horus.contract.json
+  // at the Lilara rebrand, PR #59). The pattern below was left as the dead
+  // pre-rebrand name, so F20's policy-edit drift escalation silently stopped
+  // firing for edits to the real contract file. Restored to the live name so
+  // contract tampering is caught again (default-deny: see the policyEdits check).
+  /(^|\/)lilara\.contract(\.v\d+)?\.json(\.example)?$/i,
   /(^|\/)CONTRACT\.md$/i,
   /(^|\/)references\/adr-\d+/i,
   /(^|\/)runtime\/decision-engine\.js$/i,
