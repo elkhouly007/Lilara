@@ -3,7 +3,7 @@
 
 const { score } = require("./risk-score");
 const { append } = require("./decision-journal");
-const { getApprovalCount, isLearnedAllowed, decisionKey, getSuggestionForInput, getPolicyFacts, hasAutoAllowOnce, consumeAutoAllowOnce } = require("./policy-store");
+const { getApprovalCount, isLearnedAllowed, decisionKey, getSuggestionForInput, getPolicyFacts, hasAutoAllowOnce, consumeAutoAllowOnce, scopedKey } = require("./policy-store");
 const { getSessionRisk, recordDecision, getSessionTrajectory } = require("./session-context");
 const { loadProjectPolicy } = require("./project-policy");
 const { discover } = require("./context-discovery");
@@ -1914,10 +1914,14 @@ function decide(input = {}) {
     risk.level !== "critical" &&
     risk.level !== "high" &&
     action !== "allow" &&
-    hasAutoAllowOnce(policyKey) &&
+    hasAutoAllowOnce(scopedKey(enriched)) &&
     !(_degradedState.degraded && _writeLike)
   ) {
-    consumeAutoAllowOnce(policyKey);
+    // L6: auto-allow-once is granted and consumed under the PROJECT-SCOPED key
+    // (matching where the operator's grant was stored), not the unscoped
+    // human-readable receipt policyKey. scopedKey(enriched) is memoized via
+    // projectScope/safeGit and only evaluated after the cheaper guards above.
+    consumeAutoAllowOnce(scopedKey(enriched));
     action = "allow";
     source = _AAO.source;
   }
