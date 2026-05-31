@@ -431,7 +431,7 @@ function verify(expectedEnvelope, observedEnvelope, options = {}) {
 }
 
 // ADR-012 (Lilara v0.5 Stage D): declared-intent envelope read-side. The CLI
-// (scripts/lilara-cli.sh `horus envelope set/show/clear`) writes a JSON file at
+// (scripts/lilara-cli.sh `lilara envelope set/show/clear`) writes a JSON file at
 // <LILARA_STATE_DIR>/envelope.json describing what the operator has authorized.
 // The engine calls loadDeclaredEnvelope() on every decide() to materialize the
 // `envelope.declaredIntent` shape consumed by runtime/change-intent.js (F20).

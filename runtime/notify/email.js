@@ -27,7 +27,7 @@ async function send(channel, event) {
   const port = Number(process.env.LILARA_SMTP_PORT || 465) | 0;
   const user = process.env.LILARA_SMTP_USER || "";
   const pass = process.env.LILARA_SMTP_PASS || "";
-  const from = process.env.LILARA_SMTP_FROM || user || "horus@localhost";
+  const from = process.env.LILARA_SMTP_FROM || user || "lilara@localhost";
   const to = String((channel && channel.to) || "");
   if (!host) return { ok: false, status: 0, error: "missing-smtp-host" };
   if (!to)   return { ok: false, status: 0, error: "missing-recipient" };
@@ -59,7 +59,7 @@ function _smtpSession(opts) {
         if (!Number.isFinite(code)) return done({ ok: false, status: 0, error: "bad-smtp-line" });
         switch (step) {
           case 0: if (code !== 220) return done({ ok: false, status: code, error: "no-greeting" });
-            write("EHLO horus"); step = 1; break;
+            write("EHLO lilara"); step = 1; break;
           case 1: if (code !== 250) return done({ ok: false, status: code, error: "ehlo-failed" });
             if (opts.user) { write("AUTH LOGIN"); step = 2; } else { write(`MAIL FROM:<${opts.from}>`); step = 5; } break;
           case 2: if (code !== 334) return done({ ok: false, status: code, error: "auth-init-failed" });

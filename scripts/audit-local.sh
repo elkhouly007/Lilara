@@ -18,7 +18,7 @@ esac
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
-tmp="${TMPDIR:-/tmp}/horus-audit.$$"
+tmp="${TMPDIR:-/tmp}/lilara-audit.$$"
 trap 'rm -f "$tmp"' EXIT
 
 {
