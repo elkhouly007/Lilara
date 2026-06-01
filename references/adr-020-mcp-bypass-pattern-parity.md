@@ -1,6 +1,6 @@
 # ADR-020 — MCP danger-floor parity with the Bash bypass detector
 
-- **Status:** Proposed (2026-05-30)
+- **Status:** Implemented (PR #90, 2026-05-30). Follow-up confusable hardening: Implemented (Track B, 2026-06-01).
 - **Owner decision required:** yes — changes the decision-action mapping for MCP arg payloads.
 
 ## Problem
@@ -58,3 +58,12 @@ risk FP — defer those unless evidence shows abuse.
   call `detectBypassPatterns` on each extracted arg string after `_classifyCommandDual`, reusing
   the existing `{ fire | review | unscannable }` return contract and `buildEarlyReview`.
 - Detector: `runtime/shell-bypass-detector.js` (no change needed).
+
+## Follow-ups
+
+- **Confusable-normalized bypass-pattern matching** — **ADDRESSED (Track B, 2026-06-01).** `isBase64PipeExec`
+  and `isNetworkProcessSub` now use a `dual(re, raw, norm)` helper that retests on
+  `normalizeCommand(s)` when `norm !== raw`. `detectBypassPatterns` also computes `norm` once and
+  routes `hasBase64Decode` through `dual` (for `hasEvalDynamic`). Pure-ASCII inputs hit the
+  fast-path (norm === raw) — byte-identical behavior preserved. Covered by fixtures 16–19 and
+  eval corpus entries dangerous-35/36/37, safe-56.

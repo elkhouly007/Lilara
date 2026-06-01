@@ -1,0 +1,16 @@
+{
+  "title": "F25/ADR-020 confusable anti-FP (Track B): bare '$(tenant_id)' template value → allow (command-sub in MCP data is not a bypass)",
+  "input": {
+    "tool": "mcp__crm__get_account",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "filter": "tenant_id=$(tenant_id)" }
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "reasonCodesIncludes": null
+  }
+}

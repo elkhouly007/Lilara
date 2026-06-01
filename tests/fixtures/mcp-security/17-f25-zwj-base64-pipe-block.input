@@ -1,0 +1,16 @@
+{
+  "title": "F25/ADR-020 confusable (Track B): ZWJ-spliced 'b‍ase64 -d | sh' → block (zero-width joiner bypass)",
+  "input": {
+    "tool": "mcp__test__execute",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "cmd": "echo cm0gLXJmIC8= | b‍ase64 -d | sh" }
+  },
+  "expected": {
+    "action": "block",
+    "floorFired": "mcp-arg-danger",
+    "rung": null,
+    "reasonCodesIncludes": ["mcp-arg-danger-denied"]
+  }
+}

