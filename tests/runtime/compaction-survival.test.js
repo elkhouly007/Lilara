@@ -41,8 +41,14 @@ test("PATTERNS is frozen", () => {
   assert.ok(Object.isFrozen(PATTERNS), "PATTERNS must be frozen");
 });
 
-test("PATTERNS has 7 entries", () => {
-  assert.strictEqual(PATTERNS.length, 7);
+test("PATTERNS has 8 entries", () => {
+  assert.strictEqual(PATTERNS.length, 8);
+});
+
+test("PATTERNS includes CS-007 and CS-008 (added in PR #68)", () => {
+  const ids = PATTERNS.map(p => p.id);
+  assert.ok(ids.includes("CS-007"), "CS-007 missing from PATTERNS");
+  assert.ok(ids.includes("CS-008"), "CS-008 missing from PATTERNS");
 });
 
 test("each PATTERN has id, re (RegExp), and severity", () => {
