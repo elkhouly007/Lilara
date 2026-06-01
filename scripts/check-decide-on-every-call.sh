@@ -34,6 +34,12 @@ process.chdir(root);
 process.env.LILARA_STATE_DIR        = stateDir;
 process.env.LILARA_ENFORCE          = "0";
 process.env.LILARA_CONTRACT_ENABLED = "0";
+// Override inherited LILARA_DECISION_JOURNAL=0 (and deprecated aliases):
+// journal-write detection IS the observable signal for this gate, so the
+// journal must be on. Mirrors tests/runtime/post-adapter-harness-payloads.test.js:83.
+process.env.LILARA_DECISION_JOURNAL = "1";
+delete process.env.ARG_DECISION_JOURNAL;     // deprecated alias — also suppresses writes
+delete process.env.LILARA_READONLY_CONTRACT; // =1 also suppresses writes
 
 // Load via require — mirrors the production adapter call shape:
 //   adapter → require("./runtime/pretool-gate") → runPreToolGate(opts)
