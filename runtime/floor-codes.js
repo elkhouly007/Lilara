@@ -89,7 +89,7 @@ const FLOOR_CODES = Object.freeze({
   // ── F23b mcp-result-injection (ADR-017 extension) ─────────────────────────────
   // Observe-only sub-signal of F23: injection patterns detected in MCP tool
   // output. Reinforces the F23 provenance graph (PostToolUse only, Claude Code).
-  "mcp-result-injection":                 "F23_MCP_RESULT_INJECTION",
+  "mcp-result-injection":                 "F23B_MCP_RESULT_INJECTION",
 });
 
 function floorCodeFor(reasonCode) {

@@ -222,7 +222,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
                   targetPath: "",
                   notes: `F23:mcp-injection:${harnessName}:${mcpIds}`,
                   floorFired: "mcp-result-injection",
-                  code: "F23_MCP_RESULT_INJECTION",
+                  code: "F23B_MCP_RESULT_INJECTION",
                 });
               } catch { /* journal is best-effort */ }
               if (_tokenHashSet && _recordProvenanceStep) {
