@@ -8,7 +8,7 @@
 //     across the 12 alias positions (command, cmd, tool_input.{command,cmd},
 //     input.{command,cmd}, args.{command,cmd}, args.tool_input.{command,cmd},
 //     args.input.{command,cmd}).
-//   - normalizeCommand NFKC + script-confusables folding.
+//   - normalizeCommand NFKD + combining-mark strip + script-confusables folding.
 //   - Defensive cases: null/undefined inputs, non-string fields, deeply
 //     nested structures we intentionally do NOT walk.
 //
@@ -174,7 +174,7 @@ test("extractCommand: precedence — args.cmd beats args.tool_input.command", ()
 });
 
 // ---------------------------------------------------------------------------
-// normalizeCommand — NFKC + confusables
+// normalizeCommand — NFKD + combining-mark strip + confusables
 // ---------------------------------------------------------------------------
 
 test("normalizeCommand: empty / non-string passes through to ''", () => {
@@ -192,7 +192,7 @@ test("normalizeCommand: Cyrillic er (U+0440) folds to Latin r (leak #1 vector)",
   assert.strictEqual(normalizeCommand("рm -rf /"), "rm -rf /");
 });
 
-test("normalizeCommand: full-width ｒｍ folds to rm via NFKC", () => {
+test("normalizeCommand: full-width ｒｍ folds to rm via NFKD (compatibility decomposition)", () => {
   assert.strictEqual(normalizeCommand("ｒｍ -rf /"), "rm -rf /");
 });
 
