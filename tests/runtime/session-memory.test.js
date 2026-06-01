@@ -111,10 +111,17 @@ test("search returns top-k by keyword overlap", () => {
 
 test("search with empty query returns top-k by recency", () => {
   const tmp = makeTmp();
+  // addFact uses new Date().toISOString() internally (no timestamp param).
+  // On fast hardware (Node v24) sequential synchronous writes land in the same
+  // millisecond, making the recency sort non-deterministic.  Insert a guaranteed
+  // sub-ms gap (2 ms) between each write so timestamps are strictly ordered.
+  const sleep2ms = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
   try {
     const mod = mem(tmp);
     mod.addFact({ fact: "alpha" }, { stateDirOverride: tmp });
+    sleep2ms();
     mod.addFact({ fact: "beta" }, { stateDirOverride: tmp });
+    sleep2ms();
     mod.addFact({ fact: "gamma" }, { stateDirOverride: tmp });
     const s = search(tmp);
     const results = s.search("", { topK: 2, stateDirOverride: tmp });

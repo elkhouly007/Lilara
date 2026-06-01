@@ -160,6 +160,7 @@ async function run() {
     let receivedUser = null;
     let receivedPass = null;
     const server = net.createServer((sock) => {
+      sock.on("error", () => {}); // absorb TCP RST on Node v24 (ECONNRESET on server-side close)
       sock.setEncoding("utf8");
       sock.write("220 mock-smtp ready\r\n");
       let phase = "ehlo"; // ehlo → auth → user → pass → mail → rcpt → data → body → quit
@@ -228,7 +229,7 @@ async function run() {
   });
 
   await test("email: socket timeout enforced (server never replies)", async () => {
-    const server = net.createServer(() => { /* never reply */ });
+    const server = net.createServer((sock) => { sock.on("error", () => {}); /* never reply */ });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const port = server.address().port;
     process.env.LILARA_SMTP_HOST = "127.0.0.1";
