@@ -172,3 +172,4 @@ The runtime sprint (R1–R3, now closed) delivered:
 - 390/390 fixtures after `09-f25-ifs-arg-danger` (${IFS} whitespace-evasion fold in `normalizeCommand`); corpus unchanged at 114; FP 0.0% / FN 0.0%.
 - 395/395 fixtures after ADR-020 (narrow): MCP bypass-parity — base64-pipe-exec (F25/10, F26/12) and network-process-sub (F25/11) block; anti-FP: SQL `$()` (F25/13) and base64-data-no-shell (F25/14) allow; corpus 114→116 (dangerous-34, safe-55); FP 0.0% / FN 0.0%.
 - 396/396 fixtures after ADR-018 (Option 1): trusted-server dual-use + rug-pull drift → require-review; drift alone → allow; fixture 15-f25-trusted-dualuse-nodrift-allow + inline B/C multi-call tests; eval 0.0%/0.0%.
+- 400/400 fixtures after Track B confusable bypass hardening: Cyrillic/ZWJ `bаse64 -d | sh` and `bаsh <(curl …)` now block via confusable-normalized dual-path in `isBase64PipeExec`/`isNetworkProcessSub`; corpus 116→120 (dangerous-35/36/37, safe-56); FP 0.0% / FN 0.0%.
