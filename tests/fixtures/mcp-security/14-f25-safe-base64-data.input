@@ -1,0 +1,16 @@
+{
+  "title": "F25/14 (ADR-020 ANTI-FP): MCP arg containing base64 decode without pipe-to-shell → allow (predicate is narrow AND-of-two)",
+  "input": {
+    "tool": "mcp__storage__put",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "blob": "aGVsbG8gd29ybGQ= | base64 -d", "encoding": "base64" }
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "reasonCodesIncludes": null
+  }
+}

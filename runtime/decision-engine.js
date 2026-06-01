@@ -13,6 +13,10 @@ const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
 const { classifyCommand, GATED_REVIEW_CLASSES } = require("./decision-key");
 const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
+// ADR-020 (narrow): two unambiguous bypass predicates shared with the Bash risk
+// path. Only base64-pipe-exec and network-process-sub — no variable-as-command,
+// no bare $() unresolvable — per the FP-discipline decision (ADR-020 Option 2).
+const { isBase64PipeExec, isNetworkProcessSub } = require("./shell-bypass-detector");
 const { classifyIntent } = require("./intent-classifier");
 const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
 const { floorCodeFor } = require("./floor-codes");
@@ -670,6 +674,15 @@ function _evalMcpArgFloor(input, contract, enriched) {
     //    keep scanning for a HARD_BLOCK even after seeing a dual-use class.
     let sawGatedReview = false;
     for (const argStr of argStrings) {
+      // ADR-020 (narrow): check the two unambiguous bypass patterns FIRST, before
+      // the classifyCommand path. base64-pipe-exec and network-process-sub have no
+      // legitimate use as MCP argument values; treat as HARD_BLOCK with the same
+      // graduated outcome: untrusted server → block; trusted server → require-review.
+      if (isBase64PipeExec(argStr) || isNetworkProcessSub(argStr)) {
+        const pat = isBase64PipeExec(argStr) ? "base64-pipe-exec" : "network-process-sub";
+        if (optedOut) return { review: true, reason: `trusted-server-bypass-pattern:${pat}`, arg: argStr.slice(0, 80) };
+        return { fire: true, reason: `bypass-pattern=${pat}`, arg: argStr.slice(0, 80) };
+      }
       const cls = _classifyCommandDual(argStr);
       if (_GATED_CMD_CLASSES.has(cls)) {
         if (optedOut) return { review: true, reason: `trusted-server-dangerous-arg:command-class=${cls}`, arg: argStr.slice(0, 80) };
@@ -762,6 +775,11 @@ function _evalMcpRegistrationFloor(input, contract) {
       // Structured path: walk parsed JSON, classify each string value.
       const { strings, truncated: cfgTruncated } = _extractStringValues(parsed);
       for (const str of strings) {
+        // ADR-020 (narrow): bypass-pattern check before classifyCommand (same HARD_BLOCK severity).
+        if (isBase64PipeExec(str) || isNetworkProcessSub(str)) {
+          const pat = isBase64PipeExec(str) ? "base64-pipe-exec" : "network-process-sub";
+          return { fire: true, reason: pat, command: str.slice(0, 80) };
+        }
         const cls = _classifyCommandDual(str);
         if (_GATED_CMD_CLASSES.has(cls)) {
           return { fire: true, reason: cls, command: str.slice(0, 80) };
@@ -789,8 +807,14 @@ function _evalMcpRegistrationFloor(input, contract) {
       if (++n > _ESV_NODE_CAP) return { unscannable: true, reason: "content-too-complex" };
       let val;
       try { val = JSON.parse(lit); } catch { val = lit.slice(1, -1); } // unescape or strip quotes
-      const cls = _classifyCommandDual(String(val));
-      if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: String(val).slice(0, 80) };
+      const valStr = String(val);
+      // ADR-020 (narrow): bypass-pattern check before classifyCommand.
+      if (isBase64PipeExec(valStr) || isNetworkProcessSub(valStr)) {
+        const pat = isBase64PipeExec(valStr) ? "base64-pipe-exec" : "network-process-sub";
+        return { fire: true, reason: pat, command: valStr.slice(0, 80) };
+      }
+      const cls = _classifyCommandDual(valStr);
+      if (_GATED_CMD_CLASSES.has(cls)) return { fire: true, reason: cls, command: valStr.slice(0, 80) };
     }
     if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };
     return { fire: false };
