@@ -1,0 +1,26 @@
+{
+  "title": "F25/ADR-018/A: trusted server (policy:allow) + dual-use DROP arg + no drift → allow (steady-state DB MCP)",
+  "contract": {
+    "version": 1,
+    "contractId": "lilara-20260101-000000000a18",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "operator",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": { "mcp": { "db": { "policy": "allow" } } }
+  },
+  "input": {
+    "tool": "mcp__db__query",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "tool_input": { "sql": "DROP DATABASE prod" }
+  },
+  "expected": {
+    "action": "allow",
+    "floorFired": null,
+    "rung": null,
+    "reasonCodesIncludes": null
+  }
+}

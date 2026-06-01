@@ -1,7 +1,9 @@
 # ADR-018 — Trusted-Server Dual-Use Detection
 
-**Status:** **Proposed** — design only. No code/test/schema change accompanies this document.
-Awaiting Khouly approval before any implementation PR follows.
+**Status:** **Implemented** — 2026-06-01. Option 1 shipped: drift hoisted above F25, boolean
+threaded into `_evalMcpArgFloor`, new branch `optedOut && GATED_REVIEW_CLASSES.has(cls) && driftForThisServerTool`
+at `decision-engine.js:698`. Fixture A (`15-f25-trusted-dualuse-nodrift-allow`) + inline B/C multi-call
+tests in `check-mcp-security.sh`. Eval 0.0%/0.0%; replay corpus byte-identical.
 **Area:** F25 MCP arg floor (`runtime/decision-engine.js` `_evalMcpArgFloor`) + rug-pull pin
 (`runtime/mcp-pin.js`).
 **Scope:** add **detection** for the trusted-server dual-use residual **without** hard-blocking
