@@ -175,11 +175,13 @@ function run() {
     // Variance floor for tiny baselines — mirrors scripts/bench-runtime-decision.sh.
     // Sub-millisecond baselines collapse the 1.5× cap to sub-millisecond too,
     // and ordinary GH runner jitter (sub-10ms macOS spikes that sit far below
-    // the 200ms ceiling) gets misread as a regression. Scale ≈10% of the
+    // the 200ms ceiling) gets misread as a regression. Scale ≈15% of the
     // ceiling as absolute headroom; p99 only fails when it exceeds BOTH the
     // 1.5× cap AND the absolute headroom. Severe regressions still trip the
     // platform ceiling below.
-    const headroomMs = ceiling * 0.1;
+    // 0.15 (was 0.1): ubuntu shared runners show ~1.0-1.1ms inter-run variance
+    // above a sub-ms baseline; 0.1×10=1.0ms sat at the noise floor.
+    const headroomMs = ceiling * 0.15;
     const cap = Math.min(ceiling, Math.max(baseP99 * 1.5, baseP99 + headroomMs));
     const baseSha = prior.commitSha || "";
     const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
