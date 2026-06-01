@@ -208,7 +208,11 @@ if (baseline && baseline[key]) {
 
   const checkBudget = (label, actual, baseVal) => {
     if (!Number.isFinite(baseVal) || baseVal <= 0) return;
-    const headroomMs = ceiling * 0.1;
+    // 0.15 (was 0.1 — parity with bench-runtime-decision.sh + tests/perf/bench.js per PR #92):
+    // ubuntu shared runners show ~1.0-1.1ms inter-run variance above a sub-ms baseline;
+    // 0.1×10=1.0ms sat at the noise floor. 0.15×10=1.5ms leaves 0.4ms buffer above the
+    // worst observed runner p99 while still catching genuine 2× regressions.
+    const headroomMs = ceiling * 0.15;
     const cap = Math.min(ceiling, Math.max(baseVal * 1.5, baseVal + headroomMs));
     if (actual > cap) {
       process.stderr.write(
