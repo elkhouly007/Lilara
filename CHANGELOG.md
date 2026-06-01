@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **docs(adr-021): bench-perf-regression baseline strategy (Proposed ADR)** — The 1.5× regression gate in `bench-runtime-decision.sh` and `tests/perf/bench.js` silently skips when `artifacts/bench/baseline.json` is absent (clean CI env, cache miss). Three options analyzed: (1) commit static JSON — fights the commitSha lineage guard; (2) CI-cache record-on-master + fetch-on-PR — recommended, no code changes to bench scripts; (3) per-runner adaptive — best for self-hosted, worst for ephemeral runners. No implementation — design-affecting, awaiting approval. See `references/adr-021-bench-baseline-strategy.md`.
+
 ### Fixed
 
 - **fix(bench-ir): bring headroom multiplier to 0.15× parity with PR #92** — `scripts/bench-ir.js:211` still used `ceiling * 0.1` while `bench-runtime-decision.sh` and `tests/perf/bench.js` were updated to `0.15×` in PR #92 (reason: ubuntu shared runners show ~1.0–1.1ms inter-run variance above a sub-ms baseline; 0.1×10=1.0ms sat at the noise floor). The inconsistency left the IR regression gate 33% looser than the main bench gate and would not catch the same genuine 2× regressions. One-line fix: `* 0.1` → `* 0.15` with the PR #92 rationale comment.
