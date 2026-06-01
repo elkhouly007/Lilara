@@ -259,6 +259,125 @@ process.stdout.write("\n[rug-pull inline test]\n");
   }
 }
 
+// ── ADR-018: trusted-server dual-use + drift inline test ──────────────────
+// Tests that _evalMcpArgFloor escalates allow→require-review only when BOTH
+// arg-shape drift AND a GATED_REVIEW dual-use class are present for a trusted
+// server. Drift alone (fixture C) must NOT escalate. Uses decide() end-to-end
+// (not just checkArgShapeDrift) to prove the full threading.
+process.stdout.write("\n[ADR-018 trusted-dualuse-drift inline tests]\n");
+
+function makeContract(server, projectDir, stateDir) {
+  const doc = {
+    version: 1,
+    contractId: "lilara-20260101-000000000a18",
+    revision: 1,
+    acceptedAt: "2026-01-01T00:00:00Z",
+    acceptedBy: "operator",
+    harnessScope: ["claude"],
+    trustPosture: "balanced",
+    scopes: { mcp: { [server]: { policy: "allow" } } },
+  };
+  doc.contractHash = "sha256:" + require("crypto").createHash("sha256")
+    .update(canonicalJson({ ...doc, contractHash: undefined }), "utf8").digest("hex");
+  const { contractHash: _h, ...rest } = doc;
+  doc.contractHash = "sha256:" + require("crypto").createHash("sha256")
+    .update(canonicalJson(rest), "utf8").digest("hex");
+  fs.writeFileSync(path.join(projectDir, "lilara.contract.json"), JSON.stringify(doc, null, 2));
+  const acceptedKey = path.resolve(projectDir);
+  fs.writeFileSync(path.join(stateDir, "accepted-contracts.json"), JSON.stringify({
+    [acceptedKey]: { contractHash: doc.contractHash, acceptedAt: doc.acceptedAt, revision: 1, contractId: doc.contractId },
+  }, null, 2));
+}
+
+// ── Fixture B: trusted server + GATED_REVIEW dual-use + drift → require-review ──
+{
+  const stateDir  = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-sec-adr018b-"));
+  const projDir   = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-sec-adr018b-p-"));
+  const prevEnv   = Object.assign({}, process.env);
+  process.env.LILARA_STATE_DIR        = stateDir;
+  process.env.LILARA_CONTRACT_ENABLED = "1";
+  process.env.LILARA_DECISION_JOURNAL = "1";
+  process.env.LILARA_RATE_LIMIT       = "0";
+  process.env.LILARA_TRAJECTORY_THRESHOLD = "9999";
+  delete process.env.LILARA_KILL_SWITCH;
+  try {
+    makeContract("db", projDir, stateDir);
+    for (const key of Object.keys(require.cache)) {
+      if (key.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[key];
+    }
+    const { decide } = require(path.join(root, "runtime/decision-engine"));
+
+    // Call 1: benign arg shape X (seeds pin: {sql:string})
+    const r1 = decide({ tool: "mcp__db__query", harness: "claude", command: "", branch: "main",
+      tool_input: { sql: "SELECT 1" }, projectRoot: projDir });
+    if (r1.action === "allow") {
+      process.stdout.write(`  ok      adr018-B: first-call-seed-allow\n`); pass++;
+    } else {
+      process.stdout.write(`  FAIL    adr018-B: first-call-seed-allow — got action=${r1.action}\n`); fail++;
+    }
+
+    // Call 2: drift (new key) + dual-use (DROP DATABASE) → require-review
+    const r2 = decide({ tool: "mcp__db__query", harness: "claude", command: "", branch: "main",
+      tool_input: { sql: "DROP DATABASE prod", mode: "immediate" }, projectRoot: projDir });
+    const b2ok = r2.action === "require-review" &&
+      Array.isArray(r2.reasonCodes) &&
+      r2.reasonCodes.some((c) => c === "mcp-arg-danger-review-required");
+    if (b2ok) {
+      process.stdout.write(`  ok      adr018-B: drift+dualuse-require-review\n`); pass++;
+    } else {
+      process.stdout.write(`  FAIL    adr018-B: drift+dualuse-require-review — action=${r2.action} codes=${JSON.stringify(r2.reasonCodes)}\n`); fail++;
+    }
+  } finally {
+    for (const k of Object.keys(process.env)) { if (!(k in prevEnv)) delete process.env[k]; }
+    for (const [k, v] of Object.entries(prevEnv)) { process.env[k] = v; }
+    try { fs.rmSync(stateDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { fs.rmSync(projDir,  { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+}
+
+// ── Fixture C: trusted server + drift only (no dual-use) → allow ──────────
+{
+  const stateDir  = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-sec-adr018c-"));
+  const projDir   = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-sec-adr018c-p-"));
+  const prevEnv   = Object.assign({}, process.env);
+  process.env.LILARA_STATE_DIR        = stateDir;
+  process.env.LILARA_CONTRACT_ENABLED = "1";
+  process.env.LILARA_DECISION_JOURNAL = "1";
+  process.env.LILARA_RATE_LIMIT       = "0";
+  process.env.LILARA_TRAJECTORY_THRESHOLD = "9999";
+  delete process.env.LILARA_KILL_SWITCH;
+  try {
+    makeContract("logs", projDir, stateDir);
+    for (const key of Object.keys(require.cache)) {
+      if (key.startsWith(path.join(root, "runtime") + path.sep)) delete require.cache[key];
+    }
+    const { decide } = require(path.join(root, "runtime/decision-engine"));
+
+    // Call 1: seed pin with shape X ({query:string})
+    const r1 = decide({ tool: "mcp__logs__search", harness: "claude", command: "", branch: "main",
+      tool_input: { query: "error" }, projectRoot: projDir });
+    if (r1.action === "allow") {
+      process.stdout.write(`  ok      adr018-C: first-call-seed-allow\n`); pass++;
+    } else {
+      process.stdout.write(`  FAIL    adr018-C: first-call-seed-allow — got action=${r1.action}\n`); fail++;
+    }
+
+    // Call 2: drift (added key) but benign content → allow (drift alone MUST NOT escalate)
+    const r2 = decide({ tool: "mcp__logs__search", harness: "claude", command: "", branch: "main",
+      tool_input: { query: "error", limit: 10 }, projectRoot: projDir });
+    if (r2.action === "allow") {
+      process.stdout.write(`  ok      adr018-C: drift-only-still-allow\n`); pass++;
+    } else {
+      process.stdout.write(`  FAIL    adr018-C: drift-only-still-allow — got action=${r2.action} (drift alone must not escalate)\n`); fail++;
+    }
+  } finally {
+    for (const k of Object.keys(process.env)) { if (!(k in prevEnv)) delete process.env[k]; }
+    for (const [k, v] of Object.entries(prevEnv)) { process.env[k] = v; }
+    try { fs.rmSync(stateDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { fs.rmSync(projDir,  { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+}
+
 process.stdout.write(`\nResults: ${pass} passed, ${fail} failed (${files.length} fixtures + inline tests).\n`);
 process.exit(fail === 0 ? 0 : 1);
 NODE

