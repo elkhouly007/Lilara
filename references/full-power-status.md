@@ -170,3 +170,4 @@ The runtime sprint (R1–R3, now closed) delivered:
 - 3 new fixtures: `06-f25-unicode-arg-danger`, `07-f26-multiedit-mcp-config`, `08-f25-dual-use-drop-table`
 - 389/389 fixtures; corpus 112→114 (dangerous-33, safe-54); FP 0.0% / FN 0.0%.
 - 390/390 fixtures after `09-f25-ifs-arg-danger` (${IFS} whitespace-evasion fold in `normalizeCommand`); corpus unchanged at 114; FP 0.0% / FN 0.0%.
+- 395/395 fixtures after ADR-020 (narrow): MCP bypass-parity — base64-pipe-exec (F25/10, F26/12) and network-process-sub (F25/11) block; anti-FP: SQL `$()` (F25/13) and base64-data-no-shell (F25/14) allow; corpus 114→116 (dangerous-34, safe-55); FP 0.0% / FN 0.0%.
