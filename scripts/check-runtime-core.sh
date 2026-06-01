@@ -678,6 +678,128 @@ pass 'protected-branch-gating hasExplicitProtectedBranches + branchExplicit'
 node "$root/tests/runtime/dogfood-config.test.js" || exit 1
 pass 'dogfood-config loadProjectPolicy returns explicit protected branches'
 
+# ── Previously-ungated tests (wired in PR #94, 2026-06-01) ──────────────────
+# All 29 files passed in isolation during the Phase-1 triage (PR #91).
+# Invocation matches gate-faithful hybrid: bare `node` for the 28 plain-
+# assertion scripts; `node --test` for change-intent.test.js (the only
+# node:test consumer in the suite).
+
+# F16 ambient-authority classifier
+node "$root/tests/runtime/ambient.test.js" || exit 1
+pass 'ambient F16 classifier (zero-dep node:assert)'
+
+# F16 adversarial corpus replay + scopes.ambient.allow[] opt-in abuse
+node "$root/tests/runtime/ambient-adversarial-replay.test.js" || exit 1
+pass 'ambient-adversarial-replay F16 corpus + opt-in abuse'
+
+# F16 PR-B floor wired into decision-engine
+node "$root/tests/runtime/ambient-floor.test.js" || exit 1
+pass 'ambient-floor F16 PR-B floor in decision-engine'
+
+# ADR-009 PR-C: ambientClass/ambientPath on receipts
+node "$root/tests/runtime/ambient-receipt-enrichment.test.js" || exit 1
+pass 'ambient-receipt-enrichment ambientClass/ambientPath fields'
+
+# ADR-009 PR-E: traversal normalisation (ARG-PRE-D-001/002)
+node "$root/tests/runtime/ambient-traversal-normalization.test.js" || exit 1
+pass 'ambient-traversal-normalization path normalisation'
+
+# F20 change-intent-drift (node:test runner — must use node --test)
+node --test "$root/tests/runtime/change-intent.test.js" || exit 1
+pass 'change-intent F20 change-intent-drift suite'
+
+# ADR-016 Feature 1: additionalContext coaching envelopes
+node "$root/tests/runtime/coaching-envelope.test.js" || exit 1
+pass 'coaching-envelope additionalContext envelopes'
+
+# ADR-008 command normalisation
+node "$root/tests/runtime/command-normalize.test.js" || exit 1
+pass 'command-normalize ADR-008 normalisation'
+
+# ADR-016 Feature 3: F21 prompt-injection scanner (count + ids)
+node "$root/tests/runtime/compaction-survival.test.js" || exit 1
+pass 'compaction-survival F21 PATTERNS count + CS-007/CS-008 ids'
+
+# F17 cross-agent-lock floor
+node "$root/tests/runtime/cross-agent-lock.test.js" || exit 1
+pass 'cross-agent-lock F17 floor in decision-engine'
+
+# ADR-004 degraded-mode (PR 37B)
+node "$root/tests/runtime/degraded-mode.test.js" || exit 1
+pass 'degraded-mode ADR-004 PR-37B'
+
+# ADR-016 Feature 2: typed block-codes uniqueness + F23B rename
+node "$root/tests/runtime/floor-codes.test.js" || exit 1
+pass 'floor-codes F-number uniqueness invariant'
+
+# git history secret scanner
+node "$root/tests/runtime/git-history-scanner.test.js" || exit 1
+pass 'git-history-scanner secret detection in git history'
+
+# ADR-004 journal chain integrity (PR 37A)
+node "$root/tests/runtime/journal-chain.test.js" || exit 1
+pass 'journal-chain ADR-004 chain integrity'
+
+# ADR-015 PII scrubber
+node "$root/tests/runtime/notify-scrub.test.js" || exit 1
+pass 'notify-scrub ADR-015 PII scrubber'
+
+# ADR-015 transport mocks (discord, slack, SMTP — Node v24 safe)
+node "$root/tests/runtime/notify-transport.test.js" || exit 1
+pass 'notify-transport ADR-015 discord/slack/SMTP mocks'
+
+# ADR-010 F19 output-exfil + output-channel-exfiltration floor
+node "$root/tests/runtime/output-exfil.test.js" || exit 1
+pass 'output-exfil ADR-010 F19 exfiltration detection'
+
+# ADR-014 audit-grade receipt exporter
+node "$root/tests/runtime/receipt-export.test.js" || exit 1
+pass 'receipt-export ADR-014 exporter'
+
+# ADR-014 receipt redaction adversarial corpus
+node "$root/tests/runtime/receipt-redaction.test.js" || exit 1
+pass 'receipt-redaction ADR-014 redaction guarantee'
+
+# ADR-014 receipt schema validator
+node "$root/tests/runtime/receipt-schema.test.js" || exit 1
+pass 'receipt-schema ADR-014 schema validation'
+
+# ADR-016 Feature 4: sandbox dry-run CLI
+node "$root/tests/runtime/sandbox-dry-run.test.js" || exit 1
+pass 'sandbox-dry-run ADR-016 dry-run CLI'
+
+# SARIF export for audit tooling
+node "$root/tests/runtime/sarif-export.test.js" || exit 1
+pass 'sarif-export SARIF serialisation'
+
+# ADR-015 session memory (addFact, recency sort — distinct-timestamp safe)
+node "$root/tests/runtime/session-memory.test.js" || exit 1
+pass 'session-memory ADR-015 addFact + recency sort'
+
+# skill scorer quality rubric
+node "$root/tests/runtime/skill-scorer.test.js" || exit 1
+pass 'skill-scorer quality rubric'
+
+# ADR-013 auto-snapshot before destructive ops
+node "$root/tests/runtime/snapshot.test.js" || exit 1
+pass 'snapshot ADR-013 pre-destructive snapshot'
+
+# token spend estimator
+node "$root/tests/runtime/spend-estimator.test.js" || exit 1
+pass 'spend-estimator token estimation'
+
+# ADR-011 state bundle
+node "$root/tests/runtime/state-bundle.test.js" || exit 1
+pass 'state-bundle ADR-011 bundle'
+
+# VCS adapter (CI env detection)
+node "$root/tests/runtime/vcs-adapter.test.js" || exit 1
+pass 'vcs-adapter CI env detection'
+
+# ADR workflow enforcer
+node "$root/tests/runtime/workflow-enforcer.test.js" || exit 1
+pass 'workflow-enforcer ADR workflow gate'
+
 # replay-corpus drift gate — catches runtime/* changes that shift action,
 # decisionSource, floorFired, or irHash on any recorded corpus entry.
 bash "$root/scripts/check-replay-corpus.sh" || exit 1
