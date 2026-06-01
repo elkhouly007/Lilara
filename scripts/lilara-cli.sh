@@ -160,6 +160,9 @@ case "$cmd" in
     section "Runtime core"
     bash "${scripts}/check-runtime-core.sh" || failed=1
 
+    section "Project scope (L6 learned-policy isolation)"
+    bash "${scripts}/check-project-scope.sh" || failed=1
+
     section "Floor F16 fixtures"
     bash "${scripts}/check-floor-f16.sh" || failed=1
 

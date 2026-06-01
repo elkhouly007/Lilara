@@ -6,6 +6,7 @@ const os = require("os");
 const path = require("path");
 const { emitEvent } = require("./telemetry");
 const { fineKey: computeFineKey } = require("./decision-key");
+const { projectScope } = require("./project-scope");
 const { stateDir } = require("./state-paths");
 
 function paths() {
@@ -104,21 +105,37 @@ function decisionKey(input = {}) {
   return [tool, commandClass, targetClass, payloadClass].join("|");
 }
 
+// L6: the learned-policy lookup key is the project-agnostic fineKey prefixed by
+// a per-project scope tag, so an approval recorded in one project never matches
+// an action in another. Returns null when no stable project identity exists —
+// callers MUST treat null as "no match / do not record" (fail-safe, never a
+// fall-through to the old global key). The "::" separator cannot occur in a
+// fineKey (pipe-delimited) or a scope tag ("<char>:<hex>"), so a legacy unscoped
+// entry can never collide with a scoped one — pre-L6 entries are orphaned.
+function scopedKey(input = {}) {
+  const scope = projectScope(input);
+  if (scope == null) return null;
+  return scope + "::" + computeFineKey(input);
+}
+
 function getApprovalCount(input = {}) {
+  const fine = scopedKey(input);
+  if (fine == null) return 0;
   const policy = loadPolicy();
-  const fine = computeFineKey(input);
   return Number(policy.approvalCounts?.[fine] || 0);
 }
 
 function isLearnedAllowed(input = {}) {
+  const fine = scopedKey(input);
+  if (fine == null) return false;
   const policy = loadPolicy();
-  const fine = computeFineKey(input);
   return Boolean(policy.learnedAllows?.[fine]);
 }
 
 function recordApproval(input = {}) {
+  const fine = scopedKey(input);
+  if (fine == null) return 0; // no stable project scope -> do not build toward a learned-allow
   const policy = loadPolicy();
-  const fine = computeFineKey(input);
   const current = Number(policy.approvalCounts?.[fine] || 0) + 1;
   const now = new Date().toISOString();
   policy.approvalCounts[fine] = current;
@@ -142,8 +159,9 @@ function recordApproval(input = {}) {
 }
 
 function setLearnedAllow(input = {}, enabled = true) {
+  const fine = scopedKey(input);
+  if (fine == null) return null; // unknown project scope -> cannot record a scoped grant
   const policy = loadPolicy();
-  const fine = computeFineKey(input);
   policy.learnedAllows[fine] = Boolean(enabled);
   if (policy.suggestions?.[fine]) {
     policy.suggestions[fine].status = enabled ? "accepted" : "dismissed";
@@ -168,7 +186,8 @@ function getSuggestion(key) {
 }
 
 function getSuggestionForInput(input = {}) {
-  const fine = computeFineKey(input);
+  const fine = scopedKey(input);
+  if (fine == null) return null;
   return getSuggestion(fine);
 }
 
@@ -248,13 +267,13 @@ function hasAutoAllowOnce(key) {
 }
 
 function getPolicyFacts(input = {}) {
-  const fine = computeFineKey(input);
+  const fine = scopedKey(input);
   const policy = loadPolicy();
-  const suggestion = policy.suggestions?.[fine] || null;
+  const suggestion = (fine != null && policy.suggestions?.[fine]) || null;
   return {
     key: fine,
-    approvalCount: Number(policy.approvalCounts?.[fine] || 0),
-    learnedAllow: Boolean(policy.learnedAllows?.[fine]),
+    approvalCount: fine == null ? 0 : Number(policy.approvalCounts?.[fine] || 0),
+    learnedAllow: fine == null ? false : Boolean(policy.learnedAllows?.[fine]),
     pendingSuggestion: suggestion && suggestion.status === "pending" ? { key: fine, ...suggestion } : null,
     acceptedSuggestion: suggestion && suggestion.status === "accepted" ? { key: fine, ...suggestion } : null,
     dismissedSuggestion: suggestion && suggestion.status === "dismissed" ? { key: fine, ...suggestion } : null,
@@ -266,6 +285,7 @@ module.exports = {
   loadPolicy,
   savePolicy,
   decisionKey,
+  scopedKey,
   getApprovalCount,
   isLearnedAllowed,
   recordApproval,

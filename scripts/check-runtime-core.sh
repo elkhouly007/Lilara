@@ -58,7 +58,7 @@ const { score } = require(path.join(root, 'runtime/risk-score.js'));
 const { decide } = require(path.join(root, 'runtime/decision-engine.js'));
 const { build: buildEnvelope, verify: verifyEnvelope } = require(path.join(root, 'runtime/envelope.js'));
 const { discover } = require(path.join(root, 'runtime/context-discovery.js'));
-const { recordApproval, setLearnedAllow, isLearnedAllowed, listSuggestions, acceptSuggestion, summarizePolicy, decisionKey, getSuggestion, grantAutoAllowOnce, hasAutoAllowOnce, getSuggestionForInput } = require(path.join(root, 'runtime/policy-store.js'));
+const { recordApproval, setLearnedAllow, isLearnedAllowed, listSuggestions, acceptSuggestion, summarizePolicy, decisionKey, getSuggestion, grantAutoAllowOnce, hasAutoAllowOnce, getSuggestionForInput, scopedKey } = require(path.join(root, 'runtime/policy-store.js'));
 const { fineKey: computeFineKey } = require(path.join(root, 'runtime/decision-key.js'));
 const { getSessionRisk, saveState } = require(path.join(root, 'runtime/session-context.js'));
 
@@ -383,7 +383,7 @@ step('B1-auto-allow-once');
 // inside decide() (enriched via discover, explicit overrides). policyKey in decide() now uses fineKey.
 const autoInput = { command: 'npx -y tsx scripts/migrate.ts', tool: 'Bash', targetPath: 'scripts/', payloadClass: 'A', branch: 'feature/docs', sessionRisk: 0, protectedBranches: [], projectRoot: root };
 for (let i = 0; i < 3; i++) recordApproval(autoInput);
-const autoKey = computeFineKey(autoInput);
+const autoKey = scopedKey(autoInput); // L6: auto-allow-once/suggestion keys are project-scoped
 const autoSuggestion = getSuggestion(autoKey);
 if (!autoSuggestion || autoSuggestion.status !== 'pending') throw new Error('expected pending suggestion for auto-allow-once test');
 if (!grantAutoAllowOnce(autoKey)) throw new Error('grantAutoAllowOnce should succeed for eligible pending policy');
@@ -441,7 +441,7 @@ step('B3-trajectory-nudge-negative-auto-allow-once');
 // That test consumed the token but left the suggestion as pending; re-grant it.
 // Use same projectRoot/branch as autoInput in B1 so fineKey matches.
 const aaoInput = { command: 'npx -y tsx scripts/migrate.ts', tool: 'Bash', targetPath: 'scripts/', payloadClass: 'A', branch: 'feature/docs', sessionRisk: 0, protectedBranches: [], projectRoot: root };
-const aaoKey = computeFineKey(aaoInput);
+const aaoKey = scopedKey(aaoInput); // L6: auto-allow-once/suggestion keys are project-scoped
 const aaoSugg = getSuggestion(aaoKey);
 if (!aaoSugg || aaoSugg.status !== 'pending') throw new Error('expected pending suggestion for auto-allow-once negative test (re-grant)');
 // Seed 3 escalations using the correct session-context format
