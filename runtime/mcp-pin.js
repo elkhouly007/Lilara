@@ -5,13 +5,20 @@
 // never raw values) for each {server, tool} pair. On subsequent calls, flags
 // if the shape has changed (arg-schema drift, a.k.a. rug-pull signal).
 //
-// All I/O is on LILARA_STATE_DIR/mcp-pins/pins.json. Fail-open: any I/O
-// error returns { drift: false } so detection failures never block the agent.
+// All I/O is on LILARA_STATE_DIR/mcp-pins/pins.json.
+//
+// Fail behaviour (ADR-024):
+//   - State-dir insecure (world-writable / foreign-owned): return
+//     { drift: false, reason: "state-dir-insecure" } and perform NO I/O to
+//     the poisoned location. A one-shot warning is emitted to stderr.
+//   - Other I/O error: return { drift: false } (fail-open) so detection
+//     failures never block the agent.
 
 const fs     = require("fs");
 const os     = require("os");
 const path   = require("path");
 const crypto = require("crypto");
+const { ensureStateDirSafe } = require("./state-dir");
 
 // Returns a coarse type label for a value — never reveals the raw value.
 function _typeClass(v) {
@@ -32,6 +39,8 @@ function argShapeHash(args) {
 }
 
 // Returns the path to the pin store file, creating directories as needed.
+// Does NOT validate state-dir permissions — that is done in checkArgShapeDrift
+// before any I/O, so the pins/ subdir is only created under a validated root.
 function _pinStorePath() {
   const stateDir = process.env.LILARA_STATE_DIR || os.tmpdir();
   const dir = path.join(stateDir, "mcp-pins");
@@ -49,9 +58,26 @@ function _readPins() {
   }
 }
 
-// Write the pin store.
+// Write the pin store atomically (ADR-024 Option 2).
+// Mirrors the pattern established in runtime/policy-store.js:savePolicy —
+// write to a .tmp file then rename to avoid partial-write corruption.
+// On Windows, atomic rename can fail with EPERM when another process has the
+// file open (AV, indexer); fall back to direct write in that case.
 function _writePins(pins) {
-  fs.writeFileSync(_pinStorePath(), JSON.stringify(pins), { encoding: "utf8", mode: 0o600 });
+  const pinPath = _pinStorePath();
+  const data    = JSON.stringify(pins);
+  const tmp     = pinPath + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, data, { encoding: "utf8", mode: 0o600 });
+  try {
+    fs.renameSync(tmp, pinPath);
+  } catch {
+    // Atomic rename failed (e.g. EPERM on Windows when file is locked).
+    // Fall back to direct write — slightly less atomic but functionally correct.
+    try {
+      fs.writeFileSync(pinPath, data, { encoding: "utf8", mode: 0o600 });
+    } catch { /* best-effort fallback */ }
+    try { fs.unlinkSync(tmp); } catch { /* tmp cleanup is best-effort */ }
+  }
 }
 
 /**
@@ -60,11 +86,26 @@ function _writePins(pins) {
  * On first call: records the arg shape hash and returns { drift: false }.
  * On subsequent calls: if the hash differs, returns { drift: true, reason }.
  * On drift: updates pin to new hash; sets lastChangedAt and increments changeCount.
- * Always fail-open: I/O errors return { drift: false }.
+ *
+ * Fail behaviour:
+ *   - Insecure state-dir: { drift: false, reason: "state-dir-insecure" } + stderr warning.
+ *     No reads or writes to the poisoned location.
+ *   - Other I/O errors: { drift: false } (fail-open, same as before ADR-024).
  */
 function checkArgShapeDrift({ server, tool, args }) {
   try {
     if (!server || !tool) return { drift: false };
+
+    // ADR-024: validate the state directory before any I/O.
+    // Resolve the same base dir that _pinStorePath() uses so we check exactly
+    // what _readPins()/_writePins() will write to.
+    const stateDir = process.env.LILARA_STATE_DIR || os.tmpdir();
+    if (!ensureStateDirSafe(stateDir)) {
+      // Explicit, logged fail-safe — differs from silent fail-open by having a
+      // reason field and a stderr warning (emitted once per process by the helper).
+      return { drift: false, reason: "state-dir-insecure" };
+    }
+
     const key    = `${server}/${tool}`;
     const hash   = argShapeHash(args);
     const pins   = _readPins();
@@ -84,7 +125,7 @@ function checkArgShapeDrift({ server, tool, args }) {
     }
     return { drift: false };
   } catch {
-    return { drift: false }; // fail-open
+    return { drift: false }; // fail-open for unexpected errors
   }
 }
 
