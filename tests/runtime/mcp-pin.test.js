@@ -121,5 +121,49 @@ if (process.platform !== "win32") {
   });
 }
 
+// ─── ADR-029: ENOENT vs parse-error split in _readPins() ────────────────────
+// Confirms that a corrupt pin file suspends drift detection (with an explicit
+// reason) rather than silently resetting to first-sight, and that the ENOENT
+// path is unaffected (still legit first-sight with no reason field).
+
+// ADR-029-T1: corrupt pin file → { drift:false, reason:"pin-store-corrupt" }
+// Platform-independent: file-level corruption is not gated by POSIX mode bits.
+withPins((dir) => {
+  // Create the mcp-pins/ subdir and write invalid JSON, simulating corruption.
+  const pinsDir  = path.join(dir, "mcp-pins");
+  const pinsPath = path.join(pinsDir, "pins.json");
+  fs.mkdirSync(pinsDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(pinsPath, "THIS IS NOT JSON {{{", { mode: 0o600 });
+
+  const r = checkArgShapeDrift({ server: "trusted-db", tool: "query", args: { sql: "string" } });
+  (r.drift === false && r.reason === "pin-store-corrupt")
+    ? ok("ADR029-T1: corrupt pins.json → { drift:false, reason:'pin-store-corrupt' }")
+    : fail("ADR029-T1: corrupt pins.json result", JSON.stringify(r));
+
+  // The original corrupt file must remain in place (not renamed away).
+  // Keeping it means detection stays visibly suspended on every call until repaired.
+  const originalContent = (() => {
+    try { return fs.readFileSync(pinsPath, "utf8"); } catch { return null; }
+  })();
+  (originalContent !== null && originalContent.includes("THIS IS NOT JSON"))
+    ? ok("ADR029-T1: corrupt pins.json stays in place (detection remains visibly suspended)")
+    : fail("ADR029-T1: corrupt pins.json should remain at original path", `content=${originalContent}`);
+
+  // A forensic .corrupt.*.bak copy must exist alongside.
+  const bakFiles = fs.readdirSync(pinsDir).filter((n) => n.includes(".corrupt.") && n.endsWith(".bak"));
+  bakFiles.length >= 1
+    ? ok("ADR029-T1: forensic .corrupt.*.bak copy created for operator inspection")
+    : fail("ADR029-T1: forensic .corrupt.*.bak copy not found", `files in pinsDir: ${fs.readdirSync(pinsDir).join(", ")}`);
+});
+
+// ADR-029-T2: ENOENT regression — first-sight returns { drift:false } with NO reason field.
+// Locks the ENOENT-vs-parse split: missing file must never be treated as corruption.
+withPins(() => {
+  const r = checkArgShapeDrift({ server: "trusted-db", tool: "query", args: { sql: "string" } });
+  (r.drift === false && !r.reason)
+    ? ok("ADR029-T2: ENOENT (no pin file) → { drift:false } with no reason (first-sight unchanged)")
+    : fail("ADR029-T2: ENOENT should not set reason", JSON.stringify(r));
+});
+
 console.log(`\nmcp-pin.test.js: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
