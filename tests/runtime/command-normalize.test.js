@@ -369,6 +369,42 @@ test("normalizeCommand: precision — ${IFSFOO}/$IFSFOO are NOT folded as IFS", 
 });
 
 // ---------------------------------------------------------------------------
+// classifyCommandDual — ADR-023 unit assertions
+// ---------------------------------------------------------------------------
+
+const { classifyCommandDual } = require(path.join(
+  __dirname, "..", "..", "runtime", "decision-key"
+));
+
+test("ADR023: classifyCommandDual — ASCII fast-path byte-identical to classifyCommand", () => {
+  // Pure-ASCII inputs: norm === raw → classifyCommandDual must return same class
+  assert.strictEqual(classifyCommandDual("rm -rf /"),      "destructive-delete");
+  assert.strictEqual(classifyCommandDual("ls -la"),        "generic");
+  assert.strictEqual(classifyCommandDual("git push -f"),   "force-push");
+  assert.strictEqual(classifyCommandDual(""),              "generic");
+});
+
+test("ADR023: classifyCommandDual — Cyrillic р→r evasion caught (рm -rf /)", () => {
+  // Cyrillic 'р' (U+0440) looks like Latin 'r'; classifyCommand misses it.
+  assert.strictEqual(classifyCommandDual("рm -rf /"), "destructive-delete");
+});
+
+test("ADR023: classifyCommandDual — full-width ｒｍ evasion caught (ｒｍ -rf /)", () => {
+  // Full-width 'ｒ' (U+FF52) and 'ｍ' (U+FF4D); NFKD folds to ASCII.
+  assert.strictEqual(classifyCommandDual("ｒｍ -rf /"), "destructive-delete");
+});
+
+test("ADR023: classifyCommandDual — ZWJ insertion evasion caught (r‍m -rf /)", () => {
+  // Zero-width joiner (U+200D) between 'r' and 'm'; stripped by STRIP_RE.
+  assert.strictEqual(classifyCommandDual("r‍m -rf /"), "destructive-delete");
+});
+
+test("ADR023: classifyCommandDual — non-generic raw class short-circuits (no normalization)", () => {
+  // If raw classification is already non-generic, normalization is skipped.
+  assert.strictEqual(classifyCommandDual("git push --force"), "force-push");
+});
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 
