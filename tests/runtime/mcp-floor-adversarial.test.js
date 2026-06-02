@@ -539,5 +539,85 @@ isolated((dir) => {
     : fail("T7: F26 JSONC >256KB benign-prefix is NOT hard-blocked", `action=${result.action} — unscannable must not block`);
 });
 
+// ─── ADR-022 T15: F25 fail-closed — getter-throw → require-review ────────────
+// Regression test for ADR-022: before the fix, an unexpected throw inside
+// _evalMcpArgFloor's try block fell to `} catch { return { fire: false }; }`
+// (fail-open = allow). After the fix the catch returns { unscannable: true }
+// which the caller routes to buildEarlyReview("mcp-arg-shape-unscannable").
+//
+// Injection: a getter on input.arguments that always throws. This property is
+// read at decision-engine.js:658 — `const containers = [..., input.arguments, ...]`
+// — inside _evalMcpArgFloor's own try, before anyContainer check or loop.
+// buildIr() never reads input.arguments, so the test setup is clean.
+isolated(() => {
+  const input = {
+    tool:       "mcp__test__exec",
+    harness:    "claude",
+    command:    "",
+    branch:     "main",
+    targetPath: ".",
+    tool_input: null,   // null → skip container
+    args:       null,   // null → skip container
+    params:     null,   // undefined after this → skip container
+    input:      null,   // null → skip container
+    // 'arguments' getter fires during container array construction at line 658
+  };
+  // Non-enumerable so Object.entries(input) in decide():1001 skips it;
+  // direct access `input.arguments` inside F25's container array still fires.
+  Object.defineProperty(input, "arguments", {
+    get() { throw new Error("ADR-022 F25 synthetic throw"); },
+    enumerable: false,
+    configurable: true,
+  });
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action !== "allow"
+    ? ok("ADR022-T15: F25 internal-throw is NOT allowed (fail-closed)")
+    : fail("ADR022-T15: F25 internal-throw is NOT allowed", `action=${result.action} — fail-open regression`);
+  result.action === "require-review"
+    ? ok("ADR022-T15: F25 internal-throw → require-review")
+    : fail("ADR022-T15: F25 internal-throw → require-review", `action=${result.action}`);
+  (result.reasonCodes && result.reasonCodes.includes("mcp-arg-shape-unscannable"))
+    ? ok("ADR022-T15: F25 internal-throw → reasonCode=mcp-arg-shape-unscannable")
+    : fail("ADR022-T15: F25 internal-throw → reasonCode", `reasonCodes=${JSON.stringify(result.reasonCodes)}`);
+});
+
+// ─── ADR-022 T16: F26 fail-closed — getter-throw → require-review ────────────
+// Symmetric regression test for _evalMcpRegistrationFloor (F26).
+//
+// Injection: a getter on input.content that always throws. _collectMcpWriteContent
+// reads input.content at its first push() call — decision-engine.js:733 —
+// inside _evalMcpRegistrationFloor's own try. buildIr() does NOT read
+// input.content at top level, so the setup is clean.
+isolated(() => {
+  const input = {
+    tool:       "Write",
+    harness:    "claude",
+    command:    "",
+    branch:     "feature/test",
+    targetPath: ".mcp.json",   // mcpConfig ambient class
+    file_path:  ".mcp.json",
+    // 'content' getter fires inside _collectMcpWriteContent, inside F26's try
+  };
+  // Non-enumerable so Object.entries(input) in decide():1001 skips it;
+  // direct access `input.content` inside _collectMcpWriteContent (F26) still fires.
+  Object.defineProperty(input, "content", {
+    get() { throw new Error("ADR-022 F26 synthetic throw"); },
+    enumerable: false,
+    configurable: true,
+  });
+  buildIr(input, { harness: "claude", tool: input.tool });
+  const result = decide(input);
+  result.action !== "allow"
+    ? ok("ADR022-T16: F26 internal-throw is NOT allowed (fail-closed)")
+    : fail("ADR022-T16: F26 internal-throw is NOT allowed", `action=${result.action} — fail-open regression`);
+  result.action === "require-review"
+    ? ok("ADR022-T16: F26 internal-throw → require-review")
+    : fail("ADR022-T16: F26 internal-throw → require-review", `action=${result.action}`);
+  (result.reasonCodes && result.reasonCodes.includes("mcp-config-unscannable"))
+    ? ok("ADR022-T16: F26 internal-throw → reasonCode=mcp-config-unscannable")
+    : fail("ADR022-T16: F26 internal-throw → reasonCode", `reasonCodes=${JSON.stringify(result.reasonCodes)}`);
+});
+
 console.log(`\nmcp-floor-adversarial.test.js: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
