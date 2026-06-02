@@ -1,7 +1,7 @@
 # ADR-021 — Bounded recursion for `canonical-json`
 
-- **Status:** Proposed (2026-05-30)
-- **Owner decision required:** yes — hardens a shared serialization primitive used in contract hashing.
+- **Status:** Implemented — 2026-06-03 (feat/adr-021-canonical-json-depth-cap). Cap = 64 = 12.8× measured baseline (max depth = 5 over 225 corpus entries). Originally proposed 2026-05-30; implemented during June 2026 trust-boundary audit sprint.
+- **Owner decision required:** resolved — Khouly approved implement-now during sprint planning.
 
 ## Problem
 
