@@ -5,7 +5,16 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { emitEvent } = require("./telemetry");
-const { fineKey: computeFineKey } = require("./decision-key");
+const { fineKey: computeFineKey, fineKeyDual: computeFineKeyDual } = require("./decision-key");
+
+// ADR-027: versioned learned-allow key prefix. New approvals are recorded under
+// v2|<fineKeyDual-body> so the classification uses the dual-path classifier and
+// Unicode look-alike commands (Cyrillic рm, full-width ｒｍ) cannot inherit a
+// generic learned-allow grant. Existing legacy entries (no prefix, raw-classified)
+// still match via the dual-classified fallback in legacyScopedKey(). Old bypass-
+// shaped entries are NOT promoted — they age out naturally (lazy age-out strategy,
+// Khouly approved 2026-06-02).
+const LEARNED_KEY_VERSION = "v2";
 const { projectScope } = require("./project-scope");
 const { stateDir } = require("./state-paths");
 
@@ -112,24 +121,50 @@ function decisionKey(input = {}) {
 // fall-through to the old global key). The "::" separator cannot occur in a
 // fineKey (pipe-delimited) or a scope tag ("<char>:<hex>"), so a legacy unscoped
 // entry can never collide with a scoped one — pre-L6 entries are orphaned.
+//
+// ADR-027: scopedKey now produces a v2| prefixed key using fineKeyDual (dual-path
+// classification). New approvals are written under this key. Existing entries
+// recorded without the v2| prefix are matched via legacyScopedKey() below.
 function scopedKey(input = {}) {
   const scope = projectScope(input);
   if (scope == null) return null;
-  return scope + "::" + computeFineKey(input);
+  return scope + "::" + LEARNED_KEY_VERSION + "|" + computeFineKeyDual(input);
+}
+
+// ADR-027: backward-compat read key for pre-v2 learned-allow entries.
+// Uses fineKeyDual (not fineKey/raw) so that confusable Unicode variants
+// (Cyrillic рm → destructive-delete) produce a different body than a stored
+// generic grant — closing the bypass without orphaning legitimate ASCII grants
+// (dual==raw for ASCII, so existing legit entries still match).
+// Never used for writes — only as a fallback in read operations.
+function legacyScopedKey(input = {}) {
+  const scope = projectScope(input);
+  if (scope == null) return null;
+  return scope + "::" + computeFineKeyDual(input);
 }
 
 function getApprovalCount(input = {}) {
-  const fine = scopedKey(input);
-  if (fine == null) return 0;
+  const v2Key = scopedKey(input);
+  if (v2Key == null) return 0;
   const policy = loadPolicy();
-  return Number(policy.approvalCounts?.[fine] || 0);
+  const v2Count = Number(policy.approvalCounts?.[v2Key] || 0);
+  if (v2Count > 0) return v2Count;
+  // Fallback: check legacy entry
+  const legacyKey = legacyScopedKey(input);
+  return Number((legacyKey != null && policy.approvalCounts?.[legacyKey]) || 0);
 }
 
 function isLearnedAllowed(input = {}) {
-  const fine = scopedKey(input);
-  if (fine == null) return false;
+  const v2Key = scopedKey(input);
+  if (v2Key == null) return false;
   const policy = loadPolicy();
-  return Boolean(policy.learnedAllows?.[fine]);
+  if (Boolean(policy.learnedAllows?.[v2Key])) return true;
+  // ADR-027 fallback: check legacy (pre-v2) entry for backward compat.
+  // legacyScopedKey uses dual-path classification so confusable commands
+  // (Cyrillic рm) resolve to destructive-delete and cannot match a
+  // legacy generic grant — the bypass remains closed.
+  const legacyKey = legacyScopedKey(input);
+  return legacyKey != null && Boolean(policy.learnedAllows?.[legacyKey]);
 }
 
 function recordApproval(input = {}) {
@@ -187,8 +222,13 @@ function getSuggestion(key) {
 
 function getSuggestionForInput(input = {}) {
   const fine = scopedKey(input);
-  if (fine == null) return null;
-  return getSuggestion(fine);
+  if (fine != null) {
+    const s = getSuggestion(fine);
+    if (s) return s;
+  }
+  // ADR-027: fall back to legacy key for pre-v2 suggestions
+  const legacy = legacyScopedKey(input);
+  return legacy != null ? getSuggestion(legacy) : null;
 }
 
 function acceptSuggestion(key) {
@@ -269,14 +309,25 @@ function hasAutoAllowOnce(key) {
 function getPolicyFacts(input = {}) {
   const fine = scopedKey(input);
   const policy = loadPolicy();
-  const suggestion = (fine != null && policy.suggestions?.[fine]) || null;
+  // ADR-027: prefer v2 key; fall back to legacy for read operations.
+  const legacyFine = legacyScopedKey(input);
+  const effectiveFine = fine;
+  const suggestion =
+    (effectiveFine != null && policy.suggestions?.[effectiveFine]) ||
+    (legacyFine != null && policy.suggestions?.[legacyFine]) || null;
+  const effectiveSuggestionKey = suggestion
+    ? (policy.suggestions?.[effectiveFine] ? effectiveFine : legacyFine)
+    : null;
   return {
-    key: fine,
-    approvalCount: fine == null ? 0 : Number(policy.approvalCounts?.[fine] || 0),
-    learnedAllow: fine == null ? false : Boolean(policy.learnedAllows?.[fine]),
-    pendingSuggestion: suggestion && suggestion.status === "pending" ? { key: fine, ...suggestion } : null,
-    acceptedSuggestion: suggestion && suggestion.status === "accepted" ? { key: fine, ...suggestion } : null,
-    dismissedSuggestion: suggestion && suggestion.status === "dismissed" ? { key: fine, ...suggestion } : null,
+    key: effectiveFine,
+    approvalCount: getApprovalCount(input),
+    learnedAllow: isLearnedAllowed(input),
+    pendingSuggestion: suggestion && suggestion.status === "pending"
+      ? { key: effectiveSuggestionKey, ...suggestion } : null,
+    acceptedSuggestion: suggestion && suggestion.status === "accepted"
+      ? { key: effectiveSuggestionKey, ...suggestion } : null,
+    dismissedSuggestion: suggestion && suggestion.status === "dismissed"
+      ? { key: effectiveSuggestionKey, ...suggestion } : null,
   };
 }
 

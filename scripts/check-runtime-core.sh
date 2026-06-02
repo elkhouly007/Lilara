@@ -654,9 +654,14 @@ pass 'mcp-pin argShapeHash + checkArgShapeDrift'
 node "$root/tests/runtime/mcp-floor-adversarial.test.js" || exit 1
 pass 'mcp-floor-adversarial: cycle-safe walker + require-review degrade'
 
-# ADR-023 unified classification gateway — per-call-site Unicode evasion proof
+# ADR-023/026/027 unified classification gateway — per-call-site Unicode evasion proof
+# (Sites A/B/C from ADR-023, Site D from ADR-026, Site E header from ADR-027)
 node "$root/tests/runtime/classify-dual-gateway.test.js" || exit 1
-pass 'classify-dual-gateway: ADR-023 Cyrillic/ZWJ/full-width evasion caught at all migrated sites'
+pass 'classify-dual-gateway: ADR-023/026/027 Unicode evasion caught at all migrated sites'
+
+# ADR-027 versioned learned-allow key v2| + backward-compat + bypass-closed
+node "$root/tests/runtime/learned-allow-key-v2.test.js" || exit 1
+pass 'learned-allow-key-v2: v2| prefix, backward compat, bypass closed, anti-FP'
 
 # post-adapter result-injection harness-agnostic regression
 node "$root/tests/runtime/post-adapter-mcp-injection.test.js" || exit 1
