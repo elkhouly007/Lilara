@@ -136,5 +136,60 @@ isolated(() => {
     : fail("ADR025-T2: F16 caller-throw → reasonCode", `reasonCodes=${JSON.stringify(result.reasonCodes)}`);
 });
 
+// ─── ADR-030-T1: isWriteLike guard — degraded-mode advisory call ──────────────
+// Before ADR-030: _degradedMode.isWriteLike(input) at ~line 1025 is called outside
+// any try/catch. An adversarial input with a throwing getter on a property that
+// isWriteLike reads makes decide() crash before the floor cascade runs.
+// After: the call is guarded; the throw is caught and decide() completes normally.
+//
+// Seam: non-enumerable throwing getter on input.ir (not input.ir.fileTargets), so
+// that `input.ir && input.ir.fileTargets` short-circuits on the `input.ir` read.
+//   - tool:"Bash" is required so isWriteLike does NOT return early via the tool regex
+//     (only Write/Edit/MultiEdit/NotebookEdit match); it proceeds to read input.ir.
+//   - discover() does not read input.ir directly; Object.fromEntries spread skips it.
+//   - _classifyAmbientTouch at line 1016 (already guarded by ADR-025) reads
+//     input.ir.fileTargets inside its guard — fires the getter on input.ir, caught.
+//   - isWriteLike at ~1025 reads input.ir again — fires the getter, caught by my guard.
+//   - buildEarlyBlock / buildEarlyReview do NOT read input.ir — they read input.envelope
+//     (which is undefined/null in this test → no throw from those builders).
+//   - Later floor evaluators (F17, F24, F16) that read input.ir are inside their own
+//     try/catch, so any additional getter fires are independently handled.
+//   - Command "" + safe targetPath ensures no destructive floor fires, so
+//     buildEarlyBlock / buildEarlyReview are never invoked in this test path.
+//
+// Asserts: decide() does NOT throw; returns a well-formed result with a valid action.
+isolated(() => {
+  const irObj = {};
+  // Non-enumerable getter on input.ir so Object.fromEntries(Object.entries(input))
+  // at ~990 does NOT pre-trigger it. isWriteLike reads `input.ir && input.ir.fileTargets`
+  // — the `input.ir` access fires the getter; my ADR-030 guard must catch it.
+  Object.defineProperty(irObj, "fileTargets", {
+    get() { throw new Error("ADR-030 isWriteLike synthetic throw via ir.fileTargets"); },
+    enumerable: false,
+    configurable: true,
+  });
+  const input = {
+    tool:       "Bash",
+    harness:    "claude",
+    command:    "npm test",  // safe: not write-like via tool regex, not destructive
+    branch:     "main",
+    targetPath: "src/app.ts",
+    ir: irObj,
+    // envelope: deliberately absent so buildEarlyBlock/buildEarlyReview's
+    // `input.envelope || null` reads return null without throwing.
+  };
+  let result;
+  let threw = false;
+  try { result = decide(input); }
+  catch (e) { threw = true; result = null; }
+
+  !threw
+    ? ok("ADR030-T1: isWriteLike guard — decide() does NOT throw on adversarial ir.fileTargets getter")
+    : fail("ADR030-T1: isWriteLike guard", "decide() threw — fail-open regression");
+  (result && result.action)
+    ? ok(`ADR030-T1: isWriteLike guard — decide() returns well-formed result (action=${result.action})`)
+    : fail("ADR030-T1: isWriteLike guard", `result=${JSON.stringify(result)}`);
+});
+
 console.log(`\nfloor-failsafe.test.js: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
