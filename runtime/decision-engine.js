@@ -1009,7 +1009,12 @@ function decide(input = {}) {
   // ADR-009 PR-C: classify ambient-touch ONCE per decide(); threaded into
   // every receipt-emitting branch via `extra.ambientTouch` (early-block path)
   // and via the final result/journal spreads (non-block path).
-  const _ambientTouch = _classifyAmbientTouch(input);
+  // ADR-025: guarded so an adversarial input property cannot crash decide()
+  // before the security floors run. Advisory receipt enrichment only — fail-safe
+  // to the no-touch shape { class: null, path: null }.
+  let _ambientTouch;
+  try { _ambientTouch = _classifyAmbientTouch(input); }
+  catch { _ambientTouch = { class: null, path: null }; }
 
   // ADR-004 PR 37B: degraded-mode descriptor. Memoised in the helper module
   // for the process lifetime; tests reset via `_clearCache()`. Threaded into
@@ -1446,7 +1451,9 @@ function decide(input = {}) {
 
   // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)
   // and before the contract-allow demotion path. Non-demotable; the only legitimate
-  // bypass is a matching `scopes.ambient.allow[]` entry. Fail-open on internal throw.
+  // bypass is a matching `scopes.ambient.allow[]` entry.
+  // ADR-025: fail-safe on unexpected throw — route to require-review so ambient
+  // writes are not silently permitted when the evaluator cannot complete.
   try {
     const f16 = _evalAmbientFloor(input, discovered, contract);
     if (f16 && f16.fire) {
@@ -1456,13 +1463,22 @@ function decide(input = {}) {
         { floorFired: _F16.name, decisionSource: _F16.source, ambientClass: f16.ambientClass, ambientPath: f16.path }
       );
     }
-  } catch { /* fail-open per zero-dep policy */ }
+  } catch {
+    // ADR-025: F16 has no internal try/catch — this outer block is the sole
+    // protection. Fail-safe: require-review rather than fall through to allow.
+    return buildEarlyReview(
+      "ambient-authority-scan-failed", enriched, discovered, input,
+      "ambient-authority evaluation threw unexpectedly; routing to review",
+      { floorFired: _F16.name, decisionSource: _F16.source }
+    );
+  }
 
   // F24: credential-persistence-write floor — rung 17.625, after F16 and before
   // F17. Fires for in-project credential files (high-sensitivity) or execution-
   // persistence paths (.git/hooks, cron, systemd, shell-rc) that F16 skips.
   // Default-deny; opt out via contract scopes.files.allow glob list.
-  // Fail-open on internal throw (F16 already caught the ambient cases).
+  // ADR-025: fail-safe on unexpected throw — F24 has no internal try/catch so
+  // this outer block is the sole protection for credential-persistence writes.
   try {
     const f24 = _evalCredPersistFloor(input, contract);
     if (f24 && f24.fire) {
@@ -1472,7 +1488,15 @@ function decide(input = {}) {
         { floorFired: _F24.name, decisionSource: _F24.source, ambientTouch: _ambientTouch }
       );
     }
-  } catch { /* fail-open per zero-dep policy */ }
+  } catch {
+    // ADR-025: F24 has no internal try/catch — this outer block is the sole
+    // protection. Fail-safe: require-review rather than fall through to allow.
+    return buildEarlyReview(
+      "credential-persistence-scan-failed", enriched, discovered, input,
+      "credential-persistence evaluation threw unexpectedly; routing to review",
+      { floorFired: _F24.name, decisionSource: _F24.source, ambientTouch: _ambientTouch }
+    );
+  }
 
   // mcp-tool-drift (rug-pull / behavioral pin): HOISTED above F25 for ADR-018 threading.
   // Checks whether an MCP tool's argument shape has changed since first seen. The boolean
@@ -1505,7 +1529,7 @@ function decide(input = {}) {
         };
       }
     }
-  } catch { /* fail-open: rug-pull detection must never block the engine */ }
+  } catch { /* ADR-025: conscious fail-open — advisory rug-pull signal must not block; F25 independently gates dangerous commands. */ }
 
   // F25: mcp-arg-danger floor — rung 17.65, after F24 and before F17. Fires
   // when an MCP tool call's argument payload contains a dangerous-command-
@@ -1515,7 +1539,9 @@ function decide(input = {}) {
   // see F25 decoupled-opt-out comment in _evalMcpArgFloor: HARD_BLOCK still
   // gates for trusted servers — degrades to require-review, not silent allow).
   // Drift threading: _driftForThisServerTool is passed in for ADR-018 Option 1
-  // (trusted + GATED_REVIEW dual-use + drift → require-review). Fail-open.
+  // (trusted + GATED_REVIEW dual-use + drift → require-review).
+  // ADR-025: F25 inner catch is fail-safe (ADR-022); this outer catch is belt-
+  // and-suspenders for unexpected throws in the caller branch itself.
   try {
     const f25 = _evalMcpArgFloor(input, contract, enriched, _driftForThisServerTool);
     if (f25 && f25.fire) {
@@ -1539,14 +1565,23 @@ function decide(input = {}) {
         { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
       );
     }
-  } catch { /* fail-open */ }
+  } catch {
+    // ADR-025: belt-and-suspenders — if the caller branch throws after the
+    // floor returns (e.g. in buildEarlyBlock/buildEarlyReview), fail-safe.
+    return buildEarlyReview(
+      "mcp-arg-scan-failed", enriched, discovered, input,
+      "MCP arg evaluation threw unexpectedly in caller; routing to review",
+      { floorFired: _F25.name, decisionSource: _F25.source, ambientTouch: _ambientTouch }
+    );
+  }
 
   // F26: mcp-registration-write floor — rung 17.6875, after F25 and before
   // F17. Content-aware second line after F16 (ambient-authority). Fires when
   // a file-write to an MCP config path registers a server with a dangerous-
   // command-shaped launch command. Fires even when F16 has been opted out via
   // scopes.ambient.allow. Default-deny; opt out via scopes.files.allow.
-  // Fail-open on internal throw.
+  // ADR-025: F26 inner catch is fail-safe (ADR-022); this outer catch is belt-
+  // and-suspenders for unexpected throws in the caller branch itself.
   try {
     const f26 = _evalMcpRegistrationFloor(input, contract);
     if (f26 && f26.fire) {
@@ -1563,7 +1598,15 @@ function decide(input = {}) {
         { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
       );
     }
-  } catch { /* fail-open */ }
+  } catch {
+    // ADR-025: belt-and-suspenders — if the caller branch throws after the
+    // floor returns (e.g. in buildEarlyBlock/buildEarlyReview), fail-safe.
+    return buildEarlyReview(
+      "mcp-config-scan-failed", enriched, discovered, input,
+      "MCP config evaluation threw unexpectedly in caller; routing to review",
+      { floorFired: _F26.name, decisionSource: _F26.source, ambientTouch: _ambientTouch }
+    );
+  }
 
   // (mcp-tool-drift computed and threaded above, before F25 — see ADR-018 threading note)
 
@@ -1571,8 +1614,9 @@ function decide(input = {}) {
   // contract-allow demotion. Fires when a write-like call targets a
   // path/project already held by a different agent's lock that is not
   // expired. Non-demotable. Fail-CLOSED for write-like when lock state is
-  // malformed (`state.ok=false`); other unexpected throws fail open per the
-  // engine's zero-dep / fail-open policy.
+  // malformed (`state.ok=false`).
+  // ADR-025: fail-safe on unexpected throw — F17 fails CLOSED for malformed lock
+  // state; consistent outer behaviour requires fail-safe on any unexpected throw.
   try {
     const f17 = _evalCrossAgentLockFloor(input, discovered, enriched);
     if (f17 && f17.fire) {
@@ -1593,7 +1637,15 @@ function decide(input = {}) {
         }
       );
     }
-  } catch { /* fail-open per zero-dep policy */ }
+  } catch {
+    // ADR-025: F17 internally fails CLOSED for malformed lock state; an unexpected
+    // throw from the floor itself must not silently allow. Fail-safe.
+    return buildEarlyReview(
+      "cross-agent-lock-scan-failed", enriched, discovered, input,
+      "cross-agent-lock evaluation threw unexpectedly; routing to review",
+      { floorFired: _F17.name, decisionSource: _F17.source, ambientTouch: _ambientTouch }
+    );
+  }
 
   // F19 (ADR-010): output-channel-exfiltration floor — rung 17.875, after F17
   // and before the contract-allow demotion rung (18). Two paths:
@@ -1671,7 +1723,16 @@ function decide(input = {}) {
         _f19Detail = { ...baseDetail, demoted: false };
       }
     }
-  } catch { /* fail-open per zero-dep policy */ }
+  } catch {
+    // ADR-025: output-exfil evaluation threw unexpectedly. Fail-safe: a scanner
+    // failure must not blind the engine to an active exfil channel. Route to
+    // require-review so the call is not silently permitted.
+    return buildEarlyReview(
+      "output-exfil-scan-failed", enriched, discovered, input,
+      "output-channel exfil evaluation threw unexpectedly; routing to review",
+      { floorFired: _F19.name, decisionSource: _F19.source[0], ambientTouch: _ambientTouch }
+    );
+  }
 
   // F20 (ADR-012): change-intent drift — rung 18.5. Compares the declared-
   // envelope (envelope.declaredIntent) against the canonical Action IR built

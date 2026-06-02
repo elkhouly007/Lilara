@@ -654,6 +654,12 @@ pass 'mcp-pin argShapeHash + checkArgShapeDrift'
 node "$root/tests/runtime/mcp-floor-adversarial.test.js" || exit 1
 pass 'mcp-floor-adversarial: cycle-safe walker + require-review degrade'
 
+# ADR-025 floor fail-safe regression: caller-level catch in decide() must
+# route unexpected throws to require-review (not allow). Covers F24 (credential-
+# persistence, no inner catch) and F16 (ambient-authority, no inner catch).
+node "$root/tests/runtime/floor-failsafe.test.js" || exit 1
+pass 'floor-failsafe: ADR-025 F16/F24 caller-catch fail-safe (require-review on unexpected throw)'
+
 # ADR-023/026/027 unified classification gateway — per-call-site Unicode evasion proof
 # (Sites A/B/C from ADR-023, Site D from ADR-026, Site E header from ADR-027)
 node "$root/tests/runtime/classify-dual-gateway.test.js" || exit 1
