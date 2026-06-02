@@ -49,13 +49,14 @@ function classifyCommand(cmd) {
 // Call sites should prefer this over classifyCommand() wherever the command
 // may be user-supplied. Pure function; zero I/O.
 //
-// Note on call sites NOT migrated in this PR:
-//   - action-ir.js:490 — commandClass feeds irHash; the non-ASCII replay corpus
-//     entries have irHash recorded under "generic"; migrating would drift those
-//     records → Khouly's explicit call (ADR-026).
-//   - decision-key.js fineKey/legacyKey — legacyKey intentionally stays raw for
-//     backward-compat with existing learned-allow key entries; migrating risks
-//     key churn → ADR-027.
+// Note on previously-deferred call sites (now resolved):
+//   - action-ir.js:490 — Khouly authorized re-baseline 2026-06-02 (ADR-026).
+//     action-ir.js now uses classifyCommandDual; 2 adversarial corpus entries
+//     were re-baselined (adv:critical-rm-cyrillic-er, adv:critical-rm-fullwidth).
+//   - decision-key.js learned-allow keys — Khouly approved versioned v2| prefix
+//     2026-06-02 (ADR-027). New approvals use fineKeyDual via policy-store.js
+//     scopedKey() (v2|<body>); legacy entries match via dual-classified fallback.
+//     legacyKey() stays raw (backward-compat, not on live path — see its JSDoc).
 // ---------------------------------------------------------------------------
 function classifyCommandDual(cmd) {
   const raw    = String(cmd || "");
@@ -145,8 +146,37 @@ function fineKey(input = {}) {
 }
 
 /**
+ * ADR-027: Dual-path fineKey for the v2 learned-allow namespace.
+ *
+ * Uses classifyCommandDual instead of classifyCommand so Unicode look-alike
+ * commands (Cyrillic рm, full-width ｒｍ, ZWJ splice) are classified correctly
+ * and cannot inherit a generic learned-allow grant.
+ *
+ * Returns the unprefixed 5-part body; the v2| prefix is added by policy-store.js
+ * scopedKey() so the prefix is applied consistently and only once.
+ *
+ * Format (same structure as fineKey): tool|commandClass|pathBucket|branchBucket|payloadClass
+ *
+ * @param {object} input — { tool, command, targetPath, projectRoot, branch, payloadClass }
+ * @returns {string}
+ */
+function fineKeyDual(input = {}) {
+  const tool         = String(input.tool         || "").toLowerCase() || "unknown-tool";
+  const cmdClass     = classifyCommandDual(input.command);  // ADR-027: dual-path
+  const pBucket      = pathBucket(String(input.targetPath || ""), input.projectRoot);
+  const bBucket      = branchBucket(String(input.branch || ""));
+  const payloadClass = String(input.payloadClass || "A").toUpperCase();
+  return [tool, cmdClass, pBucket, bBucket, payloadClass].join("|");
+}
+
+/**
  * Legacy key for backward-compat with existing learned-allow entries.
  * Matches the key format produced by policy-store.js:decisionKey.
+ *
+ * ADR-027: backward-compat only — not on the live learned-allow path
+ * (superseded by policy-store.js v2 scoped keys via fineKeyDual + scopedKey).
+ * Do NOT migrate to classifyCommandDual: callers that depend on this function
+ * for key-format matching would need coordinated updates. Kept raw intentionally.
  *
  * Format: tool|commandClass|targetClass|payloadClass
  */
@@ -161,6 +191,6 @@ function legacyKey(input = {}) {
 }
 
 module.exports = {
-  fineKey, legacyKey, classifyCommand, classifyCommandDual,
+  fineKey, fineKeyDual, legacyKey, classifyCommand, classifyCommandDual,
   HARD_BLOCK_CLASSES, GATED_REVIEW_CLASSES, pathBucket, branchBucket,
 };

@@ -1,6 +1,6 @@
 # ADR-027 — Raw-Only Classification in `fineKey` / `legacyKey`
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Accepted (Option 3 — versioned prefix, lazy age-out) — Khouly approved 2026-06-02.  
 **Severity:** MED-HIGH  
 **Area:** `runtime/decision-key.js:105` (`fineKey`) and `:124` (`legacyKey`).
 
@@ -130,8 +130,34 @@ or 3** is the right long-term fix. The key decision: is an explicit migration sc
 
 ## Consequences
 
+### Implemented (Option 3, Khouly approved 2026-06-02)
+
+Migration strategy: **versioned key prefix (`v2|`) + lazy age-out, no migration script**.
+
+**What changed:**
+- `runtime/decision-key.js`: added `fineKeyDual()` — identical structure to `fineKey` but
+  uses `classifyCommandDual` so Unicode look-alike commands are correctly classified.
+  `fineKey` and `legacyKey` kept raw (see their JSDoc).
+- `runtime/policy-store.js`: `scopedKey()` now returns `scope::v2|<fineKeyDual-body>`.
+  Added `legacyScopedKey()` = `scope::<fineKeyDual-body>` (no prefix) as a read-only
+  backward-compat fallback. Read paths (`isLearnedAllowed`, `getApprovalCount`,
+  `getPolicyFacts`, `getSuggestionForInput`) check v2 first, then legacy fallback.
+
+**Lazy age-out (no migration script):** Existing pre-v2 entries still match (backward compat)
+via the `legacyScopedKey` fallback. New approvals land under v2. Old bypass-shaped
+entries (confusable Unicode classified as generic) cannot match new lookups because the
+fallback also uses dual-path classification — they are orphaned and age out naturally.
+
+**Operator experience:** Legitimate ASCII grants continue to work transparently (dual==raw
+for non-confusable ASCII). Operators will only see re-prompting if they previously approved
+a confusable Unicode command under a generic grant (the exact bypass scenario).
+
+**Eval:** 0.0% FP / 0.0% FN — learned-allow paths are not exercised by the eval corpus.
+
+**Tests:** `tests/runtime/learned-allow-key-v2.test.js` — 7 tests covering backward compat,
+new v2 key shape, bypass closed, anti-FP, and approval-count consistency.
+
 - **If approved (Option 1):** Migrate `fineKey`, `decisionKey`, `scopedKey` to
   `classifyCommandDual`. Write a policy migration script. Add CHANGELOG note for operators.
-- **If approved (Option 3):** Design and implement versioned key schema. Larger scope.
 - **If deferred (Option 4):** Add `// ADR-027` comments. Revisit when Khouly decides
   the policy-store key-format versioning strategy.
