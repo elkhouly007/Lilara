@@ -7,6 +7,7 @@ const path   = require("path");
 const crypto = require("crypto");
 const { emitEvent } = require("./telemetry");
 const { stateDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir"); // ADR-028
 
 function paths() {
   const baseDir = stateDir();
@@ -43,8 +44,11 @@ function currentSessionId() {
 function startSession() {
   const id = crypto.randomBytes(8).toString("hex");
   try {
+    // ADR-028: validate state dir before writing session-id. On unsafe dir →
+    // skip the write (session-id is best-effort; the in-memory id is returned
+    // so within-process partitioning still works).
     const dir = paths().baseDir;
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (!ensureBaseDirSafe(dir)) return id;
     fs.writeFileSync(sessionIdPath(), id + "\n", { mode: 0o600 });
   } catch { /* best-effort */ }
   return id;
@@ -65,7 +69,15 @@ let _stateCache = null;
 
 function loadState() {
   if (_stateCache !== null) return _stateCache;
-  const { sessionFile } = paths();
+  const { baseDir, sessionFile } = paths();
+  // ADR-028: validate state dir on read. On unsafe dir → degrade to in-memory
+  // empty state. Trajectory is best-effort; within-process risk escalation still
+  // works. Only validate when the dir already exists (not yet created = first use,
+  // not a threat).
+  if (fs.existsSync(baseDir) && !ensureStateDirSafe(baseDir)) {
+    _stateCache = emptyState();
+    return _stateCache;
+  }
   try {
     _stateCache = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
   } catch (err) {
@@ -86,8 +98,10 @@ function saveState(state) {
   if (process.env.LILARA_READONLY_CONTRACT === "1") { _stateCache = state; return; }
   _stateCache = null;
   try {
-    ensureBaseDir();
-    const { sessionFile } = paths();
+    // ADR-028: validate state dir before writing. On unsafe dir → cache-only
+    // (mirrors readonly path). Within-process trajectory still updates via cache.
+    const { baseDir, sessionFile } = paths();
+    if (!ensureBaseDirSafe(baseDir)) { _stateCache = state; return; }
     const data = JSON.stringify(state, null, 2) + "\n";
     const tmp = sessionFile + ".tmp";
     fs.writeFileSync(tmp, data, { mode: 0o600 });
@@ -229,7 +243,10 @@ function saveProvenanceGraph(nodes) {
   _graphCache = Array.isArray(nodes) ? nodes : [];
   if (process.env.LILARA_READONLY_CONTRACT === "1") return;
   try {
-    ensureBaseDir();
+    // ADR-028: validate state dir before writing. On unsafe dir → cache-only
+    // (provenance graph is advisory taint data; in-memory cache still works).
+    const dir = paths().baseDir;
+    if (!ensureBaseDirSafe(dir)) return;
     const p = provenanceGraphPath();
     const data = JSON.stringify(_graphCache);
     const tmp = p + ".tmp";
@@ -272,7 +289,10 @@ function provenanceWindowPath() {
 
 function recordExternalRead(content, source) {
   try {
-    ensureBaseDir();
+    // ADR-028: validate state dir before writing. On unsafe dir → skip (provenance
+    // window is best-effort TTL taint data; not an enforcement gate).
+    const dir = paths().baseDir;
+    if (!ensureBaseDirSafe(dir)) return;
     const p = provenanceWindowPath();
     let window = [];
     try { window = JSON.parse(fs.readFileSync(p, "utf8")); } catch { /* first call */ }

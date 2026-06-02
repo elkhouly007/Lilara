@@ -110,4 +110,28 @@ function _warn(dir, detail) {
   );
 }
 
-module.exports = { ensureStateDirSafe };
+/**
+ * ensureBaseDirSafe(dir) → boolean
+ *
+ * Write-path helper: creates `dir` at mode 0700 if absent, then validates it
+ * using the existing ensureStateDirSafe. Composes the ADR-024 primitive; adds
+ * no new validation logic.
+ *
+ * Use this on write paths (journal, policy, session) where the dir must exist
+ * before I/O. For read paths, call ensureStateDirSafe directly (no mkdir).
+ *
+ * @param {string} dir — absolute path to the state directory.
+ * @returns {boolean} — true iff the directory is safe for security-critical I/O.
+ */
+function ensureBaseDirSafe(dir) {
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+  } catch {
+    // mkdir failure — fall through to validation, which returns false if dir is missing.
+  }
+  return ensureStateDirSafe(dir);
+}
+
+module.exports = { ensureStateDirSafe, ensureBaseDirSafe };

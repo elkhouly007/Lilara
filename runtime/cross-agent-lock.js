@@ -26,18 +26,24 @@
 //   }
 //
 // Fail-closed semantics for the engine wire-up:
-//   - lock dir absent → no-op
+//   - lock dir absent → no-op (common case: no cross-agent coordination in use)
 //   - lock dir exists + all files parse + no conflict → no-op
 //   - lock dir exists + any file is unreadable or malformed → engine treats
 //     as fail-closed for WRITE-LIKE calls so a broken-state corpus cannot
 //     silently bypass the floor. The engine surfaces this via `state.ok=false`
 //     + a non-empty `state.malformed[]`.
+//   - lock dir exists + state dir is insecure (ADR-028) → treated as malformed
+//     so the same fail-closed path fires for write-like calls. No FP for absent
+//     lock dirs (the common / eval corpus case) — the dir-existence check short-
+//     circuits before validation.
 //
-// Zero dependencies. Pure file I/O (fs only). No process.env reads (caller
-// supplies stateDir so LILARA_STATE_DIR can be honored externally).
+// Dependencies: ./state-dir (first-party only). No external deps.
+// No process.env reads (caller supplies stateDir so LILARA_STATE_DIR can be
+// honored externally).
 
 const fs   = require("fs");
 const path = require("path");
+const { ensureStateDirSafe } = require("./state-dir"); // ADR-028
 
 const LOCK_SUBDIR = "cross-agent-locks";
 
@@ -87,6 +93,16 @@ function readLockState(stateDirPath) {
   if (!stateDirPath || typeof stateDirPath !== "string") return out;
   const dir = lockDir(stateDirPath);
   if (!fs.existsSync(dir)) return out;
+  // ADR-028: validate state dir only when the lock dir exists (dir existence means
+  // someone wrote locks here; validation guards against a world-writable dir that
+  // lets attackers pre-seed lock files). Absent lock dir → no-op (common case and
+  // all eval/replay corpora) so FP risk is zero. Fail via the existing malformed
+  // path so the engine's write-like fail-closed semantics fire automatically.
+  if (!ensureStateDirSafe(stateDirPath)) {
+    out.ok = false;
+    out.malformed.push({ file: dir, reason: "state-dir-insecure" });
+    return out;
+  }
   let entries;
   try { entries = fs.readdirSync(dir); }
   catch (err) {
