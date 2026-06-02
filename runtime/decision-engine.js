@@ -710,7 +710,13 @@ function _evalMcpArgFloor(input, contract, enriched, driftForThisServerTool = fa
     //     even to trusted servers — trust does not extend to unscannable danger.
     if (argTruncated) return { unscannable: true, reason: "arg-payload-too-complex" };
     return { fire: false };
-  } catch { return { fire: false }; } // fail-open
+  } catch {
+    // Fail-closed (ADR-022): an unexpected internal throw during arg scanning must NOT
+    // silently allow the call. Return unscannable → caller maps to buildEarlyReview
+    // ("mcp-arg-shape-unscannable"). The WARN/require-review class is safer than fail-open
+    // allow, and carries zero eval FP by definition (WARN is not a block).
+    return { unscannable: true, reason: "internal-error-scanning-args" };
+  }
 }
 
 // _collectMcpWriteContent — gather the written text from every reachable
@@ -828,7 +834,12 @@ function _evalMcpRegistrationFloor(input, contract) {
     }
     if (contentWasTruncated) return { unscannable: true, reason: "oversize-mcp-config" };
     return { fire: false };
-  } catch { return { fire: false }; } // fail-open
+  } catch {
+    // Fail-closed (ADR-022): any unexpected internal throw during MCP config-write scanning
+    // must NOT silently allow the write. Return unscannable → caller maps to
+    // buildEarlyReview("mcp-config-unscannable"). Symmetric with F25.
+    return { unscannable: true, reason: "internal-error-scanning-args" };
+  }
 }
 
 // F19 (ADR-010) — output-channel-exfiltration floor. Classifier + floor
