@@ -4,6 +4,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -76,6 +77,8 @@ function indexFact(idx, id, fact) {
  * @returns {{id: string}}
  */
 function addFact({ fact, source = "operator" } = {}, { stateDirOverride } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return { id: null };
   const base = stateDirOverride || stateDir();
   ensureDir(memoryDir(base));
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -102,6 +105,8 @@ function addFact({ fact, source = "operator" } = {}, { stateDirOverride } = {}) 
  * @returns {Array<object>}
  */
 function loadFacts({ stateDirOverride } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return [];
   const base = stateDirOverride || stateDir();
   const file = factsFile(base);
   if (!fs.existsSync(file)) return [];

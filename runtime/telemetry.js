@@ -4,6 +4,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // Lightweight append-only telemetry log for internal runtime events.
@@ -19,6 +20,8 @@ function telemetryFile() {
 }
 
 function emitEvent(eventName, fields = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   if (process.env.LILARA_TELEMETRY === "0") return;
   try {
     const base = stateDir();

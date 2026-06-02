@@ -3,6 +3,7 @@
 
 const { loadFacts, addFact, pruneExpired, rebuildIndex, tokenise } = require("./session-memory");
 const { stateDir } = require("./state-paths");
+const { ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // Keyword search with recency boost
@@ -65,6 +66,8 @@ function search(query, { topK = 3, stateDirOverride } = {}) {
  * @returns {{merged: number, survivors: number}}
  */
 function consolidate({ dryRun = false, stateDirOverride } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDirOverride || stateDir())) return { merged: 0, survivors: 0 };
   const base  = stateDirOverride || stateDir();
   const facts = loadFacts({ stateDirOverride });
 

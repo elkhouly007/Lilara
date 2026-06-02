@@ -3,6 +3,7 @@
 const fs   = require("node:fs");
 const path = require("node:path");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 function _budgetPath(sessionId) {
   const dir = path.join(stateDir(), "session-budget");
@@ -32,6 +33,8 @@ function _writeCounters(sessionId, c) {
 }
 
 function getCounters({ sessionId } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return { destructiveOps: 0, externalBytes: 0, startTime: Date.now() };
   if (!sessionId) return { destructiveOps: 0, externalBytes: 0, startTime: Date.now() };
   const c = _readCounters(sessionId);
   if (!fs.existsSync(_budgetPath(sessionId))) _writeCounters(sessionId, c);
@@ -39,6 +42,8 @@ function getCounters({ sessionId } = {}) {
 }
 
 function recordDestructiveOp({ sessionId } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   if (!sessionId) return;
   const c = _readCounters(sessionId);
   c.destructiveOps += 1;
@@ -46,6 +51,8 @@ function recordDestructiveOp({ sessionId } = {}) {
 }
 
 function recordExternalBytes(bytes, { sessionId } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   if (!sessionId || !Number.isFinite(bytes) || bytes <= 0) return;
   const c = _readCounters(sessionId);
   c.externalBytes += Math.floor(bytes);
@@ -53,6 +60,8 @@ function recordExternalBytes(bytes, { sessionId } = {}) {
 }
 
 function resetCounters({ sessionId } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   if (!sessionId) return;
   _writeCounters(sessionId, { destructiveOps: 0, externalBytes: 0, startTime: Date.now() });
 }

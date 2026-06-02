@@ -3,6 +3,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // spend-estimator.js
@@ -24,6 +25,8 @@ function spendFilePath(stateDirOverride) {
 }
 
 function loadSpend(stateDirOverride) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return { total: { input: 0, output: 0 }, byTool: {}, updatedAt: null };
   try {
     const raw = fs.readFileSync(spendFilePath(stateDirOverride), "utf8");
     return JSON.parse(raw);
@@ -33,6 +36,8 @@ function loadSpend(stateDirOverride) {
 }
 
 function saveSpend(data, stateDirOverride) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   const base = stateDirOverride || stateDir();
   ensureDir(base);
   const p   = spendFilePath(stateDirOverride);

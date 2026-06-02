@@ -4,6 +4,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { stateDir }       = require("./state-paths");
+const { ensureStateDirSafe } = require("./state-dir");
 const { currentSessionId } = require("./session-context");
 
 const MAX_CHARS = 500;
@@ -18,6 +19,8 @@ const MAX_CHARS = 500;
  * where text === "" means no prior session data is available.
  */
 function buildSummary({ stateDirOverride } = {}) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return _empty();
   const dir         = stateDirOverride ? path.resolve(stateDirOverride) : stateDir();
   const sessionFile = path.join(dir, "session-context.json");
 
