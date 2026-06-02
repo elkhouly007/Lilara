@@ -5,7 +5,11 @@
 // never raw values) for each {server, tool} pair. On subsequent calls, flags
 // if the shape has changed (arg-schema drift, a.k.a. rug-pull signal).
 //
-// All I/O is on LILARA_STATE_DIR/mcp-pins/pins.json.
+// All I/O is on <stateDir()>/mcp-pins/pins.json  where stateDir() resolves to
+// $LILARA_STATE_DIR when set, else ~/.lilara (auto-created on first use).
+// ADR-033: previously fell back to os.tmpdir() when LILARA_STATE_DIR was unset;
+// that made pins invisible to state-bundle backup and disabled drift detection
+// on systems with world-writable /tmp. Now unified with every other consumer.
 //
 // Fail behaviour (ADR-024):
 //   - State-dir insecure (world-writable / foreign-owned): return
@@ -15,10 +19,12 @@
 //     failures never block the agent.
 
 const fs     = require("fs");
-const os     = require("os");
 const path   = require("path");
 const crypto = require("crypto");
-const { ensureStateDirSafe } = require("./state-dir");
+// ADR-033: use the shared stateDir() resolver (LILARA_STATE_DIR → ~/.lilara)
+// instead of the previous process.env.LILARA_STATE_DIR || os.tmpdir() pattern.
+const { stateDir: _stateDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 // ADR-029: one-shot warning set — avoids log spam when _readPins() is called
 // repeatedly (e.g. in tests) with the same corrupt file.
@@ -42,12 +48,12 @@ function argShapeHash(args) {
   return crypto.createHash("sha256").update(pairs.join(",")).digest("hex").slice(0, 16);
 }
 
-// Returns the path to the pin store file, creating directories as needed.
-// Does NOT validate state-dir permissions — that is done in checkArgShapeDrift
-// before any I/O, so the pins/ subdir is only created under a validated root.
+// Returns the path to the pin store file, creating the mcp-pins subdir as needed.
+// Does NOT validate state-dir permissions — that is done by checkArgShapeDrift()
+// (via ensureBaseDirSafe) before any I/O, so the subdir is only created under a
+// validated root.  Resolves via _stateDir() (LILARA_STATE_DIR → ~/.lilara).
 function _pinStorePath() {
-  const stateDir = process.env.LILARA_STATE_DIR || os.tmpdir();
-  const dir = path.join(stateDir, "mcp-pins");
+  const dir = path.join(_stateDir(), "mcp-pins");
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return path.join(dir, "pins.json");
 }
@@ -123,13 +129,13 @@ function checkArgShapeDrift({ server, tool, args }) {
   try {
     if (!server || !tool) return { drift: false };
 
-    // ADR-024: validate the state directory before any I/O.
-    // Resolve the same base dir that _pinStorePath() uses so we check exactly
-    // what _readPins()/_writePins() will write to.
-    const stateDir = process.env.LILARA_STATE_DIR || os.tmpdir();
-    if (!ensureStateDirSafe(stateDir)) {
-      // Explicit, logged fail-safe — differs from silent fail-open by having a
-      // reason field and a stderr warning (emitted once per process by the helper).
+    // ADR-024 / ADR-033: validate the state directory before any I/O.
+    // ensureBaseDirSafe (write guard) is used instead of ensureStateDirSafe so
+    // a first-run ~/.lilara that doesn't exist yet is auto-created at mode 0o700
+    // and then validated — resolving the first-run ENOENT FP from ADR-033.
+    // On unsafe (world-writable / foreign-owned) dirs, returns false; we emit
+    // the explicit reason field to distinguish from silent fail-open.
+    if (!ensureBaseDirSafe(_stateDir())) {
       return { drift: false, reason: "state-dir-insecure" };
     }
 
