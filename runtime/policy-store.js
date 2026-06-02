@@ -17,6 +17,7 @@ const { fineKey: computeFineKey, fineKeyDual: computeFineKeyDual } = require("./
 const LEARNED_KEY_VERSION = "v2";
 const { projectScope } = require("./project-scope");
 const { stateDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir"); // ADR-028
 
 function paths() {
   const baseDir = stateDir();
@@ -50,7 +51,15 @@ let _policyCache = null;
 
 function loadPolicy() {
   if (_policyCache !== null) return _policyCache;
-  const { policyFile } = paths();
+  const { baseDir, policyFile } = paths();
+  // ADR-028: validate state dir on read. Fail-CLOSED: return emptyPolicy() so no
+  // learned-allow grants can come from a poisoned store. A world-writable store
+  // could have been pre-seeded to pre-grant dangerous commands without user approval.
+  // Only validate when the dir already exists — skip (not fail) if not yet created.
+  if (fs.existsSync(baseDir) && !ensureStateDirSafe(baseDir)) {
+    _policyCache = emptyPolicy();
+    return _policyCache;
+  }
   try {
     _policyCache = JSON.parse(fs.readFileSync(policyFile, "utf8"));
   } catch (err) {
@@ -72,8 +81,11 @@ function savePolicy(policy) {
   if (process.env.LILARA_READONLY_CONTRACT === "1") { _policyCache = policy; return; }
   _policyCache = null;
   try {
-    ensureBaseDir();
-    const { policyFile } = paths();
+    // ADR-028: validate state dir on write. On unsafe dir → cache-only (mirrors the
+    // readonly path). Dangerous write-side: a world-writable store lets attackers
+    // race-overwrite policies; safest fallback is in-memory update only.
+    const { baseDir, policyFile } = paths();
+    if (!ensureBaseDirSafe(baseDir)) { _policyCache = policy; return; }
     const data = JSON.stringify(policy, null, 2) + "\n";
     const tmp = policyFile + ".tmp";
     fs.writeFileSync(tmp, data, { mode: 0o600 });

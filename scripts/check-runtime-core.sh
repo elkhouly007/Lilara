@@ -649,6 +649,11 @@ pass 'eval-runner discover/runAll/toJUnit'
 node "$root/tests/runtime/mcp-pin.test.js" || exit 1
 pass 'mcp-pin argShapeHash + checkArgShapeDrift'
 
+# ADR-028 state-dir consumer validation: journal/policy/session/lock degrade safely
+# on poisoned LILARA_STATE_DIR (POSIX) and work normally on safe dirs (all platforms).
+node "$root/tests/runtime/state-dir-consumers.test.js" || exit 1
+pass 'state-dir-consumers: ADR-028 poisoned-dir degradation + safe-dir regression'
+
 # mcp-floor adversarial test: cycle-safe walker + require-review degrade +
 # hardening: Unicode dual-path, all-shape arg coverage, MultiEdit F26, P1/P2 gates
 node "$root/tests/runtime/mcp-floor-adversarial.test.js" || exit 1

@@ -7,6 +7,7 @@ const path = require("path");
 const zlib = require("zlib");
 const { stateDir }    = require("./state-paths");
 const { redact } = require("./secret-scan");
+const { ensureBaseDirSafe } = require("./state-dir"); // ADR-028
 
 // Maximum size before rotation. Override with LILARA_JOURNAL_MAX_MB (integer MB).
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -92,8 +93,11 @@ function append(entry) {
     process.stderr.write("[ARG_DECISION_JOURNAL] deprecated — use LILARA_DECISION_JOURNAL=0 instead\n");
     return false;
   }
-  ensureBaseDir();
-  const { logFile } = journalPaths();
+  // ADR-028: validate state dir before any write. A poisoned journal dir could
+  // let an attacker forge the hash chain; warn-and-disable is the correct fallback
+  // (same as LILARA_DECISION_JOURNAL=0 — action output is unaffected).
+  const { baseDir, logFile } = journalPaths();
+  if (!ensureBaseDirSafe(baseDir)) return false;
   rotateIfNeeded(logFile);
   const shouldRedact = Boolean(entry.redact);
   const clean = shouldRedact ? redactText : (t) => String(t || "");
