@@ -21,7 +21,7 @@ const crypto = require("crypto");
 const path = require("path");
 const { canonicalJson } = require("./canonical-json");
 const { extractArgs, extractPaths } = require("./arg-extractor");
-const { classifyCommand } = require("./decision-key");
+const { classifyCommandDual } = require("./decision-key");
 
 // secret-scan is optional — fixtures rename it to *.disabled-test-bak to verify
 // fail-open. Cached as null when absent; payloadClass falls back to inline
@@ -487,7 +487,13 @@ function build(input, ctx) {
       ? safeCtx.command
       : _pickCommand(safeInput);
   const commandTokens = command ? extractArgs(command) : [];
-  const commandClass = command ? classifyCommand(command) : "unknown";
+  // ADR-026 (Khouly authorized re-baseline, 2026-06-02): classifyCommandDual
+  // defeats Unicode look-alike bypasses (Cyrillic рm, full-width ｒｍ) so that
+  // receipt commandClass, ir.destructive, ir.writeIntent, and irHash all reflect
+  // the true semantic class. The 2 adversarial corpus entries whose irHash was
+  // recorded under the old raw classification have been re-baselined — see
+  // tests/fixtures/replay-corpus/adversarial.jsonl and the PR commit message.
+  const commandClass = command ? classifyCommandDual(command) : "unknown";
   const argv0 = commandTokens.length > 0 ? commandTokens[0] : null;
 
   const cwdRaw =

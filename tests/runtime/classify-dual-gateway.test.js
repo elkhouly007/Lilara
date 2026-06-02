@@ -10,9 +10,13 @@
 //   B. decision-engine.js:1039 — non-MCP Bash contract-scope class
 //   C. degraded-mode.js:108  — isWriteLike() fallback
 //
-// NOT migrated (deferred / design-affecting — see Proposed ADRs):
-//   D. action-ir.js:490 — irHash stability (ADR-026, Khouly's call)
-//   E. decision-key.js fineKey/legacyKey — learned-allow key stability (ADR-027)
+// Migrated — ADR-026 (Khouly authorized re-baseline, 2026-06-02):
+//   D. action-ir.js:490 — receipt commandClass, ir.destructive, irHash now reflect
+//      true semantic class (destructive-delete) for Unicode-obfuscated rm variants.
+//
+// Migrated — ADR-027 (Khouly approved versioned v2| key prefix, 2026-06-02):
+//   E. decision-key.js fineKey/legacyKey — policy-store.js scopedKey() now uses
+//      fineKeyDual (v2| prefix); legacy keys are still matched as fallback.
 //
 // Evasion classes used per site (deliberately varied):
 //   A. Cyrillic  — U+0440 'р' looks like Latin 'r'
@@ -205,6 +209,60 @@ isolated((dir) => {
   isWriteLike(inputDanger) === true
     ? ok("Site-C (isWriteLike): ASCII rm -rf / remains write-like (no regression)")
     : fail("Site-C (isWriteLike): ASCII rm -rf / must be write-like", "regression — raw-only path was necessary");
+})();
+
+// ─── Site D: action-ir.js:490 buildIr() — Cyrillic + full-width evasion ──────
+// ADR-026: migrated to classifyCommandDual; irHash re-baselined for the 2 corpus
+// entries whose recorded hash was computed under the old raw classification.
+// Guards: assert ir.commandClass and ir.destructive are now correct for
+// Unicode-obfuscated rm; ASCII commands are unaffected.
+
+(function testSiteD_Cyrillic() {
+  const input = {
+    tool:    "Bash",
+    harness: "claude",
+    command: "рm -rf /",  // Cyrillic U+0440 'р'
+    branch:  "feature/test",
+  };
+  const ir = buildIr(input, { harness: "claude", tool: "Bash" });
+  ir.commandClass === "destructive-delete"
+    ? ok("Site-D (buildIr): Cyrillic рm commandClass=destructive-delete (dual-path)")
+    : fail("Site-D (buildIr): Cyrillic рm commandClass must be destructive-delete", `got ${ir.commandClass}`);
+  ir.destructive === true
+    ? ok("Site-D (buildIr): Cyrillic рm ir.destructive=true")
+    : fail("Site-D (buildIr): Cyrillic рm ir.destructive must be true", `got ${ir.destructive}`);
+})();
+
+(function testSiteD_FullWidth() {
+  const input = {
+    tool:    "Bash",
+    harness: "claude",
+    command: "ｒｍ -rf /",  // U+FF52 'ｒ', U+FF4D 'ｍ'
+    branch:  "feature/test",
+  };
+  const ir = buildIr(input, { harness: "claude", tool: "Bash" });
+  ir.commandClass === "destructive-delete"
+    ? ok("Site-D (buildIr): full-width ｒｍ commandClass=destructive-delete (dual-path)")
+    : fail("Site-D (buildIr): full-width ｒｍ commandClass must be destructive-delete", `got ${ir.commandClass}`);
+  ir.destructive === true
+    ? ok("Site-D (buildIr): full-width ｒｍ ir.destructive=true")
+    : fail("Site-D (buildIr): full-width ｒｍ ir.destructive must be true", `got ${ir.destructive}`);
+})();
+
+(function testSiteD_ASCII_unchanged() {
+  // Anti-FP: plain ASCII commands must not regress under dual-path migration
+  const irLs = buildIr({ tool: "Bash", harness: "claude", command: "ls -la", branch: "feature/test" }, { harness: "claude", tool: "Bash" });
+  irLs.commandClass === "generic"
+    ? ok("Site-D (buildIr): ASCII ls commandClass=generic (anti-FP guard)")
+    : fail("Site-D (buildIr): ASCII ls must stay generic", `got ${irLs.commandClass}`);
+  irLs.destructive === false
+    ? ok("Site-D (buildIr): ASCII ls ir.destructive=false (anti-FP guard)")
+    : fail("Site-D (buildIr): ASCII ls must not be destructive", `got ${irLs.destructive}`);
+  // ASCII rm -rf must still be caught
+  const irRm = buildIr({ tool: "Bash", harness: "claude", command: "rm -rf /", branch: "feature/test" }, { harness: "claude", tool: "Bash" });
+  irRm.commandClass === "destructive-delete"
+    ? ok("Site-D (buildIr): ASCII rm -rf / remains destructive-delete (no regression)")
+    : fail("Site-D (buildIr): ASCII rm -rf / must be destructive-delete", `got ${irRm.commandClass}`);
 })();
 
 // ─── Summary ─────────────────────────────────────────────────────────────────

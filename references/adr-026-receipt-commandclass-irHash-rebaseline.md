@@ -1,6 +1,6 @@
 # ADR-026 — Receipt `commandClass` Under-Classification + irHash Re-baseline
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Accepted (Option 1) — 2026-06-02. Khouly authorized re-baseline 2026-06-02.  
 **Severity:** HIGH / MED  
 **Area:** `runtime/action-ir.js:490` and `tests/fixtures/replay-corpus/adversarial.jsonl`.
 
@@ -70,12 +70,12 @@ safety problem.
 
 With Khouly's explicit approval:
 1. Migrate `action-ir.js:490` to `classifyCommandDual`.
-2. Re-generate the two affected replay entries:
+2. Re-generate the two affected replay entries via the canonical builder:
    ```bash
-   node scripts/replay-decisions.js --corpus tests/fixtures/replay-corpus/adversarial.jsonl \
-     --update-baseline adv:critical-rm-cyrillic-er adv:critical-rm-fullwidth
+   node tests/fixtures/replay-corpus/build-adversarial.js
    ```
-   (or rebuild via `node tests/fixtures/replay-corpus/build-adversarial.js`)
+   Note: the `--update-baseline` flag mentioned in the original draft does NOT exist in
+   `scripts/replay-decisions.js` — the builder is the correct regen path.
 3. Commit the new `irHash` values alongside the code change.
 4. Document the re-baseline in the ADR chain and the commit message.
 
