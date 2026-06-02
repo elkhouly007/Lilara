@@ -67,5 +67,59 @@ withPins(() => {
 const r0 = checkArgShapeDrift({ server: "", tool: "", args: {} });
 r0.drift === false ? ok("drift: fail-open on empty server/tool") : fail("drift: fail-open on empty server/tool", JSON.stringify(r0));
 
+// ─── ADR-024: state-dir permission validation ─────────────────────────────────
+// These tests prove that checkArgShapeDrift fails-safe when LILARA_STATE_DIR
+// is world-writable (POSIX only) and that normal safe dirs still work.
+
+// ADR-024 T1: safe temp dir → normal drift detection still works (regression guard)
+withPins((dir) => {
+  const r = checkArgShapeDrift({ server: "svc", tool: "op", args: { x: 1 } });
+  r.drift === false && !r.reason
+    ? ok("ADR024-T1: safe state-dir → first-sight no drift (regression guard)")
+    : fail("ADR024-T1: safe state-dir → no drift", JSON.stringify(r));
+});
+
+if (process.platform !== "win32") {
+  // ADR-024 T2 (POSIX): world-writable state dir → fail-safe, no I/O
+  // chmod 0777 makes the dir world-writable; ensureStateDirSafe must return false.
+  // Expected result: { drift: false, reason: "state-dir-insecure" }
+  // AND no pins.json written inside the poisoned dir.
+  withPins((dir) => {
+    fs.chmodSync(dir, 0o777); // make world-writable
+    try {
+      const r = checkArgShapeDrift({ server: "evil-svc", tool: "op", args: { x: 1 } });
+      r.drift === false && r.reason === "state-dir-insecure"
+        ? ok("ADR024-T2 (POSIX): world-writable state-dir → { drift:false, reason:'state-dir-insecure' }")
+        : fail("ADR024-T2 (POSIX): world-writable state-dir", `result=${JSON.stringify(r)}`);
+      // Confirm no pins.json was written under the poisoned location
+      const pinsPath = path.join(dir, "mcp-pins", "pins.json");
+      !fs.existsSync(pinsPath)
+        ? ok("ADR024-T2 (POSIX): no pins.json written to poisoned location")
+        : fail("ADR024-T2 (POSIX): no I/O to poisoned location", `pins.json exists at ${pinsPath}`);
+    } finally {
+      fs.chmodSync(dir, 0o700); // restore so withPins cleanup can rmSync
+    }
+  });
+
+  // ADR-024 T3 (POSIX): safe dir after fix → drift detection resumes correctly
+  withPins((dir) => {
+    // dir is created by mkdtempSync (mode 0o700) — safe by default
+    checkArgShapeDrift({ server: "db", tool: "query", args: { sql: "SELECT 1" } });
+    const r = checkArgShapeDrift({ server: "db", tool: "query", args: { sql: 42 } }); // type change
+    r.drift === true
+      ? ok("ADR024-T3 (POSIX): safe dir → drift detection works as expected")
+      : fail("ADR024-T3 (POSIX): safe dir → drift detection", JSON.stringify(r));
+  });
+} else {
+  // Windows: world-writable check is skipped (POSIX mode bits are meaningless).
+  // Verify that drift detection still works normally (no false-unsafe).
+  withPins((dir) => {
+    const r = checkArgShapeDrift({ server: "svc", tool: "op", args: { x: 1 } });
+    r.drift === false && !r.reason
+      ? ok("ADR024-T2 (Windows): state-dir check skipped, drift detection works normally")
+      : fail("ADR024-T2 (Windows): drift detection", JSON.stringify(r));
+  });
+}
+
 console.log(`\nmcp-pin.test.js: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
