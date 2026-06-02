@@ -1022,14 +1022,29 @@ function decide(input = {}) {
   // path and the final return surface the same marker.
   const _degradedState  = _degradedMode.getCached();
   const _degradedMarker = _degradedMode.buildMarker(_degradedState);
-  const _writeLike      = _degradedMode.isWriteLike(input);
+  // ADR-030: guarded so an adversarial input property cannot crash decide()
+  // before the security floors run. isWriteLike reads input.tool/ir/envelope/command;
+  // on throw, fail-safe to true ("assume write-like") so degraded-mode routing
+  // still escalates rather than silently allowing. Advisory only — the floors decide.
+  let _writeLike;
+  try { _writeLike = _degradedMode.isWriteLike(input); }
+  catch { _writeLike = true; }
   // Default for buildEarlyBlock() — set per-call so the early-block path
   // (kill-switch is the one exception above; it returns before this point)
   // sees the same marker as the final return.
   _earlyBlockDegradedDefault = _degradedMarker;
 
-  // Classify command intent for routing intelligence and journaling
-  const intentResult = classifyIntent(input.command || "");
+  // Classify command intent for routing intelligence and journaling.
+  // ADR-030: guarded so an adversarial input.command getter cannot crash decide()
+  // before the security floors run. Advisory receipt/routing enrichment only —
+  // fail-safe to the no-touch shape { intent:"unknown", confidence:0.3, indicators:[] }
+  // (mirrors classifyIntent's own empty-input return at intent-classifier.js:37).
+  // Note: classifyCommandDual at line ~1057 also reads input.command but is load-bearing
+  // (drives isGated / F2 / contract scope class) and must not be silently swallowed
+  // — see ADR-031 for the input-materialization fix for load-bearing sites.
+  let intentResult;
+  try { intentResult = classifyIntent(input.command || ""); }
+  catch { intentResult = { intent: "unknown", confidence: 0.3, indicators: [] }; }
 
   // ── Section 4.6 precedence matrix: contract verification (Steps 2 + 5) ──
   const contract    = getContract(discovered.projectRoot || process.cwd());
