@@ -23,7 +23,7 @@
 // signal); "0" pins it off (CI/test hermeticity when a chain happens to be
 // present). Either explicit value short-circuits the verify() call.
 
-const { classifyCommand } = require("./decision-key");
+const { classifyCommandDual } = require("./decision-key");
 
 let _verify = null;
 function _getVerify() {
@@ -105,7 +105,9 @@ function isWriteLike(input) {
   const envT = input.envelope && input.envelope.targets;
   if (Array.isArray(envT) && envT.length > 0) return true;
   if (typeof input.command === "string" && input.command.length > 0) {
-    const cls = classifyCommand(input.command);
+    // ADR-023: dual-path so Cyrillic/ZWJ-obfuscated destructive commands are
+    // recognised as write-like even in degraded mode.
+    const cls = classifyCommandDual(input.command);
     if (_WRITE_LIKE_CMD_CLASSES.has(cls)) return true;
   }
   return false;

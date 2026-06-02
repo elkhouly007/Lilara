@@ -11,7 +11,7 @@ const { fineKey } = require("./decision-key");
 const { build } = require("./action-planner");
 const { evaluate } = require("./promotion-guidance");
 const { recommend } = require("./workflow-router");
-const { classifyCommand, GATED_REVIEW_CLASSES } = require("./decision-key");
+const { classifyCommand, classifyCommandDual: _classifyCommandDualFromKey, GATED_REVIEW_CLASSES } = require("./decision-key");
 const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
 // ADR-020 (narrow): two unambiguous bypass predicates shared with the Bash risk
 // path. Only base64-pipe-exec and network-process-sub — no variable-as-command,
@@ -559,23 +559,13 @@ function _evalCredPersistFloor(input, contract) {
   return { fire: false };
 }
 
-// classifyCommandDual — dual-path classifier for MCP floors (ADR-008).
-// Mirrors risk-score.js's dual-path matching: tries the raw string first; if
-// generic AND normalizeCommand changes the string, tries the NFKD + confusables-
-// folded form too. Defeats Unicode look-alike bypass (Cyrillic рm, full-width
-// ｒｍ, etc.) in MCP arg/registration paths that previously used raw-only classify.
-// Lives in decision-engine.js (not decision-key.js) to avoid adding a new require
-// to that module, which is loaded early and has no other normalizeCommand dependency.
-// ASCII fast-path: direct match returns immediately; generic result where norm===raw
-// skips the second classify too.
-function _classifyCommandDual(cmd) {
-  const raw    = String(cmd || "");
-  const rawCls = classifyCommand(raw);
-  if (rawCls !== "generic") return rawCls;      // direct match — skip normalization
-  const norm   = _normalizeCommand(raw);
-  if (norm === raw)         return rawCls;      // ASCII / no confusables — skip second pass
-  return classifyCommand(norm);                 // Unicode-folded second arm
-}
+// classifyCommandDual — dual-path classifier for MCP floors (ADR-008 / ADR-023).
+// Delegates to classifyCommandDual from decision-key.js (ADR-023: centralised
+// export so all call sites can share the same Unicode-hardened classifier).
+// The implementation (NFKD + confusable-fold, ASCII fast-path) now lives in
+// decision-key.js; this thin wrapper is kept for local symmetry and to avoid
+// renaming all existing F25/F26 call sites within this file.
+const _classifyCommandDual = _classifyCommandDualFromKey;
 
 // F25: mcp-arg-danger floor helpers. Pure; zero I/O.
 // Detects MCP tool calls whose argument payload contains a dangerous-command-
@@ -1046,7 +1036,9 @@ function decide(input = {}) {
     } catch { /* override is best-effort; fall back to project policy */ }
   }
 
-  const cmdClass    = classifyCommand(input.command || "");
+  // ADR-023: use classifyCommandDual so Cyrillic/ZWJ/confusable evasions are
+  // caught when computing contract scope class for non-MCP Bash commands.
+  const cmdClass    = _classifyCommandDual(input.command || "");
   const isGated     = GATED_COMMAND_CLASSES.has(cmdClass);
   let contractAllow = false;
   let contractReason = null;

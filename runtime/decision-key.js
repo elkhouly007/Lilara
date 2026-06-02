@@ -12,6 +12,11 @@
 // as a fallback for backward-compat with existing learned-allow entries.
 
 const path = require("path");
+// ADR-023: import normalizeCommand here (command-normalize is a leaf module
+// with no runtime/* dependencies — no circular-dep risk). Enables exporting
+// classifyCommandDual so all call sites can use the same dual-path hardening
+// that MCP floors already use via the private _classifyCommandDual in decision-engine.js.
+const { normalizeCommand } = require("./command-normalize");
 
 // ---------------------------------------------------------------------------
 // Command class detection (mirrors policy-store.js — kept in sync)
@@ -29,6 +34,36 @@ function classifyCommand(cmd) {
   if (/^\s*sudo\s+/.test(c))                                             return "sudo";
   if (/\b(npm|yarn)\s+(install|add|i)\b.*\s(-g|--global)\b/.test(c))   return "global-pkg-install";
   return "generic";
+}
+
+// ---------------------------------------------------------------------------
+// Dual-path command classifier (ADR-008 / ADR-023).
+//
+// Defeats Unicode look-alike bypasses (Cyrillic рm, full-width ｒｍ, ZWJ/ZWNJ
+// insertion, IPA small-caps, etc.) by running a NFKD + confusable-fold pass
+// when the raw classification returns "generic" and normalization produces a
+// different string. ASCII fast-path: returns immediately without normalization
+// when rawCls !== "generic" (already caught) or when norm === raw.
+//
+// Returns the MORE RESTRICTIVE of raw and normalized class — never under-classifies.
+// Call sites should prefer this over classifyCommand() wherever the command
+// may be user-supplied. Pure function; zero I/O.
+//
+// Note on call sites NOT migrated in this PR:
+//   - action-ir.js:490 — commandClass feeds irHash; the non-ASCII replay corpus
+//     entries have irHash recorded under "generic"; migrating would drift those
+//     records → Khouly's explicit call (ADR-026).
+//   - decision-key.js fineKey/legacyKey — legacyKey intentionally stays raw for
+//     backward-compat with existing learned-allow key entries; migrating risks
+//     key churn → ADR-027.
+// ---------------------------------------------------------------------------
+function classifyCommandDual(cmd) {
+  const raw    = String(cmd || "");
+  const rawCls = classifyCommand(raw);
+  if (rawCls !== "generic") return rawCls;     // direct match — skip normalization
+  const norm   = normalizeCommand(raw);
+  if (norm === raw)         return rawCls;     // ASCII / no confusables — skip second pass
+  return classifyCommand(norm);                // Unicode-folded second arm
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +161,6 @@ function legacyKey(input = {}) {
 }
 
 module.exports = {
-  fineKey, legacyKey, classifyCommand,
+  fineKey, legacyKey, classifyCommand, classifyCommandDual,
   HARD_BLOCK_CLASSES, GATED_REVIEW_CLASSES, pathBucket, branchBucket,
 };

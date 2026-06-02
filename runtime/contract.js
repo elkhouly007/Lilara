@@ -22,7 +22,7 @@ const os     = require("os");
 const { canonicalJson }    = require("./canonical-json");
 const { validateContract } = require("./config-validator");
 const { globMatch }        = require("./glob-match");
-const { classifyCommand }  = require("./decision-key");
+const { classifyCommand, classifyCommandDual }  = require("./decision-key");
 const { extractPaths }     = require("./arg-extractor");
 const { stateDir }         = require("./state-paths");
 
@@ -542,7 +542,10 @@ const GATED_CLASSES = new Set([
 function scopeMatch(contract, input) {
   if (!contract) return { allowed: false, reason: "no-contract", gated: true };
 
-  const cmdClass = input.commandClass || classifyCommand(input.command || "");
+  // ADR-023: use dual-path so Cyrillic/ZWJ/confusable evasions are caught here
+  // as in F25/F26. input.commandClass (pre-computed by action-ir.js) is accepted
+  // as-is since it reflects the raw class for irHash stability (see ADR-026).
+  const cmdClass = input.commandClass || classifyCommandDual(input.command || "");
   const ctx      = { projectRoot: input.projectRoot || "" };
   const scopes   = contract.scopes || {};
   const isGated  = GATED_CLASSES.has(cmdClass);
