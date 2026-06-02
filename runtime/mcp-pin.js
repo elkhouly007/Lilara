@@ -20,6 +20,10 @@ const path   = require("path");
 const crypto = require("crypto");
 const { ensureStateDirSafe } = require("./state-dir");
 
+// ADR-029: one-shot warning set — avoids log spam when _readPins() is called
+// repeatedly (e.g. in tests) with the same corrupt file.
+const _corruptWarnedPaths = new Set();
+
 // Returns a coarse type label for a value — never reveals the raw value.
 function _typeClass(v) {
   if (v === null) return "null";
@@ -48,13 +52,36 @@ function _pinStorePath() {
   return path.join(dir, "pins.json");
 }
 
+// ADR-029: emit a one-shot stderr warning when pins.json cannot be parsed,
+// so the operator sees the problem without log spam across multiple invocations.
+function _warnCorruptOnce(pinPath, err) {
+  if (_corruptWarnedPaths.has(pinPath)) return;
+  _corruptWarnedPaths.add(pinPath);
+  process.stderr.write(
+    `[lilara] WARNING: mcp-pins/pins.json is unreadable (${err && err.message || err}); ` +
+    "drift detection suspended for this invocation. Remove or repair the file to resume.\n"
+  );
+}
+
 // Read the pin store (keyed by "<server>/<tool>").
+// ADR-029: ENOENT (no file yet = legit first-sight) and JSON parse-error (corruption)
+// are now handled separately. A corrupt pin store no longer silently resets all drift
+// history to first-sight — instead a sentinel { _corrupt: true } is returned so the
+// caller can produce an explicit { drift: false, reason: "pin-store-corrupt" } rather
+// than silently re-pinning to the (possibly rug-pulled) current arg shape.
 function _readPins() {
   const p = _pinStorePath();
   try {
     return JSON.parse(fs.readFileSync(p, "utf8"));
-  } catch {
-    return {};
+  } catch (err) {
+    if (err && err.code === "ENOENT") return {}; // legitimate: no pin file yet
+    // Parse error or other I/O error — possible corruption. Do NOT silently reset.
+    // Forensic copy (best-effort, original stays so detection remains visibly suspended
+    // until the operator removes the file; this is intentional — the backup preserves
+    // evidence while the original keeps signaling the problem on every call).
+    try { fs.copyFileSync(p, `${p}.corrupt.${Date.now()}.bak`); } catch { /* best-effort */ }
+    _warnCorruptOnce(p, err);
+    return { _corrupt: true }; // sentinel — causes caller to suspend drift detection
   }
 }
 
@@ -109,6 +136,9 @@ function checkArgShapeDrift({ server, tool, args }) {
     const key    = `${server}/${tool}`;
     const hash   = argShapeHash(args);
     const pins   = _readPins();
+    // ADR-029: sentinel from _readPins() means the pin file is corrupt (not merely absent).
+    // Suspend drift detection explicitly rather than silently treating this as first-sight.
+    if (pins && pins._corrupt) return { drift: false, reason: "pin-store-corrupt" };
     const stored = pins[key];
     if (!stored) {
       // First sight — record the hash.
