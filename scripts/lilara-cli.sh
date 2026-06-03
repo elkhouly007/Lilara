@@ -13,6 +13,8 @@
 #   setup       Run the interactive onboarding wizard.
 #   audit       Audit scripts and hook files for unsafe patterns.
 #   check       Fast runtime + unit checks (< 30 s). No fixtures, no audit scans, no bench.
+#   pre-push    Local pre-push gate: 6-gate set mirroring CI (check-version, fixtures,
+#               runtime-core, bench, replay, eval). Run before every git push.
 #   ci          Full CI superset: check + audit + fixtures + bench. Matches GitHub Actions.
 #   contract    Manage the upfront security contract (init/accept/show/verify/diff/amend).
 #   operator-token  Manage one-shot operator tokens for non-TTY contract acceptance (mint/verify).
@@ -292,6 +294,52 @@ case "$cmd" in
   # ── fixtures ──────────────────────────────────────────────────────────────
   fixtures)
     exec bash "${scripts}/run-fixtures.sh" "$@"
+    ;;
+
+  # ── pre-push ──────────────────────────────────────────────────────────────
+  # 6-gate set that mirrors the GitHub Actions "Checks" job step-for-step.
+  # Run this before every `git push` to catch regressions the fast `check`
+  # arm skips. Gate order matches CI (check.yml steps 1-6):
+  #   1. check-version (VERSION ↔ CHANGELOG parity)
+  #   2. run-fixtures  (420 declarative fixture cases)
+  #   3. check-runtime-core (all runtime unit tests incl. replay-corpus drift)
+  #   4. bench-runtime-decision (hot p99 regression gate)
+  #   5. check-decision-replay (12 replay entries + F21 sweep)
+  #   6. eval-decision-quality (0.0%/0.0% FP/FN gate)
+  #
+  # Motivation (trust-boundary + decomp sprint lesson): the decomp sprint
+  # omitted check-runtime-core.sh from its local gate set. A stale test
+  # broke master CI for 5+ runs before the quad-track sprint caught it.
+  # This subcommand closes that gap permanently.
+  pre-push)
+    section() { printf '\n%s━━━ %s ━━━%s\n' "$CYAN" "$1" "$RESET"; }
+    failed=0
+
+    section "1/6 Version + changelog parity"
+    bash "${scripts}/check-version.sh" --check-changelog || failed=1
+
+    section "2/6 Fixtures (declarative)"
+    bash "${scripts}/run-fixtures.sh" || failed=1
+
+    section "3/6 Runtime core (unit tests + corpus replay drift)"
+    bash "${scripts}/check-runtime-core.sh" || failed=1
+
+    section "4/6 Runtime bench (p99 regression)"
+    bash "${scripts}/bench-runtime-decision.sh" || failed=1
+
+    section "5/6 Decision replay"
+    LILARA_CONTRACT_ENABLED=0 LILARA_TRAJECTORY_WINDOW_MIN=0 \
+      bash "${scripts}/check-decision-replay.sh" || failed=1
+
+    section "6/6 Eval quality (FP/FN gate)"
+    LILARA_EVAL_MAX_FP_PCT=0 LILARA_EVAL_MAX_FN_PCT=0 \
+      bash "${scripts}/eval-decision-quality.sh" || failed=1
+
+    [ "$failed" -eq 0 ] \
+      && printf '\n%s✓ All pre-push gates passed — safe to push.%s\n' "$GREEN" "$RESET" \
+      && exit 0
+    printf '\n%s✗ One or more pre-push gates failed — do not push.%s\n' "$RED" "$RESET" >&2
+    exit 1
     ;;
 
   # ── ci ────────────────────────────────────────────────────────────────────
