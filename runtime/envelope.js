@@ -11,6 +11,9 @@ const { extractArgs, extractPaths } = require("./arg-extractor");
 const { canonicalJson } = require("./canonical-json");
 const { currentSessionId } = require("./session-context");
 const { stateDir, ensureDir } = require("./state-paths");
+// ADR-032: state-dir validation helpers. ensureBaseDirSafe creates-then-validates
+// (write guard); ensureStateDirSafe validates only (read guard).
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 const HEAD_BYTES = 4096;
 const DEFAULT_ENV_KEYS = ["PATH", "LD_LIBRARY_PATH", "NODE_PATH", "PATHEXT", "ComSpec", "SHELL", "BASH_ALIASES"];
@@ -98,7 +101,26 @@ function baselinePath(input = {}) {
 
 function loadBaseline(input = {}, env, keys) {
   if (input.envBaseline && typeof input.envBaseline === "object") return input.envBaseline;
-  const file = baselinePath(input);
+
+  // ADR-032 (trust-boundary B1): gate the entire read+write path on state-dir
+  // safety BEFORE touching any file.
+  //
+  // Attack: an attacker controlling a world-writable state dir can either
+  //   (a) write a crafted baseline file matching the poisoned env, so
+  //       diffEnv(attackerBaseline, poisonedEnv) = empty → F15 silent, or
+  //   (b) delete the baseline to force re-baselining to the poisoned env, so
+  //       the fresh snapshot also matches → F15 silent.
+  //
+  // Fix: when the state dir fails validation, return null WITHOUT reading or
+  // writing.  null → diffEnv(null, current) surfaces all current env vars as
+  // "added" → envDiff is non-empty → any pre-existing envelope hash no longer
+  // matches → F15 fires.  Fail-SAFE.
+  //
+  // ensureBaseDirSafe creates ~/.lilara if absent (mode 0o700) then validates —
+  // so a first-run fresh install passes the check and proceeds to re-baseline.
+  if (!ensureBaseDirSafe(stateDir())) return null;
+
+  const file = baselinePath(input); // ensureDir(envelope-baselines subdir) is idempotent
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
@@ -476,6 +498,13 @@ function _normalizeDeclaredIntent(raw) {
 function loadDeclaredEnvelope(opts) {
   const journalError = opts && typeof opts.journalError === "function" ? opts.journalError : null;
   const now = opts && Number.isFinite(opts.now) ? Number(opts.now) : Date.now();
+  // ADR-032 (trust-boundary B1): validate the state dir before reading the
+  // declared-intent envelope.  An attacker controlling a world-writable state
+  // dir could write a crafted envelope.json that expands what F20 permits.
+  // ensureStateDirSafe is the read guard — if the dir doesn't exist yet it
+  // returns false, which is the correct fail-safe (null = no declared intent
+  // = F20 does not fire).  Same semantics as absent file: SAFE direction.
+  if (!ensureStateDirSafe(stateDir())) return null;
   let raw;
   try {
     raw = fs.readFileSync(declaredEnvelopePath(), "utf8");
@@ -508,6 +537,8 @@ function pendingPath(toolUseId) {
 
 function rememberPending(toolUseId, envelope) {
   if (!toolUseId || !envelope || process.env.LILARA_READONLY_CONTRACT === "1") return false;
+  // ADR-032: write guard — only write to a validated state dir.
+  if (!ensureBaseDirSafe(stateDir())) return false;
   try {
     const file = pendingPath(toolUseId);
     const tmp = file + ".tmp";
@@ -521,6 +552,8 @@ function rememberPending(toolUseId, envelope) {
 
 function loadPending(toolUseId, consume = false) {
   if (!toolUseId) return null;
+  // ADR-032: read guard — only read from a validated state dir.
+  if (!ensureStateDirSafe(stateDir())) return null;
   try {
     const file = pendingPath(toolUseId);
     const data = JSON.parse(fs.readFileSync(file, "utf8"));

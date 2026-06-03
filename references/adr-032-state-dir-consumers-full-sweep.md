@@ -1,8 +1,8 @@
 # ADR-032 — State-Dir Validation: Full Consumer Sweep (Beyond ADR-028)
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding during ADR-028 implementation.  
-**Severity:** MED-HIGH  
-**Area:** `runtime/envelope.js`, `runtime/snapshot.js`, `runtime/receipt-export.js`, `runtime/state-bundle.js` — state-dir consumers not hardened by ADR-028.
+**Status:** Partially Implemented — 2026-06-03 (feat/adr-032-envelope-validation for envelope.js — the HIGH finding; feat/adr-032-state-dir-full-sweep for all remaining consumers). Originally proposed 2026-06-02 as audit-by-side-effect finding during ADR-028 implementation. Full sweep (18 consumers total, 10 newly found by the comprehensive trust-boundary audit) covered in two PRs per the bundle shape.  
+**Severity:** MED-HIGH (envelope.js loadBaseline() was HIGH — fail-UNSAFE; rest are MED/LOW)  
+**Area:** `runtime/envelope.js` (this PR), then `runtime/journal-chain.js`, `runtime/contract.js`, `runtime/snapshot.js`, `runtime/receipt-export.js`, `runtime/state-bundle.js`, `runtime/sarif-export.js`, `runtime/telemetry.js`, `runtime/session-budget.js`, `runtime/session-memory.js`, `runtime/session-resume.js`, `runtime/spend-estimator.js`, `runtime/workflow-enforcer.js`, `runtime/memory-search.js` (PR 4).
 
 ---
 
