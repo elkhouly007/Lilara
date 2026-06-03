@@ -319,13 +319,34 @@ The following code is NOT extracted — it either cannot be or extraction provid
 
 ---
 
-## Status
+## Status — COMPLETE
 
-| Module | Status | SHA | PR |
-|--------|--------|-----|-----|
-| M1 — floor-credential-persist.js | Planned | — | — |
-| M2 — floor-cross-agent-lock-eval.js | Planned | — | — |
-| M3 — floor-ambient-authority.js | Planned | — | — |
-| M4 — floor-mcp.js | Planned | — | — |
-| M5 — notify-engine-hook.js | Planned | — | — |
-| M6 — early-receipt-builder.js | Planned | — | — |
+| Module | Status | Squash SHA | PR | Lines moved |
+|--------|--------|------------|-----|-------------|
+| M1 — floor-credential-persist.js | ✅ Merged | `ad40d60` | [#125](https://github.com/elkhouly007/Lilara/pull/125) | 63 |
+| M2 — floor-cross-agent-lock-eval.js | ✅ Merged | `e3219c1` | [#126](https://github.com/elkhouly007/Lilara/pull/126) | 70 |
+| M3 — floor-ambient-authority.js | ✅ Merged | `48aaa51` | [#127](https://github.com/elkhouly007/Lilara/pull/127) | 102 |
+| M4 — floor-mcp.js | ✅ Merged | `6ee13d5` | [#128](https://github.com/elkhouly007/Lilara/pull/128) | 272 |
+| M5 — notify-engine-hook.js | ✅ Merged | `d1f729d` | [#129](https://github.com/elkhouly007/Lilara/pull/129) | ~50 |
+| M6 — early-receipt-builder.js | ✅ Merged | `898c8ee` | [#130](https://github.com/elkhouly007/Lilara/pull/130) | ~200 |
+
+**Final master SHA:** `898c8ee`  
+**Line count:** `runtime/decision-engine.js` 2422 → **1678 lines** (−744, −30.7%)  
+**No stop conditions hit. All gates green throughout.**
+
+---
+
+## Sprint Summary
+
+| Sprint metric | Value |
+|---------------|-------|
+| Phase 1 (audit + module map) | PR #124 |
+| Phase 2 extractions | PRs #125–#130 (6 PRs) |
+| Phase 3 consolidation | PR #131 |
+| Baseline version | 0.1.7 (master `7210a79`) |
+| Final version | 0.1.8 (master `898c8ee`+) |
+| Fixtures throughout | 420/420 PASS |
+| Eval throughout | 0.0%/0.0% FP/FN |
+| Replay corpus | 105/105 byte-identical on every PR |
+| Bench p99 peak | 2.841ms (cap 77ms) |
+| Stop conditions hit | None |

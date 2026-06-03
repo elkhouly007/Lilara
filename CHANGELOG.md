@@ -8,6 +8,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-06-03
+
+### Changed (monolith decomposition sprint)
+
+- **refactor(decomp): decision-engine.js monolith decomposition — 2422 → 1678 lines (−30.7%)** — Pure structural extraction of 6 cohesive concern modules from `runtime/decision-engine.js`. No behavior changes; `decide()` public surface, export, and entry sequence are unchanged. Byte-identical replay over 105 corpus entries confirmed on every extraction PR. PRs #124–#131.
+
+  New modules extracted:
+  - `runtime/floor-credential-persist.js` — F24 credential-persistence-write floor helpers (63 lines; PR #125)
+  - `runtime/floor-cross-agent-lock-eval.js` — F17 cross-agent-lock floor helpers (70 lines; PR #126)
+  - `runtime/floor-ambient-authority.js` — F16 ambient-authority floor helpers incl. ARG-PRE-D-001/D-002 hardened path normalization (102 lines; PR #127)
+  - `runtime/floor-mcp.js` — F25 + F26 MCP floor helpers combined (272 lines; PR #128); F25 and F26 share `_extractStringValues`, `_classifyCommandDual`, `_GATED_CMD_CLASSES`
+  - `runtime/notify-engine-hook.js` — ADR-015 notification hook (lazy loader, `_notifyDegradedSeen`, `classifyNotifyEvent`, `fireNotifyHook`; PR #129)
+  - `runtime/early-receipt-builder.js` — `buildEarlyBlock`, `buildEarlyReview`, `harnessInScope`, `irJournalExtras`, 4 per-call shared state vars + setters (~200 lines; PR #130)
+
+  Module map + audit notes: `docs/decision-engine-decomp.md`.
+
 ## [0.1.7] — 2026-06-03
 
 ### Security (trust-boundary audit sprint 2026-06-03)
