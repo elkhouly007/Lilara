@@ -77,16 +77,20 @@ fi
 # ── Start server ──────────────────────────────────────────────────────────────
 
 LILARA_STATE_DIR="$TMP_STATE" LILARA_DASHBOARD_PORT="$PORT" \
-  node "${root}/scripts/dashboard-server.js" &
+  node "${root}/scripts/dashboard-server.js" </dev/null &
 SERVER_PID="$!"
 
 # ── All assertions run inside a single Node.js process ───────────────────────
 # This avoids mktemp/shell path issues on Windows — Node handles all HTTP
 # fetching and file I/O with native Windows paths.
-
-FAILED=0
-result="$(node - "$PORT" 2>&1)"
-EXIT_CODE=$?
+#
+# MINGW64 hang fix (2026-06): the two lines that previously appeared here
+#   result="$(node - "$PORT" 2>&1)"   # node reads program from STDIN — NO heredoc
+#   EXIT_CODE=$?                       # immediately overwritten at end of file
+# caused 'node -' to block reading stdin until EOF. Under the lilara-cli.sh
+# umbrella, stdin is the inherited console/pipe that never sends EOF, so the
+# Dashboard gate hung forever. Both lines were dead (result unused, EXIT_CODE
+# overwritten). They have been removed. See references/lilara-contract.md §Env.
 
 node - "$PORT" <<NODE
 "use strict";
