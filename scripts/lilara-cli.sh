@@ -29,7 +29,7 @@
 #   log         Show or clear the hook event log (LILARA_HOOK_LOG=1).
 #   version     Print Agent Runtime Guard version.
 #   runtime     Show runtime roadmap, state, approvals, promotions, and decision explanations.
-#   journal     Tamper-evident chain ops (verify) for ADR-004 hash-chained journal.
+#   journal     Tamper-evident chain ops (verify, tail) for ADR-004 hash-chained journal.
 #   state       ADR-011 portable export/import of Lilara state (export/import/doctor).
 #   envelope    ADR-012 declared-intent envelope (set/show/clear) for F20 drift checks.
 #   snapshot    ADR-013 auto-snapshot store ops (list/show/restore/prune/doctor).
@@ -889,9 +889,15 @@ for (const e of result.errors) {
 process.exit(1);
 __JOURNAL_VERIFY_EOF__
         ;;
+      tail|show)
+        # Read-only pretty-printer for ~/.lilara/decision-journal.jsonl.
+        # Prints the last N decisions (default 20) in human-readable format.
+        # Respects LILARA_STATE_DIR. Zero external dependencies.
+        exec node "${scripts}/journal-tail.js" "$@"
+        ;;
       *)
         printf '%sUnknown journal subcommand: %s%s\n' "$RED" "$sub" "$RESET" >&2
-        printf 'Available: verify\n' >&2
+        printf 'Available: verify, tail\n' >&2
         exit 2
         ;;
     esac
