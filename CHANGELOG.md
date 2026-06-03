@@ -8,6 +8,63 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.9] — 2026-06-03
+
+### Security (quad-track bundle sprint)
+
+- **fix(test): unblock master CI — stale ambient-traversal-normalization test** — The
+  monolith-decomp sprint M3 (PR #127) moved `normAmbientPath` / `_isInsideProject` from
+  `decision-engine.js` to `floor-ambient-authority.js`. A test that regex-extracted these
+  symbols from `decision-engine.js` source broke silently and kept master CI red for 5+
+  consecutive runs. Fix: export `_isInsideProject` from `floor-ambient-authority.js`; replace
+  the fragile `new Function(regex-extract)` eval sandbox with a direct `require()`. All 15
+  test cases preserved. Root cause: local gate set during decomp sprint omitted
+  `check-runtime-core.sh`; ITEM D pre-push subcommand closes this gap. PR #133.
+
+- **feat(adr-034): MCP inbound trajectory escalation — Option 2 PostToolUse→F9** —
+  Implements ADR-034 MCP inbound response inspection via Option 2 (trajectory escalation).
+  When `post-adapter-factory.js` block 2d detects a confirmed MCP result-injection signal,
+  a per-session counter is incremented in `session-context.js`. The next `decide()` call
+  reads this counter via `getSessionRisk()` and applies tiered risk: ≥1 injection → +2
+  risk; ≥2 injections → +3 risk (immediately trips F9 at sessionRisk=3, escalating the
+  next PreToolUse to `require-review`). PostToolUse stays advisory; PreToolUse remains the
+  sole blocking gate, preserving Lilara's gate philosophy. End-to-end tests (T8/T9/T10)
+  prove the buildup: 1 injection alone does NOT trip F9; 2 injections in one session DO.
+  Coverage gap documented: tool-list poisoning and malicious tool descriptions remain out
+  of scope (known-and-accepted). PR #135.
+
+### Refactored
+
+- **refactor(decomp-f23): extract F23 kill-chain floor → runtime/floor-f23.js** — F23 was
+  the last major floor remaining in `decision-engine.js` after the 0.1.8 decomp sprint,
+  blocked by an inline optional-require pattern for three provenance vars. Rationalization
+  strategy: `floor-f23.js` is always-loadable and owns its own optional deps (provenance-
+  graph + session-context), encapsulating the pattern. `decision-engine.js` now requires
+  it non-optionally. Byte-identical replay: 105/105 corpus entries zero drift; 4/4
+  kill-chain fixtures. `decision-engine.js`: 1678 → 1610 lines (−68). PR #134.
+
+### Developer experience
+
+- **feat(cli): `lilara-cli.sh pre-push` subcommand** — Consolidates the 6-gate set into a
+  single local command mirroring the GitHub Actions "Checks" job step-for-step:
+  `check-version` → `run-fixtures` → `check-runtime-core` → `bench-runtime-decision` →
+  `check-decision-replay` → `eval-decision-quality`. Closes the process gap that allowed
+  the decomp sprint to ship a stale test undetected: `check-runtime-core` is now gate #3
+  in every developer's pre-push workflow. Colour-coded section headers; non-zero exit on
+  any gate failure. PR #136.
+
+### Docs
+
+- **docs(adr-021): mark bench-baseline-strategy Implemented** — CI-cache restore/save
+  strategy (Option 2) was already implemented in `check.yml` lines 180-212 before formal
+  ADR approval. Status updated to Implemented; key-format divergence documented
+  (node-version omitted from cache key — safe because bench scripts internally key by
+  `${platform}-${nodeMajor}`; `if: always()` save guard explained). PR #132.
+
+- **docs(adr-034): mark MCP inbound inspection Implemented** — Decision section added:
+  Option 2 chosen; Options 1/3 blockers documented; coverage gap (tool-list poisoning)
+  recorded in known-and-accepted bucket. Updated alongside PR #135.
+
 ## [0.1.8] — 2026-06-03
 
 ### Changed (monolith decomposition sprint)

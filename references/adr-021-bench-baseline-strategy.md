@@ -189,3 +189,10 @@ cache key would create separate caches per node version (redundant given the int
 if the bench PASSES but a later step fails, the baseline should still be persisted for future
 PR comparisons. A saved baseline from a failing run is still a valid performance reference; the
 regression gate on the next run will catch any genuine degradation.
+
+**Cross-commit reuse (confirmed):** The key `bench-baseline-${{ matrix.os }}-${{ github.sha }}`
+is per-commit by design — each run saves its own baseline under its SHA. Cross-commit reuse is
+enabled by `restore-keys: bench-baseline-${{ matrix.os }}-` (line 185 in `check.yml`), which
+prefix-matches the most recent prior baseline for the same OS regardless of SHA. Without this
+`restore-keys` line the cache would be per-commit-useless; with it, every PR run restores the
+most recent master baseline and the regression gate fires as intended.
