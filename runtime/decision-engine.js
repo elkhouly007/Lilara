@@ -133,17 +133,8 @@ const _degradedMode = require("./degraded-mode");
 // snapshot creation NEVER changes a decision; failures fail open. The
 // receipt key is additive (only present on destructive-allow decisions).
 const _snapshot = require("./snapshot");
-// ADR-015 (PR-η): notification router. Fire-and-forget side-effect rail; the
-// hook NEVER blocks the engine return path and notification failure NEVER
-// changes a decision. require()d lazily inside the hook so a malformed
-// module can't impact the decide() hot path startup.
-let _notifyModule = null;
-function _getNotify() {
-  if (_notifyModule) return _notifyModule;
-  try { _notifyModule = require("./notify"); } catch { _notifyModule = null; }
-  return _notifyModule;
-}
-let _notifyDegradedSeen = false; // process-lifetime de-dup for "degraded-mode-entered"
+// ADR-015 (PR-η): notification hook — extracted to runtime/notify-engine-hook.js.
+const { fireNotifyHook: _fireNotifyHook } = require("./notify-engine-hook");
 // Optional modules - fixtures rename these to *.disabled-test-bak to verify
 // fail-open fallback, so the require itself must be guarded. Each cached as
 // null when absent and call sites check before use.
@@ -414,49 +405,8 @@ const { loadDeclaredEnvelope: _loadDeclaredEnvelope } = require("./envelope");
 
 // F17: cross-agent-lock floor helpers — extracted to runtime/floor-cross-agent-lock-eval.js.
 
-// ADR-015: derive the notification event from a finalized decision result.
-// Returns null when the decision is not one of the four wave-4 trigger kinds
-// (so the hook stays a no-op). Severity mapping matches the brief: kill-switch
-// and adversarial-bypass are critical; require-review is info; degraded-mode
-// is warning. Adversarial-bypass keys on a G-series floor producing `block` —
-// currently a forward-compatible no-op since no G-floor ships yet.
-function _classifyNotifyEvent(result) {
-  if (!result) return null;
-  const ff = String(result.floorFired || "");
-  if (ff === _F1.name || ff === "kill-switch") return { kind: "kill-switch-fire", severity: "critical" };
-  if (/^G/.test(ff) && result.action === "block") return { kind: "adversarial-bypass-detected", severity: "critical" };
-  if (result.degradedMode && typeof result.degradedMode === "object" && !_notifyDegradedSeen) {
-    _notifyDegradedSeen = true;
-    return { kind: "degraded-mode-entered", severity: "warning" };
-  }
-  if (result.action === "require-review") return { kind: "approval-request", severity: "info" };
-  return null;
-}
-
-// Fire-and-forget notification hook. NEVER awaited; NEVER throws; NEVER
-// mutates the decision. Sets `result.notifyAttempted = true` only if the
-// hook actually invoked notify() (contract enabled + matching event).
-function _fireNotifyHook(result, contract, decisionKey) {
-  try {
-    const mod = _getNotify();
-    if (!mod) return;
-    const cfg = mod.loadNotifyConfig(contract);
-    if (!cfg.enabled) return;
-    const ev = _classifyNotifyEvent(result);
-    if (!ev) return;
-    result.notifyAttempted = true;
-    const payload = {
-      kind: ev.kind,
-      severity: ev.severity,
-      decisionKey: decisionKey || result.policyKey || null,
-      summary: result.explanation || `${ev.kind}:${result.action || ""}`,
-      scrubbedReceipt: mod.scrubForNotify(result),
-      timestamp: new Date().toISOString(),
-    };
-    const p = mod.notify(payload, { contract });
-    if (p && typeof p.catch === "function") p.catch(() => { /* swallow */ });
-  } catch { /* notify hook must never block engine */ }
-}
+// _classifyNotifyEvent + _fireNotifyHook — extracted to runtime/notify-engine-hook.js.
+// (_fireNotifyHook aliased via the require at the top of this section)
 
 function decide(input = {}) {
   if (process.env.LILARA_KILL_SWITCH === "1") {
