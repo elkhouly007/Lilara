@@ -1,6 +1,6 @@
 # ADR-033 — mcp-pin `os.tmpdir()` → `stateDir()` Fallback Unification
 
-**Status:** Proposed — 2026-06-02. Descoped from ADR-028 pending Khouly's call on FP nuance.  
+**Status:** Implemented — 2026-06-03 (feat/adr-033-mcp-pin-stateDir, Option 1). Originally proposed 2026-06-02; descoped from ADR-028 pending Khouly's call on FP nuance. Khouly decision: switch to stateDir() + auto-create ~/.lilara, no compat shim.  
 **Severity:** LOW-MED  
 **Area:** `runtime/mcp-pin.js` — inconsistent state-dir resolution when `LILARA_STATE_DIR` is unset.
 
