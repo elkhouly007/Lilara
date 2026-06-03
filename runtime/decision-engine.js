@@ -130,17 +130,10 @@ let _scanSecrets = null;
 try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
 let _correlateCommand = null;
 try { _correlateCommand = require("./taint").correlateCommand; } catch { /* optional */ }
-// ADR-017 F23: provenance-graph + session-context graph storage. Guarded the
-// same way as other optional modules so a broken module fails open — F23 will
-// simply not fire. The graph helpers are pure; I/O lives in session-context.
-let _provenanceGraph = null;
-let _loadProvenanceGraph = null, _recordProvenanceStep = null;
-try {
-  _provenanceGraph = require("./provenance-graph");
-  const _sc = require("./session-context");
-  _loadProvenanceGraph  = _sc.loadProvenanceGraph;
-  _recordProvenanceStep = _sc.recordProvenanceStep;
-} catch { /* optional — F23 fails open */ }
+// ADR-017 F23: kill-chain floor — extracted to runtime/floor-f23.js.
+// Non-optional require: floor-f23 is always loadable (owns its optional deps
+// internally; fails open when provenance-graph / session-context are absent).
+const { evalKillChain: _evalKillChain } = require("./floor-f23");
 let _getCounters = null, _recordDestructiveOp = null;
 try {
   const sb = require("./session-budget");
@@ -693,76 +686,15 @@ function decide(input = {}) {
   // Observe mode (default): adds only the killChain receipt field — action /
   // source / floorFired are UNCHANGED. Enforce mode (LILARA_KILL_CHAIN_ENFORCE=1)
   // applies block (exfil) or escalate (exec / persistence) via the late-override
-  // block near line 1489, after F20.
+  // block near the end of decide(), after F20.
   //
-  // Side-effect: for write/edit IR calls, records a "derivative" node in the
-  // provenance graph when write content overlaps a known source. Determinism-safe:
-  // single-command replay uses a fresh isolated stateDir (cleaned after).
-  let _f23Detail = null;
-  let _f23PreviewAction = null; // only set in enforce mode when chain fires
-  try {
-    if (_provenanceGraph && _loadProvenanceGraph) {
-      const _f23Graph = _loadProvenanceGraph();
-      const _ir23 = input && input.ir;
-
-      if (_ir23) {
-        // Extract write content for propagation + persistence detection
-        const _writeContent = String(
-          (input.tool_input && (input.tool_input.content || input.tool_input.new_string || "")) ||
-          (typeof input.content === "string" ? input.content : "") ||
-          (typeof input.new_string === "string" ? input.new_string : "")
-        );
-        const _writeTokens = _writeContent.length >= 20
-          ? _provenanceGraph.tokenHashSet(_writeContent)
-          : [];
-
-        // Evaluate whether pending call closes a kill chain
-        const _f23Eval = _provenanceGraph.evaluate(_ir23, _f23Graph, {
-          writeContentTokenHashes: _writeTokens,
-        });
-
-        if (_f23Eval.detected) {
-          const _enforce = process.env.LILARA_KILL_CHAIN_ENFORCE === "1";
-          _f23Detail = {
-            chainType:   _f23Eval.chainType,
-            severity:    _f23Eval.severity,
-            detected:    true,
-            enforced:    _enforce,
-            wouldAction: _f23Eval.wouldAction,
-            confidence:  _f23Eval.confidence,
-            evidence:    Array.isArray(_f23Eval.evidence) ? _f23Eval.evidence : [],
-            steps:       Array.isArray(_f23Eval.steps)    ? _f23Eval.steps    : [],
-          };
-          setEarlyBlockF23(_f23Detail); // thread to buildEarlyBlock for F16/F17/etc.
-          if (_enforce) {
-            _f23PreviewAction = _f23Eval.wouldAction; // "block" or "escalate"
-          }
-        }
-
-        // Propagation recording: if writing tainted data, mark target as derivative.
-        // Gated on interesting IR (file-write with content, non-empty graph).
-        if (_ir23.toolKind === "file-write" && _writeTokens.length >= 3 &&
-            _f23Graph.length > 0 && _recordProvenanceStep) {
-          const _srcNode = _provenanceGraph.findPropagationSource(_writeTokens, _f23Graph);
-          if (_srcNode) {
-            for (const ft of (_ir23.fileTargets || [])) {
-              if (ft && ft.intent === "write" && ft.path) {
-                try {
-                  _recordProvenanceStep({
-                    role:           "derivative",
-                    sourceClass:    _srcNode.sourceClass,
-                    targetPathHash: _provenanceGraph.pathHash(ft.path),
-                    tokenHashes:    _writeTokens.slice(0, 32),
-                    ts:             Date.now(),
-                  });
-                } catch { /* best-effort */ }
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch { /* F23 must never throw out — fail open */ }
+  // Implementation lives in runtime/floor-f23.js (extracted by the quad-track
+  // bundle sprint, 2026-06). floor-f23 owns the optional provenance-graph +
+  // session-context requires and handles its own fail-open guard.
+  const _f23Enforce = process.env.LILARA_KILL_CHAIN_ENFORCE === "1";
+  const { f23Detail: _f23Detail, f23PreviewAction: _f23PreviewAction } =
+    _evalKillChain(input, _f23Enforce);
+  if (_f23Detail) setEarlyBlockF23(_f23Detail); // thread to buildEarlyBlock for F16/F17/etc.
 
   // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)
   // and before the contract-allow demotion path. Non-demotable; the only legitimate
