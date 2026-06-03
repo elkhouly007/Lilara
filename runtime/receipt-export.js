@@ -12,6 +12,7 @@ const path   = require("path");
 const crypto = require("crypto");
 const { canonicalJson } = require("./canonical-json");
 const { stateDir } = require("./state-paths");
+const { ensureStateDirSafe } = require("./state-dir");
 const { loadSchema } = require("./receipt-validator");
 
 const EXPORT_VERSION = "1";
@@ -132,6 +133,8 @@ function _toJsonl(entries) {
 //             journalFile, redact }
 //   format: "jsonl" | "csv"
 function exportReceipts(filter, format) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return Buffer.alloc(0);
   const fmt = String(format || "jsonl").toLowerCase();
   if (fmt !== "jsonl" && fmt !== "csv") throw new Error("receipt-export: unknown format " + fmt);
   const f = filter || {};

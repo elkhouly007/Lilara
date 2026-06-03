@@ -25,6 +25,7 @@ const { globMatch }        = require("./glob-match");
 const { classifyCommand, classifyCommandDual }  = require("./decision-key");
 const { extractPaths }     = require("./arg-extractor");
 const { stateDir }         = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -120,6 +121,8 @@ function invalidateCache() {
 // ---------------------------------------------------------------------------
 
 function loadAccepted() {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return {};
   const filePath = acceptedContractsPath();
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -129,6 +132,8 @@ function loadAccepted() {
 }
 
 function saveAccepted(data) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   const filePath = acceptedContractsPath();
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -209,6 +214,8 @@ function operatorTokensPath() {
  * @returns {string} 64-character hex token
  */
 function mintOperatorToken(label, scope) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) throw new Error("state-dir-insecure: cannot mint operator token");
   const token  = crypto.randomBytes(32).toString("hex");
   const tokensPath = operatorTokensPath();
   const dir    = path.dirname(tokensPath);
@@ -237,6 +244,8 @@ function mintOperatorToken(label, scope) {
  * @returns {boolean} true if consumed; false if invalid, scope mismatch, or already used
  */
 function consumeScopedOperatorToken(token, requiredScope) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return false;
   if (!token || !requiredScope) return false;
   const tokensPath = operatorTokensPath();
   const lockFile = tokensPath + ".lock";
@@ -298,6 +307,8 @@ function consumeScopedOperatorToken(token, requiredScope) {
  * @returns {boolean} true if consumed; false if invalid or already used
  */
 function consumeOperatorToken(token) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return false;
   if (!token) return false;
   const tokensPath = operatorTokensPath();
   const lockFile = tokensPath + ".lock";

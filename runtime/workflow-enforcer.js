@@ -3,6 +3,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 // ---------------------------------------------------------------------------
 // workflow-enforcer.js
@@ -36,6 +37,8 @@ function readConfig(cwdOverride) {
 
 // Load current workflow state. Returns { completedSteps: string[], sessionId: string }.
 function loadState(stateDirOverride) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) return { completedSteps: [], sessionId: null };
   const p = workflowStatePath(stateDirOverride);
   try {
     const raw = fs.readFileSync(p, "utf8");
@@ -46,6 +49,8 @@ function loadState(stateDirOverride) {
 }
 
 function saveState(state, stateDirOverride) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return;
   const base = stateDirOverride || stateDir();
   ensureDir(base);
   const p = workflowStatePath(stateDirOverride);

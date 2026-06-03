@@ -15,6 +15,7 @@ const path   = require("path");
 const crypto = require("crypto");
 const { canonicalJson } = require("./canonical-json");
 const { stateDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 const { readEntries: readChainEntries, computeEntryHash } = require("./journal-chain");
 
 const BUNDLE_VERSION = "1";
@@ -174,6 +175,8 @@ function readTar(buf) {
 }
 
 function exportBundle(opts) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) throw new Error("state-dir-insecure: cannot export bundle");
   const o = opts || {};
   const srcDir  = o.stateDir || stateDir();
   const outPath = String(o.outPath || "");
@@ -266,6 +269,8 @@ function validateBundle(bundlePath, opts) {
 }
 
 function importBundle(bundlePath, opts) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return { ok: false, problems: ["state-dir-insecure"], manifest: null, crossHost: false };
   const o = opts || {};
   const r = validateBundle(bundlePath, o);
   if (!r.ok) return { ok: false, problems: r.problems, manifest: r.manifest, crossHost: r.crossHost };

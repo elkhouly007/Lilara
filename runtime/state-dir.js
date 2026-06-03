@@ -44,6 +44,23 @@ const fs = require("fs");
 // decide() is called many times with an insecure state dir.
 const _warnedDirs = new Set();
 
+// ADR-032 perf: short-TTL cache of validation results, keyed by absolute dir
+// path.  ensureStateDirSafe / ensureBaseDirSafe are called from MANY hot-path
+// state consumers (decision-journal, telemetry, session-budget, journal-chain,
+// envelope.js, …) — without caching, each decide() does N redundant statSync
+// calls against the same path, breaching the bench-perf gate (PR #120 ubuntu
+// regression: p99 13ms vs 3ms cap).  TTL = 1000ms bounds attack-window
+// staleness while collapsing per-decide() cost to one stat call per second
+// per dir.  Cache stores {result, expiresAt}; resolveCache(dir) returns the
+// cached boolean or null on miss.
+const _resultCache = new Map();
+const _CACHE_TTL_MS = 1000;
+
+function _invalidateCache(dir) {
+  if (dir == null) _resultCache.clear();
+  else _resultCache.delete(dir);
+}
+
 /**
  * ensureStateDirSafe(dir) → boolean
  *
@@ -51,22 +68,31 @@ const _warnedDirs = new Set();
  * @returns {boolean}  — true iff the directory is safe for security-critical I/O.
  */
 function ensureStateDirSafe(dir) {
+  // Cache check — see _resultCache comment for rationale.
+  // Date.now() is fine here (not in a workflow script; production runtime).
+  const now = Date.now();
+  const cached = _resultCache.get(dir);
+  if (cached !== undefined && cached.expiresAt > now) return cached.result;
+
   try {
     let st;
     try {
       st = fs.statSync(dir); // follows symlinks — validates the target
     } catch {
       // stat failed: directory absent or inaccessible → unsafe
+      _resultCache.set(dir, { result: false, expiresAt: now + _CACHE_TTL_MS });
       return false;
     }
 
     if (!st.isDirectory()) {
       _warn(dir, `not a directory (mode: ${(st.mode & 0o777).toString(8)})`);
+      _resultCache.set(dir, { result: false, expiresAt: now + _CACHE_TTL_MS });
       return false;
     }
 
     // Windows: POSIX mode bits and getuid() are not meaningful.
     if (process.platform === "win32") {
+      _resultCache.set(dir, { result: true, expiresAt: now + _CACHE_TTL_MS });
       return true; // directory exists — that's all we can reliably check
     }
 
@@ -81,6 +107,7 @@ function ensureStateDirSafe(dir) {
         "pin and journal integrity cannot be guaranteed; " +
         "set to chmod o-w or point LILARA_STATE_DIR at a user-only directory."
       );
+      _resultCache.set(dir, { result: false, expiresAt: now + _CACHE_TTL_MS });
       return false;
     }
 
@@ -92,12 +119,15 @@ function ensureStateDirSafe(dir) {
         `not owned by current user (dir uid=${st.uid}, process uid=${uid}) — ` +
         "a foreign-owned state dir can be pre-seeded to suppress rug-pull detection."
       );
+      _resultCache.set(dir, { result: false, expiresAt: now + _CACHE_TTL_MS });
       return false;
     }
 
+    _resultCache.set(dir, { result: true, expiresAt: now + _CACHE_TTL_MS });
     return true;
   } catch {
     // Belt-and-suspenders: any unexpected error in the validator itself → unsafe.
+    _resultCache.set(dir, { result: false, expiresAt: now + _CACHE_TTL_MS });
     return false;
   }
 }
@@ -124,6 +154,13 @@ function _warn(dir, detail) {
  * @returns {boolean} — true iff the directory is safe for security-critical I/O.
  */
 function ensureBaseDirSafe(dir) {
+  // Cache short-circuit: if we recently validated this dir as safe, the dir
+  // exists and is safe — skip both the existsSync probe and the mkdirSync call.
+  // Skip on cached=false too, so we don't repeatedly attempt mkdir on a known-
+  // bad path; the wrapped ensureStateDirSafe will return cached false fast.
+  const cached = _resultCache.get(dir);
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.result;
+
   try {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -134,4 +171,4 @@ function ensureBaseDirSafe(dir) {
   return ensureStateDirSafe(dir);
 }
 
-module.exports = { ensureStateDirSafe, ensureBaseDirSafe };
+module.exports = { ensureStateDirSafe, ensureBaseDirSafe, _invalidateCache };

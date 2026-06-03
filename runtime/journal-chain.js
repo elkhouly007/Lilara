@@ -26,6 +26,7 @@ const path   = require("path");
 const crypto = require("crypto");
 const { canonicalJson } = require("./canonical-json");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir");
 
 const CHAIN_FILE = "journal-chain.jsonl";
 const KEY_FILE   = "install.key";
@@ -48,6 +49,8 @@ function checkpointPath(file) {
 // and persisted as hex with 0600 perms. Returns the raw key buffer; callers
 // MUST NOT log it.
 function getOrCreateInstallKey() {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) { return crypto.randomBytes(32); }
   ensureDir(stateDir());
   const p = installKeyPath();
   try {
@@ -137,6 +140,8 @@ function readEntries(file) {
 // Append a chained entry. Auto-creates a genesis on first write. Returns the
 // appended entry. project label is recorded in genesis only.
 function append(type, payload, opts) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) { return null; }
   const o = opts || {};
   const file = o.file || chainPath();
   ensureDir(path.dirname(file));
@@ -178,6 +183,8 @@ function append(type, payload, opts) {
 // companion checkpoint file — tail truncation, checkpoint deletion, and
 // checkpoint forgery without the install key.
 function verify(opts) {
+  // ADR-032: state-dir guard
+  if (!ensureStateDirSafe(stateDir())) { return { ok: false, reason: "state-dir-insecure", entryCount: 0, errors: ["state-dir-insecure"] }; }
   const o = opts || {};
   const file = o.file || chainPath();
   const errors = [];

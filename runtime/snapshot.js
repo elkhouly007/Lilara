@@ -14,6 +14,7 @@ const crypto = require("node:crypto");
 const zlib   = require("node:zlib");
 const { canonicalJson } = require("./canonical-json");
 const { stateDir, ensureDir } = require("./state-paths");
+const { ensureBaseDirSafe } = require("./state-dir");
 
 const SNAPSHOT_VERSION = "1";
 const MAX_PATHS        = 5000;
@@ -85,6 +86,8 @@ function planSnapshotScope(ir, opts) {
 // status ∈ {"created","truncated","scope-too-large"}. scope-too-large is
 // returned BEFORE any blob is written so the store stays consistent.
 function createSnapshot(scope, destDirOpt, opts) {
+  // ADR-032: state-dir guard
+  if (!ensureBaseDirSafe(stateDir())) return { snapshotId: null, status: "state-dir-insecure", bytes: 0, truncated: false };
   const o = opts || {};
   const baseDir = destDirOpt || snapshotsDir(o);
   ensureDir(baseDir);
