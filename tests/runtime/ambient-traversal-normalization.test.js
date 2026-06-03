@@ -4,17 +4,17 @@
 // ambient-traversal-normalization.test.js — ADR-009 PR-E (ARG-PRE-D-001 +
 // ARG-PRE-D-002 closure).
 //
-// _normAmbientPath / _isInsideProject are not exported from
-// runtime/decision-engine.js; widening the runtime contract just for tests
-// would be the wrong escape valve. The internals are exercised here in two
-// ways:
-//   (1) String-level: the file is read, the two helpers are extracted with a
-//       regex, and eval'd into a sandbox. Pure-string algorithm — no module
-//       state, no I/O. Lets us pin the unit-level invariants for `..`/`%2e`
-//       collapse with high signal.
-//   (2) End-to-end: decide() is invoked through the same isolated-sandbox
-//       pattern as ambient-floor.test.js, asserting that the four PR-D
-//       bypasses now fire F16 with the expected receipt enrichment.
+// normAmbientPath / _isInsideProject live in runtime/floor-ambient-authority.js
+// (extracted from decision-engine.js by the monolith-decomposition sprint M3,
+// PR #127). They are imported directly — the earlier regex-extract + eval hack
+// against decision-engine.js source is replaced with a real require() so the
+// test survives future refactors without becoming a CI blocker.
+//
+//   (1) Unit-level: normAmbientPath + _isInsideProject imported from
+//       floor-ambient-authority.js — pin the invariants for `..`/`%2e` collapse.
+//   (2) End-to-end: decide() invoked through the isolated-sandbox pattern
+//       (same as ambient-floor.test.js), asserting the four PR-D bypasses
+//       fire F16 with the expected receipt enrichment.
 //
 // Run:  node tests/runtime/ambient-traversal-normalization.test.js
 
@@ -39,14 +39,12 @@ function test(name, fn) {
   }
 }
 
-// --- (1) Helper extraction sandbox ----------------------------------------
+// --- (1) Helper import from floor-ambient-authority.js --------------------
 
-const engineSrc = fs.readFileSync(path.join(ROOT, "runtime", "decision-engine.js"), "utf8");
-const helperBlock = engineSrc.match(/function _normAmbientPath\(p\) \{[\s\S]*?\n\}\nfunction _isInsideProject\(targetPath, projectRoot\) \{[\s\S]*?\n\}/);
-assert.ok(helperBlock, "could not extract _normAmbientPath / _isInsideProject from decision-engine.js");
-const { _normAmbientPath, _isInsideProject } = (new Function(
-  helperBlock[0] + "\nreturn { _normAmbientPath, _isInsideProject };"
-))();
+const {
+  normAmbientPath: _normAmbientPath,
+  _isInsideProject,
+} = require(path.join(ROOT, "runtime", "floor-ambient-authority.js"));
 
 // --- normalization invariants ---------------------------------------------
 
