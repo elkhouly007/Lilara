@@ -8,6 +8,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-06-03
+
 ### Security (trust-boundary audit sprint 2026-06-03)
 
 - **docs: trust boundary map** — Living audit document (`references/trust-boundary-map-2026-06-02.md`) mapping all Lilara trust boundaries: Cluster A (`input.*` reads into `decide()`), Cluster B (state-dir consumers), Cluster C (MCP inbound surface), Cluster D (replay/byte-identical guarantee), Cluster E (gate/env hygiene). Includes per-finding severity, fail direction, and a known-and-accepted bucket so future sprints don't re-audit resolved surfaces. Key framing finding: an uncaught throw inside `decide()` propagates to `pretool-gate.js:281-282` → exit 0 = allow (fail-OPEN bypass in non-enforce mode). PR #117.
