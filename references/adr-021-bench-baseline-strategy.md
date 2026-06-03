@@ -1,6 +1,8 @@
 # ADR-021 — Bench-Perf-Regression Baseline Strategy
 
-**Status:** Proposed — 2026-06-01. Awaiting Khouly approval before implementation.  
+**Status:** Implemented — 2026-06-03 (quad-track bundle sprint). Option 2 landed via the
+trust-boundary audit sprint CI work; key format diverges from the plan below (see
+**Implementation note** at the end).  
 **Area:** `scripts/bench-runtime-decision.sh`, `tests/perf/bench.js`, `.github/workflows/check.yml`  
 **Scope:** how to seed and persist the per-platform baseline that the 1.5× regression gate uses.
 
@@ -31,8 +33,8 @@ set at 500ms on Windows / 5ms on Linux — far above the warm-engine p99 of ~1ms
 - `tests/perf/bench.js:198-200`: same — "no baseline; recording fresh baseline" is the silent skip.
 - PR #92 widened the variance-floor headroom 0.1×→0.15× to reduce noise-floor false alarms, but
   that change only affects runs **with** a baseline — it doesn't help clean-env skips.
-- `scripts/bench-ir.js:211` still uses the OLD 0.1× headroom — a separate inconsistency
-  (see PR for Track B ride-along).
+- `scripts/bench-ir.js:215` uses `0.15×` headroom (fixed in the same PR #92 batch; the
+  "Track B ride-along" noted here was resolved; confirmed by live read 2026-06-03).
 
 **What the existing design already handles:**
 - **Platform-keyed baselines:** `platformKey` = `${process.platform}-${nodeMajor}` (or
@@ -161,8 +163,29 @@ pass** (the gate misses a true regression):
 
 ## Consequences
 
-- **If approved:** a follow-up PR implements the CI workflow changes (Option 2). No code changes
-  to bench scripts needed.
-- **If declined:** the silent skip on clean envs remains a documented limitation. The coarse
-  ceiling (500ms win32, 5ms linux) is the only enforcement on first-run PRs.
+- **Implemented (Option 2 landed):** CI-cache restore/save steps exist in
+  `.github/workflows/check.yml` (lines 180-212). No code changes to bench scripts needed.
 - **No runtime behavior changes from this document.**
+
+---
+
+## Implementation note (2026-06-03)
+
+Option 2 was implemented during the trust-boundary audit sprint as part of the CI hardening
+work, before this ADR was formally approved. The implementation diverges from the proposed
+key format in two ways:
+
+| | ADR proposal | Actual implementation |
+|---|---|---|
+| Cache key | `bench-baseline-${{ runner.os }}-node${{ matrix.node }}-${{ github.sha }}` | `bench-baseline-${{ matrix.os }}-${{ github.sha }}` |
+| Save guard | `if: github.ref == 'refs/heads/master'` | `if: always()` |
+
+**Key format:** The implemented key omits the node-version component. This is safe because the
+bench scripts already key baseline entries internally by `${platform}-${nodeMajor}` within the
+JSON file — a single cache file per OS contains all per-node entries. The node version in the
+cache key would create separate caches per node version (redundant given the internal key).
+
+**Save guard:** `if: always()` saves the baseline even on failed runs. This is intentional:
+if the bench PASSES but a later step fails, the baseline should still be persisted for future
+PR comparisons. A saved baseline from a failing run is still a valid performance reference; the
+regression gate on the next run will catch any genuine degradation.
