@@ -15,7 +15,7 @@ const { classifyCommand, classifyCommandDual: _classifyCommandDualFromKey } = re
 const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
 // ADR-020: bypass predicates moved to floor-mcp.js (F25/F26 helpers).
 const { classifyIntent } = require("./intent-classifier");
-const { LATTICE_VERSION, getEntry, getRungByName, canDemote } = require("./decision-lattice");
+const { getEntry, canDemote } = require("./decision-lattice"); // LATTICE_VERSION + getRungByName moved to early-receipt-builder.js
 const { floorCodeFor } = require("./floor-codes");
 
 // Lilara ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
@@ -73,19 +73,7 @@ const _DEMOTE_F20_TOKEN_SCOPE       = "change-intent-drift-medium";
 const _DEMOTE_F9_TOOL_ALLOW_MATCHED = "contract-allow:tool-allow-matched";
 const _DEMOTE_F9_TOOL_ALLOW_SCOPE   = "contract-allow:tool-allow-tool-scope";
 
-// Lilara ADR-007 PR-C: extra journal fields are emitted by default. Disable
-// with LILARA_IR_JOURNAL=0 for one release while consumers cut over.
-function _irJournalExtras(input, floorFired) {
-  if (process.env.LILARA_IR_JOURNAL === "0") return null;
-  const ir = input && input.ir;
-  if (!ir || typeof ir.irHash !== "string" || ir.irHash.length === 0) return null;
-  const extras = { irHash: ir.irHash, latticeVersion: LATTICE_VERSION };
-  if (floorFired) {
-    const r = getRungByName(floorFired);
-    if (r != null) extras.rung = r;
-  }
-  return extras;
-}
+// _irJournalExtras — moved to runtime/early-receipt-builder.js (irJournalExtras).
 
 // Taint-floor disablement: warn once per process if taint module unavailable.
 let _taintWarnedOnce = false;
@@ -178,203 +166,20 @@ function getContract(projectRoot) {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers for early-block returns (keep decide() readable)
+// Early-block receipt builders + shared state — extracted to
+// runtime/early-receipt-builder.js. decide() sets per-call state via the
+// exported setters before evaluating any floor.
 // ---------------------------------------------------------------------------
-
-function harnessInScope(contract, harness) {
-  return Array.isArray(contract?.harnessScope) && contract.harnessScope.includes(harness);
-}
-
-// ADR-004 PR 37B: degraded-mode marker default for the early-block path.
-// decide() sets this at the top of each call so every buildEarlyBlock() call
-// inherits the same marker without churning every call site's `extra`. The
-// engine is synchronous within a single decide(), so this is safe to share
-// across the floor checks that follow.
-let _earlyBlockDegradedDefault = null;
-// ADR-015: notify hook reads the active contract on early-block returns so a
-// kill-switch fire still sends. Populated by decide() at the top of each call.
-let _earlyBlockContract = null;
-// ADR-016: when dryRun is true, skip journal appends across all early-block
-// paths. Populated by decide() at the top of each call.
-let _earlyBlockDryRun = false;
-// ADR-017 F23: kill-chain detail for early-block paths (F16/F17/etc.) that
-// fire after the F23 preview is computed but before the normal result path.
-// Populated by decide() when F23 fires; cleared at top of each decide() call.
-let _earlyBlockF23 = null;
-function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, extra = {}) {
-  // ADR-009 PR-C: any early-block decision that touched an ambient path
-  // carries `ambientClass`/`ambientPath` in the receipt. F16 sets these
-  // explicitly via `extra.ambientClass`/`extra.ambientPath`; other floors
-  // get them from `extra.ambientTouch` populated by decide().
-  const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
-  const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
-  // F17 PR-A: lock-detail fields surface on the receipt + journal so audit
-  // can identify the conflicting lock without leaking secrets. Owner is the
-  // identity string the lock writer chose; lockPath/lockProject/lockExpiresAt
-  // come straight from the lock record.
-  const _lockOwner       = extra.lockOwner != null ? extra.lockOwner : null;
-  const _lockPath        = extra.lockPath  != null ? extra.lockPath  : null;
-  const _lockProject     = extra.lockProject != null ? extra.lockProject : null;
-  const _lockExpiresAt   = extra.lockExpiresAt != null ? extra.lockExpiresAt : null;
-  // ADR-004 PR 37B: degraded-mode marker — included verbatim from caller
-  // when present. Early-block path inherits the same marker decide()
-  // computed at the top so receipts on both code paths agree.
-  const _degraded        = extra.degradedMode !== undefined
-    ? extra.degradedMode
-    : _earlyBlockDegradedDefault;
-  // F19 (ADR-010): output-exfil detail — carried verbatim from caller when
-  // present so confirmed-severity early-blocks surface the same receipt
-  // fields (outputChannel, matchClasses, redactedSample,
-  // compensatingRestrictionApplied) as the non-block F19 path below.
-  const _f19            = extra.f19Detail || null;
-  // ADR-017 F23: include kill-chain receipt when detection fired before this early block.
-  const _killChain      = _earlyBlockF23 || null;
-  const _code           = extra.code || floorCodeFor(reasonCode) || null;
-  const _coaching       = extra.coaching || null;
-  const result = {
-    action: "block",
-    enforcementAction: "block",
-    floorFired: extra.floorFired || null,
-    ...(_code     != null ? { code:     _code     } : {}),
-    riskScore: 10,
-    riskLevel: "critical",
-    reasonCodes: [reasonCode],
-    confidence: 1,
-    decisionSource: extra.decisionSource || "contract-floor",
-    policyKey: reasonCode,
-    explanation,
-    pendingSuggestion: null,
-    promotionGuidance: null,
-    promotionState: null,
-    promotionLifecycleSummary: null,
-    workflowRoute: null,
-    actionPlan: null,
-    trajectoryNudge: null,
-    envelope: input.envelope || null,
-    envelopeVerification: extra.envelopeVerification || null,
-    networkEgress: extra.networkEgress || null,
-    context: {},
-    ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
-    ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
-    ...(_lockOwner     != null ? { lockOwner:     _lockOwner     } : {}),
-    ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
-    ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
-    ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
-    ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
-    ...(_f19          != null ? {
-      outputChannel: _f19.outputChannel || null,
-      matchClasses: Array.isArray(_f19.matchClasses) ? _f19.matchClasses : [],
-      redactedSample: typeof _f19.redactedSample === "string" ? _f19.redactedSample : "",
-      compensatingRestrictionApplied: Boolean(_f19.compensatingRestrictionApplied),
-    } : {}),
-    ...(_coaching     != null ? { coaching: _coaching } : {}),
-    ...(_killChain    != null ? { killChain: _killChain } : {}),
-  };
-  // Still journal the early block so diff-decisions can replay it
-  if (_earlyBlockDryRun) return result;
-  try {
-    const irExtras = _irJournalExtras(input, result.floorFired);
-    append({
-      kind: "runtime-decision",
-      action: "block",
-      riskLevel: "critical",
-      riskScore: 10,
-      reasonCodes: [reasonCode],
-      tool: input.tool || "",
-      branch: input.branch || "",
-      targetPath: input.targetPath || "",
-      notes: `${result.decisionSource}:${reasonCode}`,
-      ...(result.floorFired ? { floorFired: result.floorFired } : {}),
-      ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
-      ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
-      ...(_lockOwner     != null ? { lockOwner:     _lockOwner     } : {}),
-      ...(_lockPath      != null ? { lockPath:      _lockPath      } : {}),
-      ...(_lockProject   != null ? { lockProject:   _lockProject   } : {}),
-      ...(_lockExpiresAt != null ? { lockExpiresAt: _lockExpiresAt } : {}),
-      ...(_degraded      != null ? { degradedMode:  _degraded      } : {}),
-      ...(_f19          != null ? { f19Detail:     _f19           } : {}),
-      ...(_code         != null ? { code:          _code          } : {}),
-      ...(_coaching     != null ? { coaching:      _coaching      } : {}),
-      ...(_killChain    != null ? { killChain:     _killChain     } : {}),
-      ...(irExtras || {}),
-    });
-    recordDecision({ action: "block", riskLevel: "critical", reasonCodes: [reasonCode] });
-  } catch { /* journal is best-effort */ }
-  // ADR-015: fire-and-forget notify hook. `_earlyBlockContract` is set by
-  // decide() at top of call so kill-switch / contract-mismatch early blocks
-  // can still emit a notification when the contract enables it.
-  try { _fireNotifyHook(result, _earlyBlockContract, result.policyKey || null); } catch { /* */ }
-  return result;
-}
-
-// buildEarlyReview — mirrors buildEarlyBlock but produces action:"require-review"
-// with riskLevel:"medium" / riskScore:5.  Used by F25/F26 when a payload is
-// unscannable (too complex / circular) — we gate rather than hard-block to
-// prevent false positives on large benign bulk payloads.
-function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, extra = {}) {
-  const _code     = extra.code || floorCodeFor(reasonCode) || null;
-  const _degraded = extra.degradedMode !== undefined ? extra.degradedMode : _earlyBlockDegradedDefault;
-  // ADR-009 PR-C: carry ambient-touch fields into require-review receipts so
-  // audit can identify which ambient path was being touched when the gate fired.
-  // Mirrors the identical pattern in buildEarlyBlock (lines ~219-222).
-  const _ambientClass = extra.ambientClass || (extra.ambientTouch && extra.ambientTouch.class) || null;
-  const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
-  // ADR-017 F23: include kill-chain receipt when detection fired before this early review.
-  const _killChain    = _earlyBlockF23 || null;
-  const result = {
-    action: "require-review",
-    enforcementAction: "require-review",
-    floorFired: extra.floorFired || null,
-    ...(_code != null ? { code: _code } : {}),
-    riskScore: 5,
-    riskLevel: "medium",
-    reasonCodes: [reasonCode],
-    confidence: 0.5,
-    decisionSource: extra.decisionSource || "contract-floor",
-    policyKey: reasonCode,
-    explanation,
-    pendingSuggestion: null,
-    promotionGuidance: null,
-    promotionState: null,
-    promotionLifecycleSummary: null,
-    workflowRoute: null,
-    actionPlan: null,
-    trajectoryNudge: null,
-    envelope: input.envelope || null,
-    envelopeVerification: null,
-    networkEgress: null,
-    context: {},
-    ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
-    ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
-    ...(_degraded    != null ? { degradedMode: _degraded } : {}),
-    ...(_killChain   != null ? { killChain: _killChain } : {}),
-  };
-  // ADR-016: dry-run mode skips journal/notify side-effects (sandbox previews).
-  if (_earlyBlockDryRun) return result;
-  try {
-    const irExtras = _irJournalExtras(input, result.floorFired);
-    append({
-      kind: "runtime-decision",
-      action: "require-review",
-      riskLevel: "medium",
-      riskScore: 5,
-      reasonCodes: [reasonCode],
-      tool: input.tool || "",
-      branch: input.branch || "",
-      targetPath: input.targetPath || "",
-      notes: `${result.decisionSource}:${reasonCode}`,
-      ...(result.floorFired ? { floorFired: result.floorFired } : {}),
-      ...(_ambientClass ? { ambientClass: _ambientClass } : {}),
-      ...(_ambientPath  ? { ambientPath:  _ambientPath  } : {}),
-      ...(_degraded    != null ? { degradedMode: _degraded } : {}),
-      ...(_killChain   != null ? { killChain:    _killChain } : {}),
-      ...(irExtras || {}),
-    });
-    recordDecision({ action: "require-review", riskLevel: "medium", reasonCodes: [reasonCode] });
-  } catch { /* journal is best-effort */ }
-  try { _fireNotifyHook(result, _earlyBlockContract, result.policyKey || null); } catch { /* */ }
-  return result;
-}
+const {
+  harnessInScope,
+  buildEarlyBlock,
+  buildEarlyReview,
+  irJournalExtras: _irJournalExtras,
+  setEarlyBlockDegradedDefault,
+  setEarlyBlockContract,
+  setEarlyBlockDryRun,
+  setEarlyBlockF23,
+} = require("./early-receipt-builder");
 
 // F16 (ADR-009 PR-B): ambient-authority floor helpers — extracted to runtime/floor-ambient-authority.js.
 const {
@@ -525,7 +330,7 @@ function decide(input = {}) {
   // Default for buildEarlyBlock() — set per-call so the early-block path
   // (kill-switch is the one exception above; it returns before this point)
   // sees the same marker as the final return.
-  _earlyBlockDegradedDefault = _degradedMarker;
+  setEarlyBlockDegradedDefault(_degradedMarker);
 
   // Classify command intent for routing intelligence and journaling.
   // ADR-030: guarded so an adversarial input.command getter cannot crash decide()
@@ -543,11 +348,13 @@ function decide(input = {}) {
   const contract    = getContract(discovered.projectRoot || process.cwd());
   // ADR-015: thread the active contract to the early-block return path so
   // kill-switch / contract-mismatch fires can still emit a notification.
-  _earlyBlockContract = contract;
+  setEarlyBlockContract(contract);
   // ADR-016: thread dryRun to early-block paths so sandbox previews skip journal.
-  _earlyBlockDryRun = Boolean(input.dryRun || process.env.LILARA_DRY_RUN === "1");
+  // Captured locally so decide()'s own journal/recordDecision gates use the same value.
+  const _dryRun = Boolean(input.dryRun || process.env.LILARA_DRY_RUN === "1");
+  setEarlyBlockDryRun(_dryRun);
   // ADR-017 F23: reset per-call so the early-block path doesn't carry a stale receipt.
-  _earlyBlockF23 = null;
+  setEarlyBlockF23(null);
 
   // B2 commit 2: contextTrust per-branch posture override.
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
@@ -926,7 +733,7 @@ function decide(input = {}) {
             evidence:    Array.isArray(_f23Eval.evidence) ? _f23Eval.evidence : [],
             steps:       Array.isArray(_f23Eval.steps)    ? _f23Eval.steps    : [],
           };
-          _earlyBlockF23 = _f23Detail; // thread to buildEarlyBlock for F16/F17/etc.
+          setEarlyBlockF23(_f23Detail); // thread to buildEarlyBlock for F16/F17/etc.
           if (_enforce) {
             _f23PreviewAction = _f23Eval.wouldAction; // "block" or "escalate"
           }
@@ -1017,7 +824,7 @@ function decide(input = {}) {
   try {
     const _isMcpCall = (enriched.ir && enriched.ir.toolKind === "mcp") ||
                        String(input.tool || "").startsWith("mcp__");
-    if (_isMcpCall && !_earlyBlockDryRun) {
+    if (_isMcpCall && !_dryRun) {
       const _mcpSrv  = (enriched.ir && enriched.ir.mcpServer) ||
                        _contractExtractMcpServerName(input.tool);
       const _toolName = String(input.tool || "");
@@ -1806,7 +1613,7 @@ function decide(input = {}) {
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
-  if (!_earlyBlockDryRun) {
+  if (!_dryRun) {
     append({
       kind: "runtime-decision",
       action: result.action,
@@ -1844,7 +1651,7 @@ function decide(input = {}) {
     });
   }
 
-  if (!_earlyBlockDryRun) {
+  if (!_dryRun) {
     recordDecision({
       action: result.action,
       riskLevel: result.riskLevel,
