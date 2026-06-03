@@ -109,4 +109,4 @@ function evalAmbientFloor(input, discovered, contract) {
   return { fire: false };
 }
 
-module.exports = { evalAmbientFloor, classifyAmbientTouch, collectAmbientCandidatePaths, normAmbientPath };
+module.exports = { evalAmbientFloor, classifyAmbientTouch, collectAmbientCandidatePaths, normAmbientPath, _isInsideProject };
