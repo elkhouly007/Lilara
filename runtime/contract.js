@@ -550,16 +550,18 @@ const GATED_CLASSES = new Set([
  * @param {object} input     — { command, commandClass, targetPath, branch, payloadClass, harness, projectRoot }
  * @returns {{ allowed: boolean, reason: string, gated: boolean }}
  */
-function scopeMatch(contract, input) {
-  if (!contract) return { allowed: false, reason: "no-contract", gated: true };
-
+// scopesMatch(scopes, input) — pure scope-check core. Extracted so consent
+// grants (runtime/floor-consent.js) can run the same logic against an
+// arbitrary scopes object without needing a full contract. The class-C hard
+// refusal and destructive-delete symlink checks apply identically to grants.
+// The only impurity (realpathSync for symlink resolution) is already-blessed:
+// scopeMatch → decide() already executes it on the hot path.
+function scopesMatch(scopes, input) {
   // ADR-023: use dual-path so Cyrillic/ZWJ/confusable evasions are caught here
   // as in F25/F26. input.commandClass (pre-computed by action-ir.js) is accepted
   // as-is since it reflects the raw class for irHash stability (see ADR-026).
   const cmdClass = input.commandClass || classifyCommandDual(input.command || "");
   const ctx      = { projectRoot: input.projectRoot || "" };
-  const scopes   = contract.scopes || {};
-  const isGated  = GATED_CLASSES.has(cmdClass);
 
   // Payload class check
   const payloadClass = String(input.payloadClass || "A").toUpperCase();
@@ -568,6 +570,8 @@ function scopeMatch(contract, input) {
 
   // Secret class C — always block regardless of scope (hard floor complement)
   if (payloadClass === "C") return { allowed: false, reason: "payload-class-C", gated: true };
+
+  const isGated  = GATED_CLASSES.has(cmdClass);
 
   // B2 commit 3: scopes.tools.perToolAllow — per-tool command + path allowlists.
   // Checked before class-specific gates so an explicit per-tool match wins.
@@ -712,6 +716,18 @@ function scopeMatch(contract, input) {
 
   // Fallback for other gated classes
   return { allowed: false, reason: `gated-class-${cmdClass}-no-coverage`, gated: true };
+}
+
+/**
+ * scopeMatch(contract, input) — thin wrapper around scopesMatch that extracts
+ * the scopes object from a contract and adds the no-contract fast-path.
+ * @param {object|null} contract
+ * @param {object} input
+ * @returns {{ allowed: boolean, reason: string, gated: boolean }}
+ */
+function scopeMatch(contract, input) {
+  if (!contract) return { allowed: false, reason: "no-contract", gated: true };
+  return scopesMatch(contract.scopes || {}, input);
 }
 
 // ---------------------------------------------------------------------------
@@ -868,6 +884,7 @@ module.exports = {
   accept,
   generate,
   scopeMatch,
+  scopesMatch,
   harnessInScope,
   hashContract,
   newContractId,

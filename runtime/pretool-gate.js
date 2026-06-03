@@ -25,6 +25,22 @@ const { scanSecrets } = require("./secret-scan");
 const { build: buildIr } = require("./action-ir");
 const { extractCommand, normalizeCommand } = require("./command-normalize");
 
+// 0.2.0 consent gate — loaded lazily so the gate is completely inert when
+// LILARA_CONSENT is unset (no performance cost on the hot path).
+let _consentGrantStore = null;
+let _consentTransport  = null;
+function _requireConsentGrantStore() {
+  if (!_consentGrantStore) _consentGrantStore = require("./consent/grant-store");
+  return _consentGrantStore;
+}
+function _requireConsentTransport() {
+  if (!_consentTransport) _consentTransport = require("./consent/transport");
+  return _consentTransport;
+}
+const { projectScope: _projectScope } = require("./project-scope");
+const { mintOperatorToken: _mintOperatorToken,
+        consumeScopedOperatorToken: _consumeScopedOperatorToken } = require("./contract");
+
 // ---------------------------------------------------------------------------
 // Dangerous pattern loading
 // ---------------------------------------------------------------------------
@@ -220,6 +236,23 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       outputChannels,
     });
 
+    // 0.2.0: load the active consent grant and inject it + the current
+    // timestamp so decide() can run the grant-suppression block deterministically.
+    // Both are loaded HERE (at the impure boundary), never inside decide() itself.
+    let consentGrant = null;
+    const nowMs = Date.now();
+    if (process.env.LILARA_CONSENT && process.env.LILARA_CONSENT !== "off") {
+      try {
+        const gs = _requireConsentGrantStore();
+        const ps = _projectScope({ projectRoot: discovered.projectRoot });
+        consentGrant = gs.loadActiveGrant(
+          ps,
+          rawInput?.session_id || rawInput?.sessionId || null,
+          nowMs,
+        );
+      } catch { /* grant store unavailable — proceed without grant (fail-open for store error, not security failure) */ }
+    }
+
     decision = decide({
       harness:     String(harness || ""),
       tool:        String(tool || "Bash"),
@@ -234,6 +267,9 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       envelope,
       ir: gateIr,
       notes: hit ? `${harness}-gate:${hit.name}` : `${harness}-gate`,
+      // Consent gate injected fields (pure-boundary contract):
+      consentGrant,
+      now: nowMs,
     });
 
     if (envelopeReporting && envelope && isCriticalEnvelopeRecheck(decision, payloadClass)) {
@@ -293,6 +329,72 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     emit("[Lilara] BLOCKED by runtime policy.");
     emit("[Lilara] To proceed, get explicit approval or adjust local learned policy intentionally.");
     return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
+  }
+
+  // ── 0.2.0 Consent gate ──────────────────────────────────────────────────
+  // When a floor emits enforcementAction:"consent-required", stop and ask the
+  // human at the controlling terminal. The gate is active ONLY when
+  // LILARA_CONSENT is set to "interactive" or "block" (not "off"/unset).
+  //
+  // Backward-compat: when LILARA_CONSENT is unset/"off", treat "consent-required"
+  // exactly like "block" (applies ENFORCE check — identical to pre-0.2.0 behaviour).
+  const _CONSENT_MODE = String(process.env.LILARA_CONSENT || "off").trim().toLowerCase();
+  if (decision.enforcementAction === "consent-required") {
+    if (_CONSENT_MODE === "off" || !process.env.LILARA_CONSENT) {
+      // Consent disabled — behave as if enforcementAction were "block".
+      if (ENFORCE) {
+        const primaryCode = Array.isArray(decision.reasonCodes) && decision.reasonCodes[0] ? ` [${decision.reasonCodes[0]}]` : "";
+        emit(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})${primaryCode}`);
+        emit(`[Lilara] Explanation: ${decision.explanation}`);
+        emit("[Lilara] BLOCKED by runtime policy (set LILARA_CONSENT=interactive to enable stop-and-ask).");
+        return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
+      }
+      // In warn mode with consent off, fall through to the warn branch below.
+    } else {
+      // Consent is enabled — stop and ask.
+      const tr = _requireConsentTransport();
+      const promptObj = tr.buildConsentPrompt(decision, {
+        tool:    String(tool || "Bash"),
+        command: cmd,
+      });
+      const { decision: consentDecision, grantScopes } = tr.requestConsent(promptObj, { mode: _CONSENT_MODE });
+
+      if (consentDecision === "approve") {
+        // Scope-shaped floors (F18/F20): widen the session grant for future calls.
+        // One-shot floors (F4/F19): mint+consume the floor's existing scoped operator token.
+        if (tr.isOneShot(decision.floorFired)) {
+          // One-shot: mint and immediately consume the scoped operator token.
+          try {
+            const tokenScope = decision.floorFired === "secret-class-C"
+              ? "class-c-review-demote"
+              : "output-exfil-review-demote";
+            const tok = _mintOperatorToken("consent-approved", tokenScope);
+            _consumeScopedOperatorToken(tok, tokenScope);
+          } catch { /* token machinery unavailable — proceeding (operator approved) */ }
+        } else {
+          // Scope-shaped: mint a session grant.
+          try {
+            const gs = _requireConsentGrantStore();
+            const ps = _projectScope({ projectRoot: discovered.projectRoot });
+            gs.mintConsentGrant(grantScopes || {}, {
+              projectScope: ps,
+              sessionId:    rawInput?.session_id || rawInput?.sessionId || null,
+              ttlMs:        3600000, // 1-hour session grant
+              floorCodes:   decision.code ? [decision.code] : [],
+            });
+          } catch { /* grant mint failed — one-time consent only */ }
+        }
+        emit(`[Lilara] Consent granted by operator — proceeding.`);
+        return { exitCode: 0, stderrLines, logAction: "CONSENT", logHitName: hit?.name || secretHit?.name || null };
+      } else {
+        // Denied by human or fail-closed (no TTY).
+        const primaryCode = Array.isArray(decision.reasonCodes) && decision.reasonCodes[0] ? ` [${decision.reasonCodes[0]}]` : "";
+        emit(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})${primaryCode}`);
+        emit(`[Lilara] Explanation: ${decision.explanation}`);
+        emit("[Lilara] BLOCKED — consent denied.");
+        return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
+      }
+    }
   }
 
   // Silent pass: no dangerous-command hit, no secret hit, and decision is allow.

@@ -8,7 +8,7 @@
 // before decide() reaches the normal result path. They share per-call module-level
 // state that decide() sets via the exported setters at the top of each invocation.
 
-const { LATTICE_VERSION, getRungByName } = require("./decision-lattice");
+const { LATTICE_VERSION, getRungByName, enforcementFor } = require("./decision-lattice");
 const { append } = require("./decision-journal");
 const { recordDecision } = require("./session-context");
 const { floorCodeFor } = require("./floor-codes");
@@ -91,10 +91,14 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   const _killChain      = _earlyBlockF23 || null;
   const _code           = extra.code || floorCodeFor(reasonCode) || null;
   const _coaching       = extra.coaching || null;
+  // enforcementFor derives the correct enforcement from the lattice:
+  // consent-eligible floors (F18/F19/F4/F20) → "consent-required";
+  // inviolable floors → "block". Never inline this — always use the helper.
+  const _floorFired = extra.floorFired || null;
   const result = {
     action: "block",
-    enforcementAction: "block",
-    floorFired: extra.floorFired || null,
+    enforcementAction: enforcementFor("block", _floorFired),
+    floorFired: _floorFired,
     ...(_code     != null ? { code:     _code     } : {}),
     riskScore: 10,
     riskLevel: "critical",
@@ -181,10 +185,16 @@ function buildEarlyReview(reasonCode, enriched, discovered, input, explanation, 
   const _ambientPath  = extra.ambientPath  || (extra.ambientTouch && extra.ambientTouch.path)  || null;
   // ADR-017 F23: include kill-chain receipt when detection fired before this early review.
   const _killChain    = _earlyBlockF23 || null;
+  // Bug fix (0.2.0): old code hardcoded enforcementAction:"require-review" which
+  // silently bypassed the LILARA_ENFORCE=1 block guard (pretool-gate.js:286 checks
+  // only for "block"). Now derived from the lattice so:
+  //   - consent-eligible floors (F20 medium etc.) → "consent-required"
+  //   - non-demotable floors (F25/F26 mcp-unscannable) → "block"
+  const _earlyRevFloorFired = extra.floorFired || null;
   const result = {
     action: "require-review",
-    enforcementAction: "require-review",
-    floorFired: extra.floorFired || null,
+    enforcementAction: enforcementFor("require-review", _earlyRevFloorFired),
+    floorFired: _earlyRevFloorFired,
     ...(_code != null ? { code: _code } : {}),
     riskScore: 5,
     riskLevel: "medium",

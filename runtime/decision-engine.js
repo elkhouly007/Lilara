@@ -15,8 +15,9 @@ const { classifyCommand, classifyCommandDual: _classifyCommandDualFromKey } = re
 const { normalizeCommand: _normalizeCommand }  = require("./command-normalize");
 // ADR-020: bypass predicates moved to floor-mcp.js (F25/F26 helpers).
 const { classifyIntent } = require("./intent-classifier");
-const { getEntry, canDemote } = require("./decision-lattice"); // LATTICE_VERSION + getRungByName moved to early-receipt-builder.js
+const { getEntry, canDemote, getEntryByName, enforcementFor } = require("./decision-lattice"); // LATTICE_VERSION + getRungByName moved to early-receipt-builder.js
 const { floorCodeFor } = require("./floor-codes");
+const { evalConsentFloor: _evalConsentFloor } = require("./floor-consent");
 
 // Lilara ADR-007 PR-C: floor labels are LATTICE-derived, not literals. Each
 // constant below resolves to the canonical name/source for its floor; the
@@ -55,6 +56,7 @@ const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
 const _TN  = getEntry("P-TRAJECTORY-NUDGE");// trajectory-nudge
+const _CONSENT = getEntry("D-CONSENT");     // consent-allow (0.2.0 consent gate)
 
 // Demotion source identifiers used with canDemote(). Format mirrors the
 // `demotableBy` strings in decision-lattice.js.
@@ -1392,6 +1394,38 @@ function decide(input = {}) {
     _degradedWriteRouted = source;
     action = "require-review";
   }
+
+  // ── 0.2.0 consent gate: grant-suppression ────────────────────────────────
+  // If an active consent grant is injected (input.consentGrant) and the fired
+  // floor is consent-eligible (canDemote via "consent:interactive"), check
+  // whether the grant covers this action. If so, demote to allow.
+  //
+  // IMPORTANT: input.consentGrant is injected by pretool-gate.js (loaded from
+  // the grant store), NEVER read from disk here. This keeps decide() pure and
+  // byte-identical-replayable: corpus runs omit consentGrant → this block is
+  // completely inert → zero corpus divergence.
+  //
+  // The check runs AFTER all floor overrides (F19 preview, F20, F23) so it
+  // sees the final action/floorFired that the boundary will enforce.
+  // The degraded-write-routing above (action=require-review) skips this block
+  // because floorFired is null for degraded reroutes (no floor fired).
+  if (input.consentGrant && floorFired) {
+    const _cEntry = getEntryByName(floorFired);
+    if (_cEntry && canDemote(_cEntry.id, "consent:interactive")) {
+      try {
+        const _cr = _evalConsentFloor(input, input.consentGrant, contract);
+        if (_cr.inScope) {
+          action    = "allow";
+          source    = _CONSENT.source; // "consent-allow" (lattice-anchored)
+          floorFired = null;
+        }
+      } catch {
+        // Fail-safe: if evalConsentFloor throws for any reason, leave the
+        // original blocking action intact — never silently allow.
+      }
+    }
+  }
+
   // Final marker for receipt/journal — includes writeRouting when the
   // override fired so audit can tell the difference between "degraded
   // chain, write-like allow rerouted" and "degraded chain, action was
@@ -1481,7 +1515,10 @@ function decide(input = {}) {
   const _decidedCode = floorFired ? floorCodeFor(floorFired) : null;
   const result = {
     action,
-    enforcementAction: ["block", "escalate", "require-review", "require-tests"].includes(action) ? "block" : "warn",
+    // enforcementFor centralises the mapping so that consent-eligible floors
+    // emit "consent-required" instead of "block" (0.2.0 consent gate). The
+    // helper reads the lattice — never inline this logic.
+    enforcementAction: enforcementFor(action, floorFired || null),
     floorFired: floorFired || null,
     ...(_decidedCode ? { code: _decidedCode } : {}),
     riskScore: risk.score,

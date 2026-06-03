@@ -8,6 +8,69 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-04
+
+### Added — Scope-Based Consent Gate (ADR-035)
+
+- **feat(consent-gate): introduce the third enforcement state `consent-required`** —
+  Lilara's identity is "trustworthy bounded autonomy"; the "EXCEPT hard exceptions
+  require consent" half now has a real mechanism. A new `enforcementAction:"consent-required"`
+  value is emitted (pure, lattice-derived via `enforcementFor(action, floorFired)`) when a
+  consent-eligible floor fires and no active session grant covers the action. The human-facing
+  ask lives at the impure `pretool-gate.js` boundary (not inside `decide()`), preserving
+  byte-identical replay determinism.
+
+- **feat(consent-gate): interactive TTY transport (`LILARA_CONSENT=interactive`)** —
+  When a `consent-required` decision is encountered and `LILARA_CONSENT=interactive`, the
+  transport opens the controlling TTY (`/dev/tty` POSIX, `\\.\CONIN$` Windows) and presents
+  the real action arguments (hostname, file targets, command, floor code) to the operator.
+  The transport **never reads `process.stdin`** — stdin holds the agent's hook payload and
+  reading it would allow self-approval via prompt injection. Unattended (no TTY): fail-closed
+  deny + one-way notify. `LILARA_CONSENT=block`: always deny + notify. Unset/`off`: today's
+  behavior byte-identical.
+
+- **feat(consent-gate): session scope grants (`~/.lilara/consent-grants.jsonl`)** —
+  On approval, a session scope grant is minted (scope-shaped floors: F18 network-egress,
+  F20 change-intent-drift) or a scoped one-shot operator token is minted+consumed (one-shot
+  floors: F4 secret-class-C, F19 output-exfil-suspicious). Subsequent in-scope actions run
+  silently via grant-suppression inside `decide()`. Grants are project-scoped (via
+  `project-scope.js`), session-bound, and TTL-limited (1h default). Grant store follows
+  ADR-024/028/032 safety conventions (0600/0700, O_EXCL lock, ensureStateDirSafe).
+
+- **feat(consent-gate): lattice plumbing** — New `D-CONSENT` demotion entry at rung 18.25
+  (between `D-CONTRACT-ALLOW`@18 and `F20`@18.5); `"consent:interactive"` added to
+  `demotableBy` of F4/F18/F19/F20. `enforcementFor(action, floorFired)` exported from
+  `decision-lattice.js` as the sole correct derivation of the new third state.
+  `D-CONTRACT-ALLOW` and inviolable floors are unchanged.
+
+- **feat(consent-gate): `scopesMatch` extraction** — `scopeMatch(contract, input)` in
+  `contract.js` refactored to a thin wrapper over `scopesMatch(scopes, input)` (the pure
+  scope-check core). Consent grants use `scopesMatch` directly against `grant.scopes`, so
+  the class-C hard refusal and destructive-delete symlink escape checks apply identically
+  to grants. A grant **cannot** in-scope a class-C payload.
+
+- **feat(consent-gate): 6 new test files, 1 CI gate script** — TDD (all tests written
+  RED before any production code): `consent-floor.test.js`, `consent-grant-store.test.js`,
+  `consent-early-review-fix.test.js`, `consent-enforce-compat.test.js`,
+  `consent-transport.test.js`, `consent-adversarial.test.js`. New CI gate:
+  `scripts/check-consent-gate.sh` (6 test files + 3 structural invariants: no FS writes
+  in the pure evaluator, no stdin reference in transport, D-CONSENT lattice entry).
+
+### Fixed
+
+- **fix(early-receipt-builder): latent enforce-guard bypass for F25/F26 early-review receipts** —
+  `buildEarlyReview` hardcoded `enforcementAction:"require-review"` which silently bypassed
+  the `LILARA_ENFORCE=1` block guard at `pretool-gate.js:286` (`if (ENFORCE &&
+  decision.enforcementAction === "block")`). F25/F26 early-review decisions would always
+  warn-and-proceed even under enforce mode. Fix: `buildEarlyReview` now uses `enforcementFor()`
+  (same as `buildEarlyBlock`) which returns `"block"` for non-consent-eligible floors (F25/F26)
+  and `"consent-required"` for consent-eligible ones. This was a latent bug uncovered during
+  the 0.2.0 enforcement audit.
+
+### Changed
+
+- Script count: 96 → 97 (`check-consent-gate.sh`). Updated `check-counts.sh`, `README.md`.
+
 ## [0.1.9] — 2026-06-03
 
 ### Security (quad-track bundle sprint)
