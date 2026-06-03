@@ -131,5 +131,76 @@ function fail(name, m) { console.error(`  FAIL ${name} — ${m}`); failed++; }
   }
 }
 
+// ─── T8–T10: ADR-034 Option 2 — MCP injection trajectory escalation ─────────
+// Khouly requirement: prove the buildup design end-to-end, not just the counter.
+//   T8: 1 injection → getMcpInjectionSignals() == 1, getSessionRisk() == 2
+//   T9: 2 injections in same session → getSessionRisk() == 3
+//   T10: 2 injections → next decide() escalates via F9 (floorFired === "session-risk")
+//
+// Run in an isolated stateDir so signals don't bleed into other tests.
+{
+  const sc   = require(path.join(root, "runtime", "session-context"));
+  const { decide } = (() => {
+    // Clear module cache so we get a fresh session-context state reference.
+    for (const k of Object.keys(require.cache)) {
+      if (k.includes(path.sep + "runtime" + path.sep)) delete require.cache[k];
+    }
+    return require(path.join(root, "runtime", "decision-engine"));
+  })();
+
+  const tmpDir = require("fs").mkdtempSync(require("path").join(require("os").tmpdir(), "arg-adr034-"));
+  const envSnap = { ...process.env };
+  process.env.LILARA_STATE_DIR        = tmpDir;
+  process.env.LILARA_CONTRACT_ENABLED = "0";
+  process.env.LILARA_RATE_LIMIT       = "0";
+  delete process.env.LILARA_KILL_SWITCH;
+
+  try {
+    // Reload session-context with fresh stateDir.
+    for (const k of Object.keys(require.cache)) {
+      if (k.includes(path.sep + "runtime" + path.sep)) delete require.cache[k];
+    }
+    const sc2 = require(path.join(root, "runtime", "session-context"));
+
+    // T8: one injection → signals == 1, risk == 2 (not enough for F9 alone)
+    sc2.recordMcpInjectionSignal();
+    const sig1  = sc2.getMcpInjectionSignals();
+    const risk1 = sc2.getSessionRisk();
+    sig1 === 1 && risk1 === 2
+      ? ok("T8: 1 MCP injection → signals=1, getSessionRisk()=2 (below F9 threshold)")
+      : fail("T8: 1 MCP injection → signals=1, getSessionRisk()=2", `signals=${sig1} risk=${risk1}`);
+
+    // T9: second injection → signals == 2, risk == 3 → F9 will fire
+    sc2.recordMcpInjectionSignal();
+    const sig2  = sc2.getMcpInjectionSignals();
+    const risk2 = sc2.getSessionRisk();
+    sig2 === 2 && risk2 === 3
+      ? ok("T9: 2 MCP injections → signals=2, getSessionRisk()=3 (F9 threshold reached)")
+      : fail("T9: 2 MCP injections → signals=2, getSessionRisk()=3", `signals=${sig2} risk=${risk2}`);
+
+    // T10: decide() with sessionRisk=3 → F9 escalates
+    for (const k of Object.keys(require.cache)) {
+      if (k.includes(path.sep + "runtime" + path.sep)) delete require.cache[k];
+    }
+    // Keep the stateDir so signals persist; reload modules to see updated state.
+    const de2 = require(path.join(root, "runtime", "decision-engine"));
+    const r = de2.decide({
+      tool: "Bash",
+      command: "echo hello",
+      harness: "claude",
+      branch: "feature/test",
+      projectRoot: tmpDir,
+    });
+    r.action === "escalate" && r.floorFired === "session-risk-floor"
+      ? ok("T10: 2 injections → decide() escalates via F9 (floorFired=session-risk-floor)")
+      : fail("T10: 2 injections → decide() escalates via F9", `action=${r.action} floorFired=${r.floorFired}`);
+  } finally {
+    // Restore env
+    for (const k of Object.keys(process.env)) if (!(k in envSnap)) delete process.env[k];
+    for (const [k, v] of Object.entries(envSnap)) process.env[k] = v;
+    try { require("fs").rmSync(tmpDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+  }
+}
+
 console.log(`\npost-adapter-mcp-injection.test.js: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
