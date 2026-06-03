@@ -13,8 +13,8 @@
 #   setup       Run the interactive onboarding wizard.
 #   audit       Audit scripts and hook files for unsafe patterns.
 #   check       Fast runtime + unit checks (< 30 s). No fixtures, no audit scans, no bench.
-#   pre-push    Local pre-push gate: 6-gate set mirroring CI (check-version, fixtures,
-#               runtime-core, bench, replay, eval). Run before every git push.
+#   pre-push    True CI mirror: `check` (~42 gates) + 13 CI-only extras. Run before every
+#               git push. Supersedes the prior 6-gate set that silently missed check-status-docs.
 #   ci          Full CI superset: check + audit + fixtures + bench. Matches GitHub Actions.
 #   contract    Manage the upfront security contract (init/accept/show/verify/diff/amend).
 #   operator-token  Manage one-shot operator tokens for non-TTY contract acceptance (mint/verify).
@@ -297,41 +297,81 @@ case "$cmd" in
     ;;
 
   # ── pre-push ──────────────────────────────────────────────────────────────
-  # 6-gate set that mirrors the GitHub Actions "Checks" job step-for-step.
-  # Run this before every `git push` to catch regressions the fast `check`
-  # arm skips. Gate order matches CI (check.yml steps 1-6):
-  #   1. check-version (VERSION ↔ CHANGELOG parity)
-  #   2. run-fixtures  (420 declarative fixture cases)
-  #   3. check-runtime-core (all runtime unit tests incl. replay-corpus drift)
-  #   4. bench-runtime-decision (hot p99 regression gate)
-  #   5. check-decision-replay (12 replay entries + F21 sweep)
-  #   6. eval-decision-quality (0.0%/0.0% FP/FN gate)
+  # True CI mirror — runs every gate from .github/workflows/check.yml.
+  # The prior 6-gate version claimed to "mirror CI step-for-step" but missed
+  # 30+ checks including check-status-docs (3rd CI miss across 4 sprints).
   #
-  # Motivation (trust-boundary + decomp sprint lesson): the decomp sprint
-  # omitted check-runtime-core.sh from its local gate set. A stale test
-  # broke master CI for 5+ runs before the quad-track sprint caught it.
-  # This subcommand closes that gap permanently.
+  # Structure:
+  #   Group A — `check` subcommand (~42 gates, covers the bulk of check.yml):
+  #     check-registries, check-integration-smoke, check-skills,
+  #     check-installation, check-config-integration, check-runtime-core,
+  #     check-runtime-cli, check-hook-edge-cases, check-apply-status,
+  #     check-executables, check-setup-wizard, check-wiring-docs,
+  #     check-superiority-evidence, CHECK-STATUS-DOCS, check-status-artifact,
+  #     check-fixture-count, check-harness-support, check-owasp-coverage,
+  #     check-scenarios, check-codex-adapter, check-antegravity-adapter,
+  #     check-zero-deps, check-counts, check-cross-harness-equivalence,
+  #     check-contract, check-migrate-v2-v3, check-kill-switch,
+  #     check-pressure-tests, check-decide-on-every-call,
+  #     check-session-isolation, check-no-horus, and more.
+  #   Group B — CI gates not in `check` (13 explicit):
+  #     check-version --check-changelog, run-fixtures, audit-local,
+  #     audit-examples, verify-hooks-integrity, check-opencode-adapter,
+  #     check-openclaw-adapter, check-clawcode-adapter, check-migrate-v1-v2,
+  #     check-decision-replay, bench-runtime-decision, bench-perf-regression,
+  #     eval-decision-quality (pinned to 0.0%/0.0%).
   pre-push)
     section() { printf '\n%s━━━ %s ━━━%s\n' "$CYAN" "$1" "$RESET"; }
     failed=0
 
-    section "1/6 Version + changelog parity"
+    # ── Group A: `check` subcommand covers ~42 CI gates in one call ───────────
+    # Includes check-status-docs, check-counts, check-no-horus, and all others
+    # the prior 6-gate set silently skipped.
+    section "A — check gate set (~42 gates)"
+    bash "$0" check || failed=1
+
+    # ── Group B: CI gates not covered by `check` (13 gates) ──────────────────
+
+    section "B.1 — Version + changelog parity"
+    # check-version.sh without --check-changelog only prints; --check-changelog
+    # is the asserting form used by CI. check subcommand uses the bare form.
     bash "${scripts}/check-version.sh" --check-changelog || failed=1
 
-    section "2/6 Fixtures (declarative)"
+    section "B.2 — Fixtures (declarative)"
     bash "${scripts}/run-fixtures.sh" || failed=1
 
-    section "3/6 Runtime core (unit tests + corpus replay drift)"
-    bash "${scripts}/check-runtime-core.sh" || failed=1
+    section "B.3 — Audit local (scripts + hooks)"
+    bash "${scripts}/audit-local.sh" || failed=1
 
-    section "4/6 Runtime bench (p99 regression)"
-    bash "${scripts}/bench-runtime-decision.sh" || failed=1
+    section "B.4 — Audit examples (prose + GOOD blocks)"
+    bash "${scripts}/audit-examples.sh" || failed=1
 
-    section "5/6 Decision replay"
+    section "B.5 — Hook integrity"
+    bash "${scripts}/verify-hooks-integrity.sh" || failed=1
+
+    section "B.6 — OpenCode adapter"
+    bash "${scripts}/check-opencode-adapter.sh" || failed=1
+
+    section "B.7 — OpenClaw adapter"
+    bash "${scripts}/check-openclaw-adapter.sh" || failed=1
+
+    section "B.8 — Claw Code adapter"
+    bash "${scripts}/check-clawcode-adapter.sh" || failed=1
+
+    section "B.9 — Contract schema v2 migration"
+    bash "${scripts}/check-migrate-v1-v2.sh" || failed=1
+
+    section "B.10 — Decision replay (CI sample journal gate)"
     LILARA_CONTRACT_ENABLED=0 LILARA_TRAJECTORY_WINDOW_MIN=0 \
       bash "${scripts}/check-decision-replay.sh" || failed=1
 
-    section "6/6 Eval quality (FP/FN gate)"
+    section "B.11 — Runtime bench (p99 regression)"
+    bash "${scripts}/bench-runtime-decision.sh" || failed=1
+
+    section "B.12 — Perf regression guard"
+    bash "${scripts}/bench-perf-regression.sh" || failed=1
+
+    section "B.13 — Eval quality (FP/FN gate — CI pinned at 0.0%/0.0%)"
     LILARA_EVAL_MAX_FP_PCT=0 LILARA_EVAL_MAX_FN_PCT=0 \
       bash "${scripts}/eval-decision-quality.sh" || failed=1
 
