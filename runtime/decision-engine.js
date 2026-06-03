@@ -177,6 +177,8 @@ try {
   _getCounters = sb.getCounters;
   _recordDestructiveOp = sb.recordDestructiveOp;
 } catch { /* optional */ }
+// ADR-031: input materialization — getter-free, null-safe copy at decide() entry.
+const { materializeInput: _materializeInput } = require("./input-materializer");
 
 // Contract is loaded lazily - disabled only when LILARA_CONTRACT_ENABLED=0.
 // `_contractLoaded` distinguishes "not yet loaded" from "loaded as null" so a
@@ -984,6 +986,48 @@ function decide(input = {}) {
     // bad/missing contract doesn't change kill-switch behaviour.
     try { _fireNotifyHook(killResult, getContract(process.cwd()), killResult.policyKey); } catch { /* */ }
     return killResult;
+  }
+
+  // ADR-031 — Input materialization.  Produce a plain, getter-free, null-safe
+  // copy of `input` so every downstream read — discover(), Object.entries(),
+  // the floor helpers, and the receipt builders (which receive `input` as a
+  // parameter) — sees a safe value.  Closes trust-boundary-map A1–A9 in one
+  // seam without touching floor internals or the classifier (ADR-031 §Design).
+  //
+  // Fail-CLOSED: if materializeInput itself throws (it is designed never to, but
+  // defence-in-depth), decide() returns a require-review receipt rather than
+  // propagating the throw to pretool-gate.js:281-282 (the fail-OPEN branch).
+  // Module-scope state (_earlyBlockContract, _earlyBlockDegradedDefault) has not
+  // been set yet at this point, so the fallback receipt is built inline with safe
+  // zero values — still a valid enforceable decision object.
+  {
+    let _matErr = false;
+    try { input = _materializeInput(input); } catch { _matErr = true; }
+    if (_matErr) {
+      return {
+        action: "require-review",
+        enforcementAction: "require-review",
+        floorFired: "input-materialization-failed",
+        riskScore: 5,
+        riskLevel: "medium",
+        reasonCodes: ["input-materialization-failed"],
+        confidence: 0.5,
+        decisionSource: "contract-floor",
+        policyKey: "input-materialization-failed",
+        explanation: "decide() input materialization failed — failing safe to require-review",
+        pendingSuggestion: null,
+        promotionGuidance: null,
+        promotionState: null,
+        promotionLifecycleSummary: null,
+        workflowRoute: null,
+        actionPlan: null,
+        trajectoryNudge: null,
+        envelope: null,
+        envelopeVerification: null,
+        networkEgress: null,
+        context: {},
+      };
+    }
   }
 
   const discovered = discover(input);

@@ -1,6 +1,6 @@
 # ADR-031 — Load-Bearing Pre-Floor `input.*` Reads Crash `decide()`
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding during ADR-030 sweep.  
+**Status:** Implemented — 2026-06-03 (feat/adr-031-input-materialization). Option 1 (input materialization at `decide()` entry via `runtime/input-materializer.js`). Originally proposed 2026-06-02 as audit-by-side-effect finding during ADR-030 sweep.  
 **Severity:** HIGH (same class as ADR-025; enables floor-level fail-open on adversarial input)  
 **Area:** `runtime/decision-engine.js` — load-bearing pre-floor reads of `input.*` outside any try/catch.
 
