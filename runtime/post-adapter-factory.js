@@ -58,15 +58,19 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
   const { recordExternalRead } = require("./taint");
   const { scanForInjection } = require("./compaction-survival");
   const { buildCoachingEnvelope } = require("./coaching");
-  // ADR-017 F23: provenance graph source recording. Optional — if module unavailable,
-  // F23 simply won't detect chains on this harness (fails open silently).
+  // ADR-017 F23 + ADR-034 Option 2: provenance graph source recording +
+  // MCP injection trajectory escalation. Optional — if module unavailable,
+  // F23 fails open silently; injection signals are still journalled but the
+  // session-risk contribution is skipped.
   let _tokenHashSet = null, _pHash = null, _recordProvenanceStep = null;
+  let _recordMcpInjectionSignal = null;
   try {
     const pg = require("./provenance-graph");
     _tokenHashSet = pg.tokenHashSet;
     _pHash        = pg.pathHash;
     const sc      = require("./session-context");
-    _recordProvenanceStep = sc.recordProvenanceStep;
+    _recordProvenanceStep      = sc.recordProvenanceStep;
+    _recordMcpInjectionSignal  = sc.recordMcpInjectionSignal;
   } catch { /* optional */ }
 
   readStdin()
@@ -246,6 +250,15 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
                     });
                   }
                 } catch { /* provenance reinforcement is best-effort */ }
+              }
+              // ADR-034 Option 2: trajectory escalation. Increment the per-session
+              // MCP injection signal counter so the NEXT decide() call sees elevated
+              // session risk via getSessionRisk() → F9 floor. PostToolUse stays
+              // advisory (never a blocking gate itself); the escalation feeds back
+              // into the PreToolUse gate, consistent with Lilara's gate philosophy.
+              // Tiered contribution: 1 injection → risk+2; 2+ → risk+3 → F9 fires.
+              if (_recordMcpInjectionSignal) {
+                try { _recordMcpInjectionSignal(); } catch { /* best-effort */ }
               }
             }
           } catch { /* MCP result-injection scan is best-effort */ }

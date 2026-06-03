@@ -1,8 +1,8 @@
 # ADR-034 — MCP Inbound Response Inspection
 
-**Status:** Proposed — 2026-06-03. Surfaced during the June 2026 trust-boundary audit sprint (trust-boundary-map Cluster C, C5).
+**Status:** Implemented — 2026-06-03 (quad-track bundle sprint). Option 2 variant chosen.
 **Severity:** MED-HIGH (design question; current surface boundary is intentional)
-**Area:** `runtime/pretool-gate.js` and MCP interaction path — no current inbound response parsing.
+**Area:** `runtime/post-adapter-factory.js` (block 2d), `runtime/session-context.js`
 
 ---
 
@@ -59,13 +59,35 @@ Accept the current inbound surface as a design boundary. Document in the trust-b
 
 ---
 
-## Recommendation
+## Decision (2026-06-03)
 
-**Decision pending.** Options 1 and 2 are the lowest-disruption paths. The trust-boundary map documents this as known-and-accepted (item 1 in the known-and-accepted bucket). Before implementing, clarify:
+**Option 2 — Result inspection gate / PostToolUse → trajectory escalation.**
 
-1. Does the harness have access to MCP connection credentials at gate time (needed for Option 1)?
-2. Are PostToolUse hooks blocking-capable in all supported harnesses (needed for Option 2)?
-3. Is the proxy architecture on the roadmap for any other reason (would share the investment for Option 3)?
+Clarifying questions resolved:
+1. **MCP credentials at gate time?** No — hard blocker for Option 1. The gate receives
+   already-parsed input from the harness; no MCP connection credentials are available.
+2. **PostToolUse blocking-capable?** Partially (unverified for all 6 harnesses). Resolved
+   by choosing a TRAJECTORY variant of Option 2: PostToolUse stays advisory (never a
+   blocking gate itself); it increments a session-level counter that the NEXT decide() call
+   reads via F9 (sessionRisk ≥ 3 → escalate). PreToolUse remains the sole blocking gate.
+3. **Proxy on roadmap?** No — confirmed stop condition (would change product positioning).
+
+**Implementation:**
+- `runtime/session-context.js`: `mcpInjectionSignals` field in session state;
+  `recordMcpInjectionSignal()` increments it; `getMcpInjectionSignals()` reads it;
+  `getSessionRisk()` adds tiered contribution (≥1 → +2, ≥2 → +3).
+- `runtime/post-adapter-factory.js`: block 2d calls `recordMcpInjectionSignal()` when
+  MCP injection is confirmed — after the existing journal append + provenance recording.
+
+**Buildup semantics:**
+- 1 injection alone → sessionRisk 2 → does NOT trip F9 (single signal is informative, not conclusive)
+- 2+ injections alone → sessionRisk 3 → F9 escalates on next PreToolUse
+- 1 injection + 2 prior escalations → 2+2 = 4 → cap 3 → F9 fires
+
+**Coverage gap (documented, not resolved):** tool-list poisoning and malicious tool
+descriptions remain out of scope (Option 1 blocked by missing credentials; Option 3 is
+a stop condition). This is now the known-and-accepted surface boundary for C5 in the
+trust-boundary map.
 
 ---
 

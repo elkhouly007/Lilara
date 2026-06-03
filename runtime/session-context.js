@@ -57,7 +57,8 @@ function startSession() {
 function emptyState() {
   return {
     sessions: {},
-    recent: [],   // legacy field — kept for backward-compat
+    recent: [],              // legacy field — kept for backward-compat
+    mcpInjectionSignals: 0, // ADR-034 Option 2: per-session MCP injection count
     updatedAt: null,
   };
 }
@@ -133,14 +134,47 @@ function sessionRecent(state) {
   return Array.isArray(state.recent) ? state.recent : [];
 }
 
+function getMcpInjectionSignals() {
+  // ADR-034 Option 2: returns the MCP injection signal count for the current
+  // session. Stored separately from the trajectory so a single injection event
+  // can immediately contribute to session risk without needing two entries.
+  const state = loadState();
+  return typeof state.mcpInjectionSignals === "number" ? state.mcpInjectionSignals : 0;
+}
+
+function recordMcpInjectionSignal() {
+  // ADR-034 Option 2: called by post-adapter-factory when block 2d detects a
+  // confirmed MCP result-injection signal. Increments the per-session counter
+  // and persists to session-context.json so the next decide() call sees the
+  // updated risk via getSessionRisk() → F9 escalation path.
+  //
+  // Fail-safe: errors are swallowed so a broken state-dir never blocks the
+  // PostToolUse path (detection itself has already been journalled by the
+  // caller; this counter is best-effort enrichment).
+  try {
+    const state = loadState();
+    const prev  = typeof state.mcpInjectionSignals === "number" ? state.mcpInjectionSignals : 0;
+    saveState({ ...state, mcpInjectionSignals: prev + 1, updatedAt: new Date().toISOString() });
+  } catch { /* best-effort — PostToolUse must never throw */ }
+}
+
 function getSessionRisk() {
   const state  = loadState();
   const recent = sessionRecent(state).slice(-8);
   let risk = 0;
-  const highish    = recent.filter((item) => ["escalate", "block"].includes(item.action)).length;
+  const highish     = recent.filter((item) => ["escalate", "block"].includes(item.action)).length;
   const destructive = recent.filter((item) => Array.isArray(item.reasonCodes) && item.reasonCodes.includes("destructive-delete-pattern")).length;
-  if (highish >= 2)    risk += 2;
+  if (highish >= 2)     risk += 2;
   if (destructive >= 2) risk += 1;
+  // ADR-034 Option 2: MCP injection signals contribute tiered risk so that:
+  //   1 injection alone  → risk +2 (does not trip F9 threshold of 3 alone)
+  //   2+ injections alone → risk +3 (immediately trips F9 on next PreToolUse)
+  //   1 injection + 2+ escalations → 2+2 = 4 → cap 3 → F9 fires
+  // Buildup is intentional: a single advisory signal is informative but not
+  // conclusive; two confirmed injections in one session warrant hard escalation.
+  const mcpInj = getMcpInjectionSignals();
+  if (mcpInj >= 2)      risk += 3;
+  else if (mcpInj >= 1) risk += 2;
   return Math.min(3, risk);
 }
 
@@ -317,4 +351,4 @@ function getProvenanceWindow(windowSeconds) {
   } catch { return []; }
 }
 
-module.exports = { paths, loadState, saveState, getSessionRisk, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache, recordExternalRead, getProvenanceWindow, loadProvenanceGraph, saveProvenanceGraph, recordProvenanceStep };
+module.exports = { paths, loadState, saveState, getSessionRisk, getMcpInjectionSignals, recordMcpInjectionSignal, recordDecision, getSessionTrajectory, startSession, currentSessionId, resetCache, recordExternalRead, getProvenanceWindow, loadProvenanceGraph, saveProvenanceGraph, recordProvenanceStep };
