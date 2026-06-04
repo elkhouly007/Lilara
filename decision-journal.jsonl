@@ -1,4 +1,0 @@
-{"kind":"runtime-decision","ts":"2026-06-03T10:00:01.000Z","action":"block","riskLevel":"high","riskScore":8,"tool":"Bash","floorFired":"F4","reasonCodes":["F4","secret-class-C"],"targetPath":"./deploy.sh"}
-{"kind":"runtime-decision","ts":"2026-06-03T10:00:02.000Z","action":"allow","riskLevel":"low","riskScore":1,"tool":"Edit","floorFired":"","reasonCodes":[],"targetPath":"src/app.js"}
-{"kind":"runtime-decision","ts":"2026-06-03T10:00:03.000Z","action":"require-review","riskLevel":"medium","riskScore":4.5,"tool":"Bash","floorFired":"taint-floor","reasonCodes":["F10"],"targetPath":"./build.sh"}
-{"kind":"runtime-decision","ts":"2026-06-03T10:00:04.000Z","action":"observe","riskLevel":"critical","riskScore":9,"tool":"Bash","floorFired":"kill-chain-detected","reasonCodes":["F23"],"targetPath":""}

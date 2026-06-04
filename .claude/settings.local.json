@@ -10,21 +10,7 @@
       "Bash(cmd.exe /c \"node --version 2>&1\")",
       "Bash(cmd.exe /c \"where node 2>&1\")",
       "Bash(awk --version)",
-      "Bash(awk ' *)",
-      "Bash(gh pr *)",
-      "Bash(gh run *)",
-      "Bash(node -e ' *)",
-      "Bash(mkdir -p \"C:/Users/Khouly/.claude/plans\"; echo done)",
-      "Bash(git checkout *)",
-      "Bash(bash scripts/check-version.sh --check-changelog)",
-      "Bash(bash scripts/check-decision-replay.sh)",
-      "Bash(bash scripts/check-replay-corpus.sh)",
-      "Bash(git add *)",
-      "Bash(git pull *)",
-      "Bash(ls \"C:\\\\Users\\\\Khouly\\\\.claude\\\\plans\\\\\" 2>nul || echo \"no plans dir\")",
-      "Bash(git -C \"C:/Users/Khouly/projects/Lilara\" log --oneline -30)",
-      "Bash(ls -la \"C:/Users/Khouly/projects/Lilara/claude/hooks/../\"; echo \"===manifest===\"; cat \"C:/Users/Khouly/projects/Lilara/claude/manifest.json\"; echo \"===hooks.json===\"; cat \"C:/Users/Khouly/projects/Lilara/claude/hooks/hooks.json\")",
-      "Bash(mkdir -p \"C:/Users/Khouly/.claude/plans\" && echo created)"
+      "Bash(awk ' *)"
     ]
   }
 }
