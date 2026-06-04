@@ -58,6 +58,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **fix(install): ship `runtime/` + `schemas/` in all install profiles — close silent fail-open gap** —
+  `scripts/install-local.sh` never shipped the `runtime/` decision engine or the `schemas/`
+  JSON schemas to install targets. The wired PreToolUse hooks delegate through
+  `claude/hooks/hook-utils.js` which resolves `../../runtime` at module-load time (synchronous
+  top-level `require`); with `runtime/` absent, Node threw `MODULE_NOT_FOUND` → uncaught exit 1 →
+  **silent fail-open** (Claude Code PreToolUse: only exit 2 blocks; exit 0/1 allows). An installed
+  + wired user under `LILARA_ENFORCE=1` was silently failing open on every tool call — F27 ssh-exfil
+  and F3 rm-rf were allowed, not blocked. Fix: `install-local.sh` now ships all 78 `runtime/*.js`
+  modules (incl. `consent/`, `notify/` subdirs), all `schemas/*.json`, all `claude/hooks/` files
+  (replacing the former hardcoded list), and `claude/manifest.json` for every profile including
+  `minimal`. New regression gate `scripts/check-install-smoke.sh` performs a real install into a
+  temp dir, asserts engine files landed, and proves both payloads exit 2 (`BLOCKED`) through the
+  installed + wired hook under `LILARA_ENFORCE=1`. Wired into CI (3-OS matrix) and
+  `lilara-cli.sh check` / `pre-push`.
+
 - **fix(early-receipt-builder): latent enforce-guard bypass for F25/F26 early-review receipts** —
   `buildEarlyReview` hardcoded `enforcementAction:"require-review"` which silently bypassed
   the `LILARA_ENFORCE=1` block guard at `pretool-gate.js:286` (`if (ENFORCE &&

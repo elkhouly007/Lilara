@@ -97,9 +97,10 @@ fires correctly without any harness wiring.
 bash scripts/lilara-cli.sh install /path/to/your/project --profile rules --auto
 ```
 
-This copies `claude/hooks/`, `runtime/`, `scripts/`, and other Lilara files into
-the target project. State (`~/.lilara/`) is never touched. The script prints a
-hook snippet at the end — keep that terminal output; you'll need it in step 4b.
+This copies `claude/hooks/`, `runtime/` (decision engine), `schemas/` (JSON schemas
+read at runtime), `scripts/`, and other Lilara files into the target project. State
+(`~/.lilara/`) is never touched. The script prints a hook snippet at the end — keep
+that terminal output; you'll need it in step 4b.
 
 **Profiles:**
 - `minimal` — secret-warning + dangerous-command-gate only (fewest hooks)

@@ -78,6 +78,9 @@ jobs:
       - name: Check installation
         run: bash scripts/check-installation.sh
 
+      - name: Install smoke (runtime enforcement end-to-end)
+        run: bash scripts/check-install-smoke.sh
+
       - name: Check config integration
         run: bash scripts/check-config-integration.sh
 

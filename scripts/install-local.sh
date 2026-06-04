@@ -165,22 +165,7 @@ SECURITY_MODEL.md
 MODULES.md
 DECISIONS.md
 claude/AGENTS.md
-claude/hooks/README.md
-claude/hooks/hooks.json
-claude/hooks/hook-utils.js
-claude/hooks/secret-warning.js
-claude/hooks/secret-patterns.json
-claude/hooks/dangerous-command-gate.js
-claude/hooks/dangerous-patterns.json
-claude/hooks/build-reminder.js
-claude/hooks/git-push-reminder.js
-claude/hooks/quality-gate.js
-claude/hooks/instinct-utils.js
-claude/hooks/session-start.js
-claude/hooks/session-end.js
-claude/hooks/strategic-compact.js
-claude/hooks/memory-load.js
-claude/hooks/pr-notifier.js
+claude/manifest.json
 opencode/opencode.safe.jsonc
 opencode/prompts/planner.md
 opencode/prompts/code-review.md
@@ -225,6 +210,26 @@ skills_files() {
   done
 }
 
+# hooks_files — every file under claude/hooks/ (js, json, md). Replaces the
+# former hardcoded list in minimal_files() so new hooks/patterns are picked up
+# automatically without a manifest update.
+hooks_files() {
+  ( cd "$root" && find claude/hooks -type f ) | sort
+}
+
+# runtime_files — the full decision engine (78 js modules, incl. consent/ and
+# notify/ subdirs). Shipped to <target>/runtime/ so the thin hook adapters can
+# resolve ../../runtime/pretool-gate correctly from <target>/claude/hooks/.
+runtime_files() {
+  ( cd "$root" && find runtime -type f -name '*.js' ) | sort
+}
+
+# schemas_files — JSON schemas read by runtime/config-validator.js on the
+# decide() path (lilara.config.schema.json, lilara.contract.schema.json).
+schemas_files() {
+  ( cd "$root" && find schemas -type f -name '*.json' ) | sort
+}
+
 # ── build file list ───────────────────────────────────────────────────────────
 
 # Determine which languages to include for rule profiles.
@@ -250,8 +255,15 @@ else
   langs="$(ls "$root/rules/" | grep -v README | tr '\n' ' ')"
 fi
 
-# Collect all paths
-all_files="$(minimal_files)"
+# Collect all paths.
+# hooks/runtime/schemas are core enforcement infrastructure shipped for EVERY
+# profile — an installed target without runtime/ silently fails open (exit 1,
+# not exit 2) under LILARA_ENFORCE=1 because hook-utils.js can't resolve
+# ../../runtime at module load time.
+all_files="$(minimal_files)
+$(hooks_files)
+$(runtime_files)
+$(schemas_files)"
 
 case "$profile" in
   rules)
