@@ -5,7 +5,7 @@
     { "floor": "F1",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow"] },
     { "floor": "F2",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "operator-token:class-c-review-demote"] },
     { "floor": "F3",  "demotableBy": [], "negativeSamples": ["contract-allow:tool-allow-matched", "contract-allow", "learned-allow"] },
-    { "floor": "F4",  "demotableBy": ["operator-token:class-c-review-demote"], "negativeSamples": ["contract-allow:tool-allow-matched", "learned-allow", "operator-token:wrong-scope"] },
+    { "floor": "F4",  "demotableBy": ["operator-token:class-c-review-demote", "consent:interactive"], "negativeSamples": ["contract-allow:tool-allow-matched", "learned-allow", "operator-token:wrong-scope"] },
     { "floor": "F5",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
     { "floor": "F6",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "auto-allow-once"] },
     { "floor": "F7",  "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "auto-allow-once"] },
@@ -20,7 +20,9 @@
     { "floor": "F15", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
     { "floor": "F16", "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow", "auto-allow-once"] },
     { "floor": "F17", "demotableBy": [], "negativeSamples": ["contract-allow", "contract-allow:tool-allow-matched", "operator-token:class-c-review-demote", "learned-allow", "auto-allow-once"] },
-    { "floor": "F18", "demotableBy": [], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] }
+    { "floor": "F18", "demotableBy": ["consent:interactive"], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote"] },
+    { "floor": "F19", "demotableBy": ["operator-token-suspicious-only", "consent:interactive"], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "learned-allow"] },
+    { "floor": "F20", "demotableBy": ["operator-token-medium-only", "consent:interactive"], "negativeSamples": ["contract-allow", "operator-token:class-c-review-demote", "learned-allow"] }
   ],
   "additionalAssertions": {
     "unknownFloorId": { "id": "F999", "anySource": false },

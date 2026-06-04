@@ -42,3 +42,5 @@ package-lock.json
 # ── Editor ────────────────────────────────────────────────────────────────────
 .vscode/settings.json
 *.swp
+
+decision-journal.jsonl

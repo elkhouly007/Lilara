@@ -149,8 +149,10 @@ const LATTICE = Object.freeze([
     source: ["secret-class-C", "f4-class-c-demoted"],
     // demotableBy: ADR-002 Option B — F4 (this floor) grants a one-shot scoped
     // operator token (LILARA_F4_DEMOTE_TOKEN, scope `class-c-review-demote`) the
-    // authority to demote `block` → `require-review`. No other source qualifies.
-    demotableBy: ["operator-token:class-c-review-demote"],
+    // authority to demote `block` → `require-review`. No other source qualifies
+    // except consent:interactive (0.2.0 consent gate — one-shot approval mints
+    // and immediately consumes the operator token internally).
+    demotableBy: ["operator-token:class-c-review-demote", "consent:interactive"],
     predicateRef: "runtime/decision-engine.js:decide(payloadClass=='C'||scanSecrets); scopes.mcp[server].policy==='allow' suppresses MCP arg scan arm",
     notes: "ADR-002 Option B: demotable to require-review by one-shot scoped operator token. scopes.mcp[server].policy === 'allow' suppresses the MCP arg scan arm for explicitly trusted servers.",
   }),
@@ -217,7 +219,10 @@ const LATTICE = Object.freeze([
     name: "network-egress",
     action: "block",
     source: "network-egress-denied",
-    demotableBy: [],
+    // 0.2.0: consent:interactive allows an operator to approve a specific
+    // egress target via the interactive TTY prompt. The approval widens the
+    // session scope grant for that host only.
+    demotableBy: ["consent:interactive"],
     predicateRef: "runtime/network-egress.js + decision-engine wiring",
     notes: "ADR-005: default-deny network egress when contract.network.egress unmatched.",
   }),
@@ -351,7 +356,9 @@ const LATTICE = Object.freeze([
     // `output-exfil-review-demote`) demotes a suspicious match to allow.
     // Matches the F4 pattern so check-no-implicit-demotion stays anchored.
     source: ["output-exfil-denied", "f19-demoted"],
-    demotableBy: ["operator-token-suspicious-only"],
+    // consent:interactive mints+consumes the operator token internally (one-shot;
+    // does NOT widen the scope grant, re-asks on next exfil detection).
+    demotableBy: ["operator-token-suspicious-only", "consent:interactive"],
     predicateRef: "runtime/decision-engine.js + runtime/output-exfil.js",
     notes: "F19: output-channel exfiltration. Confirmed matches block; suspicious matches route to require-review and are demotable only by a one-shot scoped operator token (operator-token-suspicious-only). Adapter manifests must declare outputChannelObservability and, for not-observed channels, a compensatingRestriction; default-deny otherwise.",
   }),
@@ -365,6 +372,28 @@ const LATTICE = Object.freeze([
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(scopeMatch)",
     notes: "Demotes baseline only; never demotes a floor.",
+  }),
+  Object.freeze({
+    id: "D-CONSENT",
+    rung: 18.25,
+    // Demotion entry for the 0.2.0 scope-based consent gate. Sits between
+    // D-CONTRACT-ALLOW (18) and F20 (18.5) so it is recorded after contract
+    // scope is checked but before the F20 late-override applies.
+    //
+    // This is a DEMOTION SOURCE, not a floor. It does not fire independently;
+    // rather, when an active session consent grant covers the action, decide()
+    // sets action="allow" and source=D-CONSENT.source so the receipt clearly
+    // attributes the demotion to a human consent approval.
+    //
+    // The source tag "consent-allow" is anchored here so check-no-implicit-
+    // demotion.sh can verify that every `source = "consent-allow"` assignment
+    // in decision-engine.js references a LATTICE entry.
+    name: "consent-allow",
+    action: "demote-floor",
+    source: "consent-allow",
+    demotableBy: [],
+    predicateRef: "runtime/floor-consent.js + runtime/consent/grant-store.js",
+    notes: "0.2.0 consent gate: human-approved session grant covers this action. Source tag used when evalConsentFloor returns inScope:true and decide() demotes to allow.",
   }),
   Object.freeze({
     id: "F20",
@@ -398,7 +427,9 @@ const LATTICE = Object.freeze([
     name: "change-intent-drift",
     action: "block",
     source: ["change-intent-drift", "f20-demoted"],
-    demotableBy: ["operator-token-medium-only"],
+    // consent:interactive for medium-severity drift only (high stays block).
+    // Approval widens the session scope grant for the drifted intent.
+    demotableBy: ["operator-token-medium-only", "consent:interactive"],
     predicateRef: "runtime/change-intent.js + decision-engine wiring",
     notes: "F20: declared-envelope vs Action-IR drift. high blocks; medium routes to require-review (demotable only by a one-shot scoped operator token bound to change-intent-drift-medium); low is receipt-only. Fail-open on helper exception.",
   }),
@@ -554,6 +585,31 @@ function canDemote(currentFloorId, attemptedSource) {
   return false;
 }
 
+// enforcementFor(action, floorFired) — pure helper that maps a decision's
+// action verb + fired floor name to the correct enforcementAction value.
+// Used by early-receipt-builder.js (buildEarlyBlock / buildEarlyReview) and
+// decision-engine.js to centralise the mapping in one lattice-grounded place.
+//
+// Rules:
+//   - Non-blocking actions (allow, warn, route, modify) → "warn"
+//   - Blocking action + floor is consent-eligible (floor's demotableBy contains
+//     "consent:interactive") → "consent-required"
+//   - Blocking action + no/unknown floor, or floor is non-demotable → "block"
+//
+// This is the only correct way to decide whether an action becomes "consent-
+// required" vs hard "block". Never inline this logic — always call this function.
+const _BLOCKING_ACTIONS = new Set(["block", "escalate", "require-review", "require-tests"]);
+const _CONSENT_SOURCE   = "consent:interactive";
+
+function enforcementFor(action, floorFired) {
+  if (!_BLOCKING_ACTIONS.has(action)) return "warn";
+  if (!floorFired) return "block";
+  const entry = _BY_NAME[floorFired];
+  if (!entry) return "block"; // unknown floor name → fail-safe hard block
+  if (canDemote(entry.id, _CONSENT_SOURCE)) return "consent-required";
+  return "block";
+}
+
 // assertOrdered() — enforces the table invariants. Throws Error on first
 // violation. Used by tests + by the lattice-ordering CI script. Cheap to
 // call; safe to invoke at module load when LILARA_LATTICE_SELFTEST=1.
@@ -621,5 +677,6 @@ module.exports = {
   getFloor,
   listFloors,
   canDemote,
+  enforcementFor,
   assertOrdered,
 };
