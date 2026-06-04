@@ -1,0 +1,39 @@
+{
+  "title": "F20 policy-edit: write to runtime/floor-codes.js without declared policyEdits escalates (ADR-036)",
+  "env": {
+    "LILARA_CONTRACT_ENABLED": "1"
+  },
+  "contract": {
+    "version": 3,
+    "contractId": "lilara-20260101-f20-floor-codes",
+    "revision": 1,
+    "acceptedAt": "2026-01-01T00:00:00Z",
+    "acceptedBy": "fixture",
+    "harnessScope": ["claude"],
+    "trustPosture": "balanced",
+    "scopes": {
+      "payloadClasses": { "A": "allow", "B": "warn", "C": "block" }
+    }
+  },
+  "input": {
+    "tool": "Write",
+    "harness": "claude",
+    "command": "",
+    "branch": "feature/test",
+    "targetPath": "{{projectRoot}}/runtime/floor-codes.js",
+    "file_path": "{{projectRoot}}/runtime/floor-codes.js",
+    "envelope": {
+      "declaredIntent": "fix bug in unrelated module",
+      "allowedOps": {}
+    }
+  },
+  "expected": {
+    "action": "block",
+    "decisionSource": "change-intent-drift",
+    "floorFired": "change-intent-drift",
+    "rung": 18.5,
+    "latticeVersion": "1",
+    "irHashPresent": true,
+    "reasonCodesIncludes": ["change-intent-drift"]
+  }
+}

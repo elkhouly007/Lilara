@@ -67,9 +67,64 @@ Versions follow [Semantic Versioning](https://semver.org/).
   and `"consent-required"` for consent-eligible ones. This was a latent bug uncovered during
   the 0.2.0 enforcement audit.
 
+### Added — Inviolable Protected Tier (ADR-036, Task 3)
+
+- **feat(inviolable-tier): formalize + integrity-lock the inviolable floor set** —
+  22 floors (L1/F1/F2/F3/F5/F6/F7/F8/F10/F11/F12/F13/F14/F14b/F15/F16/F17/F18-D007/F21/F23/F25/F27)
+  now carry `tier:"inviolable"` in the lattice. `INVIOLABLE_FLOOR_IDS` (derived from
+  `demotableBy:[]`, never hand-maintained), `isInviolable()`, and `computeLatticeHash()`
+  exported from `decision-lattice.js`. `canDemote()` hardened with a load-time
+  `_INVIOLABLE_AT_LOAD` Set for mutation-immunity. `assertOrdered()` extended with a tier
+  cross-check that throws on `tier:"inviolable"` + non-empty `demotableBy`.
+
+- **feat(inviolable-tier): lattice integrity hash + baseline** —
+  `computeLatticeHash()` hashes a projection of every entry's security fields
+  (`id`, `rung`, `action`, sorted `demotableBy`, `tier`) using the canonical-json +
+  sha256 idiom from `contractHash`/`irHash`. Committed baseline at
+  `artifacts/lattice-baseline.sha256` (lattice projection hash + floor-codes.js sha256).
+  New CI gate `scripts/check-inviolable-tier.sh` verifies both, asserts the
+  INVIOLABLE_FLOOR_IDS ↔ tier set agreement, and verifies `enforcementFor("block",…) ===
+  "block"` for every inviolable floor. Wired into `scripts/lilara-cli.sh check`.
+
+- **feat(inviolable-tier/F27): `secret-egress-external` — single-call credential exfil hard-stop** —
+  New floor F27 (rung 15.5, `demotableBy:[]`, `tier:"inviolable"`, evaluated Phase-A before
+  F18/F4/consent block) hard-stops credential/key-class material (private keys, `~/.ssh`,
+  `~/.aws`, `~/.gnupg`, API tokens, etc.) being sent to an external host in the SAME tool
+  call. Contract `allowDomains` intentionally ignored — this is the "cannot be approved from
+  inside the session" invariant. Structural proof: `enforcementFor("block","secret-egress-
+  external") === "block"` because `canDemote("F27",*) === false`, and F27 short-circuits
+  before the consent grant-suppression block at decide():1412.
+  **SCOPE LIMIT:** single-call only. Staged/cross-call exfil (secret → temp file in call A,
+  egressed in call B) is the F23/ADR-037 deferred seam. Coverage is bounded by
+  `network-egress.js` host recognition (scp/rsync and similar not covered — same
+  fail-direction as F18).
+
+- **feat(inviolable-tier): structural unreachability tests** —
+  `tests/decision-lattice/inviolable-contract-unreachability.test.js` (11 assertions:
+  every inviolable × every demotion source = false; enforcement = block; assertOrdered
+  cross-checks; adversarial decide() with maximally-permissive contract+grant+token still
+  blocks) and `inviolable-selfmod-unreachability.test.js` (8 assertions: learned-allow
+  cannot demote; injected consentGrant at the 1412 path cannot demote F27; hash changes on
+  tampered demotableBy; baseline integrity verified).
+
+- **feat(inviolable-tier): F20 policy-edit coverage extended to floor-codes.js** —
+  `runtime/floor-codes.js` and `artifacts/lattice-baseline.sha256` added to `POLICY_PATH_PATTERNS`
+  in `runtime/change-intent.js` so undeclared edits to these security-load-bearing files
+  escalate via F20 drift. Fixture: `tests/fixtures/inviolable-tier/f20-floor-codes-policy-edit.input`.
+
+- **feat(inviolable-tier): adversarial replay corpus** —
+  14-entry `tests/fixtures/replay-corpus/secret-egress-adversarial.jsonl` (generator:
+  `build-secret-egress-adversarial.js`): ssh-key→curl, `@`-file-ref (path-sensitivity signal,
+  no inline bytes), private-key literal, base64-pipe-curl, aws/gnupg/kube/docker exfil,
+  OpenAI-token inline, forged-consent-grant (still blocks), plus negatives (no-cred curl,
+  cat-ssh-no-egress, loopback-only, staged/cross-call scope-limit). Zero drift on all 119
+  corpus entries.
+
 ### Changed
 
-- Script count: 96 → 97 (`check-consent-gate.sh`). Updated `check-counts.sh`, `README.md`.
+- Script count: 96 → 97 (`check-consent-gate.sh`); 97 → 98 (`check-inviolable-tier.sh`).
+  Fixture count: 400 → 402 fixtures (F27 receipt + F20 floor-codes policy-edit fixture).
+  Updated `check-counts.sh`, `README.md`, `references/full-power-status.md`.
 
 ## [0.1.9] — 2026-06-03
 

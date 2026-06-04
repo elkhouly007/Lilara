@@ -2,6 +2,8 @@
 "use strict";
 
 // decision-lattice.js — Declarative precedence lattice for decision-engine.
+// ADR-036 additions: tier field, INVIOLABLE_FLOOR_IDS, computeLatticeHash,
+// _INVIOLABLE_AT_LOAD (mutation-immune canDemote hardening).
 //
 // Lilara ADR-007 / scope §4.1 invariant 10: every floor declares its rung,
 // action, demotability, and source tag in one place. This file is the
@@ -23,6 +25,9 @@
 // fires today. If the documented order ever diverges from code, the fix
 // is to update this table (and ARCHITECTURE.md from it), never to silently
 // reorder code (scope §4.1 invariant 10).
+
+const crypto       = require("crypto");
+const { canonicalJson } = require("./canonical-json");
 
 const LATTICE_VERSION = "1";
 
@@ -47,6 +52,7 @@ const LATTICE = Object.freeze([
     name: "hard-ethical-core",
     action: "block",
     source: "hard-ethical-core",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "reserved",
     notes: "Reserved for Lilara v1.0 ethical core; not yet engine-baked.",
@@ -57,6 +63,7 @@ const LATTICE = Object.freeze([
     name: "kill-switch",
     action: "block",
     source: "kill-switch",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(LILARA_KILL_SWITCH)",
     notes: "Fires unconditionally when LILARA_KILL_SWITCH=1.",
@@ -67,6 +74,7 @@ const LATTICE = Object.freeze([
     name: "contract-hash-mismatch",
     action: "block",
     source: "contract-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(contract.verify)",
     notes: "Strict mode only (LILARA_CONTRACT_REQUIRED=1).",
@@ -77,6 +85,7 @@ const LATTICE = Object.freeze([
     name: "strict-gated-no-cover",
     action: "block",
     source: "harness-out-of-scope",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(harnessInScope)",
     notes: "Strict mode + gated class + harness not in contract.harnessScope.",
@@ -87,6 +96,7 @@ const LATTICE = Object.freeze([
     name: "validity-window",
     action: "block",
     source: "contract-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(isInActiveWindow)",
     notes: "Outside activeHoursUtc/activeDays AND payloadClass action != allow.",
@@ -97,6 +107,7 @@ const LATTICE = Object.freeze([
     name: "mcp-deny",
     action: "block",
     source: "contract-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(getMcpPolicy)",
     notes: "scopes.mcp[<server>] = 'block'.",
@@ -107,6 +118,7 @@ const LATTICE = Object.freeze([
     name: "skill-deny",
     action: "block",
     source: "contract-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(getSkillPolicy)",
     notes: "scopes.skills[<name>] = 'block'.",
@@ -117,6 +129,7 @@ const LATTICE = Object.freeze([
     name: "budget-exceeded",
     action: "block",
     source: "contract-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(getBudgetLimits)",
     notes: "scopes.budget.maxDestructiveOps or maxExternalBytes hit.",
@@ -127,6 +140,7 @@ const LATTICE = Object.freeze([
     name: "critical-risk",
     action: "block",
     source: "risk-engine",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(risk.level=='critical')",
     notes: null,
@@ -137,6 +151,7 @@ const LATTICE = Object.freeze([
     name: "protected-branch",
     action: "require-review",
     source: "risk-engine",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(risk.reasons:protected-branch)",
     notes: "B4: protected-branch require-review is not demotable by contract-allow.",
@@ -162,6 +177,7 @@ const LATTICE = Object.freeze([
     name: "taint-floor",
     action: "require-review",
     source: "taint-floor",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(correlateCommand)",
     notes: "A2: command overlaps recently-read external content (tainted).",
@@ -185,6 +201,7 @@ const LATTICE = Object.freeze([
     name: "posture-strict-no-cover",
     action: "block",
     source: "posture-strict-no-cover",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(trustPosture=='strict'&&isGated)",
     notes: "D26: strict posture only; balanced/relaxed do not fire.",
@@ -195,6 +212,7 @@ const LATTICE = Object.freeze([
     name: "intent-unknown-strict",
     action: "require-review",
     source: "intent-unknown-strict",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(intent=='unknown'&&trustPosture=='strict')",
     notes: "ADR-001 D: require-review (was block); D26: strict posture only.",
@@ -205,9 +223,36 @@ const LATTICE = Object.freeze([
     name: "session-over-duration",
     action: "require-review",
     source: "session-over-duration",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:decide(sessionOverDuration)",
     notes: "D47: asserted AFTER demotion blocks so contract-allow cannot undo it.",
+  }),
+  Object.freeze({
+    id: "F27",
+    rung: 15.5,
+    // F27 (ADR-036 0.2.0 Task 3): secret-egress-external inviolable hard-stop.
+    // Rung 15.5 is intentional and remains strictly increasing per assertOrdered():
+    // F14b (15) < F27 (15.5) < F18 (16). Evaluated as a Phase-A early-block
+    // BEFORE F18, F4, and the consent grant-suppression block so no consent
+    // grant or operator token can demote it.
+    //
+    // INVIOLABLE: demotableBy:[] — contract allowDomains intentionally ignored;
+    // credential material may not leave to ANY external host under this floor.
+    //
+    // SCOPE LIMIT: single-call only. Staged/cross-call exfil (secret to temp
+    // file in call A, egressed in call B) is the F23/ADR-037 seam.
+    //
+    // COVERAGE BOUND: sees only egress channels network-egress.js recognises
+    // (URL-scheme + bare curl/wget). Channels it cannot parse (scp/rsync) won't
+    // trip F27 — same fail-direction as F18.
+    name: "secret-egress-external",
+    action: "block",
+    source: "secret-egress-external-denied",
+    tier: "inviolable",
+    demotableBy: [],
+    predicateRef: "runtime/floor-secret-egress.js:evalSecretEgressFloor",
+    notes: "ADR-036: single-call credential/key-class material to external host. Non-demotable. See scope limits and coverage bounds in ADR-036 §Scope Limit.",
   }),
   Object.freeze({
     id: "F18",
@@ -232,6 +277,7 @@ const LATTICE = Object.freeze([
     name: "plaintext-target-blocked",
     action: "block",
     source: "F18-D007",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/network-egress.js:evaluate(plaintext-target-blocked)",
     notes: "D-007: default-deny plaintext http:// outbound; opt-out via scopes.network.allowPlaintext=true. Loopback exempt.",
@@ -244,6 +290,7 @@ const LATTICE = Object.freeze([
     name: "execution-envelope",
     action: "block",
     source: "execution-envelope-diverged",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/envelope.js + decision-engine wiring",
     notes: "ADR-003 B: pre-exec re-check on critical writes; envelope hash divergence = block.",
@@ -258,6 +305,7 @@ const LATTICE = Object.freeze([
     name: "ambient-authority",
     action: "block",
     source: "ambient-authority-denied",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js + runtime/ambient.js",
     notes: "ADR-009 PR-B: write into ambient-authority path outside projectRoot. Demotion only via scopes.ambient.allow[<class>]=true or path-prefix entry.",
@@ -291,6 +339,7 @@ const LATTICE = Object.freeze([
     name: "mcp-arg-danger",
     action: "block",
     source: "mcp-arg-danger-denied",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js:_evalMcpArgFloor",
     notes: "F25: MCP tool call argument contains a dangerous-command-shaped string (same classifier as Bash). Default-deny; opt out via scopes.mcp[server].policy=allow.",
@@ -326,6 +375,7 @@ const LATTICE = Object.freeze([
     name: "cross-agent-lock",
     action: "block",
     source: "cross-agent-lock-denied",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/decision-engine.js + runtime/cross-agent-lock.js",
     notes: "F17: write-like call targets a path/project held by another live agent's lock. Fail-closed on malformed lock state.",
@@ -454,6 +504,7 @@ const LATTICE = Object.freeze([
     name: "data-flow-kill-chain",
     action: "escalate",
     source: ["data-flow-kill-chain", "data-flow-kill-chain-detected"],
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/provenance-graph.js:evaluate",
     notes: "ADR-017: multi-step kill-chain. staged-exfil→block; injection-to-exec+persistence→escalate. Observe-only by default; LILARA_KILL_CHAIN_ENFORCE=1 to enforce.",
@@ -464,6 +515,7 @@ const LATTICE = Object.freeze([
     name: "compaction-survival",
     action: "warn",
     source: "compaction-survival-detected",
+    tier: "inviolable",
     demotableBy: [],
     predicateRef: "runtime/compaction-survival.js + runtime/post-adapter-factory.js",
     notes: "ADR-016: PostToolUse pattern scan for prompt-injection payloads in Read/WebFetch/WebSearch/Fetch/mcp/Browser results. Detection-only warn floor; enforcement via F10 taint correlation on next PreToolUse.",
@@ -499,6 +551,61 @@ const LATTICE = Object.freeze([
     notes: "Promote-only; exempts contract-allow + learned-allow + floor-derived sources.",
   }),
 ]);
+
+// ---------------------------------------------------------------------------
+// ADR-036: Inviolable tier — derived from demotableBy:[], not hand-maintained.
+//
+// INVIOLABLE_FLOOR_IDS is computed at module load from the frozen LATTICE so
+// it can never drift from the actual demotableBy values. Floor entries only
+// (L- and F-prefixed); demotion/promotion rungs (D-* / P-*) are excluded.
+// ---------------------------------------------------------------------------
+const INVIOLABLE_FLOOR_IDS = Object.freeze(
+  LATTICE
+    .filter(
+      (e) =>
+        (e.id[0] === "F" || e.id[0] === "L") &&
+        Array.isArray(e.demotableBy) &&
+        e.demotableBy.length === 0
+    )
+    .map((e) => e.id)
+);
+
+// _INVIOLABLE_AT_LOAD — load-time Set of inviolable floor IDs for O(1)
+// mutation-immune check in canDemote. Populated from the frozen LATTICE so
+// no in-process mutation of _BY_ID can bypass it. NEVER reassign this const.
+const _INVIOLABLE_AT_LOAD = new Set(INVIOLABLE_FLOOR_IDS);
+
+function isInviolable(floorId) {
+  const e = typeof floorId === "string" ? _BY_ID[floorId] : null;
+  return !!e && Array.isArray(e.demotableBy) && e.demotableBy.length === 0;
+}
+
+// computeLatticeHash() — deterministic sha256 over a projection of every
+// floor entry's security-load-bearing fields: id, rung, action, sorted
+// demotableBy, and tier (derived when absent). Uses the same canonical-json
+// + sha256: idiom as contractHash (contract.js) and irHash (action-ir.js).
+//
+// What is covered: any change to any floor's id, rung, action, demotableBy,
+// or tier causes the hash to change. Cosmetic fields (notes, predicateRef)
+// are intentionally excluded so docs-only edits don't churn the baseline.
+//
+// Call from scripts/check-inviolable-tier.sh to compare against the committed
+// baseline in artifacts/lattice-baseline.sha256. NEVER call from decide()
+// (adds I/O, breaks byte-identical replay). Runtime protection is provided
+// by _INVIOLABLE_AT_LOAD + the canDemote mutation-immune guard below.
+function computeLatticeHash() {
+  const floors = LATTICE.map((e) => ({
+    id:          e.id,
+    rung:        e.rung,
+    action:      e.action,
+    demotableBy: Array.isArray(e.demotableBy) ? e.demotableBy.slice().sort() : [],
+    tier:        e.tier || (Array.isArray(e.demotableBy) && e.demotableBy.length === 0
+                   ? "inviolable"
+                   : "demotable"),
+  }));
+  const canon = canonicalJson({ version: LATTICE_VERSION, floors });
+  return "sha256:" + crypto.createHash("sha256").update(canon, "utf8").digest("hex");
+}
 
 // ---------------------------------------------------------------------------
 // Build a quick id → entry index for O(1) lookup. Frozen.
@@ -575,6 +682,12 @@ function listFloors() {
 function canDemote(currentFloorId, attemptedSource) {
   if (typeof currentFloorId !== "string" || currentFloorId.length === 0) return false;
   if (typeof attemptedSource !== "string" || attemptedSource.length === 0) return false;
+  // ADR-036: mutation-immune inviolable guard. _INVIOLABLE_AT_LOAD is a Set
+  // built from the frozen LATTICE at module load time, so in-process mutation
+  // of _BY_ID cannot bypass this check. This is a provable no-op on current
+  // behavior (every inviolable member already returned false via the empty
+  // demotableBy branch); it adds only immunity against code-path abuse.
+  if (_INVIOLABLE_AT_LOAD.has(currentFloorId)) return false;
   const entry = _BY_ID[currentFloorId];
   if (!entry) return false;
   const list = entry.demotableBy;
@@ -650,6 +763,23 @@ function assertOrdered(table) {
       throw new Error(`decision-lattice: duplicate id '${e.id}'`);
     }
     seenIds[e.id] = true;
+    // ADR-036: tier cross-check. The tier field is optional; when present it
+    // must be a known value and must not contradict demotableBy. This makes
+    // "tier:inviolable + non-empty demotableBy" structurally detectable.
+    if (e.tier !== undefined) {
+      if (e.tier !== "inviolable" && e.tier !== "demotable") {
+        throw new Error(
+          `decision-lattice: entry ${e.id} has invalid tier '${e.tier}' ` +
+          "(must be 'inviolable' or 'demotable')"
+        );
+      }
+      if (e.tier === "inviolable" && Array.isArray(e.demotableBy) && e.demotableBy.length !== 0) {
+        throw new Error(
+          `decision-lattice: entry ${e.id} has tier:'inviolable' but ` +
+          `demotableBy is non-empty: [${e.demotableBy.join(", ")}]`
+        );
+      }
+    }
     if (!(e.rung > prevRung)) {
       throw new Error(
         `decision-lattice: rung not strictly increasing at entry '${e.id}' ` +
@@ -665,18 +795,45 @@ function assertOrdered(table) {
 // path a pure data import; opt in via env for tests/CI.
 if (process.env.LILARA_LATTICE_SELFTEST === "1") {
   assertOrdered(LATTICE);
+  // ADR-036 selftest: verify INVIOLABLE_FLOOR_IDS agrees with tier:"inviolable"
+  // entries and that computeLatticeHash produces a non-empty value.
+  const _tierSet  = new Set(LATTICE.filter((e) => e.tier === "inviolable").map((e) => e.id));
+  const _idSet    = new Set(INVIOLABLE_FLOOR_IDS);
+  for (const id of _tierSet) {
+    if (!_idSet.has(id)) {
+      throw new Error(
+        `decision-lattice selftest: entry ${id} has tier:'inviolable' but is ` +
+        "absent from INVIOLABLE_FLOOR_IDS (demotableBy must be empty)"
+      );
+    }
+  }
+  for (const id of _idSet) {
+    if (!_tierSet.has(id)) {
+      throw new Error(
+        `decision-lattice selftest: entry ${id} is in INVIOLABLE_FLOOR_IDS ` +
+        "but lacks tier:'inviolable' in the LATTICE"
+      );
+    }
+  }
+  const _h = computeLatticeHash();
+  if (typeof _h !== "string" || !_h.startsWith("sha256:") || _h.length < 10) {
+    throw new Error("decision-lattice selftest: computeLatticeHash returned invalid value");
+  }
 }
 
 module.exports = {
   LATTICE,
   LATTICE_VERSION,
+  INVIOLABLE_FLOOR_IDS,
   getEntry,
   getEntryByName,
   getRung,
   getRungByName,
   getFloor,
   listFloors,
+  isInviolable,
   canDemote,
   enforcementFor,
+  computeLatticeHash,
   assertOrdered,
 };

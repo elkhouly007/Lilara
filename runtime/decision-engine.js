@@ -52,6 +52,7 @@ const _F23 = getEntry("F23");         // data-flow-kill-chain (ADR-017)
 const _F24 = getEntry("F24");         // credential-persistence-write
 const _F25 = getEntry("F25");         // mcp-arg-danger
 const _F26 = getEntry("F26");         // mcp-registration-write
+const _F27 = getEntry("F27");         // secret-egress-external (ADR-036)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -144,6 +145,10 @@ try {
 } catch { /* optional */ }
 // ADR-031: input materialization — getter-free, null-safe copy at decide() entry.
 const { materializeInput: _materializeInput } = require("./input-materializer");
+// ADR-036 F27: secret-egress-external inviolable floor. Always loadable; owns
+// its optional deps internally (fails open when secret-scan/network-egress are
+// absent — never throws into decide()).
+const { evalSecretEgressFloor: _evalSecretEgressFloor } = require("./floor-secret-egress");
 
 // Contract is loaded lazily - disabled only when LILARA_CONTRACT_ENABLED=0.
 // `_contractLoaded` distinguishes "not yet loaded" from "loaded as null" so a
@@ -521,6 +526,39 @@ function decide(input = {}) {
       }
     }
   } catch { /* helper unavailable → no-op */ }
+
+  // F27: secret-egress-external inviolable hard-stop (ADR-036, 0.2.0 Task 3).
+  //
+  // Fires when credential/key-class material (private keys, SSH/AWS/GnuPG
+  // paths, API tokens) is about to be sent to an external host in this
+  // SINGLE tool call. Non-demotable (demotableBy:[]) — no contract scope,
+  // consent grant, or operator token can demote it.
+  //
+  // Evaluated BEFORE F18/F4 and the consent grant-suppression block (line
+  // ~1412) so that F18's consent-demotability never applies to credential
+  // material. enforcementFor("block","secret-egress-external") returns "block"
+  // via canDemote("F27",*) === false.
+  //
+  // SCOPE LIMIT: single-call only. Staged/cross-call exfil (secret → temp-
+  // file in call A, egressed in call B) is the F23/ADR-037 deferred seam.
+  try {
+    const _f27 = _evalSecretEgressFloor(enriched);
+    if (_f27.fired) {
+      return buildEarlyBlock(
+        "secret-egress-external-denied",
+        enriched,
+        discovered,
+        input,
+        `blocked: ${_f27.coaching}`,
+        {
+          floorFired:     _F27.name,
+          decisionSource: _F27.source,
+          ambientTouch:   _ambientTouch,
+          coaching:       _f27.coaching,
+        }
+      );
+    }
+  } catch { /* floor-secret-egress unavailable → fail-open (no-op) */ }
 
   // F18: network-egress floor (ADR-005) — per-contract domain allowlist for
   // outbound network calls. Default-deny: empty allowDomains blocks all network.

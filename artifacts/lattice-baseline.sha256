@@ -1,0 +1,17 @@
+# Lilara inviolable-tier lattice integrity baseline — ADR-036.
+#
+# Line format:  <key> <sha256:HEX>
+#
+# lattice    — sha256 of computeLatticeHash() projection:
+#              { version, floors:[{id,rung,action,demotableBy(sorted),tier},...] }
+#              via runtime/decision-lattice.js:computeLatticeHash()
+#
+# floor-codes — raw sha256 of runtime/floor-codes.js (the typed-code registry;
+#               an attacker widening a demotableBy[] must also edit floor-codes
+#               to add new aliases, so we cover both files).
+#
+# Verify:  bash scripts/check-inviolable-tier.sh
+# Update:  bash scripts/check-inviolable-tier.sh --update
+# (Commit the updated file after any intentional lattice or floor-codes change.)
+lattice sha256:22ac5187b62ba367f0328911bdbfcd12d88ed67c212c14558efbfe99992bb0be
+floor-codes sha256:922b53f0b23588bdec67bc3cf9b16603719d548796dfe84740d3d3e6869e96c5
