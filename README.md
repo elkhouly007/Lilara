@@ -38,7 +38,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 ## Quick Start
 
 ```bash
-# 1. One-command install (validates prereqs, copies files, prints wire-hooks snippet):
+# 1. One-command install — copies hooks, runtime enforcement engine, schemas, and
+#    language rules into ./my-project; prints the wire-hooks snippet:
 ./scripts/lilara-cli.sh install ./my-project --profile rules --auto
 
 # 2. Upgrade an existing installation in-place (preserves lilara.config.json):
@@ -61,6 +62,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
 ./scripts/lilara-cli.sh eval
+
+# Verify installed enforcement end-to-end (F27 ssh-exfil + F3 rm-rf must block):
+./scripts/check-install-smoke.sh
 ```
 
 ## What Is Included
@@ -103,7 +107,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 98 files
+### Scripts (`scripts/`) — 99 files
 
 | Script | Purpose |
 |--------|---------|

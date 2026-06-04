@@ -156,6 +156,9 @@ case "$cmd" in
     section "Installation"
     bash "${scripts}/check-installation.sh" || failed=1
 
+    section "Install smoke (runtime enforcement end-to-end)"
+    bash "${scripts}/check-install-smoke.sh" || failed=1
+
     section "Config integration"
     bash "${scripts}/check-config-integration.sh" || failed=1
 
