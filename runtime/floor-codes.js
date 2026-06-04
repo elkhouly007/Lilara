@@ -86,6 +86,11 @@ const FLOOR_CODES = Object.freeze({
   "mcp-registration-write":               "F26_MCP_REGISTRATION_WRITE",
   "mcp-registration-write-denied":        "F26_MCP_REGISTRATION_WRITE",
   "mcp-config-unscannable":               "F26_MCP_REGISTRATION_WRITE",
+  // ── F27 secret-egress-external ───────────────────────────────────────────────
+  // Inviolable single-call hard-stop: credential/key-class material to an
+  // external host. demotableBy:[] — never consent-demotable. ADR-036.
+  "secret-egress-external":              "F27_SECRET_EGRESS_EXTERNAL",
+  "secret-egress-external-denied":       "F27_SECRET_EGRESS_EXTERNAL",
   // ── F23b mcp-result-injection (ADR-017 extension) ─────────────────────────────
   // Observe-only sub-signal of F23: injection patterns detected in MCP tool
   // output. Reinforces the F23 provenance graph (PostToolUse only, Claude Code).

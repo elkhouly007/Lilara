@@ -180,6 +180,9 @@ case "$cmd" in
     section "Lattice receipts"
     bash "${scripts}/check-lattice-receipts.sh" || failed=1
 
+    section "Inviolable tier (ADR-036 hash + enforcement invariants)"
+    bash "${scripts}/check-inviolable-tier.sh" || failed=1
+
     section "Kill chain"
     bash "${scripts}/check-kill-chain.sh" || failed=1
 

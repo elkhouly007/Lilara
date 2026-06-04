@@ -41,6 +41,10 @@ const POLICY_PATH_PATTERNS = Object.freeze([
   /(^|\/)runtime\/decision-engine\.js$/i,
   /(^|\/)runtime\/decision-lattice\.js$/i,
   /(^|\/)runtime\/contract\.js$/i,
+  // ADR-036: floor-codes.js and lattice-baseline.sha256 are security-load-
+  // bearing files — edits must be declared, just like the lattice itself.
+  /(^|\/)runtime\/floor-codes\.js$/i,
+  /(^|\/)artifacts\/lattice-baseline\.sha256$/i,
 ]);
 
 const DETAIL_MAX = 5;
