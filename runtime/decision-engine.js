@@ -54,6 +54,7 @@ const _F25 = getEntry("F25");         // mcp-arg-danger
 const _F26 = getEntry("F26");         // mcp-registration-write
 const _F27 = getEntry("F27");         // secret-egress-external (ADR-036)
 const _F28 = getEntry("F28");         // taint-egress-consent (ADR-037)
+const _F29 = getEntry("F29");         // destructive-delete-coord (ADR-038)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -1146,7 +1147,20 @@ function decide(input = {}) {
     floorFired = _F8.name;
   } else if (risk.level === "high" && risk.reasons.includes("destructive-delete-pattern")) {
     // Learned-allow is permitted only for the destructive-delete-pattern case at high risk.
-    action = learnedAllow ? "allow" : "require-tests";
+    if (learnedAllow) {
+      action = "allow";
+      // source stays _LA.source (set by the learned-allow block below)
+    } else if (process.env.LILARA_DELETE_COORD === "1") {
+      // ADR-038 F29: flag-gated deletion-coordination floor. Routes to consent-required
+      // so the operator approves once (minting a scoped grant) and deletes are
+      // recoverable (snapshot-on-approval in pretool-gate.js). When flag is off the
+      // legacy require-tests arm below runs unchanged — corpus byte-identical.
+      action = "require-review";
+      source = Array.isArray(_F29.source) ? _F29.source[0] : _F29.source;
+      floorFired = _F29.name;
+    } else {
+      action = "require-tests";
+    }
   } else if (risk.level === "high") {
     action = "escalate";
   } else if (risk.level === "medium" && risk.reasons.includes("sensitive-target-path")) {

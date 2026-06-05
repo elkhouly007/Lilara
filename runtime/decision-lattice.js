@@ -157,6 +157,34 @@ const LATTICE = Object.freeze([
     notes: "B4: protected-branch require-review is not demotable by contract-allow.",
   }),
   Object.freeze({
+    id: "F29",
+    rung: 9.5,
+    // F29 (ADR-038 0.2.0 Task 5): out-of-scope destructive-delete coordination.
+    // Rung 9.5 sits strictly between F8 protected-branch (9) and F4 secret-class-C (10).
+    //
+    // Without this floor, an out-of-scope `rm -rf` routes to require-tests with no
+    // floor name, no recoverability affordance, and no approve-past mechanism —
+    // forcing the operator to decide blind, every time, with no undo.
+    //
+    // GATE: active only when LILARA_DELETE_COORD=1. When off the legacy require-tests
+    // arm runs unchanged — replay corpus byte-identical (flag never set by replay-decisions.js).
+    //
+    // NORTH-STAR: "security must speed up safely" — approve once (mints a scoped
+    // destructiveAllow grant), don't re-ask in scope, keep every delete recoverable
+    // (consent-approval hook + ADR-013 rail snapshots each approved delete).
+    //
+    // INVIOLABLE BOUNDARY: F3 (critical-risk) and F14 (budget-exceeded) remain
+    // inviolable (demotableBy:[]) and are NOT affected by this floor. F29 only
+    // governs the mid-range "high-risk destructive-delete, not catastrophic" case.
+    name: "destructive-delete-coord",
+    action: "require-review",
+    source: ["destructive-delete-coord", "f29-consent-demoted"],
+    tier: "demotable",
+    demotableBy: ["consent:interactive"],
+    predicateRef: "runtime/decision-engine.js:decide(risk.level=high,destructive-delete-pattern,LILARA_DELETE_COORD)",
+    notes: "ADR-038: out-of-scope destructive-delete coordination floor. Flag-gated (LILARA_DELETE_COORD=1). Approval mints scoped destructiveAllow grant + takes recoverability snapshot before proceeding. Inert when off — zero replay divergence. F3/F14 remain inviolable.",
+  }),
+  Object.freeze({
     id: "F4",
     rung: 10,
     name: "secret-class-C",

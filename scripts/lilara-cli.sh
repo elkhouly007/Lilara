@@ -192,6 +192,9 @@ case "$cmd" in
     section "Taint egress (ADR-037 F28 structural gate)"
     bash "${scripts}/check-taint-egress.sh" || failed=1
 
+    section "Delete coordination (ADR-038 F29 structural gate)"
+    bash "${scripts}/check-delete-coord.sh" || failed=1
+
     section "Dashboard"
     bash "${scripts}/check-dashboard.sh" || failed=1
 

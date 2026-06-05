@@ -44,6 +44,22 @@ function _requireSessionContext() {
   if (!_sessionContext) _sessionContext = require("./session-context");
   return _sessionContext;
 }
+// ADR-038 F29: snapshot module and decision-journal — loaded lazily, completely inert
+// when LILARA_DELETE_COORD is unset. No performance cost on the hot path.
+let _snapshotMod = null;
+let _journalMod  = null;
+function _requireSnapshot() {
+  if (!_snapshotMod) _snapshotMod = require("./snapshot");
+  return _snapshotMod;
+}
+function _requireJournal() {
+  if (!_journalMod) _journalMod = require("./decision-journal");
+  return _journalMod;
+}
+// Helper: is deletion-coordination feature active?
+function _isDeleteCoordActive() {
+  return process.env.LILARA_DELETE_COORD === "1";
+}
 const { projectScope: _projectScope } = require("./project-scope");
 const { mintOperatorToken: _mintOperatorToken,
         consumeScopedOperatorToken: _consumeScopedOperatorToken } = require("./contract");
@@ -375,6 +391,13 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       const promptObj = tr.buildConsentPrompt(decision, {
         tool:    String(tool || "Bash"),
         command: cmd,
+        // ADR-038 F29: the engine result does NOT include `ir`, so inject
+        // fileTargets from gateIr here. _deriveGrantScopes uses these to mint
+        // the scoped destructiveAllow grant — without them the grant covers
+        // nothing and approve-past silently re-asks on every delete.
+        fileTargets: (gateIr && Array.isArray(gateIr.fileTargets))
+          ? gateIr.fileTargets.map((t) => (t && t.path) || t).filter(Boolean)
+          : [],
       });
       const { decision: consentDecision, grantScopes } = tr.requestConsent(promptObj, { mode: _CONSENT_MODE });
 
@@ -403,6 +426,62 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
             });
           } catch { /* grant mint failed — one-time consent only */ }
         }
+
+        // ADR-038 F29: recoverability snapshot on approved destructive-delete.
+        // ── VISIBLE-but-fail-open ─────────────────────────────────────────────
+        // The safety justification for auto-proceeding on in-scope deletes is
+        // "they're recoverable." A silently-failed snapshot = an unrecoverable
+        // delete the system treated as safe. So we:
+        //   1. Always attempt the snapshot (the first call's snapshot; approve-past
+        //      repeats are snapshotted by the ADR-013 rail inside decide()).
+        //   2. Proceed regardless (fail-open — never block an approved action).
+        //   3. NEVER swallow failure silently: loud emit + journal marker so the
+        //      operator knows recoverability is compromised.
+        if (_isDeleteCoordActive() &&
+            decision.floorFired === "destructive-delete-coord" &&
+            gateIr && gateIr.destructive === true) {
+          let _approvalSnapStatus  = null;
+          let _approvalSnapErr     = null;
+          try {
+            const _snap    = _requireSnapshot();
+            const _scope   = _snap.planSnapshotScope(gateIr, { reason: "approve-past-delete" });
+            const _snapRes = _snap.createSnapshot(_scope, null, {
+              decisionKey: decision.policyKey || null,
+              irHash:      gateIr.irHash || null,
+            });
+            _approvalSnapStatus = _snapRes.status;
+          } catch (err) {
+            _approvalSnapStatus = "failed-fail-open";
+            _approvalSnapErr    = err && err.message ? String(err.message) : String(err);
+          }
+          // "created" and "truncated" are both meaningful successes for a snapshot.
+          // Anything else (scope-too-large, state-dir-insecure, failed-fail-open)
+          // means the delete may not be recoverable — warn loudly and journal it.
+          const _snapOk = _approvalSnapStatus === "created" || _approvalSnapStatus === "truncated";
+          if (!_snapOk) {
+            const _targets = (gateIr.fileTargets || [])
+              .map((t) => (t && t.path) || t).filter(Boolean).join(", ").slice(0, 120);
+            const _reason  = _approvalSnapErr || _approvalSnapStatus || "unknown";
+            // Loud, unmistakable warning — not wrapped in an outer try/catch so
+            // emit() itself is never silently swallowed.
+            emit(`[Lilara] WARNING: recoverability snapshot FAILED for approved delete (${_targets || "unknown targets"}) — proceeding, but this delete is NOT recoverable: ${_reason}`);
+            // Durable journal marker — modeled on taint-floor-disabled markers.
+            try {
+              _requireJournal().append({
+                kind:      "snapshot-failed-on-approved-delete",
+                action:    "allow",
+                floorFired: "destructive-delete-coord",
+                riskLevel: decision.riskLevel || "high",
+                riskScore: decision.riskScore || 0,
+                targetPath: _targets.slice(0, 256),
+                notes:      `snapshot status: ${_approvalSnapStatus}; reason: ${_reason}`,
+                tool:   String(tool || "Bash"),
+                branch: discovered ? String(discovered.branch || "") : "",
+              });
+            } catch { /* journal best-effort; warning already emitted above */ }
+          }
+        }
+
         emit(`[Lilara] Consent granted by operator — proceeding.`);
         return { exitCode: 0, stderrLines, logAction: "CONSENT", logHitName: hit?.name || secretHit?.name || null };
       } else {
@@ -414,6 +493,26 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
         return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
       }
     }
+  }
+
+  // ADR-038 F29 (4b): rail-path snapshot visibility for approve-past repeats.
+  // Subsequent in-scope deletes are snapshotted by the ADR-013 rail INSIDE decide()
+  // and the receipt is in decision.snapshot. The rail already journals the receipt,
+  // but emits NO visible boundary warning. Apply the same "visible-but-fail-open"
+  // standard: warn loudly when the rail snapshot is not "created"/"truncated"
+  // so operators see recoverability is compromised — never silent.
+  if (_isDeleteCoordActive() &&
+      gateIr && gateIr.destructive === true &&
+      decision.action === "allow" &&
+      decision.snapshot && decision.snapshot.attempted &&
+      decision.snapshot.status !== "created" &&
+      decision.snapshot.status !== "truncated") {
+    const _railSnapStatus = decision.snapshot.status;
+    const _railTargets    = (gateIr.fileTargets || [])
+      .map((t) => (t && t.path) || t).filter(Boolean).join(", ").slice(0, 120);
+    emit(`[Lilara] WARNING: recoverability snapshot ${_railSnapStatus} for in-scope delete (${_railTargets || "unknown targets"}) — this delete may NOT be fully recoverable (reason: ${decision.snapshot.reason || _railSnapStatus}).`);
+    // Journal marker already written by the ADR-013 rail as `decision.snapshot` in
+    // the receipt. No duplicate marker needed.
   }
 
   // Silent pass: no dangerous-command hit, no secret hit, and decision is allow.

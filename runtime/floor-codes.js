@@ -101,6 +101,11 @@ const FLOOR_CODES = Object.freeze({
   // stop-and-ask with REAL args. Active only when LILARA_TAINT_EGRESS=1.
   "taint-egress-consent":                 "F28_TAINT_EGRESS",
   "credential-staged-exfil-detected":     "F28_TAINT_EGRESS",
+  // ── F29 destructive-delete-coord (ADR-038) ────────────────────────────────────
+  // REQUIRE-REVIEW (consent-eligible). Out-of-scope destructive-delete coordination:
+  // approve-past with recoverability snapshot. Active only when LILARA_DELETE_COORD=1.
+  "destructive-delete-coord":             "F29_DESTRUCTIVE_DELETE_COORD",
+  "f29-consent-demoted":                  "F29_DESTRUCTIVE_DELETE_COORD",
 });
 
 function floorCodeFor(reasonCode) {
