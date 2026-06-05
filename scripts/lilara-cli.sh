@@ -189,6 +189,9 @@ case "$cmd" in
     section "Kill chain"
     bash "${scripts}/check-kill-chain.sh" || failed=1
 
+    section "Taint egress (ADR-037 F28 structural gate)"
+    bash "${scripts}/check-taint-egress.sh" || failed=1
+
     section "Dashboard"
     bash "${scripts}/check-dashboard.sh" || failed=1
 

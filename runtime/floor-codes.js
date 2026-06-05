@@ -95,6 +95,12 @@ const FLOOR_CODES = Object.freeze({
   // Observe-only sub-signal of F23: injection patterns detected in MCP tool
   // output. Reinforces the F23 provenance graph (PostToolUse only, Claude Code).
   "mcp-result-injection":                 "F23B_MCP_RESULT_INJECTION",
+  // ── F28 taint-egress-consent (ADR-037) ────────────────────────────────────────
+  // ESCALATE (consent-eligible). Staged / cross-call credential exfil:
+  // credential-class taint → external egress across calls. Routes to consent
+  // stop-and-ask with REAL args. Active only when LILARA_TAINT_EGRESS=1.
+  "taint-egress-consent":                 "F28_TAINT_EGRESS",
+  "credential-staged-exfil-detected":     "F28_TAINT_EGRESS",
 });
 
 function floorCodeFor(reasonCode) {

@@ -301,7 +301,8 @@ function saveProvenanceGraph(nodes) {
  *
  * Node shape (caller is responsible for building):
  *   { role, sourceClass, pathHash?, urlHash?, targetPathHash?, host?,
- *     tokenHashes: string[], ts: number }
+ *     tokenHashes: string[], ts: number,
+ *     credClass?: boolean }  // ADR-037 F28: F27-narrow credential class tag
  */
 function recordProvenanceStep(node) {
   try {

@@ -53,6 +53,7 @@ const _F24 = getEntry("F24");         // credential-persistence-write
 const _F25 = getEntry("F25");         // mcp-arg-danger
 const _F26 = getEntry("F26");         // mcp-registration-write
 const _F27 = getEntry("F27");         // secret-egress-external (ADR-036)
+const _F28 = getEntry("F28");         // taint-egress-consent (ADR-037)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -149,6 +150,9 @@ const { materializeInput: _materializeInput } = require("./input-materializer");
 // its optional deps internally (fails open when secret-scan/network-egress are
 // absent — never throws into decide()).
 const { evalSecretEgressFloor: _evalSecretEgressFloor } = require("./floor-secret-egress");
+// ADR-037 F28: taint-egress-consent ESCALATE floor. Always loadable; pure + zero
+// I/O; inert when input.provenanceGraph is null (LILARA_TAINT_EGRESS off).
+const { evalTaintEgressFloor: _evalTaintEgressFloor } = require("./floor-taint-egress");
 
 // Contract is loaded lazily - disabled only when LILARA_CONTRACT_ENABLED=0.
 // `_contractLoaded` distinguishes "not yet loaded" from "loaded as null" so a
@@ -735,6 +739,21 @@ function decide(input = {}) {
   const { f23Detail: _f23Detail, f23PreviewAction: _f23PreviewAction } =
     _evalKillChain(input, _f23Enforce);
   if (_f23Detail) setEarlyBlockF23(_f23Detail); // thread to buildEarlyBlock for F16/F17/etc.
+
+  // F28 (ADR-037): staged / cross-call credential taint → external egress.
+  // ESCALATE → consent-required. Evaluated here (alongside F23) but applied
+  // via the late-override block after F23 (mirrors the F23 late-override
+  // pattern). Guard: LILARA_TAINT_EGRESS=1 AND input.provenanceGraph injected.
+  // Inert when the flag is off — input.provenanceGraph is never injected unless
+  // the flag is set (pretool-gate.js), so the predicate always returns {fired:false}
+  // → zero corpus divergence even without the env guard here.
+  let _f28Detail = null;
+  if (process.env.LILARA_TAINT_EGRESS === "1") {
+    try {
+      const _f28r = _evalTaintEgressFloor(input);
+      if (_f28r && _f28r.fired) _f28Detail = _f28r;
+    } catch { /* F28 must never throw out of decide() — fail open */ }
+  }
 
   // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)
   // and before the contract-allow demotion path. Non-demotable; the only legitimate
@@ -1420,6 +1439,25 @@ function decide(input = {}) {
     }
   }
 
+  // F28 (ADR-037): taint-egress-consent late override — applied AFTER F23 and
+  // BEFORE the consent grant-suppression block so the grant can demote it.
+  //
+  // For a credential chain, F28's ESCALATE (consent-eligible) supersedes F23's
+  // BLOCK for that chain only — routing to stop-and-ask instead of hard block.
+  // Guard: only supersedes F23's OWN block (floorFired === _F23.name); never
+  // weakens a non-F23 hard floor.
+  //
+  // Inert when _f28Detail is null (flag off or no provenanceGraph injected).
+  if (_f28Detail) {
+    if (action !== "block" || floorFired === _F23.name || floorFired === null) {
+      action    = "escalate";
+      source    = _F28.source[0]; // "taint-egress-consent"
+      floorFired = _F28.name;     // "taint-egress-consent" — consent-eligible via demotableBy
+    }
+    // If another hard floor (not F23) already produced block, respect it.
+    // _f28Detail is still retained for the receipt/journal fields below.
+  }
+
   // ADR-004 PR 37B: degraded-mode write-like routing. When the journal hash
   // chain has failed verify (or LILARA_DEGRADED_MODE=1) AND this call is
   // write-like, any final `allow` is rerouted to `require-review`. Floors
@@ -1617,6 +1655,24 @@ function decide(input = {}) {
     // detected (observe or enforce mode). Absent on clean calls so existing
     // receipts stay byte-identical.
     ...(_f23Detail ? { killChain: _f23Detail } : {}),
+    // ADR-037 F28: taint-egress receipt. Present only when F28 fired.
+    // taintEgress carries REAL decision fields (credClass, host, taintedFilePath,
+    // taintedFilePathHash, evidenceKind) — used by buildConsentPrompt for the
+    // stop-and-ask prompt. networkEgress.hostname is required by the transport.
+    // Both absent on clean calls → byte-identical for existing receipts.
+    ...(_f28Detail ? {
+      taintEgress: {
+        credClass:          _f28Detail.credClass          || "credential",
+        host:               _f28Detail.host               || null,
+        taintedFilePath:    _f28Detail.taintedFilePath     || null,
+        taintedFilePathHash: _f28Detail.taintedFilePathHash || null,
+        evidenceKind:       _f28Detail.evidenceKind        || null,
+      },
+      // buildConsentPrompt reads decision.networkEgress?.hostname (transport.js:55).
+      // The late-override result path does not normally carry networkEgress; attach
+      // it additively so the consent prompt shows the REAL destination host.
+      networkEgress: { hostname: _f28Detail.host || null },
+    } : {}),
   };
 
   const irExtras = _irJournalExtras(input, floorFired);
@@ -1653,6 +1709,8 @@ function decide(input = {}) {
       ...(_snapshotReceipt ? { snapshot: _snapshotReceipt } : {}),
       // ADR-017 F23: kill-chain receipt field in journal (same presence rule as result).
       ...(_f23Detail ? { killChain: _f23Detail } : {}),
+      // ADR-037 F28: taint-egress receipt in journal (additive-only, same rule).
+      ...(_f28Detail ? { taintEgress: result.taintEgress } : {}),
       ...(irExtras || {}),
       redact: Boolean(contract?.scopes?.secrets?.redactInJournal),
     });

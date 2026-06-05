@@ -510,6 +510,35 @@ const LATTICE = Object.freeze([
     notes: "ADR-017: multi-step kill-chain. staged-exfil→block; injection-to-exec+persistence→escalate. Observe-only by default; LILARA_KILL_CHAIN_ENFORCE=1 to enforce.",
   }),
   Object.freeze({
+    id: "F28",
+    rung: 18.65,
+    // F28 (ADR-037 0.2.0 Task 4): staged / cross-call credential exfiltration
+    // detection. Rung 18.65 sits strictly between F23 (18.6) and F21 (18.7).
+    //
+    // ESCALATE → consent rationale: ADR-036 invariant #6 states inviolable
+    // floors decide on single-call action-evidence only. Cross-call taint state
+    // makes this explicitly escalate-not-inviolable. For a credential chain,
+    // F28 supersedes F23's block and routes to stop-and-ask with REAL args.
+    //
+    // Bespoke (file, host) grant — NOT the general scopesMatch engine (which
+    // has no network branch). Approved scope is silent; file or host change
+    // re-asks. Consent UX requires LILARA_CONSENT=interactive.
+    //
+    // Ships with detection off by default (LILARA_TAINT_EGRESS=1 to enable).
+    // Inert (no provenanceGraph injection) → zero replay divergence when off.
+    //
+    // TAINT CLASS: F27-narrow credential signals (CRED_PATH_PATTERNS + inline
+    // secret scan). Broader F23 "sensitive" class is NOT in scope — F23 still
+    // owns it with the inviolable block. ADR-037 §Scope Limit.
+    name: "taint-egress-consent",
+    action: "escalate",
+    source: ["taint-egress-consent", "credential-staged-exfil-detected"],
+    tier: "demotable",
+    demotableBy: ["consent:interactive"],
+    predicateRef: "runtime/floor-taint-egress.js:evalTaintEgressFloor",
+    notes: "ADR-037: cross-call credential taint → external egress. ESCALATE → consent-required. Active only when LILARA_TAINT_EGRESS=1. Inert (no graph injection) otherwise — zero replay divergence. Bespoke (host, filePathHash) grant — re-asks only on scope change.",
+  }),
+  Object.freeze({
     id: "F21",
     rung: 18.7,
     name: "compaction-survival",

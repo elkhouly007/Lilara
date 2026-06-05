@@ -58,6 +58,11 @@ function buildConsentPrompt(decision, extra = {}) {
   const floorCode   = decision.code || null;
   const floorFired  = decision.floorFired || null;
   const explanation = String(decision.explanation || "").slice(0, 500);
+  // ADR-037 F28: taint-egress REAL decision fields. Present only when F28 fired.
+  // Never read from agent self-description (transport security invariant).
+  const taintedFile = decision.taintEgress?.taintedFilePath || null;
+  const taintedFilePathHash = decision.taintEgress?.taintedFilePathHash || null;
+  const credClass   = decision.taintEgress?.credClass || null;
 
   return {
     floorCode,
@@ -69,6 +74,10 @@ function buildConsentPrompt(decision, extra = {}) {
     // Structured fields for display — not from agent self-description:
     tool:   String(extra.tool || decision.tool || ""),
     action: String(decision.action || "block"),
+    // F28 taint fields (present only when F28 fired):
+    taintedFile,
+    taintedFilePathHash,
+    credClass,
   };
 }
 
@@ -88,6 +97,14 @@ function buildPromptText(prompt) {
   if (prompt.fileTargets && prompt.fileTargets.length > 0) {
     const ft = prompt.fileTargets.slice(0, 3).join(", ").slice(0, 62);
     lines.push(`│ Files:   ${ft.padEnd(62)}│`);
+  }
+  // ADR-037 F28: show the tainted credential file and class when present.
+  // These are REAL decision fields, never from agent self-description.
+  if (prompt.taintedFile) {
+    lines.push(`│ Tainted: ${String(prompt.taintedFile).slice(0, 62).padEnd(62)}│`);
+  }
+  if (prompt.credClass) {
+    lines.push(`│ Class:   ${String(prompt.credClass).slice(0, 62).padEnd(62)}│`);
   }
   lines.push(
     `│ Reason:  ${String(prompt.explanation || "").slice(0, 62).padEnd(62)}│`,
@@ -242,6 +259,18 @@ function _deriveGrantScopes(prompt) {
         pathGlob: String(p),
       })),
     };
+  }
+
+  // ADR-037 F28: bespoke taint-egress scope — keyed on exact (host, filePathHash)
+  // pair. Checked by evalTaintEgressFloor() directly against input.consentGrant
+  // (bypasses the general scopesMatch engine, which has no network branch).
+  // Present only for F28 approvals; inert for all other floors.
+  if (prompt.floorFired === "taint-egress-consent" && prompt.hostname &&
+      prompt.taintedFilePathHash) {
+    scopes.taintEgress = [{
+      host:         String(prompt.hostname),
+      filePathHash: String(prompt.taintedFilePathHash),
+    }];
   }
 
   return scopes;

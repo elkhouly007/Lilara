@@ -147,6 +147,9 @@ jobs:
       - name: Check counts
         run: bash scripts/check-counts.sh
 
+      - name: Taint egress gate (ADR-037 F28)
+        run: bash scripts/check-taint-egress.sh
+
       - name: Cross-harness equivalence
         run: bash scripts/check-cross-harness-equivalence.sh
 
