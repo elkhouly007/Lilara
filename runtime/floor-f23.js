@@ -54,7 +54,14 @@ function evalKillChain(input, enforceMode) {
 
     if (!_loadProvenanceGraph) return { f23Detail, f23PreviewAction };
 
-    const _f23Graph = _loadProvenanceGraph();
+    // ADR-037: honor the injected provenance graph (input.provenanceGraph) when
+    // present — the canonical `input.X != null ? input.X : loaderFn()` pattern.
+    // Under replay / feature-off: input.provenanceGraph is always null, so this
+    // takes the existing loader branch → byte-identical to today. This edit
+    // narrows (never widens) the pre-existing in-decide-load determinism gap.
+    const _f23Graph = (input && input.provenanceGraph != null)
+      ? input.provenanceGraph
+      : _loadProvenanceGraph();
     const _ir23     = input && input.ir;
 
     if (_ir23) {
@@ -95,6 +102,13 @@ function evalKillChain(input, enforceMode) {
           _f23Graph.length > 0 && _recordProvenanceStep) {
         const _srcNode = _pg.findPropagationSource(_writeTokens, _f23Graph);
         if (_srcNode) {
+          // ADR-037: propagate credClass from the source node onto the
+          // derivative so F28 can detect the temp-file arm of the chain.
+          // Only propagate when LILARA_TAINT_EGRESS is on — otherwise the
+          // node stays byte-identical to today (no new fields).
+          const _propagateCredClass =
+            process.env.LILARA_TAINT_EGRESS === "1" &&
+            Boolean(_srcNode.credClass);
           for (const ft of (_ir23.fileTargets || [])) {
             if (ft && ft.intent === "write" && ft.path) {
               try {
@@ -104,6 +118,7 @@ function evalKillChain(input, enforceMode) {
                   targetPathHash: _pg.pathHash(ft.path),
                   tokenHashes:    _writeTokens.slice(0, 32),
                   ts:             Date.now(),
+                  ...(_propagateCredClass ? { credClass: true } : {}),
                 });
               } catch { /* best-effort */ }
             }

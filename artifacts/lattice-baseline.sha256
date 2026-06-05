@@ -13,5 +13,5 @@
 # Verify:  bash scripts/check-inviolable-tier.sh
 # Update:  bash scripts/check-inviolable-tier.sh --update
 # (Commit the updated file after any intentional lattice or floor-codes change.)
-lattice sha256:22ac5187b62ba367f0328911bdbfcd12d88ed67c212c14558efbfe99992bb0be
-floor-codes sha256:922b53f0b23588bdec67bc3cf9b16603719d548796dfe84740d3d3e6869e96c5
+lattice sha256:7fba848d9db6e33effb84551a694f95c6661ffcbfef846032fbf52e77d48c5d4
+floor-codes sha256:7503300892c7a3e7f351ff2aaf963e3b2060a4a690b6a30ed14815016fa73805

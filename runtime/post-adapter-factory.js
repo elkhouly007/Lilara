@@ -72,6 +72,13 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
     _recordProvenanceStep      = sc.recordProvenanceStep;
     _recordMcpInjectionSignal  = sc.recordMcpInjectionSignal;
   } catch { /* optional */ }
+  // ADR-037 F28: F27-narrow credential patterns for credClass tagging.
+  // Optional — if unavailable, credClass is simply never set (F28 fails open).
+  let _credPathPatterns = null;
+  try {
+    const fse = require("./floor-secret-egress");
+    _credPathPatterns = fse.CRED_PATH_PATTERNS;
+  } catch { /* optional */ }
 
   readStdin()
     .then((raw) => {
@@ -174,6 +181,21 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
             if (_sourceClass) {
               const _tokens = _tokenHashSet(text.slice(0, 8192));
               if (_tokens.length >= 3) {
+                // ADR-037 F28: tag source nodes with credClass:true when the
+                // read path or content matches F27-narrow credential signals.
+                // Gated by LILARA_TAINT_EGRESS so the tag is never written
+                // when the feature is off → node shape byte-identical to today.
+                let _credClass = false;
+                if (process.env.LILARA_TAINT_EGRESS === "1") {
+                  try {
+                    const _normPath = _filePath.replace(/\\/g, "/");
+                    _credClass = Boolean(
+                      (_isRead && _credPathPatterns &&
+                        _credPathPatterns.some((re) => re.test(_normPath))) ||
+                      (_secretHit && _isRead)
+                    );
+                  } catch { /* credClass tagging is best-effort */ }
+                }
                 _recordProvenanceStep({
                   role:        "source",
                   sourceClass: _sourceClass,
@@ -182,6 +204,7 @@ function createPostAdapter({ harnessName, rateLimitKey, envelopeReporting = fals
                   host:        _host     || null,
                   tokenHashes: _tokens,
                   ts:          Date.now(),
+                  ...(_credClass ? { credClass: true } : {}),
                 });
               }
             }

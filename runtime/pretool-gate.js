@@ -37,6 +37,13 @@ function _requireConsentTransport() {
   if (!_consentTransport) _consentTransport = require("./consent/transport");
   return _consentTransport;
 }
+// ADR-037 F28: provenance graph loader — loaded lazily, completely inert when
+// LILARA_TAINT_EGRESS is unset. No performance cost on the hot path.
+let _sessionContext = null;
+function _requireSessionContext() {
+  if (!_sessionContext) _sessionContext = require("./session-context");
+  return _sessionContext;
+}
 const { projectScope: _projectScope } = require("./project-scope");
 const { mintOperatorToken: _mintOperatorToken,
         consumeScopedOperatorToken: _consumeScopedOperatorToken } = require("./contract");
@@ -253,6 +260,16 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       } catch { /* grant store unavailable — proceed without grant (fail-open for store error, not security failure) */ }
     }
 
+    // ADR-037 F28: load the provenance graph and inject it so decide() can run
+    // F28 deterministically. Loaded HERE (impure boundary), never inside decide().
+    // Inert when LILARA_TAINT_EGRESS is unset — no graph loaded, decide() inert.
+    let provenanceGraph = null;
+    if (process.env.LILARA_TAINT_EGRESS === "1") {
+      try {
+        provenanceGraph = _requireSessionContext().loadProvenanceGraph();
+      } catch { /* graph unavailable — F28 fails open (inert) */ }
+    }
+
     decision = decide({
       harness:     String(harness || ""),
       tool:        String(tool || "Bash"),
@@ -270,6 +287,8 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       // Consent gate injected fields (pure-boundary contract):
       consentGrant,
       now: nowMs,
+      // ADR-037 F28: provenance graph injected field (null when flag off → inert):
+      provenanceGraph,
     });
 
     if (envelopeReporting && envelope && isCriticalEnvelopeRecheck(decision, payloadClass)) {

