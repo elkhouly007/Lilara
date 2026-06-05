@@ -9,6 +9,16 @@ const net = require("node:net");
 const tls = require("node:tls");
 const { canonicalJson } = require("../canonical-json");
 
+// ADR-039: loopback guard — LILARA_NOTIFY_INSECURE and LILARA_NOTIFY_TLS_NOVERIFY
+// are only honored when the SMTP host is a loopback address. External SMTP relays
+// must always use TLS with full cert validation. This mirrors the pattern in
+// notify/slack.js and notify/discord.js (both gate LILARA_NOTIFY_INSECURE to
+// 127.0.0.1|localhost only). One env var must not silently MITM security telemetry
+// (command, floor, target path) to an arbitrary production SMTP relay.
+function _isLoopbackHost(host) {
+  return /^(127\.0\.0\.1|::1|localhost)$/i.test(String(host || "").trim());
+}
+
 const SOCKET_TIMEOUT_MS = 5000;
 
 function buildMessage(event, to, from) {
@@ -31,16 +41,20 @@ async function send(channel, event) {
   const to = String((channel && channel.to) || "");
   if (!host) return { ok: false, status: 0, error: "missing-smtp-host" };
   if (!to)   return { ok: false, status: 0, error: "missing-recipient" };
-  const insecure = process.env.LILARA_NOTIFY_INSECURE === "1";
+  // ADR-039: insecure (plaintext) only for loopback — never for external relays.
+  const insecure = process.env.LILARA_NOTIFY_INSECURE === "1" && _isLoopbackHost(host);
   return _smtpSession({ host, port, user, pass, from, to, message: buildMessage(event, to, from), insecure });
 }
 
 function _smtpSession(opts) {
   return new Promise((resolve) => {
     let resolved = false;
+    // ADR-039: TLS-noverify only for loopback — external relays always require
+    // certificate validation. Mirrors the loopback guard for insecure-mode above.
+    const _tlsNoverify = process.env.LILARA_NOTIFY_TLS_NOVERIFY === "1" && _isLoopbackHost(opts.host);
     const sock = opts.insecure
       ? net.connect(opts.port, opts.host)
-      : tls.connect(opts.port, opts.host, { rejectUnauthorized: process.env.LILARA_NOTIFY_TLS_NOVERIFY !== "1" });
+      : tls.connect(opts.port, opts.host, { rejectUnauthorized: !_tlsNoverify });
     const done = (r) => { if (resolved) return; resolved = true; try { sock.destroy(); } catch { /* */ } resolve(r); };
     let buf = "";
     let step = 0; // 0:greeting 1:ehlo 2:auth-init 3:auth-user 4:auth-pass 5:mailfrom 6:rcptto 7:data 8:body 9:quit
