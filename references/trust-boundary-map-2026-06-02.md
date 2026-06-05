@@ -178,9 +178,11 @@ These areas exist in the codebase but were not the focus of this audit sprint:
 
 - `runtime/instinct-store.js` and friends — instinct/coaching system reads from
   `LILARA_INSTINCT_DIR`; not mapped for trust-boundary validation status.
-- Notification transports (`runtime/notify/slack.js`, `discord.js`, `email.js`) —
-  `LILARA_NOTIFY_INSECURE` / `LILARA_NOTIFY_TLS_NOVERIFY` env vars allow weakening TLS;
-  not mapped. These are outbound-only so severity is limited.
+- Notification transports: `slack.js` / `discord.js` already gate `LILARA_NOTIFY_INSECURE`
+  to `127.0.0.1|localhost` only. **`email.js` RESOLVED (ADR-039):** `LILARA_NOTIFY_INSECURE`
+  and `LILARA_NOTIFY_TLS_NOVERIFY` now loopback-gated in `runtime/notify/email.js`;
+  external SMTP relays always use TLS with full cert validation.
+  (`instinct-store.js` / context-discovery remain unmapped — see below.)
 - Context-discovery (`runtime/context-discovery.js`) VCS CI env var reads — not validated
   but feed only the branch/project-root detection, not decision logic directly.
 
