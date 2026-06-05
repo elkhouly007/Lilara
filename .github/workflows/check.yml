@@ -150,6 +150,9 @@ jobs:
       - name: Taint egress gate (ADR-037 F28)
         run: bash scripts/check-taint-egress.sh
 
+      - name: Delete coordination gate (ADR-038 F29)
+        run: bash scripts/check-delete-coord.sh
+
       - name: Cross-harness equivalence
         run: bash scripts/check-cross-harness-equivalence.sh
 

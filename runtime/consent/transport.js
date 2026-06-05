@@ -53,7 +53,12 @@ function isOneShot(floorFired) {
 function buildConsentPrompt(decision, extra = {}) {
   // Real structured fields from the decision object:
   const hostname    = decision.networkEgress?.hostname || null;
-  const fileTargets = (decision.ir?.fileTargets || []).map((t) => t.path || t).filter(Boolean);
+  // ADR-038: the engine result does NOT include `ir`, so decision.ir?.fileTargets
+  // is always empty. The caller (pretool-gate.js) injects fileTargets from gateIr
+  // via extra.fileTargets. Prefer extra.fileTargets when present; fall back to the
+  // decision field so all other call sites remain unaffected.
+  const fileTargets = extra.fileTargets ||
+    (decision.ir?.fileTargets || []).map((t) => t.path || t).filter(Boolean);
   const command     = String(extra.command || decision.command || "").slice(0, 500);
   const floorCode   = decision.code || null;
   const floorFired  = decision.floorFired || null;
@@ -97,6 +102,11 @@ function buildPromptText(prompt) {
   if (prompt.fileTargets && prompt.fileTargets.length > 0) {
     const ft = prompt.fileTargets.slice(0, 3).join(", ").slice(0, 62);
     lines.push(`│ Files:   ${ft.padEnd(62)}│`);
+    // ADR-038 F29: deletion-coordination — surface the recoverability guarantee
+    // so operators can approve with confidence. Reads from REAL decision fields only.
+    if (prompt.floorFired === "destructive-delete-coord") {
+      lines.push(`│ Recovery: snapshot will be taken before delete proceeds           │`);
+    }
   }
   // ADR-037 F28: show the tainted credential file and class when present.
   // These are REAL decision fields, never from agent self-description.
