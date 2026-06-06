@@ -10,6 +10,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] — 2026-06-06 (updated)
 
+### Security — Decision-Journal Write-Boundary Redaction (ADR-041)
+
+- **fix(journal-redact): extend `clean()` to `taintReason`, `ambientPath`, `scopeHit`** —
+  Pre-ADR-041, only `targetPath` and `notes` passed through `secret-scan.redact()` at the
+  journal write boundary; three additional free-text user-derived fields were emitted verbatim
+  even when the contract `redactInJournal` scope was active. Now all four route through the
+  existing `clean()` indirection — identity when `shouldRedact` is false (zero byte-change on
+  production/replay paths), redacting to `[REDACTED:<pattern>]` when active.
+
+- **feat(journal-redact): opt-in `command` field capture (`LILARA_JOURNAL_COMMAND=1`)** —
+  The shell command (the field most likely to embed a bearer token or API key as a literal
+  argument) was never captured in the audit trail. `LILARA_JOURNAL_COMMAND=1` now records it
+  in the receipt, redacted through `clean()` before persistence. Off by default → existing
+  journals byte-identical → zero replay divergence. `irHash` and the decision result are
+  unaffected (irHash is computed from `input.ir.command` upstream in `action-ir.js`).
+
+- **test(journal-redact): `journal-command-redaction.test.js` (8 tests)** — first direct
+  unit test of the journal *write* redactor (D28 policy); asserts redaction in all three
+  new fields + command, byte-identical `action`/`floorFired`/`irHash` across all four
+  `redact×flag` combos, no false redaction on the identity path, and `command` key absent
+  when flag is unset.
+
 ### Security — Env-Branch Grant Guard (ADR-042)
 
 - **fix(branch-guard): `LILARA_BRANCH_OVERRIDE` cannot drive contextTrust relaxation or `forcePushAllow` demotions** —

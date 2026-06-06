@@ -93,6 +93,11 @@
       "maxLength": 256,
       "description": "Free-text notes; redacted if contract requires. Always present (may be empty string)."
     },
+    "command": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Raw shell command; present only when LILARA_JOURNAL_COMMAND=1. Redacted through secret-scan before journaling (ADR-041). Never affects irHash or the decision result."
+    },
     "redactInJournal": {
       "const": true,
       "description": "Marker that contract.scopes.secrets.redactInJournal was true at write time."

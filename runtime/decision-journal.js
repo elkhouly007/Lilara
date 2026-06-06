@@ -101,9 +101,13 @@ function append(entry) {
   rotateIfNeeded(logFile);
   const shouldRedact = Boolean(entry.redact);
   const clean = shouldRedact ? redactText : (t) => String(t || "");
-  // D28: redaction policy — only targetPath and notes pass through clean().
-  // action, riskLevel, riskScore, reasonCodes, tool, branch, intent, scopeHit,
-  // floorFired, taintSource, taintReason are retained verbatim (never secrets).
+  // ADR-041 D28: redaction policy. targetPath, notes, and the free-text
+  // user-derived fields (scopeHit, taintReason, ambientPath) always pass
+  // through clean(). Structural labels (action, riskLevel, riskScore,
+  // reasonCodes, tool, branch, intent, floorFired, taintSource, ambientClass)
+  // are retained verbatim — they are engine-computed codes, never raw user input.
+  // clean() is identity when shouldRedact is false (i.e. in production / replay
+  // when redactInJournal is not set), so no byte-change on existing paths.
   const record = {
     ts: new Date().toISOString(),
     kind: String(entry.kind || "decision"),
@@ -118,13 +122,13 @@ function append(entry) {
     ...(shouldRedact ? { redactInJournal: true } : {}),
     // Optional pass-through fields — present only when populated by caller
     ...(entry.contractId    ? { contractId: String(entry.contractId), contractRevision: entry.contractRevision != null ? String(entry.contractRevision) : undefined } : {}),
-    ...(entry.scopeHit      ? { scopeHit: String(entry.scopeHit) } : {}),
+    ...(entry.scopeHit      ? { scopeHit: clean(String(entry.scopeHit)).slice(0, 256) } : {}),
     ...(entry.floorFired    ? { floorFired: String(entry.floorFired) } : {}),
-    ...(entry.taintSource   ? { taintSource: String(entry.taintSource), taintReason: String(entry.taintReason || "") } : {}),
+    ...(entry.taintSource   ? { taintSource: String(entry.taintSource), taintReason: clean(String(entry.taintReason || "")).slice(0, 256) } : {}),
     ...(entry.intent        ? { intent: String(entry.intent) } : {}),
     // ADR-009 PR-C: ambient-touch receipt fields (pass-through; engine computes).
     ...(entry.ambientClass  ? { ambientClass: String(entry.ambientClass) } : {}),
-    ...(entry.ambientPath   ? { ambientPath:  String(entry.ambientPath)  } : {}),
+    ...(entry.ambientPath   ? { ambientPath:  clean(String(entry.ambientPath  || "")).slice(0, 512) } : {}),
     // ADR-004 PR 37B: degraded-mode marker pass-through. Engine sets this
     // when the journal hash chain has failed verify; absent otherwise so
     // existing journals stay byte-identical for healthy chains.
@@ -151,6 +155,15 @@ function append(entry) {
     ...(entry.irHash         ? { irHash: String(entry.irHash) } : {}),
     ...(entry.latticeVersion ? { latticeVersion: String(entry.latticeVersion) } : {}),
     ...(entry.rung != null && Number.isFinite(Number(entry.rung)) ? { rung: Number(entry.rung) } : {}),
+    // ADR-041: opt-in command capture for audit completeness. Off by default
+    // (LILARA_JOURNAL_COMMAND=1 to enable) so existing journals stay byte-identical.
+    // The raw command is redacted through clean() before journaling so embedded
+    // secrets (e.g. curl -H "Authorization: Bearer sk-…") do not appear in the
+    // audit trail. irHash is unaffected — it is computed from input.ir.command
+    // upstream in action-ir.js before decide() is called, never from this field.
+    ...(process.env.LILARA_JOURNAL_COMMAND === "1" && entry.command != null
+      ? { command: clean(String(entry.command || "")).slice(0, 256) }
+      : {}),
   };
   // ADR-014 dev-mode receipt validation. Off by default (production hot
   // path skips). When LILARA_VALIDATE_RECEIPTS=1, every assembled record is
