@@ -1,6 +1,8 @@
 # ADR-030 — Unguarded Advisory Enrichment Calls in `decide()`
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding during ADR-025 implementation.
+**Status:** Implemented — 2026-06-02. ADR-030 candidates guarded in commit a3452d1;
+root cause (throwing getters on advisory reads) closed by ADR-031 input-materialization
+(commit facb503). ADR file was left as "Proposed" but code was already fully merged.
 **Severity:** HIGH (same class as ADR-025; enables floor-level fail-open regression if missed)
 **Area:** `runtime/decision-engine.js` — advisory pre-floor calls outside any try/catch.
 

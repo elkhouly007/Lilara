@@ -8,6 +8,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-06 (updated)
+
+### Docs — Audit Ledger Reconciliation
+
+- **docs(adr-030): mark Implemented** — ADR-030 (unguarded advisory calls in decide()) was
+  implemented in commits a3452d1 + facb503 (classifyIntent guard at decision-engine.js:349;
+  root-cause closed by ADR-031 input-materialization) but the file was left as "Proposed."
+  Status updated to Implemented with implementation notes.
+
+- **docs(trust-boundary-map): refresh for 0.2.0 sprint** — Added Cluster F (4 new rows:
+  F28 taint-egress provenance injection, F29 deletion-coord snapshot, notify-TLS, and
+  context-discovery env-override grant paths — all RESOLVED). Corrected two stale claims:
+  (1) `runtime/instinct-store.js` does not exist — the real file is
+  `claude/hooks/instinct-utils.js`, which is decision-irrelevant (advisory/display only);
+  (2) context-discovery was incorrectly claimed as "not decision logic directly" — it IS
+  load-bearing via contextTrust/forcePushAllow grant paths (now RESOLVED by ADR-042).
+
 ## [0.2.0] — 2026-06-05 (updated)
 
 ### Added — Staged / Cross-Call Credential Exfiltration Detection (ADR-037 F28)

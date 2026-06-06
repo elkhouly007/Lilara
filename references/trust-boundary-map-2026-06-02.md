@@ -1,10 +1,14 @@
 # Trust Boundary Map — Lilara 2026-06-02
 
 **Status:** Living document — update this map each sprint instead of re-auditing from scratch.
-**Version:** 0.1.6 (master @ 095c2ba, post ADR-028/029/030 bundle)
+**Version:** 0.2.0 (master @ post-ADR-041/042/043; updated 2026-06-06)
 **Sprint that produced it:** June 2026 hardening sprint, trust-boundary-audit bundle.
 **Owner:** Security-focused engineering. Every code PR that touches a boundary listed here
 should update the relevant row.
+
+**2026-06-06 update (0.2.0 sprint):** Added Cluster F (F28/F29/notify-TLS/context-discovery);
+corrected two stale rows in "Surface not yet mapped" (context-discovery IS decision-load-bearing
+→ RESOLVED ADR-042; `instinct-store.js` phantom reference corrected to `instinct-utils.js`).
 
 ---
 
@@ -139,6 +143,19 @@ snapshot manifest hash. It sorts keys recursively with **unbounded recursion** (
 
 ---
 
+## Cluster F — 0.2.0 sprint additions (ADR-037/038/039/042)
+
+**Added 2026-06-06. All RESOLVED.**
+
+| ID | Surface | Validation / Guard | Fail direction | Severity | Status |
+|----|---------|--------------------|----------------|----------|--------|
+| F1 | **F28 taint-egress** — provenance graph injected at `pretool-gate.js:283-287` via `input.provenanceGraph`. Could inject a poisoned graph to suppress or force F28 escalation. | Graph is loaded from `session-context.js` (state-dir guarded by ADR-028). Injection seam uses `input.X ?? loader()` pattern — caller can override, but caller is the impure pretool boundary (not an untrusted agent). Inert when `LILARA_TAINT_EGRESS=0` (off by default). | CLOSED (graph sourced from ADR-028-guarded state; ADR-037) | MED | **RESOLVED** (ADR-037) |
+| F2 | **F29 deletion-coordination** — snapshot taken at `pretool-gate.js:430-483` before a destructive-allow proceeds. Snapshot dir is under stateDir. | `snapshot.js` calls `ensureBaseDirSafe` before writing (ADR-032). Evidence rail; cannot widen a decision. Flag-gated (`LILARA_DELETE_COORD=1`). | CLOSED (ADR-038) | MED | **RESOLVED** (ADR-038) |
+| F3 | **Notify TLS** — `LILARA_NOTIFY_TLS_NOVERIFY=1` could disable cert validation on SMTP. Previously unguarded. | Now gated to loopback hosts only by `_isLoopbackHost()` in `runtime/notify/email.js`. External relays always validate (`rejectUnauthorized: true`). | CLOSED (ADR-039) | HIGH | **RESOLVED** (ADR-039) |
+| F4 | **Context-discovery env-override grant paths** — `LILARA_BRANCH_OVERRIDE` fed into `enriched.branch` which drove contextTrust posture relaxation (defeats F6/F7) and forcePushAllow demotion. Map claimed "not decision logic directly" — **that claim was wrong.** | `context-discovery.discover()` now records `branchSource`. `decide()` skips contextTrust override and passes `null` branch to `_contractScopeMatch` when `branchSource="env-override"`. Guard ON by default. Zero legitimate grant consumers (all existing usages are test/CI isolation sentinels). | CLOSED (ADR-042) | MED-HIGH | **RESOLVED** (ADR-042) |
+
+---
+
 ## Known-and-accepted bucket
 
 Future sprints: **do not re-audit these unless the underlying design changes.**
@@ -176,15 +193,16 @@ Future sprints: **do not re-audit these unless the underlying design changes.**
 
 These areas exist in the codebase but were not the focus of this audit sprint:
 
-- `runtime/instinct-store.js` and friends — instinct/coaching system reads from
-  `LILARA_INSTINCT_DIR`; not mapped for trust-boundary validation status.
-- Notification transports: `slack.js` / `discord.js` already gate `LILARA_NOTIFY_INSECURE`
-  to `127.0.0.1|localhost` only. **`email.js` RESOLVED (ADR-039):** `LILARA_NOTIFY_INSECURE`
-  and `LILARA_NOTIFY_TLS_NOVERIFY` now loopback-gated in `runtime/notify/email.js`;
-  external SMTP relays always use TLS with full cert validation.
-  (`instinct-store.js` / context-discovery remain unmapped — see below.)
-- Context-discovery (`runtime/context-discovery.js`) VCS CI env var reads — not validated
-  but feed only the branch/project-root detection, not decision logic directly.
+- **Instinct/coaching store** — the actual file is `claude/hooks/instinct-utils.js` (not
+  `runtime/instinct-store.js`, which does not exist). Reads/writes `LILARA_INSTINCT_DIR`
+  for session-start coaching summaries. **Decision-IRRELEVANT:** `decision-engine.js` never
+  imports it; data is advisory/display-only. Missing `ensureBaseDirSafe` call is an ADR-028
+  consistency gap but not exploitable on a security path. No PR needed.
+- **Notification transports:** `slack.js` / `discord.js` already gate `LILARA_NOTIFY_INSECURE`
+  to `127.0.0.1|localhost` only. **`email.js` RESOLVED (ADR-039, Cluster F3).**
+- **Context-discovery env-override grant paths:** ~~not decision logic directly~~ — this was
+  **WRONG**. `discovered.branch` feeds `enriched.branch` which drives contextTrust posture
+  relaxation (F6/F7) and forcePushAllow demotion. **RESOLVED (ADR-042, Cluster F4).**
 
 ---
 
