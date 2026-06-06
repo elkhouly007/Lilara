@@ -361,9 +361,22 @@ function decide(input = {}) {
   // ADR-017 F23: reset per-call so the early-block path doesn't carry a stale receipt.
   setEarlyBlockF23(null);
 
+  // ADR-042: guard env-supplied branches from driving security grants.
+  // LILARA_BRANCH_OVERRIDE is a test/CI-isolation mechanism — auditing every
+  // reference to it in the codebase found ZERO consumers that legitimately depend
+  // on the env-override to *grant* a demotion (contextTrust posture relaxation or
+  // forcePushAllow). The only uses are test-isolation sentinels (non-matching globs)
+  // and adapters running with contracts disabled. Blocking the grant paths for env-
+  // sourced branches closes the spoofing vector without affecting any real use case.
+  // Guard is ON by default; `LILARA_BRANCH_DEMOTE_GUARD=0` restores legacy behavior.
+  const _branchFromEnv = discovered.branchSource === "env-override"
+    && !enriched.branchExplicit
+    && process.env.LILARA_BRANCH_DEMOTE_GUARD !== "0";
+
   // B2 commit 2: contextTrust per-branch posture override.
   // Replaces enriched.trustPosture for risk scoring only — does not affect scopes or floors.
-  if (contract && enriched.branch) {
+  // ADR-042: skip when branch came from env-override (see _branchFromEnv above).
+  if (contract && enriched.branch && !_branchFromEnv) {
     try {
       const overridePosture = _contractGetContextTrust(contract, enriched.branch);
       if (overridePosture) {
@@ -413,10 +426,14 @@ function decide(input = {}) {
     }
 
     // Step 11: contract scope-allow — may demote baseline (but never demotes floors)
+    // ADR-042: pass null branch when env-override is active and guard is on so a
+    // spoofed branch cannot match forcePushAllow globs. Explicit input.branch and
+    // git-HEAD branches are unaffected — only the spoofable env source is distrusted.
     try {
       const sm = _contractScopeMatch(contract, {
         command: input.command, commandClass: cmdClass,
-        targetPath: input.targetPath, branch: enriched.branch,
+        targetPath: input.targetPath,
+        branch: _branchFromEnv ? null : enriched.branch,
         payloadClass: enriched.payloadClass || "A",
         harness: input.harness, projectRoot: discovered.projectRoot,
       });

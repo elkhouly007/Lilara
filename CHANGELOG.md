@@ -10,6 +10,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] — 2026-06-06 (updated)
 
+### Security — Env-Branch Grant Guard (ADR-042)
+
+- **fix(branch-guard): `LILARA_BRANCH_OVERRIDE` cannot drive contextTrust relaxation or `forcePushAllow` demotions** —
+  `context-discovery.discover()` now records `branchSource` (`"input"` | `"env-override"` | `"git"` | `"none"`).
+  In `decide()`, when `branchSource="env-override"` the two security-grant paths are guarded:
+  (1) the contextTrust posture override block is skipped (env branch can't flip strict→relaxed,
+  defeating F6/F7); (2) `null` is passed as the branch to `_contractScopeMatch` so `forcePushAllow`
+  globs cannot be matched by a spoofed env branch. ON by default (`LILARA_BRANCH_DEMOTE_GUARD=0`
+  restores legacy). Explicit `input.branch` and git-verified HEAD unaffected. Replay-inert:
+  harnesses run with contracts disabled, so both grant paths are unreachable in replay.
+
+- **Consumer assessment:** all existing `LILARA_BRANCH_OVERRIDE` usages are test/CI isolation
+  sentinels (non-matching globs, contracts disabled) or branch detection/display — zero legitimate
+  consumers of the grant paths. Trust-boundary map claim "not decision logic directly" corrected.
+
+- **test(branch-guard): `branch-override-demotion-guard.test.js` (9 tests)** — branchSource
+  provenance for all four source types; null-branch scopeMatch mechanism; F7-observable contextTrust
+  guard (guard ON → "require-review", guard OFF → "allow"); explicit branch still demotes; guard=0
+  legacy behavior.
+
 ### Coverage — Provenance Taint Engine Tests (ADR-043)
 
 - **test(provenance): `provenance-graph.test.js` (42 tests)** — first direct unit tests for

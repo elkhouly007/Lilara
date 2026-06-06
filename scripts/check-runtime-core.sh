@@ -694,6 +694,10 @@ pass 'collect-text depth cap + byte budget (nested tool-output scanning)'
 node "$root/tests/runtime/protected-branch-gating.test.js" || exit 1
 pass 'protected-branch-gating hasExplicitProtectedBranches + branchExplicit'
 
+# ADR-042 env-branch grant guard: branchSource tracking + contextTrust/forcePushAllow guard
+node "$root/tests/runtime/branch-override-demotion-guard.test.js" || exit 1
+pass 'branch-override-demotion-guard ADR-042 env-branch grant guard'
+
 # dogfood-config regression guard — locks runtime.* schema on repo lilara.config.json
 node "$root/tests/runtime/dogfood-config.test.js" || exit 1
 pass 'dogfood-config loadProjectPolicy returns explicit protected branches'
