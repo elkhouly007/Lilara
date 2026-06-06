@@ -1717,6 +1717,7 @@ function decide(input = {}) {
       tool: input.tool || "",
       intent: intentResult.intent,
       branch: input.branch || "",
+      command: input.command || "",   // ADR-041: redacted at write boundary (LILARA_JOURNAL_COMMAND=1)
       targetPath: input.targetPath || "",
       notes: `${source}${input.notes ? ` | ${input.notes}` : ""}`,
       ...(contractId ? { contractId, contractRevision: contract?.revision } : {}),

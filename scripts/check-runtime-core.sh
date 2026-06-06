@@ -784,6 +784,10 @@ pass 'receipt-export ADR-014 exporter'
 node "$root/tests/runtime/receipt-redaction.test.js" || exit 1
 pass 'receipt-redaction ADR-014 redaction guarantee'
 
+# ADR-041 journal write-boundary command-field redaction
+node "$root/tests/runtime/journal-command-redaction.test.js" || exit 1
+pass 'journal-command-redaction ADR-041 write-boundary redaction + invariance'
+
 # ADR-014 receipt schema validator
 node "$root/tests/runtime/receipt-schema.test.js" || exit 1
 pass 'receipt-schema ADR-014 schema validation'
