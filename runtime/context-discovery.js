@@ -80,17 +80,31 @@ function discover(input = {}) {
   // Respect LILARA_BRANCH_OVERRIDE so adapter/fixture check scripts can
   // isolate from the live git HEAD without modifying the input object.
   // input.branch (explicitly supplied by callers) always wins first.
+  //
+  // ADR-042: track the SOURCE of the resolved branch so decide() can guard
+  // security-grant paths (contextTrust posture relaxation, forcePushAllow)
+  // against env-supplied branches. The env var is a test/fixture isolation
+  // mechanism — no legitimate call-site relies on it to grant a demotion.
+  //   "input"        — explicitly supplied by the caller (trusted: vetted by pretool-gate).
+  //   "env-override" — LILARA_BRANCH_OVERRIDE (trusted for display; untrusted for grants).
+  //   "git"          — verified git HEAD (trusted: real checkout state).
+  //   "none"         — unavailable.
+  const _inputBranch       = String(input.branch || "").trim();
   const _branchEnvOverride = String(process.env.LILARA_BRANCH_OVERRIDE || "").trim();
-  const branch = String(input.branch || "").trim()
-    || _branchEnvOverride
-    || safeGit(["symbolic-ref", "--short", "HEAD"], gitRoot)
-    || safeGit(["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
+  const _gitBranch         = safeGit(["symbolic-ref", "--short", "HEAD"], gitRoot)
+                             || safeGit(["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
+  let branch, branchSource;
+  if (_inputBranch)            { branch = _inputBranch;       branchSource = "input"; }
+  else if (_branchEnvOverride) { branch = _branchEnvOverride; branchSource = "env-override"; }
+  else if (_gitBranch)         { branch = _gitBranch;         branchSource = "git"; }
+  else                         { branch = "";                  branchSource = "none"; }
 
   const shape = detectProjectShape(gitRoot);
 
   return {
     projectRoot: gitRoot,
     branch,
+    branchSource,
     configPath,
     hasConfig: shape.hasConfig,
     projectMarkers: shape.markers,
