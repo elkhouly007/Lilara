@@ -784,6 +784,14 @@ pass 'receipt-redaction ADR-014 redaction guarantee'
 node "$root/tests/runtime/receipt-schema.test.js" || exit 1
 pass 'receipt-schema ADR-014 schema validation'
 
+# ADR-043 provenance-graph unit tests (F23 kill-chain + F28 taint-egress engine)
+node "$root/tests/runtime/provenance-graph.test.js" || exit 1
+pass 'provenance-graph ADR-043 tokenHashSet/pathHash/classifySink/evaluate/findPropagationSource'
+
+# ADR-043 provenance-correlator unit tests (taint correlation kernel)
+node "$root/tests/runtime/provenance-correlator.test.js" || exit 1
+pass 'provenance-correlator ADR-043 correlate() — token/command/flag/minTokenLength'
+
 # ADR-016 Feature 4: sandbox dry-run CLI
 node "$root/tests/runtime/sandbox-dry-run.test.js" || exit 1
 pass 'sandbox-dry-run ADR-016 dry-run CLI'

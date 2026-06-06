@@ -10,6 +10,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.2.0] — 2026-06-06 (updated)
 
+### Coverage — Provenance Taint Engine Tests (ADR-043)
+
+- **test(provenance): `provenance-graph.test.js` (42 tests)** — first direct unit tests for
+  the F23/F28 taint-engine core. Covers all 7 public exports: `tokenHashSet` (empty/short/
+  stopword/dedup/determinism/char-class), `pathHash` (null/backslash-norm/case/tilde),
+  `classifyPathSensitivity` (high/low only, NOT medium — distinct from hook-utils),
+  `overlapScore` (Jaccard correct), `classifySink` (all 4 kind branches + priority +
+  package-registry exempt), `evaluate` (all 3 chain arms: staged-exfil structural,
+  staged-exfil content-overlap, injection-to-exec, persistence + exempt guard),
+  `findPropagationSource` (MIN_SHARED_COUNT=3 guard + match/no-match).
+
+- **test(provenance): `provenance-correlator.test.js` (19 tests)** — first tests for the
+  taint correlation kernel (`provenance-correlator.correlate()`), which previously had
+  ZERO test references. Covers: guard cases (empty/null cmd/reads), full-command match,
+  per-token match (`matchedToken` field), no-match, flag-style token filtering
+  (`--flag`/`-x`), short-token filtering, `minTokenLength` clamp (4–32), multiple-reads
+  source attribution, empty-content skip.
+
+- Both modules are pure (zero I/O) — no state-dir scaffolding required.
+- Wired into `scripts/check-runtime-core.sh` as two explicit invocation lines.
+
 ### Docs — Audit Ledger Reconciliation
 
 - **docs(adr-030): mark Implemented** — ADR-030 (unguarded advisory calls in decide()) was
