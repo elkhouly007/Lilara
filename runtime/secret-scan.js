@@ -64,7 +64,10 @@ function slugify(name) {
 function redact(text) {
   let s = String(text || "");
   for (const { name, pattern } of loadPatterns()) {
-    s = s.replace(pattern, `[REDACTED:${slugify(name)}]`);
+    // Use global flag so ALL occurrences are redacted, not just the first.
+    // Create a new RegExp from the source to avoid mutating the shared cache.
+    const globalPattern = new RegExp(pattern.source, "gi");
+    s = s.replace(globalPattern, `[REDACTED:${slugify(name)}]`);
   }
   return s;
 }

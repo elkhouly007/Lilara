@@ -840,6 +840,10 @@ pass 'workflow-enforcer ADR workflow gate'
 node "$root/tests/perf/bench-gate.test.js" || exit 1
 pass 'bench-gate ADR-044 p50-relative + p99-ceiling gate logic'
 
+# ADR-041 follow-up: multi-secret global redaction
+node "$root/tests/runtime/secret-scan-redact.test.js" || exit 1
+pass 'secret-scan-redact multi-secret global redaction (ADR-041 follow-up)'
+
 # replay-corpus drift gate — catches runtime/* changes that shift action,
 # decisionSource, floorFired, or irHash on any recorded corpus entry.
 bash "$root/scripts/check-replay-corpus.sh" || exit 1
