@@ -8,6 +8,13 @@ const crypto = require("crypto");
 const { emitEvent } = require("./telemetry");
 const { stateDir } = require("./state-paths");
 const { ensureStateDirSafe, ensureBaseDirSafe } = require("./state-dir"); // ADR-028
+const { redact } = require("./secret-scan"); // ADR-045: redact raw external content at rest
+
+// ADR-045: default ON (mirrors ADR-042 env-override pattern).
+// LILARA_TAINT_WINDOW_REDACT=0 disables redaction for debugging/opt-out.
+function _taintWindowRedactEnabled() {
+  return process.env.LILARA_TAINT_WINDOW_REDACT !== "0";
+}
 
 function paths() {
   const baseDir = stateDir();
@@ -334,7 +341,15 @@ function recordExternalRead(content, source) {
     const now = Date.now();
     // Prune stale entries
     window = window.filter((e) => (now - (e.ts || 0)) < PROVENANCE_MAX_AGE_MS);
-    window.push({ content: String(content || "").slice(0, 4096), source: String(source || "external"), ts: now });
+    // ADR-045: redact secrets before persisting (default ON). Raw external content
+    // can contain API keys, tokens, or credentials; storing them verbatim on disk
+    // is the same class of risk ADR-041 closed for the decision journal.
+    // Redaction is symmetric: correlateCommand() redacts the command with the same
+    // function, so injection tokens (non-secret, e.g. curl/evil.com) still match
+    // placeholder-vs-placeholder and F10 detection is never weakened.
+    const rawContent = String(content || "").slice(0, 4096);
+    const storedContent = _taintWindowRedactEnabled() ? redact(rawContent) : rawContent;
+    window.push({ content: storedContent, source: String(source || "external"), ts: now });
     if (window.length > PROVENANCE_MAX_ENTRIES) window = window.slice(-PROVENANCE_MAX_ENTRIES);
     const tmp = p + ".tmp";
     fs.writeFileSync(tmp, JSON.stringify(window), { mode: 0o600 });
@@ -344,6 +359,12 @@ function recordExternalRead(content, source) {
 
 function getProvenanceWindow(windowSeconds) {
   try {
+    const dir = paths().baseDir;
+    // ADR-045 (G4): validate state dir on read — a world-writable store could be
+    // pre-seeded with attacker-controlled tokens to manipulate F10 results.
+    // Fail-CLOSED: return [] on unsafe dir (no provenance data → tainted:false,
+    // which is the same result as an empty/TTL-expired window).
+    if (fs.existsSync(dir) && !ensureBaseDirSafe(dir)) return [];
     const p = provenanceWindowPath();
     if (!fs.existsSync(p)) return [];
     const window = JSON.parse(fs.readFileSync(p, "utf8"));
