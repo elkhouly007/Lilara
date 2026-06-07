@@ -844,6 +844,10 @@ pass 'bench-gate ADR-044 p50-relative + p99-ceiling gate logic'
 node "$root/tests/runtime/secret-scan-redact.test.js" || exit 1
 pass 'secret-scan-redact multi-secret global redaction (ADR-041 follow-up)'
 
+# ADR-045: taint-window at-rest redaction (default ON)
+node "$root/tests/runtime/taint-window-redaction.test.js" || exit 1
+pass 'taint-window-redaction at-rest secret redaction (ADR-045)'
+
 # replay-corpus drift gate — catches runtime/* changes that shift action,
 # decisionSource, floorFired, or irHash on any recorded corpus entry.
 bash "$root/scripts/check-replay-corpus.sh" || exit 1

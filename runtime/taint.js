@@ -21,6 +21,7 @@
 const { recordExternalRead: _record, getProvenanceWindow } = require("./session-context");
 const { correlate } = require("./provenance-correlator");
 const { loadProjectPolicy } = require("./project-policy");
+const { redact } = require("./secret-scan"); // ADR-045: symmetric correlate-side redaction
 
 const DEFAULT_WINDOW_SECONDS = 60;
 
@@ -55,7 +56,17 @@ function correlateCommand(command, windowSeconds, toolName) {
   if (toolName && (policy.taintSafeToolClasses || []).includes(toolName)) {
     return { tainted: false };
   }
-  return correlate(command, recentReads, policy.taintMinTokenLength);
+  // ADR-045: symmetric command-side redaction. When taint-window redaction is
+  // enabled (default ON), the stored window content was already run through
+  // redact() at write time. Redacting the command here with the same function
+  // preserves injection-token matching (non-secret tokens like curl/evil.com
+  // are unchanged by redact()) while ensuring that a genuine secret value shared
+  // between an external read and a command still produces a placeholder-vs-
+  // placeholder match — F10 stays tainted:true (fail-safe, never fails open).
+  const effectiveCommand = process.env.LILARA_TAINT_WINDOW_REDACT !== "0"
+    ? redact(String(command || ""))
+    : String(command || "");
+  return correlate(effectiveCommand, recentReads, policy.taintMinTokenLength);
 }
 
 module.exports = { recordExternalRead, correlateCommand };

@@ -11,6 +11,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Reliability — Bench baseline architecture (ADR-044)
 - **feat(bench-gate): ADR-044** — Switch relative regression gate from noisy p99 to stable p50; committed per-platform baselines (no CI cache dependency); fix write-after-exit ordering bug in both bench scripts; shared pure `runtime/bench-gate.js` module for both gates.
 
+### Security — Provenance-window at-rest redaction (ADR-045)
+- **feat(taint-window-redact):** `provenance-window.json` now stores external tool output with secrets redacted (default ON; `LILARA_TAINT_WINDOW_REDACT=0` opt-out hatch). Closes the data-at-rest gap that ADR-041 closed for the decision journal. Symmetric redaction ensures F10 injection-token detection is never weakened: non-secret tokens (e.g. `curl evil.com`) pass through unchanged; a secret value shared by an external read and a command still fires F10 via placeholder-vs-placeholder match. `decide()` purity preserved — redaction occurs at the write boundary (PostToolUse, outside `decide()`) and on a local command copy in `correlateCommand()`. Replay corpus byte-identical (window is empty under fresh `STATE_DIR`; `correlate()` short-circuits at `externalReads.length === 0`).
+- **feat(taint-window-read-guard):** `getProvenanceWindow()` now validates the state dir with `ensureBaseDirSafe` on read — a world-writable store cannot pre-seed attacker tokens to manipulate F10 results.
+
 ### Security — Multi-secret journal redaction (ADR-041 follow-up)
 - **fix(secret-scan):** redact() now uses global regex flag so ALL same-class secret occurrences are scrubbed (not just the first), strengthening ADR-041 journal command-field redaction guarantee.
 
