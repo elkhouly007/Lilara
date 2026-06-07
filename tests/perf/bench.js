@@ -1,71 +1,40 @@
 "use strict";
 // Phase 0 task 0.12 - p99 regression guard.
-// Runs 1000 iterations against each flow in tests/perf/corpus.js.
-// Asserts the global p99 stays under the platform ceiling (10ms Linux,
-// 500ms Windows-slowfs, 200ms macOS - same shape as the existing
-// scripts/bench-runtime-decision.sh ladder).
+// Runs iterations against each flow in tests/perf/corpus.js.
+// Asserts the global p99 stays under the platform ceiling and the global p50
+// stays within 1.5× the committed per-platform p50 baseline (ADR-044).
+//
+// ADR-044 changes vs original:
+//   - Gate relative regression on p50 (stable median), NOT p99 (noisy tail).
+//   - Baselines are committed in artifacts/perf/baseline.json (no CI cache).
+//   - Ordering fix: evaluate ALL gates before any process.exit(1).
+//   - Baseline auto-write removed from normal CI; use LILARA_PERF_WRITE_BASELINE=1
+//     for manual recalibration (run passes to write).
 //
 // Differences vs scripts/bench-runtime-decision.sh:
-//   - This suite is broader (120 flows × 1000 iter vs 10 × 1000) -
+//   - This suite is broader (120 flows × 200 iter vs 10 × 1000) —
 //     designed to catch p99 regressions in *less-hot* code paths
 //     (intent classifier, posture overrides, payload-class branches,
 //     ambient-path checks, etc.) that the smaller hot bench can miss.
-//   - Persists baseline at artifacts/perf/baseline.json keyed by
-//     platform + node major (matches the existing bench convention).
 //   - Reports per-tool p99 to surface any tool-specific regressions.
 //
 // Run:  node tests/perf/bench.js
-// Env:  LILARA_PERF_P99_MS         - override p99 ceiling (ms)
-//       LILARA_PERF_ITER           - override iterations per flow (default 200
-//                                   for CI; spec calls for 1000 - run manually
-//                                   with LILARA_PERF_ITER=1000 for full sweep)
-//       LILARA_PERF_SUITE_BUDGET_S - override suite wall-clock budget (s)
-//       LILARA_STATE_DIR           - override state dir (recommend mktemp)
-//
-// Note on iter default: 120 flows × 1000 iter takes ~200s on Linux and
-// would exceed the 5-min AC on Windows-slowfs (~5x IO multiplier).
-// 120 × 200 = 24K samples - statistical power for p99 detection is more
-// than sufficient (needs ≥100 per cohort for stable p99 estimate).
+// Env:  LILARA_PERF_P99_MS           - override p99 ceiling (ms)
+//       LILARA_PERF_ITER              - override iterations per flow (default 200
+//                                      for CI; spec calls for 1000 - run manually
+//                                      with LILARA_PERF_ITER=1000 for full sweep)
+//       LILARA_PERF_SUITE_BUDGET_S   - override suite wall-clock budget (s)
+//       LILARA_STATE_DIR             - override state dir (recommend mktemp)
+//       LILARA_PERF_WRITE_BASELINE=1 - update artifacts/perf/baseline.json after a
+//                                      passing run (review and commit the result)
 
 const fs   = require("fs");
 const os   = require("os");
 const path = require("path");
-const cp   = require("child_process");
 
 const root = path.resolve(__dirname, "..", "..");
 const corpus = require("./corpus.js");
-
-// Baseline lineage helpers. The CI cache restore-keys are a prefix match,
-// so the baseline cache often comes from an orphaned/unrelated commit (e.g.
-// pre-rebase head, sibling feature branch). Comparing a fresh run on a
-// different runner against that arbitrary stale baseline produces 1.5×
-// false-positive failures, especially on macOS where runner variance is
-// high. We stamp baselines with their commit SHA and only enforce the 1.5×
-// regression gate when the baseline is from an ancestor of the current
-// commit (or the same commit). The hard ceiling ladder (10/200/500ms) is
-// unchanged and continues to catch severe regressions on every run.
-function gitTry(args) {
-  try {
-    return cp.execFileSync("git", args, {
-      cwd: root, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8",
-    }).trim();
-  } catch { return ""; }
-}
-function currentCommitSha() {
-  return process.env.LILARA_PERF_BASELINE_SHA
-      || process.env.GITHUB_SHA
-      || gitTry(["rev-parse", "HEAD"]) || "";
-}
-function isAncestorOrSame(maybeAncestor, head) {
-  if (!maybeAncestor || !head) return false;
-  if (maybeAncestor === head) return true;
-  try {
-    cp.execFileSync("git", ["merge-base", "--is-ancestor", maybeAncestor, head], {
-      cwd: root, stdio: "ignore",
-    });
-    return true;
-  } catch { return false; }
-}
+const { evaluateBenchGate, platformKey: mkPlatformKey, platformCeilingMs } = require(path.join(root, "runtime", "bench-gate.js"));
 
 if (!process.env.LILARA_STATE_DIR) {
   process.env.LILARA_STATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "lilara-perf-"));
@@ -74,33 +43,13 @@ const { decide } = require(path.join(root, "runtime", "decision-engine.js"));
 
 const ITER = Number(process.env.LILARA_PERF_ITER || 200);
 
-function platformCeilingMs() {
-  if (process.env.LILARA_PERF_P99_MS) return Number(process.env.LILARA_PERF_P99_MS);
-  if (process.platform === "win32") return 500;
-  // WSL on a Windows-mounted filesystem behaves like Windows IO-wise
-  if (process.platform === "linux") {
-    try {
-      const release = fs.readFileSync("/proc/version", "utf8").toLowerCase();
-      if (release.includes("microsoft") && process.cwd().startsWith("/mnt/")) return 500;
-    } catch { /* ignore */ }
-  }
-  if (process.platform === "darwin") return 200;
-  return 10;
-}
-
-function platformKey() {
-  const nodeMajor = process.version.split(".")[0];
-  const slow = platformCeilingMs() === 500;
-  return slow ? `${process.platform}-slowfs-${nodeMajor}` : `${process.platform}-${nodeMajor}`;
-}
-
 // Suite wall-clock budget mirrors the platform ladder: Linux/macOS runners
 // complete 24K samples in ~200s, but Windows runners observe a ~5x IO
 // multiplier (same shape as the p99 ladder). Hard-budgeting Windows at 300s
 // produced false-positive failures even when p99 was well within ceiling.
 function suiteBudgetSec() {
   if (process.env.LILARA_PERF_SUITE_BUDGET_S) return Number(process.env.LILARA_PERF_SUITE_BUDGET_S);
-  return platformCeilingMs() === 500 ? 900 : 300;
+  return platformCeilingMs("LILARA_PERF_P99_MS") === 500 ? 900 : 300;
 }
 
 function quantile(sorted, q) {
@@ -114,10 +63,12 @@ function fmt(n) {
 }
 
 function run() {
-  const ceiling = platformCeilingMs();
+  const ceiling = platformCeilingMs("LILARA_PERF_P99_MS");
+  const slow = ceiling === 500;
+  const key = mkPlatformKey(slow);
   const startWall = Date.now();
   console.log(`[perf-regression]`);
-  console.log(`  platform: ${platformKey()}  node: ${process.version}`);
+  console.log(`  platform: ${key}  node: ${process.version}`);
   console.log(`  flows: ${corpus.length}  iter/flow: ${ITER}  ceiling: ${ceiling}ms`);
 
   const allLatencies = [];
@@ -155,85 +106,85 @@ function run() {
     console.log(`    ${tool.padEnd(12)} N=${sorted.length}  p99=${fmt(quantile(sorted, 0.99))}ms`);
   }
 
-  // Baseline persistence + 1.5x regression detection (mirrors
-  // scripts/bench-runtime-decision.sh logic so PRs see consistent gates).
-  const baselineDir  = path.join(root, "artifacts", "perf");
-  const baselineFile = path.join(baselineDir, "baseline.json");
+  // Read committed baseline from artifacts/perf/baseline.json (ADR-044).
+  // No cache dependency; no lineage check needed.
+  const baselineFile = path.join(root, "artifacts", "perf", "baseline.json");
   let baseline = {};
   try {
     if (fs.existsSync(baselineFile)) {
       baseline = JSON.parse(fs.readFileSync(baselineFile, "utf8"));
     }
-  } catch { /* baseline is optional */ }
+  } catch { /* baseline optional — ceiling still enforced */ }
 
-  const key = platformKey();
-  const headSha = currentCommitSha();
-  let regressionFailed = false;
-  const prior = baseline[key];
-  if (prior && prior.p99) {
-    const baseP99 = Number(prior.p99);
-    // Variance floor for tiny baselines — mirrors scripts/bench-runtime-decision.sh.
-    // Sub-millisecond baselines collapse the 1.5× cap to sub-millisecond too,
-    // and ordinary GH runner jitter (sub-10ms macOS spikes that sit far below
-    // the 200ms ceiling) gets misread as a regression. Scale ≈15% of the
-    // ceiling as absolute headroom; p99 only fails when it exceeds BOTH the
-    // 1.5× cap AND the absolute headroom. Severe regressions still trip the
-    // platform ceiling below.
-    // 0.15 (was 0.1): ubuntu shared runners show ~1.0-1.1ms inter-run variance
-    // above a sub-ms baseline; 0.1×10=1.0ms sat at the noise floor.
-    const headroomMs = ceiling * 0.15;
-    const cap = Math.min(ceiling, Math.max(baseP99 * 1.5, baseP99 + headroomMs));
-    const baseSha = prior.commitSha || "";
-    const lineageOk = baseSha && headSha && isAncestorOrSame(baseSha, headSha);
-    if (!baseSha) {
-      console.log(`  info    baseline has no commitSha stamp (legacy); skipping 1.5× gate, recording stamped baseline`);
-    } else if (!lineageOk) {
-      console.log(`  info    baseline from non-ancestor commit ${baseSha.slice(0,12)} (head ${headSha.slice(0,12) || "?"}); skipping 1.5× gate (likely rebase or stale cache from sibling branch)`);
-    } else if (p99 > cap) {
-      console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds cap ${fmt(cap)}ms (baseline ${fmt(baseP99)}ms, max(1.5×, +${fmt(headroomMs)}ms headroom)) [baseline ${baseSha.slice(0,12)} ancestor of head ${headSha.slice(0,12)}]`);
-      regressionFailed = true;
-    } else {
-      console.log(`  ok      p99 within cap (baseline=${fmt(baseP99)}ms cap=${fmt(cap)}ms max(1.5×, +${fmt(headroomMs)}ms)) [baseline ${baseSha.slice(0,12)} ancestor]`);
-    }
+  const basisP50 = Number((baseline[key] || {}).p50 || 0);
+  if (basisP50 > 0) {
+    console.log(`  basis   p50 baseline=${fmt(basisP50)}ms (ADR-044)`);
   } else {
-    console.log(`  info    no baseline for ${key}; recording fresh baseline`);
+    console.log(`  info    no p50 baseline for ${key}; relative gate skipped (ceiling still enforced)`);
   }
 
-  // Update baseline only if not regressed and p50 isn't 3× prior (FS context drift guard).
-  try {
-    if (!fs.existsSync(baselineDir)) fs.mkdirSync(baselineDir, { recursive: true });
-    const skipUpdate = prior && Number(prior.p50) > 0 && p50 > Number(prior.p50) * 3;
-    if (skipUpdate) {
-      console.log(`  WARN    p50 is 3× prior baseline - skipping baseline update (likely wrong FS context)`);
-    } else if (!regressionFailed) {
-      baseline[key] = {
-        p50: fmt(p50), p95: fmt(p95), p99: fmt(p99), p999: fmt(p999),
-        flows: corpus.length, iter: ITER,
-        updatedAt: new Date().toISOString(),
-        node: process.version,
-        commitSha: headSha || undefined,
-        commitRef: process.env.GITHUB_REF || gitTry(["rev-parse", "--abbrev-ref", "HEAD"]) || undefined,
-      };
-      fs.writeFileSync(baselineFile, JSON.stringify(baseline, null, 2) + "\n");
+  // ADR-044 ordering fix: evaluate ALL gates FIRST, then decide write, then exit.
+  const gateResult = evaluateBenchGate({ basisP50, measuredP50: p50, measuredP99: p99, p99Ceiling: ceiling });
+
+  // Print per-failure diagnostics.
+  for (const f of gateResult.failures) {
+    if (f.kind === "p50-regression") {
+      console.error(`  ERROR   p50 ${fmt(f.measuredP50)}ms exceeds cap ${fmt(f.capP50)}ms (basis=${fmt(f.basisP50)}ms × 1.5, ADR-044)`);
+    } else if (f.kind === "p99-ceiling") {
+      console.error(`  ERROR   p99 ${fmt(f.measuredP99)}ms exceeds ceiling ${f.p99Ceiling}ms - severe regression`);
     }
-  } catch (e) {
-    console.log(`  WARN    baseline write failed: ${e.message}`);
   }
 
-  if (p99 > ceiling) {
-    console.error(`  ERROR   p99 ${fmt(p99)}ms exceeds ceiling ${ceiling}ms - severe regression`);
-    process.exit(1);
+  if (gateResult.pass) {
+    if (basisP50 > 0) {
+      console.log(`  ok      p50 ${fmt(p50)}ms within cap ${fmt(gateResult.capP50)}ms; p99 ${fmt(p99)}ms within ${ceiling}ms ceiling`);
+    } else {
+      console.log(`  ok      p99 ${fmt(p99)}ms within ${ceiling}ms ceiling`);
+    }
   }
-  if (regressionFailed) process.exit(1);
+
+  // Baseline write: ONLY when LILARA_PERF_WRITE_BASELINE=1 (not in normal CI).
+  // Only write on a passing run to avoid poisoning baseline with slow measurements.
+  if (process.env.LILARA_PERF_WRITE_BASELINE === "1") {
+    if (gateResult.pass) {
+      try {
+        const baselineDir = path.join(root, "artifacts", "perf");
+        if (!fs.existsSync(baselineDir)) fs.mkdirSync(baselineDir, { recursive: true });
+        const existing = fs.existsSync(baselineFile)
+          ? JSON.parse(fs.readFileSync(baselineFile, "utf8"))
+          : {};
+        const prior = existing[key];
+        if (prior && Number(prior.p50) > 0 && p50 > Number(prior.p50) * 3) {
+          console.log(`  WARN    p50 is 3× prior baseline - skipping baseline update (likely wrong FS context)`);
+        } else {
+          existing[key] = {
+            p50: fmt(p50), p99: fmt(p99),
+            flows: corpus.length, iter: ITER,
+            updatedAt: new Date().toISOString(),
+            node: process.version,
+          };
+          fs.writeFileSync(baselineFile, JSON.stringify(existing, null, 2) + "\n");
+          console.log(`  write   artifacts/perf/baseline.json updated for ${key} — review and commit`);
+        }
+      } catch (e) {
+        console.log(`  WARN    baseline write failed: ${e.message}`);
+      }
+    } else {
+      console.log(`  WARN    gate failed — baseline NOT updated (run only passes to recalibrate)`);
+    }
+  }
 
   // AC: suite must complete within the platform-scaled wall-clock budget.
   const budgetSec = suiteBudgetSec();
   if (elapsedSec > budgetSec) {
     console.error(`  ERROR   suite elapsed ${fmt(elapsedSec)}s exceeds ${budgetSec}s budget`);
+    // Exit after all checks are reported.
     process.exit(1);
   }
 
-  console.log(`  ok      p99 ${fmt(p99)}ms within ${ceiling}ms ceiling`);
+  // Exit AFTER all gate evaluation and write decisions.
+  if (!gateResult.pass) process.exit(1);
+
   console.log(`\nPerf regression suite passed.`);
 }
 
