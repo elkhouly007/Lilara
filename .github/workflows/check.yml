@@ -186,36 +186,12 @@ jobs:
         # introduces a single FP or FN fails the build, matching the stated bar.
         run: LILARA_EVAL_MAX_FP_PCT=0 LILARA_EVAL_MAX_FN_PCT=0 bash scripts/eval-decision-quality.sh
 
-      - name: Restore bench baseline
-        uses: actions/cache@v4
-        with:
-          path: artifacts/bench
-          key: bench-baseline-${{ matrix.os }}-${{ github.sha }}
-          restore-keys: bench-baseline-${{ matrix.os }}-
-
       - name: Runtime decision bench
+        # ADR-044: baselines are committed to artifacts/bench/baseline.json;
+        # no cache save/restore needed.
         run: LILARA_BENCH_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-runtime-decision.sh
 
-      - name: Save bench baseline
-        uses: actions/cache@v4
-        if: always()
-        with:
-          path: artifacts/bench
-          key: bench-baseline-${{ matrix.os }}-${{ github.sha }}
-
-      - name: Restore perf-regression baseline
-        uses: actions/cache@v4
-        with:
-          path: artifacts/perf
-          key: perf-baseline-${{ matrix.os }}-${{ github.sha }}
-          restore-keys: perf-baseline-${{ matrix.os }}-
-
       - name: Perf regression guard (Task 0.12, 120 flows × 200 iter)
+        # ADR-044: baselines are committed to artifacts/perf/baseline.json;
+        # no cache save/restore needed.
         run: LILARA_PERF_P99_MS=${{ matrix.bench_p99_ms }} bash scripts/bench-perf-regression.sh
-
-      - name: Save perf-regression baseline
-        uses: actions/cache@v4
-        if: always()
-        with:
-          path: artifacts/perf
-          key: perf-baseline-${{ matrix.os }}-${{ github.sha }}

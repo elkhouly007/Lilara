@@ -4,9 +4,13 @@ jobs*.json
 ubuntu_log.txt
 
 # ── Benchmark artifacts ───────────────────────────────────────────────────────
+# ADR-044: baseline.json files are committed (no CI cache dependency).
+# All other bench/perf output remains untracked.
 artifacts/adversarial/
-artifacts/bench/
-artifacts/perf/
+artifacts/bench/*
+!artifacts/bench/baseline.json
+artifacts/perf/*
+!artifacts/perf/baseline.json
 artifacts/stress/
 
 # ── Claude Code session artifacts ─────────────────────────────────────────────

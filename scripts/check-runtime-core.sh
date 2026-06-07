@@ -836,6 +836,10 @@ pass 'vcs-adapter CI env detection'
 node "$root/tests/runtime/workflow-enforcer.test.js" || exit 1
 pass 'workflow-enforcer ADR workflow gate'
 
+# ADR-044 bench gate unit tests
+node "$root/tests/perf/bench-gate.test.js" || exit 1
+pass 'bench-gate ADR-044 p50-relative + p99-ceiling gate logic'
+
 # replay-corpus drift gate — catches runtime/* changes that shift action,
 # decisionSource, floorFired, or irHash on any recorded corpus entry.
 bash "$root/scripts/check-replay-corpus.sh" || exit 1

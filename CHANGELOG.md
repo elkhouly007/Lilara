@@ -8,6 +8,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Reliability — Bench baseline architecture (ADR-044)
+- **feat(bench-gate): ADR-044** — Switch relative regression gate from noisy p99 to stable p50; committed per-platform baselines (no CI cache dependency); fix write-after-exit ordering bug in both bench scripts; shared pure `runtime/bench-gate.js` module for both gates.
+
 ## [0.2.0] — 2026-06-06 (updated)
 
 ### Security — Decision-Journal Write-Boundary Redaction (ADR-041)
