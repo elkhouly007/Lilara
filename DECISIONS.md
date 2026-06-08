@@ -142,7 +142,7 @@ Sample-journal replay: 0 divergences — all 12 entries are payloadClass=A, bala
 
 `runtime/provenance-correlator.js:correlate()` checks whether shell command tokens appear verbatim in the provenance window (recent external reads). Exact-match first, then per-token. Token filter: `length >= minTokenLength && not a flag (-x / --foo)`.
 
-**Minimum token length:** configurable via `lilara.config.json` key `taint.minTokenLength` (integer, range 4–32, default 6). Read by `project-policy.js:loadProjectPolicy()` and passed into `correlate()` via `taint.js:correlateCommand()`. Operators in high-FP token-overlap environments (e.g., reading package docs then installing that package) can raise this threshold without code changes.
+**Minimum token length:** configurable via `lilara.config.json` key `taint.minTokenLength` (integer, range 4–32, default 6). Read by `project-policy.js:loadProjectPolicy()` and passed into `correlate()` via `taint.js:correlateCommandPure()` (ADR-046: the taint policy is threaded from decide()'s already-loaded `projectPolicy`, not re-loaded inside the taint path). Operators in high-FP token-overlap environments (e.g., reading package docs then installing that package) can raise this threshold without code changes.
 
 **Recommended path:** set `"taint": { "minTokenLength": 10 }` in `lilara.config.json` to reduce false-positives in doc-heavy workflows.
 
@@ -154,7 +154,7 @@ Sample-journal replay: 0 divergences — all 12 entries are payloadClass=A, bala
 
 **Status: CLOSED — implemented in commit 3, feat/wave2-cleanup.**
 
-`runtime/taint.js:correlateCommand()` now accepts a `toolName` parameter. If the tool is in `taintSafeToolClasses` (default: `["Read","Grep","Glob","LS","NotebookRead"]`), it returns `{ tainted: false }` immediately. The safe-class list is configurable per-project via `taint.safeToolClasses` in `lilara.config.json`. `decision-engine.js` passes `input.tool` as the third argument. Fixtures: `taint:d37-grep-safe-class-no-f10` and `taint:d37-bash-write-class-f10-fires`.
+`runtime/taint.js:correlateCommandPure()` accepts a `toolName` parameter. If the tool is in `taintSafeToolClasses` (default: `["Read","Grep","Glob","LS","NotebookRead"]`), it returns `{ tainted: false }` immediately. The safe-class list is configurable per-project via `taint.safeToolClasses` in `lilara.config.json`. `decision-engine.js` passes `input.tool` as the third argument. Fixtures: `taint:d37-grep-safe-class-no-f10` and `taint:d37-bash-write-class-f10-fires`. (ADR-046 renamed the disk-reading `correlateCommand` to the pure `correlateCommandPure`; the provenance window is injected via `input.provenanceWindow`.)
 
 ---
 

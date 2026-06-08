@@ -275,6 +275,14 @@ function runFixture(fixturePath) {
       decideInput.sessionId = String(fx.session.sessionId);
     }
 
+    // ADR-046: F10 no longer reads the provenance window from disk inside decide().
+    // Mirror the pretool-gate boundary — load the window written by
+    // preDecide.recordExternalRead above and inject it as input.provenanceWindow.
+    if (fx.preDecide && fx.preDecide.recordExternalRead) {
+      const { getProvenanceWindow } = require(path.join(root, "runtime/session-context"));
+      decideInput.provenanceWindow = getProvenanceWindow(60);
+    }
+
     const { build: buildIr } = require(path.join(root, "runtime/action-ir"));
     const ir = buildIr(decideInput, {
       harness:     String(decideInput.harness || ""),

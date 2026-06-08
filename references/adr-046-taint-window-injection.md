@@ -1,6 +1,6 @@
 # ADR-046 — Restore `decide()` Cross-Call Purity for F10 (Inject the Taint Window via `input.*`)
 
-**Status:** Implemented — PR1 (injection + disk fallback). PR2 (remove the fallback; migrate test harnesses) is the follow-up that makes `decide()` genuinely free of the cross-call disk read.
+**Status:** Implemented — PR1 (injection + disk fallback) and PR2 (fallback removed; test harnesses migrated to inject; disk `correlateCommand` retired). `decide()` is now genuinely free of the cross-call disk read for F10.
 
 ---
 
@@ -152,10 +152,16 @@ window to preserve F10.
 config policy threading, and gate-level primary + recheck boundary proofs. Wired into
 `scripts/check-runtime-core.sh`.
 
-### PR2 (follow-up)
-Remove the `getProvenanceWindow` fallback/import from `decide()`; retire disk `correlateCommand`
-(migrate its direct unit callers); migrate `scripts/check-lattice-receipts.sh` and the four
-`run-fixtures.sh` taint blocks to inject `getProvenanceWindow(60)` after `recordExternalRead`.
+### PR2
+- `runtime/decision-engine.js` — removed the `getProvenanceWindow` fallback/import and the dead
+  `_correlateCommand` reference; F10 now resolves the window as
+  `Array.isArray(input.provenanceWindow) ? … : []` only. `decide()` is cross-call-pure.
+- `runtime/taint.js` — retired the disk `correlateCommand` and its now-unused `getProvenanceWindow`
+  / `loadProjectPolicy` imports; only `recordExternalRead` + `correlateCommandPure` remain.
+- `scripts/check-lattice-receipts.sh` + `scripts/run-fixtures.sh` (four taint blocks) — migrated to
+  load `getProvenanceWindow(60)` after `recordExternalRead` and inject `input.provenanceWindow`.
+- Docs (`MODULES.md`, `DECISIONS.md`, `decision-lattice.js` predicateRef) updated to
+  `correlateCommandPure` / the injection model.
 
 ---
 

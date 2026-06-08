@@ -207,7 +207,7 @@ const LATTICE = Object.freeze([
     source: "taint-floor",
     tier: "inviolable",
     demotableBy: [],
-    predicateRef: "runtime/decision-engine.js:decide(correlateCommand)",
+    predicateRef: "runtime/decision-engine.js:decide(correlateCommandPure)",
     notes: "A2: command overlaps recently-read external content (tainted).",
   }),
   Object.freeze({

@@ -4,7 +4,7 @@
 const { score } = require("./risk-score");
 const { append } = require("./decision-journal");
 const { getApprovalCount, isLearnedAllowed, decisionKey, getSuggestionForInput, getPolicyFacts, hasAutoAllowOnce, consumeAutoAllowOnce, scopedKey } = require("./policy-store");
-const { getSessionRisk, recordDecision, getSessionTrajectory, getProvenanceWindow: _getProvenanceWindow } = require("./session-context");
+const { getSessionRisk, recordDecision, getSessionTrajectory } = require("./session-context");
 const { loadProjectPolicy } = require("./project-policy");
 const { discover } = require("./context-discovery");
 const { fineKey } = require("./decision-key");
@@ -133,13 +133,8 @@ const { fireNotifyHook: _fireNotifyHook } = require("./notify-engine-hook");
 // null when absent and call sites check before use.
 let _scanSecrets = null;
 try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
-let _correlateCommand = null;
 let _correlateCommandPure = null;
-try {
-  const _taint = require("./taint");
-  _correlateCommand = _taint.correlateCommand;
-  _correlateCommandPure = _taint.correlateCommandPure;
-} catch { /* optional */ }
+try { _correlateCommandPure = require("./taint").correlateCommandPure; } catch { /* optional */ }
 // ADR-017 F23: kill-chain floor — extracted to runtime/floor-f23.js.
 // Non-optional require: floor-f23 is always loadable (owns its optional deps
 // internally; fails open when provenance-graph / session-context are absent).
@@ -1270,13 +1265,12 @@ function decide(input = {}) {
   if (_correlateCommandPure) {
     try {
       // ADR-046: F10 consumes the taint window injected at the impure boundary
-      // (input.provenanceWindow, loaded by pretool-gate.js). PR1 retains a disk
-      // fallback for callers that do not yet inject; PR2 removes it so decide()
-      // is free of the cross-call disk read. Taint policy comes from the
-      // already-loaded projectPolicy (no loadProjectPolicy() inside decide()).
-      const _recentReads = input.provenanceWindow != null
-        ? input.provenanceWindow
-        : (_getProvenanceWindow ? _getProvenanceWindow(60) : []);
+      // (input.provenanceWindow — loaded by pretool-gate.js & operator tools).
+      // decide() does NOT read the window from disk: this is the cross-call
+      // purity restoration. Taint policy comes from the already-loaded
+      // projectPolicy (no loadProjectPolicy() inside decide()). Absent / non-array
+      // / empty window → correlate() returns not-tainted → F10 inert.
+      const _recentReads = Array.isArray(input.provenanceWindow) ? input.provenanceWindow : [];
       taintResult = _correlateCommandPure(input.command || "", _recentReads, input.tool || "", {
         taintSafeToolClasses: projectPolicy.taintSafeToolClasses,
         taintMinTokenLength:  projectPolicy.taintMinTokenLength,

