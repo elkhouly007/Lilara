@@ -79,8 +79,12 @@ const _OBJECT_FIELDS = [
 
 // Array-typed fields.
 // observedConnectedIps IS an array — engine :1360 guards with Array.isArray.
+// provenanceWindow (ADR-046) is the injected taint window [{content,source,ts}];
+// a non-array injection normalizes to null, and the F10 block guards with
+// Array.isArray(input.provenanceWindow) ? … : [].
 const _ARRAY_FIELDS = [
   "observedConnectedIps",
+  "provenanceWindow",
 ];
 
 function materializeInput(rawInput) {

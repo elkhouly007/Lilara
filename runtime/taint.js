@@ -69,4 +69,40 @@ function correlateCommand(command, windowSeconds, toolName) {
   return correlate(effectiveCommand, recentReads, policy.taintMinTokenLength);
 }
 
-module.exports = { recordExternalRead, correlateCommand };
+/**
+ * Pure variant of correlateCommand (ADR-046).
+ *
+ * The caller — the impure boundary (pretool-gate.js), or decide() via the
+ * injected `input.provenanceWindow` — supplies BOTH the already-loaded window
+ * AND the taint policy. This function does NO disk read and NO loadProjectPolicy,
+ * so decide() can run F10 without touching disk (restoring cross-call purity).
+ *
+ * ADR-045 symmetric redaction is preserved through the ADR-046 injection refactor:
+ * the injected window was already redact()-ed at rest on the write side
+ * (session-context.recordExternalRead). Redacting the command here with the same
+ * function under the same env gate keeps the comparison placeholder-vs-placeholder,
+ * so a genuine secret shared between an external read and a command still fires F10
+ * (fail-safe). Non-secret tokens are unchanged by redact() and still match. redact()
+ * is a pure regex scrubber (no disk, no clock) → decide() cross-call purity intact.
+ *
+ * @param {string} command       — shell command to check
+ * @param {Array}  recentReads   — provenance window: [{ content, source, ts }]
+ * @param {string} [toolName]    — tool being invoked (safe-class filter)
+ * @param {object} [taintPolicy] — { taintSafeToolClasses, taintMinTokenLength }
+ */
+function correlateCommandPure(command, recentReads, toolName, taintPolicy) {
+  const safeClasses = (taintPolicy && taintPolicy.taintSafeToolClasses) || [];
+  if (toolName && safeClasses.includes(toolName)) {
+    return { tainted: false };
+  }
+  const effectiveCommand = process.env.LILARA_TAINT_WINDOW_REDACT !== "0"
+    ? redact(String(command || ""))
+    : String(command || "");
+  return correlate(
+    effectiveCommand,
+    Array.isArray(recentReads) ? recentReads : [],
+    taintPolicy && taintPolicy.taintMinTokenLength,
+  );
+}
+
+module.exports = { recordExternalRead, correlateCommand, correlateCommandPure };

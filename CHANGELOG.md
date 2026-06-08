@@ -18,6 +18,35 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Security — Multi-secret journal redaction (ADR-041 follow-up)
 - **fix(secret-scan):** redact() now uses global regex flag so ALL same-class secret occurrences are scrubbed (not just the first), strengthening ADR-041 journal command-field redaction guarantee.
 
+### Security — Restore `decide()` Cross-Call Purity for F10 (ADR-046)
+
+- **refactor(taint-window): inject the F10 taint window via `input.provenanceWindow`** (PR1 of 2) —
+  F10 was the last decision floor reading disk *inside* `decide()` (`correlateCommand` →
+  `getProvenanceWindow` → `fs.readFileSync(provenance-window.json)` + `loadProjectPolicy({})`).
+  This violated the cross-call-purity invariant that grants and the provenance-graph already
+  satisfy. The window is now loaded at the impure boundary (`pretool-gate.js`) and injected, like
+  `consentGrant` / `provenanceGraph`. A new pure helper `taint.correlateCommandPure()` consumes the
+  injected window plus the already-loaded `projectPolicy` taint bits; the `correlate()` kernel is
+  unchanged. PR1 keeps a disk fallback so every caller works unchanged; PR2 removes it so `decide()`
+  is genuinely free of the cross-call read. **Replay corpus byte-identical** (119 entries, zero
+  divergence): the corpus runs with an empty window → F10 inert on the unchanged kernel; `irHash`
+  never reads the field.
+
+- **fix(taint-window): inject the SAME window into BOTH `decide()` calls in the gate** — the
+  envelope-recheck (Class-C / protected-branch) call would otherwise lose F10 once the in-`decide()`
+  disk read is removed. The window is loaded once at the boundary and shared by both calls, with a
+  do-not-drop guard comment — closing a fail-open on the highest-severity lane.
+
+- **feat(taint-window): preserve F10 in operator tools** — `runtime-state.js explain` and
+  `lilara sandbox` inject the window so F10 still reflects recent external reads (no silent behavior
+  change after `decide()` stops reading disk).
+
+- **test(taint-window): `taint-window-injection.test.js` (11 tests)** — closes the corpus coverage
+  gap (the corpus never exercises a populated window). Covers `correlateCommandPure` (incl.
+  non-default `taintMinTokenLength`), `decide()` consumption + config policy threading, and the
+  **gate-level** primary + recheck boundary proofs (the only guard against a broken injection
+  silently failing F10 open). Wired into `scripts/check-runtime-core.sh`.
+
 ## [0.2.0] — 2026-06-06 (updated)
 
 ### Security — Decision-Journal Write-Boundary Redaction (ADR-041)

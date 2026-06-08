@@ -800,6 +800,11 @@ pass 'provenance-graph ADR-043 tokenHashSet/pathHash/classifySink/evaluate/findP
 node "$root/tests/runtime/provenance-correlator.test.js" || exit 1
 pass 'provenance-correlator ADR-043 correlate() — token/command/flag/minTokenLength'
 
+# ADR-046 taint-window injection (F10 cross-call purity: input.provenanceWindow,
+# pure helper, projectPolicy threading, and the gate-level boundary fail-open guard)
+node "$root/tests/runtime/taint-window-injection.test.js" || exit 1
+pass 'taint-window-injection ADR-046 — correlateCommandPure / decide() / runPreToolGate boundary'
+
 # ADR-016 Feature 4: sandbox dry-run CLI
 node "$root/tests/runtime/sandbox-dry-run.test.js" || exit 1
 pass 'sandbox-dry-run ADR-016 dry-run CLI'

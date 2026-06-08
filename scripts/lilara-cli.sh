@@ -1730,6 +1730,12 @@ const path = require("path");
 const [root, tool, harness, cmd, jsonMode, explain] = process.argv.slice(2);
 process.env.LILARA_DRY_RUN = "1";
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
+// ADR-046: inject the taint window at this boundary so F10 still reflects recent
+// external reads in the sandbox dry-run — decide() no longer reads it from disk.
+let provenanceWindow;
+try {
+  provenanceWindow = require(path.join(root, "runtime", "session-context")).getProvenanceWindow(60);
+} catch (e) { /* best-effort */ }
 let result;
 try {
   result = decide({
@@ -1739,6 +1745,7 @@ try {
     cwd: process.cwd(),
     branch: "sandbox",
     dryRun: true,
+    provenanceWindow,
   });
 } catch (err) {
   process.stderr.write("[lilara sandbox] engine error: " + (err && err.message || err) + "\n");
