@@ -6,24 +6,24 @@
  *
  * PostToolUse hooks call recordExternalRead() to annotate tool results that
  * came from external sources (browser, MCP, web-fetch, curl/wget output).
- * PreToolUse hooks (via decision-engine.js) call correlateCommand() to check
- * whether the next N tool calls overlap with recent external reads.
+ * PreToolUse hooks (via decision-engine.js) call correlateCommandPure() to check
+ * whether the pending tool call overlaps with recent external reads.
  *
  * When a match is found, the decision engine raises the action to require-review
  * via the taint floor (F10) regardless of the baseline risk score.
  *
  * Provenance entries are stored in ~/.lilara/provenance-window.json with a 5-minute
- * hard TTL and a 60-second correlation window used by correlateCommand().
+ * hard TTL. ADR-046: the 60-second correlation window is loaded at the impure
+ * boundary (pretool-gate.js via session-context.getProvenanceWindow) and injected
+ * into decide() as input.provenanceWindow — correlateCommandPure() is disk-free so
+ * decide() stays cross-call-pure and byte-identical-replayable.
  *
  * Zero external dependencies.
  */
 
-const { recordExternalRead: _record, getProvenanceWindow } = require("./session-context");
+const { recordExternalRead: _record } = require("./session-context");
 const { correlate } = require("./provenance-correlator");
-const { loadProjectPolicy } = require("./project-policy");
-const { redact } = require("./secret-scan"); // ADR-045: symmetric correlate-side redaction
-
-const DEFAULT_WINDOW_SECONDS = 60;
+const { redact } = require("./secret-scan"); // ADR-045 symmetric redaction (used by correlateCommandPure)
 
 /**
  * Record that a tool result came from an external source.
@@ -38,44 +38,19 @@ function recordExternalRead(content, source) {
 }
 
 /**
- * Correlate a shell command against recently-read external content.
- * Returns { tainted: true, reason, source, matchedToken? } when overlap found,
- * or { tainted: false } when the command appears unrelated to external reads.
+ * Correlate a pending command against recently-read external content (ADR-046).
+ *
+ * Pure: the caller — the impure boundary (pretool-gate.js / operator tools), or
+ * decide() via the injected `input.provenanceWindow` — supplies BOTH the
+ * already-loaded window AND the taint policy. NO disk read, NO loadProjectPolicy,
+ * so decide() can run F10 without touching disk (cross-call purity).
  *
  * Read-only tools (Read, Grep, Glob, LS, NotebookRead and any added to
  * taint.safeToolClasses in lilara.config.json) bypass correlation — they cannot
  * execute injected payloads, so firing F10 on them produces only noise (D37).
  *
- * @param {string} command         — shell command to check
- * @param {number} [windowSeconds] — correlation window in seconds (default: 60)
- * @param {string} [toolName]      — tool being invoked (used for safe-class filter)
- */
-function correlateCommand(command, windowSeconds, toolName) {
-  const recentReads = getProvenanceWindow(windowSeconds || DEFAULT_WINDOW_SECONDS);
-  const policy = loadProjectPolicy({});
-  if (toolName && (policy.taintSafeToolClasses || []).includes(toolName)) {
-    return { tainted: false };
-  }
-  // ADR-045: symmetric command-side redaction. When taint-window redaction is
-  // enabled (default ON), the stored window content was already run through
-  // redact() at write time. Redacting the command here with the same function
-  // preserves injection-token matching (non-secret tokens like curl/evil.com
-  // are unchanged by redact()) while ensuring that a genuine secret value shared
-  // between an external read and a command still produces a placeholder-vs-
-  // placeholder match — F10 stays tainted:true (fail-safe, never fails open).
-  const effectiveCommand = process.env.LILARA_TAINT_WINDOW_REDACT !== "0"
-    ? redact(String(command || ""))
-    : String(command || "");
-  return correlate(effectiveCommand, recentReads, policy.taintMinTokenLength);
-}
-
-/**
- * Pure variant of correlateCommand (ADR-046).
- *
- * The caller — the impure boundary (pretool-gate.js), or decide() via the
- * injected `input.provenanceWindow` — supplies BOTH the already-loaded window
- * AND the taint policy. This function does NO disk read and NO loadProjectPolicy,
- * so decide() can run F10 without touching disk (restoring cross-call purity).
+ * Returns { tainted: true, reason, source, matchedToken? } when overlap found,
+ * or { tainted: false } when the command appears unrelated to external reads.
  *
  * ADR-045 symmetric redaction is preserved through the ADR-046 injection refactor:
  * the injected window was already redact()-ed at rest on the write side
@@ -105,4 +80,4 @@ function correlateCommandPure(command, recentReads, toolName, taintPolicy) {
   );
 }
 
-module.exports = { recordExternalRead, correlateCommand, correlateCommandPure };
+module.exports = { recordExternalRead, correlateCommandPure };
