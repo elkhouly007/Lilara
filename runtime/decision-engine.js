@@ -4,7 +4,7 @@
 const { score } = require("./risk-score");
 const { append } = require("./decision-journal");
 const { getApprovalCount, isLearnedAllowed, decisionKey, getSuggestionForInput, getPolicyFacts, hasAutoAllowOnce, consumeAutoAllowOnce, scopedKey } = require("./policy-store");
-const { getSessionRisk, recordDecision, getSessionTrajectory } = require("./session-context");
+const { getSessionRisk, recordDecision, getSessionTrajectory, getProvenanceWindow: _getProvenanceWindow } = require("./session-context");
 const { loadProjectPolicy } = require("./project-policy");
 const { discover } = require("./context-discovery");
 const { fineKey } = require("./decision-key");
@@ -134,7 +134,12 @@ const { fireNotifyHook: _fireNotifyHook } = require("./notify-engine-hook");
 let _scanSecrets = null;
 try { _scanSecrets = require("./secret-scan").scanSecrets; } catch { /* optional */ }
 let _correlateCommand = null;
-try { _correlateCommand = require("./taint").correlateCommand; } catch { /* optional */ }
+let _correlateCommandPure = null;
+try {
+  const _taint = require("./taint");
+  _correlateCommand = _taint.correlateCommand;
+  _correlateCommandPure = _taint.correlateCommandPure;
+} catch { /* optional */ }
 // ADR-017 F23: kill-chain floor — extracted to runtime/floor-f23.js.
 // Non-optional require: floor-f23 is always loadable (owns its optional deps
 // internally; fails open when provenance-graph / session-context are absent).
@@ -1262,9 +1267,20 @@ function decide(input = {}) {
   // require-review so the operator can confirm the command was not injected.
   // Best-effort: if taint module unavailable, skip silently.
   let taintResult = null;
-  if (_correlateCommand) {
+  if (_correlateCommandPure) {
     try {
-      taintResult = _correlateCommand(input.command || "", undefined, input.tool || "");
+      // ADR-046: F10 consumes the taint window injected at the impure boundary
+      // (input.provenanceWindow, loaded by pretool-gate.js). PR1 retains a disk
+      // fallback for callers that do not yet inject; PR2 removes it so decide()
+      // is free of the cross-call disk read. Taint policy comes from the
+      // already-loaded projectPolicy (no loadProjectPolicy() inside decide()).
+      const _recentReads = input.provenanceWindow != null
+        ? input.provenanceWindow
+        : (_getProvenanceWindow ? _getProvenanceWindow(60) : []);
+      taintResult = _correlateCommandPure(input.command || "", _recentReads, input.tool || "", {
+        taintSafeToolClasses: projectPolicy.taintSafeToolClasses,
+        taintMinTokenLength:  projectPolicy.taintMinTokenLength,
+      });
       if (taintResult.tainted && action !== "block") {
         action = "require-review";
         source = _F10.source;

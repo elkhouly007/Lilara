@@ -286,6 +286,15 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       } catch { /* graph unavailable — F28 fails open (inert) */ }
     }
 
+    // ADR-046 F10: load the taint provenance window at the impure boundary and
+    // inject it so decide() runs F10 without reading disk. Loaded UNCONDITIONALLY
+    // because F10 is always-on (unlike env-gated F28/consent). Best-effort.
+    // This single value is the SHARED window for BOTH decide() calls below (the
+    // primary call and the envelope recheck) — see Acceptance Criterion #1.
+    let provenanceWindow;
+    try { provenanceWindow = _requireSessionContext().getProvenanceWindow(60); }
+    catch { /* window unavailable — F10 falls back (PR1) / inert (PR2) */ }
+
     decision = decide({
       harness:     String(harness || ""),
       tool:        String(tool || "Bash"),
@@ -305,6 +314,8 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
       now: nowMs,
       // ADR-037 F28: provenance graph injected field (null when flag off → inert):
       provenanceGraph,
+      // ADR-046 F10: taint window injected field (empty/absent → F10 inert):
+      provenanceWindow,
     });
 
     if (envelopeReporting && envelope && isCriticalEnvelopeRecheck(decision, payloadClass)) {
@@ -334,6 +345,10 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
         observedEnvelope,
         ir: gateIr,
         notes: `${harness}-gate:pre-exec-recheck`,
+        // ADR-046 Acceptance Criterion #1: the recheck decide() MUST receive the
+        // SAME taint window as the primary call above. Dropping it would make F10
+        // fail open on the Class-C / protected-branch recheck path. Do not remove.
+        provenanceWindow,
       });
     }
   } catch (runtimeErr) {

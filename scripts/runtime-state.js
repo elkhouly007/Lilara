@@ -170,7 +170,12 @@ function explain(argv) {
   }
 
   const discovered = runtime.discover(input);
-  const decision = runtime.decide({ ...discovered, ...input });
+  // ADR-046: inject the taint window (loaded at this boundary) so F10 still
+  // reflects recent external reads in the `explain` diagnostic — decide() no
+  // longer reads it from disk.
+  let provenanceWindow;
+  try { provenanceWindow = runtime.getProvenanceWindow(60); } catch { /* best-effort */ }
+  const decision = runtime.decide({ ...discovered, ...input, provenanceWindow });
   console.log("[runtime-explain]");
   console.log(`  action: ${decision.action}`);
   console.log(`  enforcement-action: ${decision.enforcementAction}`);
