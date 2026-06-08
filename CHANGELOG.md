@@ -47,6 +47,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
   **gate-level** primary + recheck boundary proofs (the only guard against a broken injection
   silently failing F10 open). Wired into `scripts/check-runtime-core.sh`.
 
+- **refactor(taint-window): remove the disk fallback — `decide()` is now cross-call-pure** (PR2 of 2) —
+  `decide()` resolves the F10 window as `Array.isArray(input.provenanceWindow) ? … : []` only (no
+  `getProvenanceWindow` fallback/import). The disk `taint.correlateCommand` is retired (its
+  `getProvenanceWindow` / `loadProjectPolicy` imports removed); only `recordExternalRead` +
+  `correlateCommandPure` remain. The test harnesses that exercised the populated window via disk
+  (`scripts/check-lattice-receipts.sh` F10 fixture; the four `run-fixtures.sh` taint blocks) now load
+  and inject the window, mirroring the production boundary. Docs (`MODULES.md`, `DECISIONS.md`,
+  `decision-lattice.js` predicateRef) updated. **Replay corpus remains byte-identical** (119 entries,
+  zero divergence).
+
 ## [0.2.0] — 2026-06-06 (updated)
 
 ### Security — Decision-Journal Write-Boundary Redaction (ADR-041)
