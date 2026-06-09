@@ -51,6 +51,11 @@ trap 'rm -rf "$_state_dir"' EXIT
 # the only thing under test (same pattern as the D26 fixture isolation fix).
 export LILARA_BRANCH_OVERRIDE="test-isolation"
 
+# Prevent an inherited LILARA_ENFORCE=1 from breaking warn-mode exit-0 assertions.
+# Enforce-mode checks (5, 14) set LILARA_ENFORCE=1 inline as a per-command prefix,
+# so unsetting here does not affect them.
+unset LILARA_ENFORCE || true
+
 tmp_stderr="$(mktemp)"
 trap 'rm -f "$tmp_stderr"' EXIT
 
