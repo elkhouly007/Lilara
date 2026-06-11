@@ -66,5 +66,34 @@ test("scanSecrets() returns null on clean text", () => {
   assert.strictEqual(scanSecrets("no secrets here"), null);
 });
 
+// ── AWS secret access key: bare (unquoted) form ───────────────────────────
+// These three tests FAIL on master (pattern requires quotes) and PASS after
+// the ADR-047-adjacent fix to secret-patterns.json (make quotes optional).
+// The canonical 40-char AWS secret is used verbatim so the length is exact.
+const AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"; // 40 chars, valid base64-safe charset
+
+test("scanSecrets() detects bare AWS_SECRET_ACCESS_KEY without quotes (regression)", () => {
+  const result = scanSecrets(`AWS_SECRET_ACCESS_KEY=${AWS_SECRET}`);
+  assert.ok(result !== null,
+    "REGRESSION: scanSecrets() must detect bare AWS_SECRET_ACCESS_KEY (no quotes). " +
+    "Pattern currently requires ['\"] around the value — make quotes optional.");
+  assert.ok(
+    typeof result.name === "string" && result.name.toLowerCase().includes("aws"),
+    `Expected AWS pattern name; got ${result && result.name}`
+  );
+});
+
+test("scanSecrets() detects export-style bare AWS_SECRET_ACCESS_KEY without quotes", () => {
+  const result = scanSecrets(`export AWS_SECRET_ACCESS_KEY=${AWS_SECRET}`);
+  assert.ok(result !== null,
+    "REGRESSION: scanSecrets() must detect export-style bare AWS secret key.");
+});
+
+test("scanSecrets() still detects quoted AWS_SECRET_ACCESS_KEY (no regression)", () => {
+  const result = scanSecrets(`AWS_SECRET_ACCESS_KEY="${AWS_SECRET}"`);
+  assert.ok(result !== null,
+    "Quoted AWS secret key must still be detected after the pattern change.");
+});
+
 process.stdout.write(`\n  ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
