@@ -491,6 +491,18 @@ protects no-copyleft AND quality; get the safety core definitively right once, n
 | Clean-room rewrite | **BUILT (process)** | Zero upstream code; bootstrap history frozen in `references/archive/`. |
 | Safety core "right once, never re-litigate" | **BUILT** | Inviolable tier hash-pinned + unreachability tests (§3). |
 
+**Performance / overhead budget `[CC-PROPOSED]` (intent).** The guard sits in the **hot path of every tool call** — each
+PreToolUse decision runs `decide()` synchronously before the host tool proceeds — so low, bounded overhead is a design
+invariant, not an afterthought. The enforcement mechanism already exists (**BUILT**): the committed **bench gate**
+(`runtime/bench-gate.js`, `scripts/bench-runtime-decision.sh`) applies a **p50 relative regression gate at 1.5× the
+committed per-platform baseline** (`artifacts/bench/baseline.json`, `artifacts/perf/baseline.json` — a genuine 2×
+slowdown doubles p50 on every run and fails), backed by an always-on **absolute p99 ceiling ladder of 10 / 200 / 500 ms**
+per platform (overridable via `LILARA_BENCH_P99_MS`), measured **best-of-K** to suppress shared-runner tail jitter
+(ADR-040, ADR-044). Committed medians today: **p50 ≈ 0.5 ms (Linux/macOS) to ≈ 1.3–1.7 ms (Windows)** per decision —
+those numbers are repo facts, not targets. The standing **SLO target is the `[CC-PROPOSED]` part**: hold the per-call
+median **≤ 1 ms on Linux/macOS and low-single-digit ms on Windows**, so guard overhead stays negligible against real
+tool/LLM latency. If the owner adopts that target, promote it from `[CC-PROPOSED]` to `[LOCKED]`.
+
 ---
 
 ## 19. `[CC-PROPOSED]` additions
@@ -566,6 +578,58 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 | G9 | ADR decision-debt (§16) | Clean decision index | 2 number collisions + 9 open/proposed ADRs | **Low** |
 | G10 | L4 orchestration capabilities (§1, §13) | Auto-select + multi-skill merge/compose + auto-create skill/agent + cheap routing + learn-from-results | Only single-lane static routing built; merge/compose, auto-create, and learning loop all NOT-YET (depends on L2; sequenced last) | **Low** (planned layer) |
 | G11 | Hook/adapter auto-creation (§13) | May propose, but NEVER auto-apply — manual / human-approved always | Gated-to-manual: no auto-apply path exists — intended end state, not a gap | **Control ✓** |
+
+---
+
+## 21. Design limitations & non-goals `[CC-PROPOSED]`
+
+Distinct from the §20 GAP register. **GAP = "agreed in the vision but not built yet"** (closed by implementation).
+**Non-goal = "the guard will NOT catch this even when fully built, by design"** — a deliberate boundary of what a
+deterministic, content-blind, host-resident action guard *can* be. Every item below is `[CC-PROPOSED]` (consolidated from
+coverage bounds already noted across the status blocks); promote to `[LOCKED]` if the owner adopts them as stated
+non-goals.
+
+- **Content-blindness `[CC-PROPOSED]`.** The deterministic Node action-guard inspects **command/tool actions** (the
+  canonical Action-IR), **not model-generated natural-language content**. Persuasive, deceptive, or otherwise harmful
+  *text* a model emits is outside its view. Enforcement-point-(b) (the model content contract, §5b) is a **separate,
+  unbuilt layer**; until it exists, semantic harm in generated content is out of scope — by design, not a bug in the
+  guard.
+- **Egress channel coverage is enumerated, not universal `[CC-PROPOSED]`.** F27/F28 (§7, §9) cover the **known**
+  external-egress sinks (the modeled network/exfil channels). Transports not yet modeled — e.g. `scp` / `rsync`,
+  arbitrary user binaries, a novel side channel — are **blind spots until each is added** to the sink set. Coverage
+  grows by enumeration; there is no catch-all "any byte leaving by any means" floor.
+- **General third-party PII `[CC-PROPOSED]`.** Only the **credential/secret subset** (F27/F28) is enforced as egress
+  harm. **Arbitrary personal data** of another person passed to an external party is **not detected as such** — at the
+  tool boundary it is byte-identical to the user's own data (no ownership signal; ADR-036). This is the design root of
+  GAP G4; closing it requires enforcement-point-(b), not another deterministic floor.
+- **Semantic prompt-injection is not "detected" by meaning — intentionally `[CC-PROPOSED]`.** Lilara does **not** read
+  untrusted text and judge whether it is an injection. Defense is **structural**: taint-tracking (F10, F23) marks
+  untrusted-sourced data, and action-gating (floors + consent) caps what any agent — injected or not — may *do*.
+  Injection can change intent but cannot widen authority (§9). The absence of a semantic injection classifier is a
+  **deliberate design choice**, not a gap to close — a content-understanding detector is exactly the non-deterministic
+  trap the first-law generator avoids (§2).
+- **Host-trust assumption `[CC-PROPOSED]`.** The guard **trusts the host it runs on.** A compromised host, a tampered
+  `runtime/` source tree, or altered baseline files (`artifacts/lattice-baseline.sha256`, `artifacts/*/baseline.json`)
+  are **outside the runtime threat model.** They are mitigated by **hash baselines + CI** at build/review time (§3, §18),
+  not by anything `decide()` can check at runtime — a process that has already subverted the host can subvert the guard
+  with it. (See §19 #1 for the open question of a runtime floor over safety-core writes.)
+
+---
+
+## 22. Threat model / adversaries `[CC-PROPOSED]`
+
+The adversaries the design reasons about, and how each is addressed (or explicitly not). This makes the full set explicit
+— several were implicit across §9 (injected agent) and §12 (self-modifying loop). The whole section is `[CC-PROPOSED]`;
+one line per adversary: **vector → responding floor/mechanism → residual gap.**
+
+| Adversary | Vector | Responds | Residual gap |
+|---|---|---|---|
+| (a) Malicious or careless **user** | Authorizes a harmful/destructive action within his own domain | Contract + consent gate (scoped grant, deterministic prompt); inviolable floors no contract can demote (F27, F3, …); deletion-coordination snapshot (F29) | Sovereign over himself by design — harm-to-self is "warn once, then obey" (§4); the HARM_SELF persuasion path itself is NOT-YET in code (G1) |
+| (b) Prompt-**injected / manipulated agent** | Agent intent hijacked to exfiltrate / destroy / exceed scope | Action-gating: floors + consent cap *authority* regardless of intent; injection cannot widen what the agent may DO (§9) | Only modeled sinks are covered (§21); content the agent is steered to *write* is content-blind (§21) |
+| (c) **Injected external content** (taint source) | Untrusted file/tool output carries an instruction or a staged secret | Taint-tracking F10 (read→command correlation) + F23 kill-chain + F28 staged cross-call exfil; window redacted at rest (ADR-045) | F23 enforce is opt-in (`LILARA_KILL_CHAIN_ENFORCE=1`, §19 #9); taint sinks are enumerated (§21) |
+| (d) **Misbehaving / self-modifying agent loop** | L3 loop tries to weaken the guard gradually ("policy-laundering") or is steered by poisoned content | Inviolable tier unreachable by `learned-allow` (unreachability tests, §3, §12); self-improvement is suggestion-only, through the guard; hooks/adapters never auto-applied (§13) | L3 is NOT-YET (no code); the gradual-weakening regression gate is proposed, not built (§19 #6) |
+| (e) **Compromised host / tampered safety-core** | Attacker edits `runtime/` source or baseline files on the host | Out of the **runtime** model by design (§21 host-trust); mitigated by hash baselines (`lattice-baseline.sha256`) + CI gate `check-inviolable-tier.sh` at build/review time | No runtime floor fires on safety-core writes (G6; open question §19 #1) |
+| (f) **Supply chain** | A malicious dependency or upstream copy injects code | **Zero external dependencies** (no `package.json`; Node built-ins only, §18) removes the dependency attack surface; clean-room rewrite avoids upstream code | Tampering of Lilara's own committed source is row (e), not this; an npm-distribution package (if adopted, §16) would reintroduce a channel to secure |
 
 ---
 
