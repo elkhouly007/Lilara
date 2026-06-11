@@ -8,6 +8,57 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.2.1] — 2026-06-11
+
+### Security — F4 consent-grant payloadClass bypass closure (ADR-047)
+
+- **fix(security): ADR-047 — propagate `payloadClass="C"` to consent gate when F4 fires via `scanSecrets`** —
+  A broad `consentGrant` demoted the F4 `secret-class-C` block to `allow` because `_scanSecrets()`
+  set a block-scoped local (`secretInCommand`) but never mutated `input.payloadClass`. The consent
+  gate's `scopesMatch()` read `payloadClass="A"`, so the class-C hard refusal at `contract.js:572`
+  never fired. Fix: when `floorFired === _F4.name`, pass `{ ...input, payloadClass: "C" }` to
+  `evalConsentFloor`. Proxy is reliable: once F4 sets `action="block"`, all subsequent guards use
+  `action !== "block"` or `floorFired || newFloor`, preserving `"secret-class-C"` through to the
+  consent block. After this fix, consent cannot demote an internally-detected F4 block to `allow` or
+  `require-review`; only the operator-token path can demote F4 to `require-review`.
+  **INVARIANT:** any future floor-precedence change that could let another consent-demotable floor
+  steal `floorFired` while a secret is present MUST re-evaluate this guard.
+  Regression: `tests/runtime/f4-consent-grant-bypass.test.js` (6 tests; tests 2/3/6 confirmed
+  `action=allow` on master `f9cce79`, all pass after fix). Replay corpus byte-identical: corpus
+  runs omit `consentGrant`, making the fix path inert. See
+  `references/adr-047-f4-consent-payloadclass-propagation.md`.
+
+### Security — AWS secret-access-key bare-form scan gap
+
+- **fix(secret-scan): make AWS secret-access-key pattern quote-optional** —
+  `AWS_SECRET_ACCESS_KEY=value` (no surrounding quotes) returned `null` from `scanSecrets()` and
+  `allow` from `decide()`. The pattern in `secret-patterns.json` required literal quote chars
+  (`['\"]`) around the 40-char base64 value. Fix: `['\"]` → `['\"]?` on both sides — makes quotes
+  optional while retaining the `aws + ≤20chars + secret + ≤20chars + 40-char-base64` specificity
+  that prevents false positives. AKIA access-key-id pattern unaffected (word-boundary match).
+  `artifacts/hooks-baseline.sha256` updated. Regression: 3 new test cases in
+  `tests/runtime/secret-scan-redact.test.js` (bare key, export-style bare key, quoted regression
+  check) — all confirmed `null` on master, all pass after fix. Replay corpus byte-identical.
+
+### Reliability — LILARA_ENFORCE env-isolation in check-adapter scripts
+
+- **fix(ci): `unset LILARA_ENFORCE || true` in `check-antegravity-adapter.sh` and
+  `check-codex-adapter.sh`** — Warn-mode assertions (expecting exit 0) broke when
+  `LILARA_ENFORCE=1` was inherited from the parent shell. Enforce-mode checks (5, 14) use inline
+  `LILARA_ENFORCE=1 node …` prefix, so unsetting at the script level is safe.
+
+### Docs — Contract probe accuracy
+
+- **docs(lilara-contract): correct F10, probe 5, and probe 6 descriptions** —
+  F10 table: "≥0.85 taint confidence" replaced with accurate description (binary token-match — any
+  command token ≥6 chars found in recently-read external content, no probability threshold).
+  Probe 5 (F9): sandbox is dry-run; cannot accumulate session risk — added real repro via
+  `recordMcpInjectionSignal()` API. Probe 6 (F16): `sandbox --tool Write` does not pass
+  `targetPath`; F16 never fires via sandbox — added real repro via `decide()` with explicit
+  `targetPath`.
+
 ### Reliability — Bench baseline architecture (ADR-044)
 - **feat(bench-gate): ADR-044** — Switch relative regression gate from noisy p99 to stable p50; committed per-platform baselines (no CI cache dependency); fix write-after-exit ordering bug in both bench scripts; shared pure `runtime/bench-gate.js` module for both gates.
 
