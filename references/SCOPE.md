@@ -61,8 +61,14 @@ shell) is **NOT-YET** — see §11–14.
 3. **L3 — Self-improvement.** After each task + end-of-day, reviews "could this have been done better?" then modifies
    itself. HIGHEST-RISK surface → built LAST, suggestion-only first, must pass through the guard, can never weaken its
    own constraints.
-4. **L4 — Autonomous skill orchestration.** Auto-selects/merges/creates agent skills from a cheap catalog; always learns
-   from results.
+4. **L4 — Autonomous skill orchestration.** From a cheap catalog: auto-**SELECT** the right existing skill for a task;
+   auto-select **MULTIPLE** skills and **MERGE/compose** them into ONE to accomplish a single task; auto-**CREATE** a new
+   skill when none fits; auto-**CREATE a new agent** when needed; decide all of this **CHEAPLY** (low-token deterministic
+   routing, never a big model per route); and always **LEARN** from each task's result (outcome feedback into the
+   catalog). Every auto-created or auto-merged skill/agent is an **UNTRUSTED proposal that must pass through the guard**
+   before it runs. **Hooks/adapters are the lower-trust exception:** the system may *propose* them but **never
+   auto-applies** them — they are safety-boundary code and stay manual / human-approved (see §13). Depends on L2;
+   sequenced LAST.
 5. **L5 — The shell.** Manages live tools (Claude Code, Codex, OpenCode, Antegravity, Hermes, OpenClaw, etc.) from one
    place. Two run modes: fast-reply AND long-running (hours/days chasing a goal). Reachable via channels.
 
@@ -342,6 +348,14 @@ constraints; UNREACHABLE from the inviolable tier. **Suggestion-only first;** re
 core code mutations strictly MANUAL. **Named threats:** "policy laundering" (slowly weakening the guard without editing
 safety code) + "self-modification poisoning" (attacker-controlled content steering the reflection loop).
 
+**The auto-improve loop (explicit), tied to L4 `[LOCKED]`:** when a task completes — and again at end-of-day — the
+self-improvement loop **MAY PROPOSE** new, merged, or improved skills and routing-weight updates for L4 (§13), plus
+prompt/config refinements to itself. Every such output is **suggestion-only and routed through the guard**, applied only
+after it clears the same floors any other action must. It **never automatically touches safety-core code or
+hooks/adapters** — those remain manual and human-approved (§13). That manual red-line is the structural defense against
+the two threats named above: a loop that could auto-write **and** auto-apply its own guard-wiring would be precisely
+"policy-laundering" / "self-modification poisoning."
+
 **Status — NOT-YET (by design — built LAST).** No reflection/self-modify code exists. The *guardrail* that L3 will need
 already has a seed: `runtime/tests/decision-lattice/inviolable-selfmod-unreachability.test.js` proves a `learned-allow`
 source can never demote an inviolable floor. See §19 #6 to elevate the two named threats to standing regression gates
@@ -351,14 +365,31 @@ source can never demote an inviolable floor. See §19 #6 to elevate the two name
 
 ## 13. L4 — Skill orchestration
 
-Auto-select/merge/create skills from a cheap catalog; **decide CHEAPLY** (low token), not a big model per route; new
-skills are **untrusted proposals through the guard.** Depends on L2.
+**Capability set `[LOCKED]`** — from a cheap catalog, the orchestrator will:
+- auto-**SELECT** the right existing skill for a task;
+- auto-select **MULTIPLE** skills and **MERGE/compose** them into ONE to accomplish a single task;
+- auto-**CREATE** a new skill when no suitable one exists;
+- auto-**CREATE a new agent** when one is needed;
+- decide all of the above **CHEAPLY** — low-token deterministic routing, **never a big model per route**;
+- always **LEARN** from each task's result — outcome feedback folded back into the catalog.
+
+**Guard discipline `[LOCKED]`:** every auto-created or auto-merged skill/agent is an **UNTRUSTED proposal that must pass
+through the guard** before it runs. L4 **depends on L2** and is **sequenced LAST** in the build order (§1).
+
+**Hooks/adapters — separate, lower-trust case `[LOCKED]` red-line:** the system **MAY PROPOSE** hooks/adapters, but
+**auto-created hooks are NEVER auto-applied.** Hooks and adapters are *safety-boundary code* — they wire the guard into
+the host tools — so their creation stays **manual / suggestion-only, human-approved ALWAYS**, consistent with the locked
+invariant that **core code mutations remain strictly MANUAL** (§12) and with the `TAMPER_WITH_SAFETY_CORE` concern (§3,
+§19 #1). *Rationale:* if the system could auto-write **and** auto-apply its own hooks, it could write its way around its
+own guard — exactly the named "policy-laundering" / "self-modification poisoning" threats in §12.
 
 **Status — PARTIAL (static routing only).** Deterministic, low-token routing exists — `runtime/intent-classifier.js`
 (8-intent classifier, pattern-based, no LLM), `runtime/route-resolver.js` (intent→lane), `runtime/workflow-router.js`,
-and `runtime/skill-scorer.js` (scores skill files for audit/display only). There is **no** auto-selection on context, no
-dynamic skill merge/creation, and no outcome-feedback loop. The "untrusted proposals through the guard" model is unbuilt
-(depends on L2). Correctly NOT-YET as a product layer.
+and `runtime/skill-scorer.js` (scores skill files for audit/display only). Of the locked capability set above, **only
+single-lane routing is built**: there is **no** context-driven auto-select, **no** multi-skill merge/compose, **no**
+auto-creation of skills or agents, and **no** outcome-feedback learning loop — all **NOT-YET**. The "untrusted proposals
+through the guard" model is likewise unbuilt (depends on L2). Hook/adapter auto-creation is **gated to manual** today —
+there is no auto-apply path, which is the intended end state, not a gap. Correctly NOT-YET as a product layer.
 
 ---
 
@@ -533,6 +564,8 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 | G7 | Auto-update (§16) | Background check + `lilara upgrade` | NOT-YET | **Low** |
 | G8 | Telemetry wording (§16) | NONE by default | Local-only log on by default (no payloads, no egress) | **Low** |
 | G9 | ADR decision-debt (§16) | Clean decision index | 2 number collisions + 9 open/proposed ADRs | **Low** |
+| G10 | L4 orchestration capabilities (§1, §13) | Auto-select + multi-skill merge/compose + auto-create skill/agent + cheap routing + learn-from-results | Only single-lane static routing built; merge/compose, auto-create, and learning loop all NOT-YET (depends on L2; sequenced last) | **Low** (planned layer) |
+| G11 | Hook/adapter auto-creation (§13) | May propose, but NEVER auto-apply — manual / human-approved always | Gated-to-manual: no auto-apply path exists — intended end state, not a gap | **Control ✓** |
 
 ---
 
@@ -579,6 +612,10 @@ modules. "Inviolable" = `tier:"inviolable"`, `demotableBy:[]` (never demotable, 
 Floors that *do not* exist (vision items with no runtime floor): `TAMPER_WITH_SAFETY_CORE` (property only — G6), CSAM,
 suicide/self-harm-methods, publish-private-data-of-others, publish-intimate-imagery, covert-surveillance,
 fraud-deception, forgery-impersonation, stalk-locate-person, and a generic personal-data (non-credential) egress floor.
+
+The L4 **hook/adapter auto-apply red-line** (§13, G11) is likewise **a manual/process control, not a runtime floor** —
+the same shape as the `TAMPER_WITH_SAFETY_CORE` property (G6). The system has no auto-apply path for self-written
+hooks/adapters; that red-line is held by review discipline (human-approved always), not by an action floor.
 
 ---
 
