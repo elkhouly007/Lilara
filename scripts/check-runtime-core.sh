@@ -853,6 +853,10 @@ pass 'secret-scan-redact multi-secret global redaction (ADR-041 follow-up)'
 node "$root/tests/runtime/taint-window-redaction.test.js" || exit 1
 pass 'taint-window-redaction at-rest secret redaction (ADR-045)'
 
+# ADR-047: F4 consent-grant payloadClass bypass regression
+node "$root/tests/runtime/f4-consent-grant-bypass.test.js" || exit 1
+pass 'F4 consent-grant payloadClass bypass regression (ADR-047)'
+
 # replay-corpus drift gate — catches runtime/* changes that shift action,
 # decisionSource, floorFired, or irHash on any recorded corpus entry.
 bash "$root/scripts/check-replay-corpus.sh" || exit 1

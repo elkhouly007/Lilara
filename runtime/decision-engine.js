@@ -1526,11 +1526,31 @@ function decide(input = {}) {
   // sees the final action/floorFired that the boundary will enforce.
   // The degraded-write-routing above (action=require-review) skips this block
   // because floorFired is null for degraded reroutes (no floor fired).
+  //
+  // ADR-047: F4 payloadClass propagation. When F4 (secret-class-C) fires via
+  // internal _scanSecrets() detection, input.payloadClass is still "A" — the
+  // scan sets a block-scoped local (secretInCommand), not the input field.
+  // Without propagation, scopesMatch reads payloadClass="A" and the class-C
+  // hard refusal at contract.js:572 never fires, allowing consent to demote
+  // the block to allow. Fix: when floorFired === _F4.name, pass a shallow copy
+  // with payloadClass="C" so scopesMatch enforces the hard refusal.
+  // Spread is idempotent when input.payloadClass is already "C".
+  //
+  // INVARIANT: this proxy (`floorFired === _F4.name`) is reliable because
+  // (a) once F4 sets action="block", all subsequent guards use
+  // `action !== "block"` or `floorFired || newFloor`, preserving floorFired
+  // as "secret-class-C" through to this block; (b) the proxy covers both the
+  // command-text arm and the MCP-arg arm of the F4 scan. Any future
+  // floor-precedence change that could let another consent-demotable floor
+  // steal floorFired while a secret is present MUST re-evaluate this guard.
   if (input.consentGrant && floorFired) {
     const _cEntry = getEntryByName(floorFired);
     if (_cEntry && canDemote(_cEntry.id, "consent:interactive")) {
       try {
-        const _cr = _evalConsentFloor(input, input.consentGrant, contract);
+        const _consentInput = floorFired === _F4.name
+          ? { ...input, payloadClass: "C" }
+          : input;
+        const _cr = _evalConsentFloor(_consentInput, input.consentGrant, contract);
         if (_cr.inScope) {
           action    = "allow";
           source    = _CONSENT.source; // "consent-allow" (lattice-anchored)
