@@ -539,3 +539,45 @@ git remote set-url origin git@github.com:elkhouly007/lilara.git
 ```
 
 **Owner:** Khouly (GitHub admin action).
+
+---
+
+## D50: R2 review batch — tenets P0–P2 + Q1–Q7 decisions
+
+**Date:** 2026-06-12
+
+**Context:** The R2 scope review (PR #164) raised seven questions (SCOPE §24) against `[LOCKED]`/`[OPEN]` items and
+surfaced the default-posture honesty gap (G12). The owner answered all seven in one memo and set three first-order
+design tenets.
+
+**Decision:**
+- **Tenets P0–P2 written into SCOPE §0/§0.1 as `[LOCKED]`:** P0 — Lilara exists to make users MORE PRODUCTIVE,
+  powerfully and safely (security serves productivity, never the reverse); P1 — security must ENABLE work, optimize
+  "approve-once, then run freely"; P2 — the consent contract is anti-nag: re-prompting inside a granted scope is a
+  defect; halts only at genuine hard exceptions.
+- **Q1:** SCOPE §1.5 confirmed canonical (L1 → L2 → L4 → full L5 → L3 last → §23.A UI after all).
+- **Q2:** secure-by-default graduation, evidence-gated, one ADR + owner sign-off per flip — **ADR-049**. First wave:
+  `LILARA_ENFORCE=1` default for F3/F14/F10/F27 after near-zero-FP calibration; F28/F29/F23 opt-in until each meets
+  its own FP budget; env override always retained; never nag-by-default.
+- **Q3:** enforcement point (c) renamed "deterministic lattice precedence + consent gate"; determinism committed as a
+  design principle; point (b) stays a tracked gap (G2).
+- **Q4:** pre-rebrand ROADMAP.md archived to `references/archive/ROADMAP-2026-pre-rebrand.md`; root stub points at
+  SCOPE.md.
+- **Q5:** "understands the user better than they understand themselves" reworded toward user-sovereignty (SCOPE §1,
+  §11); capable-guard voice kept.
+- **Q6:** `dashboard-server.js` IS the seed of §23.A; mutating endpoints only in Phase 8 behind Phase-6 approver-auth;
+  read/write split is the §14 standing constraint.
+- **Q7:** runtime tamper floor scoped to the INSTALLED guard under `~/.lilara` (not the dev checkout); stays
+  inviolable, NOT consent-demotable; CI hash-baseline stays as defense-in-depth — **ADR-050**.
+
+**Note:** the memo referenced "ADR-048" for the graduation policy; ADR-048 was already allocated (F4 demotion design),
+so the policy took ADR-049.
+
+**Owner:** Khouly.
+
+**Addendum (2026-06-12, owner review of the R2 encoding):** R2 work verified, no revisions. Additionally decided:
+(a) SCOPE §19 #15 friction telemetry ACCEPTED → `[LOCKED]` — local-only/zero-egress counters (prompts-per-task,
+re-prompts inside a granted scope = P2 defect target zero, grant-to-first-action time, operator-marked false stops),
+feeding both the ADR-049 graduation gates and the L2/L4/L3 loop as guard-routed suggestion-only proposals (never
+auto-applied); (b) SCOPE §19 #11–#13 explicitly labeled DEFERRED PROPOSALS (placeholders, not commitments);
+(c) PRs #164 and #165 approved to merge, #164 first.

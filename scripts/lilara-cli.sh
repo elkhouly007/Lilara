@@ -285,6 +285,9 @@ case "$cmd" in
     section "No stale Horus brand tokens"
     bash "${scripts}/check-no-horus.sh" || failed=1
 
+    section "Scope decision-tag integrity (SCOPE.md)"
+    bash "${scripts}/check-scope-tags.sh" || failed=1
+
     section "Version / CHANGELOG consistency"
     bash "${scripts}/check-version.sh" || failed=1
 
