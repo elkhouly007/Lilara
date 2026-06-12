@@ -1,6 +1,10 @@
 # ADR-028 — State-Dir Validation Gap: Remaining Consumers
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-02). Shipped in
+commit 095c2ba: `decision-journal.js`, `policy-store.js`, `session-context.js`, and `cross-agent-lock.js` all validate
+via `ensureBaseDirSafe`/`ensureStateDirSafe` with per-consumer fail-safe fallbacks (disable journaling / empty policy /
+in-memory degrade / `{ ok: false }`). The three consumers descoped here (snapshot, receipt-export, state-bundle) were
+closed by the ADR-032 full sweep (PR #120).  
 **Severity:** MED-HIGH  
 **Area:** All `LILARA_STATE_DIR` consumers except `mcp-pin.js` (already hardened by ADR-024).
 

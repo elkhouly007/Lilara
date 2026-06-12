@@ -1,6 +1,9 @@
 # ADR-022 — Fail-Closed F25/F26 Floor Recovery
 
-**Status:** Proposed — 2026-06-01. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-01). Shipped in
+commit 40784ca (PR #106): both fail-closed catches live today in `runtime/floor-mcp.js` (`internal-error-scanning-args`
+returns for F25 and F26; the floors moved there from decision-engine.js in the PR #128 decomposition); adversarial tests
+ADR022-T15/T16 in `tests/runtime/mcp-floor-adversarial.test.js`.  
 **Severity:** HIGH  
 **Area:** `runtime/decision-engine.js` `_evalMcpArgFloor` (F25) and `_evalMcpRegistrationFloor` (F26).
 

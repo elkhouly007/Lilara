@@ -1,6 +1,10 @@
 # ADR-024 — State-Dir Permission Validation
 
-**Status:** Proposed — 2026-06-01. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-01). Option 1
+shipped: `ensureStateDirSafe()`/`ensureBaseDirSafe()` live in `runtime/state-dir.js`; the `mcp-pin.js` call site returns
+`{ drift: false, reason: "state-dir-insecure" }` as specified; rolled out across all consumers via ADR-028 (commit
+095c2ba) and the ADR-032 sweep (PRs #119/#120). Option 2 (atomic write-temp+rename) was consciously deferred to ADR-033
+(shipped, PR #121).  
 **Severity:** HIGH  
 **Area:** `runtime/mcp-pin.js`, `runtime/decision-journal.js`, and all other LILARA_STATE_DIR consumers.
 

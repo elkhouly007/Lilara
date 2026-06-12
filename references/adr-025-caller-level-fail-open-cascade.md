@@ -1,6 +1,10 @@
 # ADR-025 — Caller-Level Fail-Open Cascade in `decide()`
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-02). Shipped in
+commit 7618e0d (`feat(adr-025): caller-level fail-safe catches in decide() — F16/F24 highest-stakes`) completing the set
+alongside ADR-022's F25/F26 hardening (40784ca): all seven caller sites are resolved — six outer catches now fail-safe
+to require-review via `buildEarlyReview()` (in-code ADR-025 citations throughout `runtime/decision-engine.js`), and the
+rug-pull advisory site is a documented conscious fail-open per Option 3.  
 **Severity:** HIGH  
 **Area:** `runtime/decision-engine.js` — seven `catch { /* fail-open */ }` caller blocks in `decide()`.
 

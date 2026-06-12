@@ -1,6 +1,9 @@
 # ADR-023 — Unified Command Classification Gateway
 
-**Status:** Proposed — 2026-06-01. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-01).
+`classifyCommandDual()` is exported from `runtime/decision-key.js` and adopted at all four raw-only call sites named
+below (`action-ir.js`, `contract.js`, `decision-engine.js`, `degraded-mode.js`, each with an in-code ADR-023 citation);
+the resulting corpus re-baseline was authorized via ADR-026 (commit 24bf251).  
 **Severity:** HIGH  
 **Area:** `runtime/action-ir.js`, `runtime/contract.js`, `runtime/decision-engine.js`,
 `runtime/degraded-mode.js` — all call `classifyCommand` directly on raw strings.

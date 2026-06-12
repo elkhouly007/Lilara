@@ -1,6 +1,10 @@
 # ADR-029 — Pin-Store Corruption = Silent Full Reset
 
-**Status:** Proposed — 2026-06-02. Audit-by-side-effect finding from the June 2026 hardening sprint.  
+**Status:** Implemented — header reconciled 2026-06-12, Phase-0 ledger reconciliation (proposed 2026-06-02). Shipped in
+commit acb524f: `_readPins()` now splits ENOENT (legitimate first-sight, returns `{}`) from parse/IO error (returns the
+`{ _corrupt: true }` sentinel, emits a one-shot warning, and takes a best-effort forensic `.bak` copy);
+`checkArgShapeDrift()` guards the sentinel and returns `{ drift: false, reason: "pin-store-corrupt" }` instead of
+silently re-pinning to a possibly rug-pulled shape.  
 **Severity:** MED  
 **Area:** `runtime/mcp-pin.js:_readPins()` — ENOENT vs JSON parse-error ambiguity.
 
