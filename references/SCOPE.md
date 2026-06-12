@@ -49,10 +49,30 @@ plus F14b and F18-D007) · 2 non-lattice signals (F22 registry-only, F23b PostTo
 
 ## 0. What Lilara is
 
+**Mission `[LOCKED]` (owner-set 2026-06-12): Lilara exists to make its users MORE PRODUCTIVE — powerfully and
+safely.** It is not a guard that limits; it is a productivity multiplier whose safety is what lets the user move fast
+without fear. Every design decision is judged by one test: *does this make a real user get more done, safely?*
+Security is in service of productivity, never the other way around.
+
 Zero-dependency Node runtime guard for AI coding agents → growing into a trustworthy bounded-autonomy platform. GitHub
 `elkhouly007/Lilara`. Identity: an impressive, smart guard that grows and improves with you. **Safety philosophy: safety
 exists to REDUCE the user's steps, not add gates.** Customer #1 is the owner himself — the product he uses *is* what
 customers get.
+
+### 0.1 First-order design tenets `[LOCKED]` (owner-set 2026-06-12)
+
+Principles 1 and 2 exist to serve Principle 0. Every section of this document, every ADR, and every phase of
+`references/PLAN.md` is bound by these three:
+
+- **P0 — The mission.** Make the user more productive, powerfully and safely. If a safety mechanism reduces real
+  productivity without preventing a genuine harm, **it is wrong and must be redesigned** — security serves
+  productivity, never the reverse.
+- **P1 — Security must ENABLE work, not block it.** A guard that is safe but slows the agent down or blocks legitimate
+  work is a **failure**. Optimize for "approve-once, then run freely," never for friction.
+- **P2 — The consent contract (anti-nag).** A granted scope is a contract: inside it the agent works FREELY and is
+  **never** re-asked for approval. Re-prompting inside an already-granted scope is a **defect, not a safety feature**.
+  The agent halts only at genuine hard exceptions (the inviolable tier). Mechanism: ADR-035's one-time scoped grant /
+  pre-authorized-scope model — grant once, run within bounds, stop only at real red lines (§8).
 
 **Status — BUILT (guard core).** Zero external dependencies confirmed: there is no root `package.json`; every runtime
 module uses Node built-ins only (`fs`, `path`, `crypto`, `https`, `net`, `tls`). The deterministic guard
@@ -67,8 +87,10 @@ shell) is **NOT-YET** — see §11–14.
 1. **L1 — Security core (the contract).** Bounded-authority runtime guard, fail-closed. User pre-approves
    action-classes that run WITHOUT returning to them, except fixed hard exceptions (personal data leaving to an external
    party = no; personal data leaving the machine = no; deletion without coordination = no).
-2. **L2 — Very strong memory.** Understands the user better than they understand themselves; learns from every task and
-   at the end of each day.
+2. **L2 — Very strong memory.** Learns the user's patterns deeply from every task and at the end of each day —
+   anticipating what the user would choose, while the user stays sovereign over what is remembered (local, inspectable,
+   erasable). *(Reworded by owner decision Q5, 2026-06-12 — the earlier "understands the user better than they
+   understand themselves" framing read as overreach and contradicted the user-sovereignty value.)*
 3. **L3 — Self-improvement.** After each task + end-of-day, reviews "could this have been done better?" then modifies
    itself. HIGHEST-RISK surface → built LAST, suggestion-only first, must pass through the guard, can never weaken its
    own constraints.
@@ -108,12 +130,12 @@ rewrite better** (also the clean-room path protecting the no-AGPL/GPL/SSPL/BSL r
 
 Build-order is being honored: L1 is done and the L5 *consent transport* slice shipped with it; L2 is next.
 
-### 1.5 Canonical sequencing & layer dependencies `[CC-PROPOSED]`
+### 1.5 Canonical sequencing & layer dependencies `[LOCKED]` (owner-confirmed Q1, 2026-06-12)
 
 This block exists because the document previously said "sequenced LAST" about three different things (§1: L3; §13: L4;
 §14: guest→host inversion) and §15 orders full L5 between L4 and L3. **One reading reconciles all four** — recorded here
-as the single canonical statement; §13/§14/§15 point here instead of carrying their own ordering claims. *It interprets,
-but does not change, the `[LOCKED]` build order in §1; owner confirmation is requested as Q1 in §24.*
+as the single canonical statement; §13/§14/§15 point here instead of carrying their own ordering claims. *Owner-confirmed
+as canonical (Q1, 2026-06-12): L1 (done) → L2 → L4 → full L5 (guest→host) → L3 absolutely last → §23.A UI after all.*
 
 ```
 L1 security core ──► thin L5 (consent transport only) ──► L2 memory ──► L4 skills ──► full L5 shell ──► L3 (LAST)
@@ -173,8 +195,9 @@ a runtime classifier. Neutral-language requirement is met in code — the floor 
   enforced — but by **build/CI-time hashing + structural unreachability**, not by a **runtime action floor**. There is no
   runtime floor that fires when an agent attempts to *modify the safety-core source itself* (e.g. editing
   `runtime/decision-lattice.js`, `runtime/floor-codes.js`, `runtime/floor-*.js`, or `artifacts/lattice-baseline.sha256`)
-  during a task inside the project root; such a write is governed only by the general file-write floors. → see
-  `[CC-PROPOSED][OPEN]` #1 in §19.
+  during a task inside the project root; such a write is governed only by the general file-write floors. → §19 #1.
+  **Scoping decided (Q7, 2026-06-12 — ADR-050):** runtime floor over the *installed* guard under `~/.lilara` (not the
+  dev checkout), inviolable, never consent-demotable; CI hash-baseline stays as defense-in-depth.
 
 ---
 
@@ -216,8 +239,12 @@ detectability.
    malware-execution behavior, deletion).
 2. **Model content contract (generation layer)** — model instructed to REFUSE forbidden content; the Node guard is
    structurally blind here.
-3. **Action-gating + fail-closed advisory classifier** — gates irreversible external actions (publish/upload/deploy);
-   can only escalate-to-human or block, NEVER auto-allow, never weaken a floor.
+3. **Action-gating: deterministic lattice precedence + consent gate (fail-closed)** — gates irreversible external
+   actions (publish/upload/deploy); can only escalate-to-human or block, NEVER auto-allow, never weaken a floor.
+   *(Renamed from "fail-closed advisory classifier" by owner decision Q3, 2026-06-12. Determinism is hereby a design
+   principle: deterministic = replayable = auditable — a probabilistic classifier here would break byte-identical
+   replay and add false positives. The rename does NOT close enforcement point (b): the model content contract remains
+   genuinely unbuilt and stays tracked as G2.)*
 
 **Status:**
 
@@ -225,7 +252,7 @@ detectability.
 |---|---|---|
 | (a) Deterministic action guard | **BUILT** | All floors fire in `runtime/decision-engine.js`; signatures for exfil (F19/F27/F28), unauthorized access (F17), MCP danger (F25/F26), deletion (F29). |
 | (b) Model content contract | **NOT-YET / GAP** | **No artifact exists in the repo** — no prompt template, content-policy file, or documented model instruction enforcing refusal. The whole content-harm surface (§6, plus CSAM and suicide-method refusal from §7) has no representation. See §19 #2. |
-| (c) Action-gating + fail-closed advisory | **BUILT** | The lattice + consent gate gate irreversible external actions and can only `block` or route to `consent-required` (`enforcementFor()` in `runtime/decision-lattice.js`); `runtime/floor-consent.js` fails closed and **never auto-allows** (default route = block; any error = block). *Naming delta:* there is no separate named "advisory classifier" component — the role is filled by the lattice precedence + consent gate (whether to rename the vision bullet or keep the name for a future component is raised as Q3 in §24). |
+| (c) Action-gating: deterministic lattice precedence + consent gate | **BUILT** | The lattice + consent gate gate irreversible external actions and can only `block` or route to `consent-required` (`enforcementFor()` in `runtime/decision-lattice.js`); `runtime/floor-consent.js` fails closed and **never auto-allows** (default route = block; any error = block). Vision naming aligned to code by owner decision Q3 (2026-06-12); the former "advisory classifier" name is retired. |
 
 ---
 
@@ -371,7 +398,8 @@ is satisfied in substance with the `TAMPER_WITH_SAFETY_CORE` naming caveat.
 
 ## 11. L2 — Memory `[0.3.0]`
 
-"Understands the user better than they understand themselves." **Privacy ARCHITECTURAL, not a promise** — only abstract
+"Learns the user deeply — anticipates what they would choose — while the user stays sovereign: memory is local,
+inspectable, and erasable." *(Reworded per owner decision Q5, 2026-06-12.)* **Privacy ARCHITECTURAL, not a promise** — only abstract
 enums/counts may leave, never raw content; local-only structured memory, zero cloud deps; no product analytics until the
 memory model is proven. **Named threat:** memory-privacy leak via "just a little context for debugging" — needs
 typed/by-construction boundaries.
@@ -434,8 +462,8 @@ single-lane routing is built**: there is **no** context-driven auto-select, **no
 auto-creation of skills or agents, and **no** outcome-feedback learning loop — all **NOT-YET**. The "untrusted proposals
 through the guard" model is likewise unbuilt (depends on L2). Hook/adapter auto-creation is **gated to manual** today —
 there is no auto-apply path, which is the intended end state, not a gap. Correctly NOT-YET as a product layer.
-`[CC-PROPOSED]` *Sequencing note:* "sequenced LAST" above reads per the canonical statement in §1.5 — after L2, before
-L3 (only L3 is absolutely last); owner confirmation requested as Q1 (§24).
+*Sequencing note (owner-confirmed Q1, 2026-06-12):* "sequenced LAST" above reads per the canonical statement in §1.5 —
+after L2, before L3; only L3 is absolutely last.
 
 ---
 
@@ -460,12 +488,14 @@ experience is realized today only as the per-harness adapter set (§17) plus thi
 the `[ADVISORY]` "be middleware, not a CLI" pivot, which is not yet acted on. Owner direction **23.A** extends the
 guest→host inversion into a full control-plane / task-dashboard surface (§23 `[OPEN]`).
 
-`[CC-PROPOSED]` **Standing constraint — dashboard stays read-only until §23.A's real build.** The existing dashboard may
-*observe* and may only ever *narrow* authority; it gains no mutating endpoint (launch, approve, grant) before the
-control-plane build that §23 sequences after the safety core, and any mutating endpoint then added sits behind the
-approver-authentication design that inbound channels already require. This is the constraint that keeps today's shipped
-UI from pre-empting the deferred-`[LOCKED]` inbound-approval decision. Whether this dashboard is the *seed* of §23.A or
-stays observability-only is raised as Q6 (§24).
+`[LOCKED]` **Standing constraint (owner-decided Q6, 2026-06-12) — the dashboard IS the seed of §23.A, and it stays
+read-only until §23.A's real build.** The §23.A control plane will be built **on** `scripts/dashboard-server.js`
+(reusing the audited zero-dep, redaction-fail-closed substrate), not as a separate surface. Until that build (PLAN
+Phase 8): the dashboard may *observe* and may only ever *narrow* authority (revoke, stop, kill); it gains **no
+mutating endpoint** (launch, approve, grant). Mutating endpoints are added ONLY in Phase 8, behind the Phase-6
+approver-authentication design — no approve/grant control exists on a network surface before authentication exists.
+This read/write split is the standing constraint that keeps today's shipped UI from pre-empting the
+deferred-`[LOCKED]` inbound-approval decision.
 
 ---
 
@@ -476,9 +506,9 @@ channels deferred; guest→host inversion last.
 
 **Status — sequencing honored to date.** Current VERSION is `0.2.1` (a hardening point release on top of the 0.2.0
 safety-core lock). The sequencing matches the build order in §1. 0.3.0 (L2) has not started. The single carried-over
-0.2.0 item is DoD #5 (Hermes + real-run validation, §10). `[CC-PROPOSED]` *Note:* the "Later = L4 → L5 → L3" prose above
+0.2.0 item is DoD #5 (Hermes + real-run validation, §10). *Note (owner-confirmed Q1, 2026-06-12):* the "Later = L4 → L5 → L3" prose above
 and §1's "thin L5" early slice are reconciled by the canonical statement in §1.5 (thin L5 shipped with L1; *full* L5
-lands between L4 and L3); owner confirmation requested as Q1 (§24).
+lands between L4 and L3).
 
 **Owner-raised forward directions** (control-plane / orchestration hub; study-and-rewrite best-in-class components) are
 tracked in **§23 `[OPEN]`** — the intent is owner-set; the design is open until sequenced.
@@ -589,10 +619,17 @@ blocks each note their own flag; nowhere did the document state the combined out
 | Telemetry (local-only) | `LILARA_TELEMETRY` | on | Local `telemetry.jsonl` internal events; never egresses (§16). |
 
 In plain terms: **out of the box, Lilara observes, journals, warns, and snapshots — it stops nothing** until the
-operator turns on enforce/consent and the per-floor posture flags. That is a deliberate adoption posture (warn-first,
-fail-safe), but it must be stated honestly: two of the three hard exceptions (HX1 cross-call half, HX3) are inert at
-defaults. Recorded as **G12** in §20; the graduation roadmap (which defaults flip, when, gated on measured FP/FN
-budgets) is owner-decided — raised as Q2 in §24.
+operator turns on enforce/consent and the per-floor posture flags. That is the current posture, stated honestly: two of
+the three hard exceptions (HX1 cross-call half, HX3) are inert at defaults. Recorded as **G12** in §20.
+
+**Graduation policy `[LOCKED]` (owner-decided Q2, 2026-06-12 — full policy in ADR-049):** Lilara graduates to
+**secure-by-default, evidence-gated, one ADR + owner sign-off per flip**. First wave: ship `LILARA_ENFORCE=1` as the
+default **for the catastrophic inviolable floors (F3, F14, F10, F27)** once Phase-1 real-run calibration shows
+near-zero false positives on those floors. The heuristic-heavy demotable floors (**F28** taint-egress, **F29**
+delete-coordination, **F23** kill-chain) stay **opt-in** until each meets its own measured FP budget, then flip one at
+a time. The env override always remains, so operators can dial down. Binding constraint (P1/P2, §0.1):
+**secure-by-default must NOT mean nag-by-default** — enforcement halts only at genuine red lines, and granted scopes
+are never re-prompted. Prerequisite for any flip: §19 #14 replay-posture pinning + posture-matrix replay.
 
 ---
 
@@ -609,6 +646,11 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
    edits to those paths, so tampering is stopped *at the moment it is attempted* rather than only failing CI later?
    Rationale: a long-running unattended agent can edit core source between CI runs; the build-time gate does not stop the
    action in-session.
+   **Decided (Q7, 2026-06-12 — ADR-050):** yes — scoped to the **INSTALLED guard under `~/.lilara`**, NOT the dev
+   checkout (the owner is customer #1 and must be able to edit Lilara's own source). The floor **stays inviolable** —
+   explicitly NOT consent-demotable (a demotion path is exactly what an attacker would target and would void §7's
+   "absolute" property). The CI hash-baseline check on the source repo remains as defense-in-depth. Implementation:
+   PLAN Phase 3, after the §19 #6 laundering gates.
 2. **`[CC-PROPOSED]` — Check in a model content contract artifact for enforcement point (b).** Point (b) is `[LOCKED]`
    in concept but has **zero artifact** in the repo, which is why the entire content-harm surface (§6 categories + decoy,
    plus CSAM and suicide-method refusal/crisis-resources from §7) is unrepresented. Propose a versioned, reviewable,
@@ -649,10 +691,10 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
    default and disabled with `LILARA_TELEMETRY=0`" — or (b) flip local logging to opt-in to literally match the
    `[ADVISORY]` "NONE by default." Recommend (a): the local log is genuinely useful for diagnosing corruption/migration
    and never egresses. *Telemetry is `[ADVISORY]`, so this clarifies rather than revisits.*
-9. **`[CC-PROPOSED][OPEN]` — Decide F23 kill-chain default posture at a future milestone.** F23 (multi-step kill-chain
-   detection) runs **observe-only** unless `LILARA_KILL_CHAIN_ENFORCE=1`. *Open question:* should staged kill-chain
-   detection graduate to consent/enforce by default once the eval false-positive rate is measured and acceptable
-   (depends on #3)? Rationale: observe-only means the detector exists but does not protect by default.
+9. **`[CC-PROPOSED]` — F23 kill-chain default posture. Decided (Q2, 2026-06-12 — ADR-049):** F23 stays **opt-in**
+   until it meets its own measured FP budget (per #3's eval slices), then flips by its own ADR with owner sign-off,
+   per the graduation policy in §18. Observe-only-by-default is acknowledged: the detector exists but does not protect
+   by default until its evidence gate is met.
 10. **`[CC-PROPOSED]` — Tag-integrity gate (landed with this revision).** The decision-tag system ([LOCKED]/[ADVISORY]/
     [OPEN]/[CC-PROPOSED]) was load-bearing but enforced only by human discipline — no gate existed. This revision adds
     `scripts/check-scope-tags.sh`: only legend tags may appear in this file; every line carrying `[LOCKED]` is hashed
@@ -682,6 +724,16 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
     Until then: pin all three flags in the replay harness, and require a posture-matrix replay (corpus green under both
     postures) before any default flip. *Hardens the locked byte-identical-replay invariant; prerequisite for §19 #9 / Q2
     graduations.*
+15. **`[CC-PROPOSED]` — Friction telemetry: make the anti-nag contract (P2) measurable, and feed it to the learning
+    loop.** P0–P2 (§0.1) declare that friction is a defect — so measure it like one. Local-only counters (same posture
+    as `runtime/telemetry.js`: never egresses): (a) consent prompts per task; (b) **re-prompts inside an
+    already-granted scope — counted as a DEFECT (P2 violation), target zero**; (c) time from grant to first autonomous
+    action; (d) operator-marked false stops ("this block was wrong"). These become first-class quality signals next to
+    FP/FN: they feed the Phase-1 calibration (a floor whose enforcement would nag fails its graduation gate even at
+    zero FP), and they are exactly the outcome-feedback the L2/L4/L3 loop needs to make the tool *better with use* —
+    each friction event is a concrete, guard-routed improvement proposal (e.g. a better-shaped scope template), so the
+    product learns to get out of the user's way wherever it is safe to. *Serves P0 directly; instrumentation only; no
+    floor or replay surface touched.*
 
 ---
 
@@ -694,13 +746,13 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 | G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | NOT-YET (depend on G2) | **High** |
 | G4 | Hard-exception #1 coverage (§4, §7) | "Personal data to an external party = no" | Only credential/secret subset enforced | **Med-High** |
 | G5 | 0.2.0 DoD #5 (§10, §17) | Hermes adapter + real-run FP/FN at hard exceptions | Hermes absent; no measured error rates | **Med-High** |
-| G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name | **Med** |
+| G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name. Scoping decided (Q7, ADR-050): inviolable runtime floor over the installed guard under `~/.lilara`; build in PLAN Phase 3 | **Med** |
 | G7 | Auto-update (§16) | Background check + `lilara upgrade` | NOT-YET | **Low** |
 | G8 | Telemetry wording (§16) | NONE by default | Local-only log on by default (no payloads, no egress) | **Low** |
 | G9 | ADR decision-debt (§16) | Clean decision index | 2 number collisions + 9 open/proposed ADRs | **Low** |
 | G10 | L4 orchestration capabilities (§1, §13) | Auto-select + multi-skill merge/compose + auto-create skill/agent + cheap routing + learn-from-results | Only single-lane static routing built; merge/compose, auto-create, and learning loop all NOT-YET (depends on L2; sequenced last) | **Low** (planned layer) |
 | G11 | Hook/adapter auto-creation (§13) | May propose, but NEVER auto-apply — manual / human-approved always | Gated-to-manual: no auto-apply path exists — intended end state, not a gap | **n/a (control)** |
-| G12 | Default posture (§18 table) `[CC-PROPOSED]` | L1 "fail-closed" guard protecting unattended runs | Out of the box nothing halts: `LILARA_ENFORCE=0`, consent `off`, F28/F29 inert, F23 observe-only — warn-first by design but previously undisclosed as a whole | **High** |
+| G12 | Default posture (§18 table) `[CC-PROPOSED]` | L1 "fail-closed" guard protecting unattended runs | Out of the box nothing halts: `LILARA_ENFORCE=0`, consent `off`, F28/F29 inert, F23 observe-only. Graduation policy decided (Q2, ADR-049): secure-by-default, evidence-gated per flip; gap closes as flips land | **High** |
 | G13 | License file (§16) `[CC-PROPOSED]` | Licensing decided consistently with no-copyleft | No `LICENSE` file at repo root; licensing/business model `[OPEN]`; pre-launch blocker alongside D23 | **Med** |
 | G14 | ADR decision-debt (§16, App. B) `[CC-PROPOSED]` | Reliable decision index | 2 number collisions, 9 Proposed/Open ADRs, ADR-032 half-closed, some headers lag shipped behavior | **Low** |
 
@@ -811,21 +863,22 @@ under the same clean-room gate.
 
 ---
 
-## 24. R2 review — questions to the owner `[CC-PROPOSED]`
+## 24. R2 review questions — owner decisions `[LOCKED]` (decided 2026-06-12)
 
-> Raised by the 2026-06-12 review revision. Each touches a `[LOCKED]` or `[OPEN]` item and is therefore **asked, not
-> changed** — per the tag rules, locked content moves only by owner decision. Answering these closes the question; the
-> answer is then folded into the relevant section by a normal reviewed edit.
+> Raised by the 2026-06-12 review revision; **all seven answered by the owner on 2026-06-12** and folded into the
+> sections they touch. This table is the decision record. Policy ADRs created: **ADR-049** (default-posture
+> graduation, Q2) and **ADR-050** (tamper-floor scoping, Q7). Also decided in the same memo: the first-order design
+> tenets **P0–P2** (§0.1). Recorded as **D50** in `DECISIONS.md`.
 
-| Q | Touches | Question |
+| Q | Touched | Decision (owner, 2026-06-12) |
 |---|---|---|
-| **Q1** | `[LOCKED]` §1 vs §13/§14/§15 | Confirm the canonical sequencing in §1.5: thin L5 with L1 (done) → L2 → L4 → full L5 (guest→host) → L3 absolutely last → §23.A UI after all. If confirmed, §13's "sequenced LAST" and §15's "Later = L4 → L5 → L3" wordings are aligned to point at §1.5. |
-| **Q2** | `[LOCKED]` §18 ("require-review = WARN class") | Default-posture graduation roadmap (G12): which of F28 / F29 / F23 / enforce-mode flip on-by-default, at which milestone, gated on the §19 #3 measured FP/FN budgets? Proposal: one ADR + owner sign-off per flip; §19 #14 replay hardening is a prerequisite for any flip. |
-| **Q3** | `[LOCKED]` §5 | The vision's enforcement point (c) names a "fail-closed advisory classifier"; in code the role is filled by lattice precedence + the consent gate. Rename the vision bullet to match reality, or keep the name as a future separate component? |
-| **Q4** | repo hygiene | `ROADMAP.md` at the repo root is pre-rebrand-stale (v3.1.0 era, "Eighteen engine-baked floors (F1–F18)") and contradicts this document. Archive it to `references/archive/` with a pointer here? |
-| **Q5** | §0 / §11 prose (optional) | "an impressive, smart guard" (§0) and "understands the user better than they understand themselves" (§11) are aspirational vision prose, not violations of the neutral-language mandate — keep as owner voice, or add falsifiable restatements alongside? |
-| **Q6** | §14 / §23.A | Is the existing read-only dashboard (`scripts/dashboard-server.js`) the **seed** of the §23.A control plane (grows mutating endpoints behind approver-auth at build time), or permanently observability-only with §23.A built as a separate surface? |
-| **Q7** | §7 ("absolute") + §19 #1 | The proposed runtime `TAMPER_WITH_SAFETY_CORE` floor has a dogfood trap: an inviolable floor on writes to `runtime/floor-*.js` / `decision-lattice.js` fires on every legitimate dev edit of Lilara itself (owner is customer #1). Options: (a) scope the floor to the **installed** guard under `~/.lilara`, not the dev checkout; (b) make it consent-demotable — contradicts §7 "absolute"; (c) keep tamper-protection CI/build-time only (status quo). Decide as part of the §19 #1 packet. |
+| **Q1** | §1 vs §13/§14/§15 | **Confirmed:** §1.5 is canonical — L1 (done) → L2 → L4 → full L5 (guest→host) → L3 absolutely last → §23.A UI after all. §13/§15 now point at §1.5. |
+| **Q2** | §18 posture | **Secure-by-default, evidence-gated, one ADR + owner sign-off per flip** (ADR-049). First wave: `LILARA_ENFORCE=1` default for the catastrophic inviolable floors (F3, F14, F10, F27) once Phase-1 calibration shows near-zero false positives. F28/F29/F23 stay opt-in until each meets its own FP budget, then flip one at a time. Env override always retained. Secure-by-default must NOT mean nag-by-default (P1/P2). |
+| **Q3** | §5 | **Renamed:** enforcement point (c) is "deterministic lattice precedence + consent gate"; determinism committed as a design principle (deterministic = replayable = auditable). The rename does not hide point (b) — the model content contract stays a tracked gap (G2). |
+| **Q4** | repo hygiene | **Archive** `ROADMAP.md` to `references/archive/` (keep history, don't delete); root stub points at this document as the single source of truth. |
+| **Q5** | §0 / §11 prose | **Keep the capable-guard voice; reword** the "understands the user better than themselves" line toward user-sovereignty (done in §1 and §11) — it read as overreach to a control-conscious security audience. |
+| **Q6** | §14 / §23.A | **The existing dashboard IS the seed of §23.A.** Build the control plane on `dashboard-server.js` (audited zero-dep, redaction-fail-closed substrate). Mutating endpoints only in Phase 8, behind Phase-6 approver-auth; until then the web surface may only NARROW authority. Read/write split recorded as the §14 standing constraint. |
+| **Q7** | §7 + §19 #1 | **Scope the runtime tamper floor to the INSTALLED guard under `~/.lilara`** (not the dev checkout — owner is customer #1 and must be able to edit Lilara's own source). It **stays inviolable** — NOT consent-demotable (a demotion path is what an attacker would target; it would void §7's "absolute"). CI hash-baseline on the source repo stays as defense-in-depth (ADR-050). |
 
 ---
 
@@ -888,11 +941,12 @@ hooks/adapters; that red-line is held by review discipline (human-approved alway
 
 ## Appendix B — ADR index & decision-debt
 
-ADR-001..006 are recorded as decisions D1–D6 in `DECISIONS.md` (not separate files). ADR-007..048 live in `references/`
-as **44 files** (two number collisions). Status is read live from each ADR's header (re-derived 2026-06-12; the previous
+ADR-001..006 are recorded as decisions D1–D6 in `DECISIONS.md` (not separate files). ADR-007..050 live in `references/`
+as **46 files** (two number collisions). Status is read live from each ADR's header (re-derived 2026-06-12; the previous
 revision of this index omitted 17 of them). **Collisions:** ADR-021 and ADR-022 each exist as two different files,
 disambiguated here as (A)/(B) — frozen, not renumbered, because ADR numbers are cited in code comments, lattice notes,
-and CHANGELOG entries.
+and CHANGELOG entries. (For the same reason, the 2026-06-12 default-posture graduation policy takes **ADR-049** — the
+owner's memo referenced "ADR-048" for it, but that number was already allocated to the F4 demotion design.)
 
 **Complete index:**
 
@@ -942,6 +996,8 @@ and CHANGELOG entries.
 | 046 | Taint-window injection (cross-call purity, F10) | Implemented |
 | 047 | F4 consent payloadClass propagation | Implemented |
 | 048 | F4 demotion path design | **Proposed (open design question)** |
+| 049 | Default-posture graduation policy (Q2) | Accepted (policy) |
+| 050 | Tamper-floor scoping — installed guard only (Q7) | Accepted (design decision) |
 
 **Decision-debt to close before 0.3.0** (§16, §19 #7, G14): the 8 bold **Proposed** rows above plus ADR-032's
 half-closed status and ADR-048's open design question. Caveat: some Proposed headers may lag shipped behavior (ADR-024/
@@ -951,6 +1007,8 @@ reality with evidence*, not bulk-flipping statuses.
 ---
 
 *End of authoritative scope. Status blocks reflect master `57089aa` (VERSION 0.2.1) as of 2026-06-12 (R2 review
-revision: status corrections verified against code; `[CC-PROPOSED]` additions in §1.5, §18, §19 #10–#14, §20 G12–G14,
-§24; owner questions in §24). When code changes, update the relevant Status block and the GAP register; the rendered
-vision (and its `[LOCKED]` tags) changes only by owner decision — enforced by `scripts/check-scope-tags.sh`.*
+revision: status corrections verified against code; `[CC-PROPOSED]` additions in §18, §19 #10–#15, §20 G12–G14. R2.1:
+owner decisions Q1–Q7 encoded 2026-06-12 — tenets P0–P2 added as §0.1 `[LOCKED]`, §1.5 confirmed canonical, §24 is the
+decision record, ADR-049/ADR-050 created, ROADMAP.md archived). When code changes, update the relevant Status block and
+the GAP register; the rendered vision (and its `[LOCKED]` tags) changes only by owner decision — enforced by
+`scripts/check-scope-tags.sh`.*
