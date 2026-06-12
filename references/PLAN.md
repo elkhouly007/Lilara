@@ -9,6 +9,15 @@
 > definition of done. Phases are PR-shaped: small, gate-verified, one coherent change per PR. Nothing in this plan
 > relaxes the inviolable floors, `decide()` purity, byte-identical replay, neutral universal-harm language, the
 > clean-room/no-copyleft rule, or the hooks/adapters-never-auto-applied red line.
+>
+> **Owner tenets bind every phase (SCOPE §0.1, set 2026-06-12):** P0 — Lilara exists to make its users more
+> productive, powerfully and safely; P1 — security must ENABLE work ("approve-once, then run freely"); P2 — the
+> consent contract is anti-nag: re-prompting inside a granted scope is a defect, halts happen only at genuine hard
+> exceptions. A phase deliverable that adds friction without preventing a genuine harm fails its own DoD.
+>
+> **Decision update (2026-06-12):** the owner answered Q1–Q7 (SCOPE §24 decision record; DECISIONS.md D50; ADR-049
+> default-posture graduation; ADR-050 tamper-floor scoping — encoded on the PR #164 branch). Affected items below are
+> marked **DECIDED**.
 
 ---
 
@@ -35,7 +44,7 @@
 | 0 | Truth, hygiene & owner-decision packet | 0.2.2 | — |
 | 1 | Hard-exception eval harness + OpenClaw calibration | 0.2.2–0.2.3 | P0 decision §19 #4 |
 | 2 | Hermes adapter + dual-integration measurement (closes 0.2.0 DoD #5) | 0.2.3 | P1 harness |
-| 3 | L1 completeness: laundering gates → tamper floor → posture graduation | 0.2.4 | P1 budgets; owner Q2/Q7 |
+| 3 | L1 completeness: laundering gates → tamper floor → posture graduation | 0.2.4 | P1 budgets; ADR-049/050 (Q2/Q7 DECIDED) |
 | 4 | L2 memory (privacy-by-construction first) | 0.3.x | P3 gates standing |
 | 5 | L4 orchestration | 0.4.x | P4 (L4 depends on L2) |
 | 6 | L5 full shell: approver-auth → inbound → guest→host inversion | 0.5.x | P3 integrity hardening |
@@ -63,10 +72,11 @@ packet instead of ambushing the schedule mid-phase.
    plus a red-team checklist so the artifact is testable.
 3. §19 #8 telemetry wording fix in SCOPE (recommendation (a): document the true local-only posture).
 4. `install-local.sh` stale "78 js modules" comment → live count.
-5. **Owner-decision packet** (one review session): ADR-048 (F4 demotion), LICENSE choice (G13), D23 trademark, SCOPE
-   §19 #4 (what HX1/HX2 deterministically mean — **blocks Phase 1 slice definitions**), §19 #9 (F23 posture), Q1
-   (canonical sequencing), Q2 (posture graduation roadmap), Q3 (advisory-classifier naming), Q6 (dashboard as §23.A
-   seed?), Q7 (tamper-floor scoping vs the dogfood trap).
+5. **Owner-decision packet** (one review session). **DECIDED 2026-06-12:** Q1 (sequencing — §1.5 canonical), Q2
+   (graduation policy — ADR-049), Q3 (deterministic-lattice naming), Q6 (dashboard is the §23.A seed), Q7
+   (tamper-floor scoped to installed guard — ADR-050), §19 #9 (F23 stays opt-in until its FP budget is met).
+   **Still open:** ADR-048 (F4 demotion), LICENSE choice (G13), D23 trademark, SCOPE §19 #4 (what HX1/HX2
+   deterministically mean — **blocks Phase 1 slice definitions**).
 
 **Risks:** bulk-flipping ADR headers without evidence would corrupt the record — each flip needs a CHANGELOG/commit
 citation in the ADR itself.
@@ -160,17 +170,25 @@ with evidence and owner sign-off.
    source may appear in any inviolable floor's `demotableBy` (extends the existing unreachability tests); (b) a
    monotonic check that the inviolable set + lattice hash change only via reviewed baseline updates. These gates are
    load-bearing for Phase 5's learned routing source and Phase 7 — not just L3.
-2. **Then the runtime safety-core-write floor** (if owner approves §19 #1 per Q7 scoping): landing it second means the
-   floor's own lattice-hash rebaseline is the first baseline change exercised *under* the new gate. New floor =
-   additive replay-corpus entries (never mutations), inviolable-tier tests extended, bench gate green (hot-path cost).
+2. **Then the runtime safety-core-write floor — DECIDED (Q7, 2026-06-12, ADR-050):** scoped to the INSTALLED guard
+   under `~/.lilara` (not the dev checkout); stays inviolable, NOT consent-demotable; CI hash-baseline remains as
+   defense-in-depth. Landing it second means the floor's own lattice-hash rebaseline is the first baseline change
+   exercised *under* the new gate. New floor = additive replay-corpus entries (never mutations), inviolable-tier tests
+   extended, bench gate green (hot-path cost).
 3. **Replay-posture hardening before any default flip** (SCOPE §19 #14): pin `LILARA_TAINT_EGRESS`,
    `LILARA_DELETE_COORD`, `LILARA_KILL_CHAIN_ENFORCE` in `scripts/replay-decisions.js`; add a posture-matrix replay
    (corpus green under both postures); optionally migrate posture into `decide()` input per the ADR-046 pattern.
-4. **Default-posture graduation** (Q2): one ADR + owner sign-off **per flip** (each touches the §18 `[LOCKED]`
-   warn-class invariant's operational meaning), gated on Phase 1/2 measured budgets.
+4. **Default-posture graduation — policy DECIDED (Q2, 2026-06-12, ADR-049):** secure-by-default, evidence-gated.
+   First wave: `LILARA_ENFORCE=1` default for the catastrophic inviolable floors (F3, F14, F10, F27) once Phase-1
+   calibration shows near-zero false positives; F28/F29/F23 stay opt-in until each meets its own FP budget, then flip
+   one at a time. Still one ADR + owner sign-off **per flip**; env override always retained; per P1/P2,
+   secure-by-default must never become nag-by-default — a floor that would nag fails its graduation gate even at
+   zero FP.
 
-**Risks:** the tamper floor's dogfood trap (Q7) — do not pre-commit to "inviolable runtime floor" before the owner
-resolves scoping; a wrongly-scoped floor would fire on every legitimate dev edit of Lilara itself.
+**Risks:** the tamper floor's dogfood trap is resolved by ADR-050's installed-guard scoping, but the residual risk
+moves into the protected path-set definition — if it accidentally covers paths legitimate work touches, P1 is violated;
+calibrate the path-set on real runs before the floor's flip, and fix the path-set (never the tier) if it fires on
+legitimate work.
 
 **Definition of done**
 - Laundering gate green across the very baseline update that lands the new floor.
@@ -288,7 +306,8 @@ skill/agent — every product an UNTRUSTED proposal through the guard.
 **Goal:** the registered-tools / launch / live-queue control surface per `references/UI-DESIGN.md`.
 
 **Preconditions:** Phase 6 approver-auth (mutating endpoints are a different security class from the read-only
-dashboard); owner Q6 answer (dashboard-as-seed vs separate surface); explicit owner go (the user's standing
+dashboard); **Q6 DECIDED (2026-06-12): the existing `dashboard-server.js` IS the seed** — the control plane builds on
+its audited zero-dep, redaction-fail-closed substrate, read-only until this phase; explicit owner go (the standing
 instruction: UI real build waits for it).
 
 **Work items:** per UI-DESIGN.md — web surface (narrow-only until auth, then approve behind auth), TUI (consent on the
@@ -311,21 +330,27 @@ the guard fronts 100% of launched-tool actions; UI-DESIGN.md's acceptance checkl
 - **Perf SLO:** bench gate green on every PR; the §18 `[CC-PROPOSED]` SLO (p50 ≤ 1 ms Linux/macOS) promotes to
   `[LOCKED]` if the owner adopts it.
 - **Weekly competitive loop** (§1): research → gap-find → redesign-better, under the same clean-room rule.
-- **Standing constraint:** the existing dashboard stays **read-only** until Phase 8.
+- **Standing constraint (owner-decided Q6):** the existing dashboard stays **read-only** until Phase 8 — and it IS the
+  seed the Phase-8 control plane builds on.
+- **Friction telemetry (SCOPE §19 #15, proposed):** local-only anti-nag metrics — prompts per task, re-prompts inside
+  a granted scope (a P2 defect, target zero), grant-to-first-action time, operator-marked false stops. Rides along
+  with Phase-1 instrumentation if accepted; feeds graduation gates (ADR-049) and the L2/L4/L3 learning loop, so the
+  tool measurably gets out of the user's way wherever it is safe to.
 
 ## Consolidated owner-decision queue
 
-| When | Decision | Blocks |
-|---|---|---|
-| P0 | ADR-048 F4 demotion design | F4 posture work |
-| P0 | LICENSE + D23 trademark | public launch |
-| P0 | §19 #4 — HX1/HX2 deterministic meaning | Phase 1 slices |
-| P0 | Q1 canonical sequencing | doc alignment |
-| P0 | Q6 dashboard-as-seed | Phase 8 shape |
-| P0 | Q7 tamper-floor scoping | Phase 3 item 2 |
-| P1→P3 | Q2 / §19 #9 — per-flip posture graduations | each default flip |
-| P3 | §19 #14 posture-as-input migration | replay hardening approach |
-| P8 | UI real-build go | Phase 8 start |
+| When | Decision | Blocks | Status |
+|---|---|---|---|
+| P0 | ADR-048 F4 demotion design | F4 posture work | open |
+| P0 | LICENSE + D23 trademark | public launch | open |
+| P0 | §19 #4 — HX1/HX2 deterministic meaning | Phase 1 slices | open |
+| P0 | Q1 canonical sequencing | doc alignment | **DECIDED 2026-06-12** (§1.5 canonical) |
+| P0 | Q6 dashboard-as-seed | Phase 8 shape | **DECIDED 2026-06-12** (dashboard is the seed) |
+| P0 | Q7 tamper-floor scoping | Phase 3 item 2 | **DECIDED 2026-06-12** (ADR-050: installed guard, inviolable) |
+| P0 | Q2 graduation policy (umbrella) | Phase 3 item 4 | **DECIDED 2026-06-12** (ADR-049) |
+| P1→P3 | Per-flip posture graduations (under ADR-049; incl. §19 #9 F23) | each default flip | open — one ADR + owner sign-off per flip |
+| P3 | §19 #14 posture-as-input migration | replay hardening approach | open |
+| P8 | UI real-build go | Phase 8 start | open |
 
 *End of plan. Sequenced per SCOPE §1/§1.5; nothing here relaxes a `[LOCKED]` decision — where a phase touches one, the
 work item is the owner question, not the change.*

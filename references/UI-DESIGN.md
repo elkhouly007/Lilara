@@ -69,8 +69,10 @@ readline + ANSI. No frameworks, no npm. Matches §18 and keeps the supply-chain 
 path that bypasses an adapter. (Guest→host inversion prerequisite: PLAN.md Phase 6, per §23.A's host-trust design
 flag.)
 
-**Rule 6 — standing constraint until Phase 8:** the *existing* dashboard stays read-only (SCOPE §14 `[CC-PROPOSED]`
-constraint); this design adds nothing to it before the owner-gated real build.
+**Rule 6 — standing constraint until Phase 8 (owner-decided Q6, 2026-06-12):** the existing dashboard **is the seed of
+§23.A** — the control plane builds on `dashboard-server.js`'s audited zero-dep, redaction-fail-closed substrate — and
+it stays read-only until the Phase-8 real build; mutating endpoints (launch/approve) are added only then, behind
+Phase-6 approver-auth (SCOPE §14 `[LOCKED]` standing constraint).
 
 ## 3. Users and jobs
 
@@ -152,7 +154,7 @@ not empty tables. SSE drop → stale-data watermark with last-update time, no si
 | Stage | Gate | Content |
 |---|---|---|
 | Spike (now, this PR) | none — throwaway | static `web-mock.html` + `tui-mock.md`, fake data, visual review of this design |
-| Phase 8 real build | owner go + Phase 6 approver-auth + Q6 answer (dashboard-as-seed vs separate) | backend endpoints on dashboard-server lineage; TUI; registry/launch; SSE |
+| Phase 8 real build | owner go + Phase 6 approver-auth (Q6 decided 2026-06-12: dashboard IS the seed) | backend endpoints on dashboard-server lineage; TUI; registry/launch; SSE |
 
 **Phase 8 acceptance checklist (falsifiable):** every mutating endpoint sits behind approver-auth · narrow-only rule
 enforced by tests (no widen action reachable unauthenticated) · 100% of launched-tool actions traverse an adapter ·
@@ -161,9 +163,8 @@ transport (same invariants test suite).
 
 ## 8. Open questions (owner)
 
-- **Q6 (SCOPE §24):** dashboard-as-seed vs separate surface — this design assumes *seed* (extends
-  `dashboard-server.js`); if the owner prefers a separate surface, §4's IA is unchanged, only the serving process
-  differs.
+- **Q6 — RESOLVED (owner, 2026-06-12):** the dashboard IS the seed; this design's assumption is now the decision
+  (SCOPE §24, §14 standing constraint).
 - Web *registration* submit: keep disabled in v1 (this design's conservative call) or allow it as
   registration-is-not-widening? Default: disabled until decided.
 - TUI scope: read+consent only, or also grant minting (it IS the controlling TTY, so §8 permits it)? Default: defer
