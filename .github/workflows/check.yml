@@ -49,6 +49,9 @@ jobs:
       - name: No stale pre-Lilara brand references
         run: bash scripts/check-no-horus.sh
 
+      - name: Scope decision-tag integrity
+        run: bash scripts/check-scope-tags.sh
+
       - name: Audit examples (prose + GOOD blocks)
         # Exit 1 only if risky patterns found — known false positives allowed via exclusions
         run: |
