@@ -110,6 +110,9 @@ by enforcement point (b)) — without it HX1/HX2 slices are unfalsifiable.
    `lilara-cli.sh pre-push` as an advisory gate first.
 4. OpenClaw real-run calibration pass (the adapter exists — do not serialize this behind Hermes): unattended runs with
    seeded hard-exception probes; separate duration-class floor stops (F11/F14b) from hard-exception counts.
+   Calibration reports also include **harness-level friction counts** (prompts per task; any re-prompt inside a
+   granted scope) per the ACCEPTED SCOPE §19 #15 — a floor that would nag fails its graduation gate even at zero FP
+   (ADR-049).
 5. Lock budgets as a release gate after one calibration round.
 
 **Risks:** seeded probes leaking into the replay corpus (keep eval fixtures and replay corpus disjoint); budget
@@ -220,15 +223,24 @@ legitimate work.
    inviolable-tier unreachability tests **before** wiring, not after.
 5. **Provenance tags on memory entries from day one** (tainted-content-derived memories are §12's
    "self-modification poisoning" arriving two layers early).
-6. Retention policy implementation (SCOPE §19 #11): journal = auditable long-term record (redaction tooling exists:
-   ADR-041/045); grants/tokens = operator-managed revocation; snapshots/telemetry = explicit CLI pruning, never
-   automatic deletion of audit material.
-7. Product features (task/outcome history, end-of-day summary) — only after 1–6.
+6. Retention policy (SCOPE §19 #11 — a **DEFERRED PROPOSAL**, not yet a commitment): draft the full policy during this
+   phase and put it to the owner; implement only once accepted. (Journal = auditable long-term record with existing
+   redaction tooling ADR-041/045; grants/tokens = operator-managed revocation; snapshots/telemetry = explicit CLI
+   pruning, never automatic deletion of audit material.)
+7. **Friction telemetry — durable counters (ACCEPTED SCOPE §19 #15 `[LOCKED]`; bound to P0/P1/P2):** implement the
+   local-only counters in the L2 layer — prompts-per-task; **re-prompts inside an already-granted scope (P2 violation,
+   target ZERO)**; grant-to-first-action time; operator-marked false stops. **Zero egress by construction:** counters
+   are written only through the §19 #5 typed egress-serializer allowlist; covered by this phase's egress-path
+   inventory. They feed the ADR-049 graduation gates and are exported (locally) for L4/L3 consumption in Phases 5/7.
+8. Product features (task/outcome history, end-of-day summary) — only after 1–7.
 
 **Definition of done**
 - All pre-existing corpus `irHash` values byte-identical.
-- Serializer fail-closed property test green; egress inventory committed with per-path serializer coverage.
+- Serializer fail-closed property test green; egress inventory committed with per-path serializer coverage —
+  **including the friction-telemetry counters**.
 - Memory-source unreachability test green; memory entries carry provenance tags.
+- Friction counters live and local-only; the P2-violation counter (re-prompt inside granted scope) demonstrably
+  increments on a seeded re-prompt and reads zero on a clean run.
 - Nothing memory-derived leaves the machine (verified by the inventory + serializer tests).
 
 **Est. 5–6 PRs.**
@@ -245,7 +257,9 @@ skill/agent — every product an UNTRUSTED proposal through the guard.
 2. Merge/compose of multiple skills into one task plan; auto-create skill/agent when none fits — all emitted as
    **untrusted proposals that pass the floors + consent before running**.
 3. Outcome-feedback learning: weights are mutable state → **injected inputs** to any routing decision that is
-   journaled/replayed (same replay-safety pattern as Phase 4).
+   journaled/replayed (same replay-safety pattern as Phase 4). The learning loop **ingests the Phase-4 friction
+   telemetry** (ACCEPTED §19 #15): every friction event may generate an improvement proposal (e.g. a better-shaped
+   scope template) — **guard-routed, suggestion-only, never auto-applied**.
 4. Hooks/adapters: propose-only forever — the auto-apply path must not exist structurally.
 
 **Definition of done**
@@ -287,7 +301,9 @@ skill/agent — every product an UNTRUSTED proposal through the guard.
 
 **Work items**
 1. Post-task + end-of-day reflection producing proposals only (skills/routing-weights/prompt-config refinements per
-   §12's auto-improve loop).
+   §12's auto-improve loop). Reflection **consumes the friction telemetry** (ACCEPTED §19 #15) alongside task
+   outcomes: P2-violation events and operator-marked false stops are prime "could this have been done better?"
+   inputs — and the resulting refinements remain suggestion-only, through the guard.
 2. Mutable surface = **enumerated allowlist** (prompts / config / memory-weights, §12) enforced by test; core code and
    hooks/adapters are structurally out of reach — there is **no apply API**.
 3. Every proposal passes the floors + consent like any other action; Phase 3's laundering gates already standing.
@@ -332,10 +348,12 @@ the guard fronts 100% of launched-tool actions; UI-DESIGN.md's acceptance checkl
 - **Weekly competitive loop** (§1): research → gap-find → redesign-better, under the same clean-room rule.
 - **Standing constraint (owner-decided Q6):** the existing dashboard stays **read-only** until Phase 8 — and it IS the
   seed the Phase-8 control plane builds on.
-- **Friction telemetry (SCOPE §19 #15, proposed):** local-only anti-nag metrics — prompts per task, re-prompts inside
-  a granted scope (a P2 defect, target zero), grant-to-first-action time, operator-marked false stops. Rides along
-  with Phase-1 instrumentation if accepted; feeds graduation gates (ADR-049) and the L2/L4/L3 learning loop, so the
-  tool measurably gets out of the user's way wherever it is safe to.
+- **Friction telemetry (SCOPE §19 #15 — ACCEPTED `[LOCKED]` by owner 2026-06-12):** local-only / zero-egress anti-nag
+  metrics — prompts per task, **re-prompts inside a granted scope (a P2 defect, target ZERO)**, grant-to-first-action
+  time, operator-marked false stops. Delivery: harness-level counts in Phase-1 calibration reports → durable counters
+  in Phase 4 (L2, through the §19 #5 egress-serializer allowlist) → consumed by Phase 5 (L4 outcome learning) and
+  Phase 7 (L3 reflection), always as guard-routed suggestion-only proposals (never auto-applied). Feeds the ADR-049
+  graduation gates: a floor that would nag fails graduation even at zero FP.
 
 ## Consolidated owner-decision queue
 
