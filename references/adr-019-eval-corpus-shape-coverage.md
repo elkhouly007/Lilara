@@ -1,6 +1,8 @@
 # ADR-019 — Eval-corpus shape coverage + eval-dynamic-exec FP surface
 
-- **Status:** Proposed (2026-05-30)
+- **Status:** Proposed (2026-05-30) — re-affirmed genuinely open 2026-06-12 (Phase-0 ledger reconciliation): the eval
+  corpus still has no bulk-payload, nested-object, or alternative-container shape entries and no eval-init-idiom
+  carve-out or borderline pinning; implementation is scheduled as PLAN Phase 1 work item 1.
 - **Owner decision required:** yes — option (b) changes the decision-action mapping for a currently-blocked class.
 
 ## Problem

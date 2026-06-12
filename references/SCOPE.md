@@ -537,12 +537,12 @@ tracked in **§23 `[OPEN]`** — the intent is owner-set; the design is open unt
   (§17); Hermes absent.
 - **Competitive stance `[LOCKED]`:** Lilara will eventually COMPETE with OpenClaw/Hermes — beachhead/dogfood, not a
   permanent dependency. → preserved.
-- **Decision-debt (observed):** the ADR set has two number collisions — ADR-021 (bench-baseline-strategy *and*
-  canonical-json-depth-cap) and ADR-022 (check-no-horus-bare-token *and* fail-closed-floor-recovery) — a backlog of
-  `Proposed`/`Open` ADRs (019, 022A, 022B, 023, 024, 025, 028, 029, **048**), and **ADR-032 uniquely "Partially
-  Implemented"** (envelope HIGH finding merged; consumer sweep traced in CHANGELOG but the header never closed). Some
-  `Proposed` headers may lag shipped behavior (e.g. ADR-024/028 state-dir conventions appear in CHANGELOG entries) —
-  header reconciliation is a hygiene task, see §19 #7 and Appendix B.
+- **Decision-debt (headers reconciled 2026-06-12):** the ADR set has two number collisions — ADR-021
+  (bench-baseline-strategy *and* canonical-json-depth-cap) and ADR-022 (check-no-horus-bare-token *and*
+  fail-closed-floor-recovery) — frozen as A/B (renumbering would break citations). The Phase-0 evidence-based ledger
+  reconciliation flipped 022B/023/024/025/028/029 to Implemented and closed ADR-032 (both its PRs had shipped
+  2026-06-03), each header citing its implementing commit. Genuinely open now: **ADR-019** (scheduled PLAN Phase 1),
+  **ADR-022A** (gate strengthening), and **ADR-048** (owner queue). See §19 #7 and Appendix B.
 
 ---
 
@@ -684,8 +684,8 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
    *gradual* weakening of the guard across versions (e.g. a monotonic check that the inviolable set and lattice hash only
    change via reviewed baseline updates). *Additive discipline for the locked-LAST layer; lands before any L3 code.*
 7. **`[CC-PROPOSED]` — Track ADR decision-debt as an explicit hygiene item.** Two ADR-number collisions (021 ×2, 022 ×2)
-   and a `Proposed`/`Open` backlog (019, 022A, 022B, 023, 024, 025, 028, 029, **048**) should be closed-or-superseded
-   before 0.3.0, and the collisions renumbered, so the ADR set stays a reliable index. *Meta-process; no scope change.*
+   stay frozen as A/B (renumbering breaks citations). Headers reconciled with commit-cited evidence 2026-06-12 (Phase-0):
+   backlog reduced to 019, 022A, **048** — so the ADR set stays a reliable index. *Meta-process; no scope change.*
 8. **`[CC-PROPOSED]` — Reconcile the telemetry wording with reality.** Either (a) document the true posture — "no
    telemetry leaves the machine by default; a local internal-event log (no payloads, no paths, no commands) is on by
    default and disabled with `LILARA_TELEMETRY=0`" — or (b) flip local logging to opt-in to literally match the
@@ -754,12 +754,12 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 | G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name. Scoping decided (Q7, ADR-050): inviolable runtime floor over the installed guard under `~/.lilara`; build in PLAN Phase 3 | **Med** |
 | G7 | Auto-update (§16) | Background check + `lilara upgrade` | NOT-YET | **Low** |
 | G8 | Telemetry wording (§16) | NONE by default | Local-only log on by default (no payloads, no egress) | **Low** |
-| G9 | ADR decision-debt (§16) | Clean decision index | 2 number collisions + 9 open/proposed ADRs | **Low** |
+| G9 | ADR decision-debt (§16) | Clean decision index | 2 number collisions (frozen as A/B) + 3 genuinely open ADRs (019, 022A, 048) after the 2026-06-12 header reconciliation | **Low** |
 | G10 | L4 orchestration capabilities (§1, §13) | Auto-select + multi-skill merge/compose + auto-create skill/agent + cheap routing + learn-from-results | Only single-lane static routing built; merge/compose, auto-create, and learning loop all NOT-YET (depends on L2; sequenced last) | **Low** (planned layer) |
 | G11 | Hook/adapter auto-creation (§13) | May propose, but NEVER auto-apply — manual / human-approved always | Gated-to-manual: no auto-apply path exists — intended end state, not a gap | **n/a (control)** |
 | G12 | Default posture (§18 table) `[CC-PROPOSED]` | L1 "fail-closed" guard protecting unattended runs | Out of the box nothing halts: `LILARA_ENFORCE=0`, consent `off`, F28/F29 inert, F23 observe-only. Graduation policy decided (Q2, ADR-049): secure-by-default, evidence-gated per flip; gap closes as flips land | **High** |
 | G13 | License file (§16) `[CC-PROPOSED]` | Licensing decided consistently with no-copyleft | No `LICENSE` file at repo root; licensing/business model `[OPEN]`; pre-launch blocker alongside D23 | **Med** |
-| G14 | ADR decision-debt (§16, App. B) `[CC-PROPOSED]` | Reliable decision index | 2 number collisions, 9 Proposed/Open ADRs, ADR-032 half-closed, some headers lag shipped behavior | **Low** |
+| G14 | ADR decision-debt (§16, App. B) `[CC-PROPOSED]` | Reliable decision index | Headers reconciled with commit-cited evidence 2026-06-12: 022B/023/024/025/028/029 flipped to Implemented, ADR-032 closed; remaining open 019, 022A, 048; collisions frozen as A/B | **Low** |
 
 ---
 
@@ -972,22 +972,22 @@ owner's memo referenced "ADR-048" for it, but that number was already allocated 
 | 016 | Coachable floors (F21) | Accepted |
 | 017 | Provenance graph (F23) | Implemented |
 | 018 | Trusted-server dual-use detection | Implemented |
-| 019 | Eval-corpus shape coverage + eval-dynamic-exec FP surface | **Proposed** |
+| 019 | Eval-corpus shape coverage + eval-dynamic-exec FP surface | **Proposed** (re-affirmed 2026-06-12; scheduled PLAN Phase 1) |
 | 020 | MCP bypass pattern parity | Implemented |
 | 021 (A) | Bench-perf-regression baseline strategy | Implemented |
 | 021 (B) | Bounded recursion for canonical-json (depth cap) | Implemented |
-| 022 (A) | Strengthen `check-no-horus.sh` for bare lowercase token | **Proposed** |
-| 022 (B) | Fail-closed F25/F26 floor recovery | **Proposed** |
-| 023 | Unified command classification gateway | **Proposed** |
-| 024 | State-dir permission validation | **Proposed** |
-| 025 | Caller-level fail-open cascade in `decide()` | **Proposed** |
+| 022 (A) | Strengthen `check-no-horus.sh` for bare lowercase token | **Proposed** (re-affirmed 2026-06-12) |
+| 022 (B) | Fail-closed F25/F26 floor recovery | Implemented (reconciled 2026-06-12; commit 40784ca, PR #106) |
+| 023 | Unified command classification gateway | Implemented (reconciled 2026-06-12; all four call sites dual-path, re-baseline via ADR-026 commit 24bf251) |
+| 024 | State-dir permission validation | Implemented (reconciled 2026-06-12; `state-dir.js` helpers + consumer rollout via ADR-028/032) |
+| 025 | Caller-level fail-open cascade in `decide()` | Implemented (reconciled 2026-06-12; commit 7618e0d + 40784ca) |
 | 026 | Receipt commandClass/irHash rebaseline | Accepted |
 | 027 | Decision-key raw-only classification | Accepted |
-| 028 | State-dir validation: remaining consumers | **Proposed** |
-| 029 | Pin-store corruption = silent full reset | **Proposed** |
+| 028 | State-dir validation: remaining consumers | Implemented (reconciled 2026-06-12; commit 095c2ba) |
+| 029 | Pin-store corruption = silent full reset | Implemented (reconciled 2026-06-12; commit acb524f) |
 | 030 | Unguarded advisory calls in `decide()` | Implemented |
 | 031 | Load-bearing pre-floor input reads | Implemented |
-| 032 | State-dir consumers full sweep | **Partially Implemented** |
+| 032 | State-dir consumers full sweep | Implemented (closed 2026-06-12; PRs #119/#120 had both shipped 2026-06-03) |
 | 033 | MCP-pin stateDir fallback | Implemented |
 | 034 | MCP inbound response inspection | Implemented |
 | 035 | Consent gate (§8) | Implemented |
@@ -1007,10 +1007,10 @@ owner's memo referenced "ADR-048" for it, but that number was already allocated 
 | 049 | Default-posture graduation policy (Q2) | Accepted (policy) |
 | 050 | Tamper-floor scoping — installed guard only (Q7) | Accepted (design decision) |
 
-**Decision-debt to close before 0.3.0** (§16, §19 #7, G14): the 8 bold **Proposed** rows above plus ADR-032's
-half-closed status and ADR-048's open design question. Caveat: some Proposed headers may lag shipped behavior (ADR-024/
-028 state-dir conventions are visible in CHANGELOG implementation entries) — closing means *reconciling header against
-reality with evidence*, not bulk-flipping statuses.
+**Decision-debt status (reconciled 2026-06-12** — §16, §19 #7, G14): the Phase-0 evidence-based reconciliation flipped
+022B/023/024/025/028/029 to Implemented (each ADR header cites its implementing commit) and closed ADR-032 (PRs
+#119/#120 had both shipped 2026-06-03). Remaining open before 0.3.0: ADR-019 (PLAN Phase 1 implements it), ADR-022A
+(gate strengthening, owner decision), ADR-048 (F4 demotion design — owner queue). Collisions stay frozen as A/B.
 
 ---
 

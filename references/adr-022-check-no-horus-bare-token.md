@@ -1,6 +1,8 @@
 # ADR-022 — Strengthen `check-no-horus.sh` to catch bare lowercase `horus`
 
-- **Status:** Proposed (2026-05-30)
+- **Status:** Proposed (2026-05-30) — re-affirmed genuinely open 2026-06-12 (Phase-0 ledger reconciliation): the gate
+  still checks only the existing token shapes (env prefix, state-dir, contract prefix, brand string, uppercase acronym);
+  no bare lowercase word-boundary check exists. The PR #85 residue cleanup was a separate, pre-dating change.
 - **Owner decision required:** yes — tightens a CI gate's strictness (could flag future legitimate uses).
 
 ## Problem
