@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<!-- THROWAWAY DESIGN SPIKE — not the real build. See spikes/control-plane/README.md and references/UI-DESIGN.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lilara Control Plane — THROWAWAY SPIKE</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#c9d1d9; --dim:#8b949e;
+    --green:#3fb950; --amber:#d29922; --red:#f85149; --blue:#58a6ff; --purple:#bc8cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Consolas,monospace}
+  .spike{background:var(--amber);color:#000;text-align:center;font-weight:700;padding:6px}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-size:16px;margin:0 12px 0 0}
+  .chip{border:1px solid var(--line);border-radius:10px;padding:1px 9px;font-size:12px;color:var(--dim)}
+  .chip.off{color:var(--amber);border-color:var(--amber)}
+  .chip.obs{color:var(--blue);border-color:var(--blue)}
+  .grow{flex:1}
+  .kill{background:var(--red);color:#fff;border:0;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px}
+  nav{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 10px}
+  nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);padding:9px 14px;cursor:pointer;font:inherit}
+  nav button.on{color:var(--fg);border-bottom-color:var(--blue)}
+  main{padding:16px;max-width:1100px;margin:0 auto}
+  .view{display:none}.view.on{display:block}
+  table{width:100%;border-collapse:collapse;margin:8px 0}
+  th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;font-size:13px}
+  th{color:var(--dim);font-weight:600}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .card h3{margin:0 0 6px;font-size:14px}
+  .s-run{color:var(--green)} .s-un{color:var(--purple)} .s-stop{color:var(--dim)} .s-reg{color:var(--blue)}
+  .s-consent{color:var(--amber);font-weight:700}
+  .btn{background:#21262d;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;font-size:12px}
+  .btn.warn{border-color:var(--red);color:var(--red)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;border-style:dashed}
+  .note{color:var(--dim);font-size:12px}
+  .deferred{color:var(--amber);font-size:11.5px}
+  .red{color:var(--red)} .grn{color:var(--green)} .amb{color:var(--amber)}
+  .floor{border:1px solid var(--purple);color:var(--purple);border-radius:9px;padding:0 7px;font-size:11.5px}
+  .pulse{animation:p 1.4s infinite}@keyframes p{50%{background:#2d2308}}
+  .split{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .banner{border:1px solid var(--blue);border-radius:8px;padding:8px 12px;color:var(--dim);font-size:12.5px;margin-bottom:10px}
+  dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:18px;min-width:340px}
+  dialog::backdrop{background:#000a}
+  dialog label{display:block;margin:8px 0 2px;color:var(--dim);font-size:12px}
+  dialog input,dialog select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px;border-radius:5px;font:inherit}
+  .redact{color:var(--dim);font-style:italic}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;font-size:12.5px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="spike">THROWAWAY DESIGN SPIKE — not the real build (§23.A is sequenced last; see references/UI-DESIGN.md)</div>
+
+<header>
+  <h1>Lilara Control Plane</h1>
+  <span class="chip off">ENFORCE: off</span>
+  <span class="chip off">CONSENT: off</span>
+  <span class="chip off">F28: off</span>
+  <span class="chip off">F29: off</span>
+  <span class="chip obs">F23: observe</span>
+  <span class="grow"></span>
+  <span class="note"><span class="dot"></span>SSE live</span>
+  <button class="kill" onclick="killSwitch()">KILL SWITCH</button>
+</header>
+
+<nav id="nav"></nav>
+
+<main>
+  <!-- 1 ─ FLEET ──────────────────────────────────────────────────────────── -->
+  <section class="view" data-v="Fleet / Registry">
+    <div class="banner">Launch always wraps the tool with its Lilara adapter — the guard fronts every action. Stop and
+    kill are <b>narrowing</b> actions and stay enabled. Registration writes the registry (widening-adjacent): the form
+    is shown, submission is <b>disabled in v1 web</b>.</div>
+    <div class="cards" id="fleet"></div>
+    <p><button class="btn" onclick="dlg.showModal()">Register tool…</button></p>
+  </section>
+
+  <!-- 2 ─ QUEUE ──────────────────────────────────────────────────────────── -->
+  <section class="view" data-v="Live Queue">
+    <table>
+      <thead><tr><th>task</th><th>tool</th><th>state</th><th>elapsed</th><th>last decision</th><th>actions</th></tr></thead>
+      <tbody id="queue"></tbody>
+    </table>
+    <p class="note">A parked <span class="s-consent">waiting-on-consent</span> task is answered <b>on the controlling
+    terminal</b>. The web surface can deny/stop (narrowing) but can never approve (widening) until
+    approver-authentication is designed.</p>
+  </section>
+
+  <!-- 3 ─ DECISIONS ──────────────────────────────────────────────────────── -->
+  <section class="view" data-v="Decisions &amp; Floors">
+    <div class="split">
+      <div class="panel">
+        <h3>Live decision feed</h3>
+        <table><thead><tr><th>time</th><th>tool</th><th>action class</th><th>floor</th><th>decision</th></tr></thead>
+        <tbody id="feed"></tbody></table>
+      </div>
+      <div class="panel">
+        <h3>Floor fires (24h)</h3>
+        <table><tbody id="fires"></tbody></table>
+        <p class="note">All payload fields pass the redaction layer before they reach this page.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 ─ RECEIPTS ───────────────────────────────────────────────────────── -->
+  <section class="view" data-v="Receipts / Audit">
+    <div class="banner">Served read-only via the redaction layer; the server <b>fails closed</b> (refuses journal data)
+    if the redactor is unavailable.</div>
+    <table>
+      <thead><tr><th>session</th><th>time</th><th>floor</th><th>decision</th><th>irHash</th></tr></thead>
+      <tbody id="receipts"></tbody>
+    </table>
+    <h3>Receipt detail (selected)</h3>
+    <pre id="receiptDetail"></pre>
+  </section>
+
+  <!-- 5 ─ GRANTS & POSTURE ───────────────────────────────────────────────── -->
+  <section class="view" data-v="Grants &amp; Posture">
+    <div class="split">
+      <div class="panel">
+        <h3>Active consent grants</h3>
+        <table><thead><tr><th>scope</th><th>session</th><th>age</th><th></th></tr></thead><tbody id="grants"></tbody></table>
+        <p class="note">Revoke is narrowing — always allowed. Minting a new grant is widening — happens only in the
+        consent flow on the controlling terminal.</p>
+      </div>
+      <div class="panel">
+        <h3>Default posture (live)</h3>
+        <table><thead><tr><th>control</th><th>value</th><th>out-of-the-box effect</th></tr></thead><tbody id="posture"></tbody></table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <h3 style="margin-top:0">Register tool</h3>
+  <label>name</label><input value="hermes" >
+  <label>adapter</label>
+  <select><option>hermes</option><option>claude</option><option>openclaw</option><option>antegravity</option></select>
+  <label>working dir</label><input value="~/projects/sample">
+  <p class="deferred">Submit requires approver-authentication — deferred. Register via lilara-cli / TUI on the host.</p>
+  <button class="btn" disabled title="requires approver-authentication — deferred">Register (disabled)</button>
+  <button class="btn" onclick="dlg.close()">Close</button>
+</dialog>
+
+<script>
+// ── all data below is FAKE and hardcoded — this spike makes no network calls ──
+const R = s => `<span class="redact">‹redacted: ${s}›</span>`;
+const DATA = {
+  fleet: [
+    {n:"Claude Code", a:"claude",      s:"running",        cls:"s-run",  up:"2h 14m", last:"allow (file-write)"},
+    {n:"OpenClaw",    a:"openclaw",    s:"unattended 14h", cls:"s-un",   up:"14h 02m",last:"consent-required (F18)"},
+    {n:"Hermes",      a:"hermes",      s:"registered",     cls:"s-reg",  up:"—",      last:"—"},
+    {n:"Antigravity", a:"antegravity", s:"stopped",        cls:"s-stop", up:"—",      last:"allow (read)"},
+  ],
+  queue: [
+    {t:"refactor api layer",            tool:"Claude Code", s:"running",            cls:"s-run",     e:"00:41:12", d:"allow"},
+    {t:"nightly dependency sweep",      tool:"OpenClaw",    s:"waiting-on-consent", cls:"s-consent", e:"00:03:55", d:"consent-required · F18 network-egress", consent:true},
+    {t:"docs consistency pass",         tool:"Claude Code", s:"queued",             cls:"s-stop",    e:"—",        d:"—"},
+    {t:"delete build artifacts (coordinated)", tool:"OpenClaw", s:"done",           cls:"s-run",     e:"00:00:48", d:"allow · snapshot taken"},
+  ],
+  feed: [
+    {t:"03:12:09", tool:"openclaw", a:"network-egress",  f:"F18", d:"consent-required", c:"amb"},
+    {t:"03:11:58", tool:"claude",   a:"file-write",      f:"",    d:"allow",            c:"grn"},
+    {t:"03:11:31", tool:"claude",   a:"outbound payload",f:"F27", d:"block",            c:"red", note:"secret-egress-external"},
+    {t:"03:10:09", tool:"openclaw", a:"file-read",       f:"F10", d:"warn",             c:"amb", note:"taint window overlap"},
+    {t:"03:08:44", tool:"claude",   a:"command",         f:"",    d:"allow",            c:"grn"},
+  ],
+  fires: [["F18 network-egress",7],["F10 taint-floor",4],["F27 secret-egress-external",1],["F20 change-intent-drift",1],["F29 destructive-delete-coord",1]],
+  receipts: [
+    {s:"s-9f21", t:"03:11:31", f:"F27", d:"block",            h:"a1b2c3…"},
+    {s:"s-9f21", t:"03:12:09", f:"F18", d:"consent-required", h:"d4e5f6…"},
+    {s:"s-77ab", t:"02:54:02", f:"—",   d:"allow",            h:"0719aa…"},
+  ],
+  grants: [
+    {sc:"files: project tree (edit)",       se:"s-9f21", age:"2h 10m"},
+    {sc:"egress: registry host (read-only)",se:"s-77ab", age:"41m"},
+  ],
+  posture: [
+    ["LILARA_ENFORCE","0 (off)","no floor halts execution — block decisions warn and exit 0"],
+    ["LILARA_CONSENT","off","no interactive stop-and-ask"],
+    ["LILARA_TAINT_EGRESS","unset (off)","F28 cross-call credential egress not evaluated"],
+    ["LILARA_DELETE_COORD","unset (off)","F29 delete-coordination not evaluated; no pre-delete snapshot"],
+    ["LILARA_KILL_CHAIN_ENFORCE","unset (observe)","F23 journals but never blocks"],
+    ["notifications.enabled","false","no outbound notify"],
+    ["LILARA_TELEMETRY","on (local-only)","internal events to local telemetry log; never egresses"],
+  ],
+};
+
+const views = [...document.querySelectorAll(".view")];
+const nav = document.getElementById("nav");
+views.forEach((v,i)=>{
+  const b=document.createElement("button"); b.innerHTML=v.dataset.v;
+  b.onclick=()=>{views.forEach(x=>x.classList.remove("on"));nav.querySelectorAll("button").forEach(x=>x.classList.remove("on"));v.classList.add("on");b.classList.add("on");};
+  nav.appendChild(b); if(i===0){v.classList.add("on");b.classList.add("on");}
+});
+
+document.getElementById("fleet").innerHTML = DATA.fleet.map(f=>`
+  <div class="card"><h3>${f.n} <span class="${f.cls}">● ${f.s}</span></h3>
+  <div class="note">adapter: ${f.a} · up: ${f.up}<br>last: ${f.last}</div>
+  <p><button class="btn" ${f.s==="running"||f.s.startsWith("unattended")?"disabled title='already running'":""}>Launch (adapter-wrapped)</button>
+  <button class="btn warn" ${f.s==="stopped"||f.s==="registered"?"disabled":""}>Stop</button></p></div>`).join("");
+
+document.getElementById("queue").innerHTML = DATA.queue.map(q=>`
+  <tr class="${q.consent?"pulse":""}"><td>${q.t}</td><td>${q.tool}</td><td class="${q.cls}">${q.s}</td><td>${q.e}</td><td>${q.d}</td>
+  <td>${q.consent?`<button class="btn" disabled title="requires approver-authentication — deferred">Approve</button>
+  <button class="btn warn">Deny / stop</button><div class="deferred">answer on the controlling terminal — web cannot approve</div>`:`<button class="btn warn" ${q.s==="done"?"disabled":""}>Stop</button>`}</td></tr>`).join("");
+
+document.getElementById("feed").innerHTML = DATA.feed.map(e=>`
+  <tr><td>${e.t}</td><td>${e.tool}</td><td>${e.a}${e.note?` <span class="note">(${e.note})</span>`:""}</td>
+  <td>${e.f?`<span class="floor">${e.f}</span>`:"—"}</td><td class="${e.c}">${e.d}</td></tr>`).join("");
+
+document.getElementById("fires").innerHTML = DATA.fires.map(f=>`<tr><td><span class="floor">${f[0]}</span></td><td>${f[1]}</td></tr>`).join("");
+
+document.getElementById("receipts").innerHTML = DATA.receipts.map(r=>`
+  <tr><td>${r.s}</td><td>${r.t}</td><td>${r.f==="—"?"—":`<span class="floor">${r.f}</span>`}</td><td>${r.d}</td><td>${r.h}</td></tr>`).join("");
+
+document.getElementById("receiptDetail").innerHTML =
+`{
+  "session": "s-9f21",
+  "decision": "block",
+  "floorFired": "secret-egress-external",
+  "actionClass": "outbound payload",
+  "target host": ${R("external hostname")},
+  "payload": ${R("credential-class C")},
+  "irHash": "a1b2c3…",
+  "contractRevision": 7,
+  "served via": "redaction layer (fail-closed)"
+}`;
+
+document.getElementById("grants").innerHTML = DATA.grants.map(g=>`
+  <tr><td>${g.sc}</td><td>${g.se}</td><td>${g.age}</td><td><button class="btn warn" onclick="this.closest('tr').remove()">Revoke</button></td></tr>`).join("");
+
+document.getElementById("posture").innerHTML = DATA.posture.map(p=>`
+  <tr><td>${p[0]}</td><td class="amb">${p[1]}</td><td class="note">${p[2]}</td></tr>`).join("");
+
+function killSwitch(){
+  if(confirm("KILL SWITCH — stop all guarded tools now?") && confirm("Confirm again: this halts every running task (narrowing action — always available)."))
+    alert("(spike) kill switch would engage LILARA_KILL_SWITCH=1 for all wrapped tools.");
+}
+const dlg = document.getElementById("dlg");
+</script>
+</body>
+</html>
