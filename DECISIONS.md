@@ -574,3 +574,10 @@ design tenets.
 so the policy took ADR-049.
 
 **Owner:** Khouly.
+
+**Addendum (2026-06-12, owner review of the R2 encoding):** R2 work verified, no revisions. Additionally decided:
+(a) SCOPE §19 #15 friction telemetry ACCEPTED → `[LOCKED]` — local-only/zero-egress counters (prompts-per-task,
+re-prompts inside a granted scope = P2 defect target zero, grant-to-first-action time, operator-marked false stops),
+feeding both the ADR-049 graduation gates and the L2/L4/L3 loop as guard-routed suggestion-only proposals (never
+auto-applied); (b) SCOPE §19 #11–#13 explicitly labeled DEFERRED PROPOSALS (placeholders, not commitments);
+(c) PRs #164 and #165 approved to merge, #164 first.

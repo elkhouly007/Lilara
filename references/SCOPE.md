@@ -701,21 +701,24 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
     against a committed baseline (`artifacts/scope-locked-baseline.sha256`) so any edit or deletion of locked text fails
     CI unless the baseline is updated in the same reviewed diff; locked-tag count cannot silently decrease. *Meta-process;
     protects the tag semantics this document depends on.*
-11. **`[CC-PROPOSED]` — Data-retention policy for `~/.lilara` state (stub).** The state dir accumulates
+11. **`[CC-PROPOSED]` — Data-retention policy for `~/.lilara` state. *DEFERRED PROPOSAL — placeholder, not a
+    commitment; nothing is planned until the owner accepts it and PLAN Phase 4 drafts the full policy.*** The state dir accumulates
     `decision-journal.jsonl` (rotated), consent grants, operator tokens, session context, snapshots, telemetry — with no
     stated retention/pruning/audit-deletion policy. Propose: journal = long-term auditable record with redaction tooling
     (ADR-041/045 already exist); grants/tokens = operator-managed revocation, no silent expiry; snapshots/telemetry =
     age-bounded pruning via an explicit CLI command, never automatic deletion of audit material. Full policy to be
     drafted in PLAN.md Phase 4 (L2) where memory raises the privacy stakes. *Extends §11's architectural-privacy stance.*
-12. **`[CC-PROPOSED]` — Floor versioning & deprecation policy (stub).** "Get the safety core right once" (§18) needs a
+12. **`[CC-PROPOSED]` — Floor versioning & deprecation policy. *DEFERRED PROPOSAL — placeholder, not a commitment;
+    becomes binding only by owner acceptance.*** "Get the safety core right once" (§18) needs a
     growth rule: floor predicates may strengthen (fewer false-negatives) but never weaken under the same ID; adding/
     removing/reordering floors = lattice-hash rebaseline through the reviewed-baseline gate (#10, §19 #6); floors are
     deprecated (kept as no-op for one release cycle, noted in CHANGELOG + Appendix A) and never silently removed; replay
     corpus only ever extends, entries are never mutated. *Codifies practice already implied by §3/§18.*
-13. **`[CC-PROPOSED]` — Support matrix.** CI gates run on Node 20 (`.github/workflows/check.yml`); bench/perf baselines
+13. **`[CC-PROPOSED]` — Support matrix. *DEFERRED PROPOSAL — disclosure-level placeholder, not a commitment; becomes a
+    support guarantee only if the owner adopts it.*** CI gates run on Node 20 (`.github/workflows/check.yml`); bench/perf baselines
     are committed for Node 20 and 24 across Linux/macOS/Windows (incl. Windows slow-fs variants); six harness adapters
     are parity-gated. Propose stating this as the supported matrix: **Node ≥ 20 (CI-proven on 20 and 24), three OSes,
-    six harnesses** — so "works on my machine" has a defined boundary. *Disclosure; no new commitment until owner adopts.*
+    six harnesses** — so "works on my machine" has a defined boundary.
 14. **`[CC-PROPOSED]` — Posture flags become injected input to `decide()`.** `decide()` reads `LILARA_TAINT_EGRESS`,
     `LILARA_DELETE_COORD`, and `LILARA_KILL_CHAIN_ENFORCE` from ambient `process.env` (decision-engine.js), and the
     replay harness (`scripts/replay-decisions.js`) does not pin them — purity currently holds *modulo unpinned env*
@@ -724,16 +727,18 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
     Until then: pin all three flags in the replay harness, and require a posture-matrix replay (corpus green under both
     postures) before any default flip. *Hardens the locked byte-identical-replay invariant; prerequisite for §19 #9 / Q2
     graduations.*
-15. **`[CC-PROPOSED]` — Friction telemetry: make the anti-nag contract (P2) measurable, and feed it to the learning
-    loop.** P0–P2 (§0.1) declare that friction is a defect — so measure it like one. Local-only counters (same posture
-    as `runtime/telemetry.js`: never egresses): (a) consent prompts per task; (b) **re-prompts inside an
-    already-granted scope — counted as a DEFECT (P2 violation), target zero**; (c) time from grant to first autonomous
+15. **`[LOCKED]` (accepted from `[CC-PROPOSED]` by owner, 2026-06-12) — Friction telemetry: make the anti-nag contract
+    (P2) measurable, and feed it to the learning loop.** P0–P2 (§0.1) declare that friction is a defect — so measure it
+    like one. **LOCAL-ONLY, zero egress** (same posture as `runtime/telemetry.js`: never egresses; must pass the §19 #5
+    typed egress-serializer allowlist once L2 lands): (a) consent prompts per task; (b) **re-prompts inside an
+    already-granted scope — counted as a DEFECT (P2 violation), target ZERO**; (c) time from grant to first autonomous
     action; (d) operator-marked false stops ("this block was wrong"). These become first-class quality signals next to
-    FP/FN: they feed the Phase-1 calibration (a floor whose enforcement would nag fails its graduation gate even at
-    zero FP), and they are exactly the outcome-feedback the L2/L4/L3 loop needs to make the tool *better with use* —
-    each friction event is a concrete, guard-routed improvement proposal (e.g. a better-shaped scope template), so the
-    product learns to get out of the user's way wherever it is safe to. *Serves P0 directly; instrumentation only; no
-    floor or replay surface touched.*
+    FP/FN, wired to BOTH consumers: (1) the **ADR-049 graduation gates** — a floor whose enforcement would nag fails
+    its graduation gate even at zero FP; (2) the **L2/L4/L3 loop** — each friction event becomes a concrete,
+    **guard-routed improvement PROPOSAL (suggestion-only, never auto-applied)**, e.g. a better-shaped scope template,
+    so the product learns to get out of the user's way wherever it is safe to. Delivery: harness-level counts in PLAN
+    Phase 1 calibration reports; durable counters land with L2 (PLAN Phase 4); consumed by L4/L3 (Phases 5/7).
+    *Serves P0 directly; instrumentation only; no floor or replay surface touched.*
 
 ---
 
@@ -869,6 +874,9 @@ under the same clean-room gate.
 > sections they touch. This table is the decision record. Policy ADRs created: **ADR-049** (default-posture
 > graduation, Q2) and **ADR-050** (tamper-floor scoping, Q7). Also decided in the same memo: the first-order design
 > tenets **P0–P2** (§0.1). Recorded as **D50** in `DECISIONS.md`.
+> **Follow-up acceptance (owner, 2026-06-12, on review of this revision):** §19 #15 friction telemetry promoted
+> `[CC-PROPOSED]` → `[LOCKED]` (local-only / zero egress, suggestion-only into the learning loop); §19 #11–#13 marked
+> as DEFERRED PROPOSALS (placeholders, not commitments).
 
 | Q | Touched | Decision (owner, 2026-06-12) |
 |---|---|---|
@@ -1007,8 +1015,9 @@ reality with evidence*, not bulk-flipping statuses.
 ---
 
 *End of authoritative scope. Status blocks reflect master `57089aa` (VERSION 0.2.1) as of 2026-06-12 (R2 review
-revision: status corrections verified against code; `[CC-PROPOSED]` additions in §18, §19 #10–#15, §20 G12–G14. R2.1:
+revision: status corrections verified against code; `[CC-PROPOSED]` additions in §18, §19 #10–#14, §20 G12–G14. R2.1:
 owner decisions Q1–Q7 encoded 2026-06-12 — tenets P0–P2 added as §0.1 `[LOCKED]`, §1.5 confirmed canonical, §24 is the
-decision record, ADR-049/ADR-050 created, ROADMAP.md archived). When code changes, update the relevant Status block and
+decision record, ADR-049/ADR-050 created, ROADMAP.md archived; §19 #15 friction telemetry accepted → `[LOCKED]`;
+§19 #11–#13 marked DEFERRED PROPOSALS). When code changes, update the relevant Status block and
 the GAP register; the rendered vision (and its `[LOCKED]` tags) changes only by owner decision — enforced by
 `scripts/check-scope-tags.sh`.*
