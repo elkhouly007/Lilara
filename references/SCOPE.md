@@ -406,6 +406,7 @@ largest architectural decision, sequenced LAST.
 approval channels are **NOT-YET** (deferred, as the vision requires). Guest→host inversion is **NOT-YET** (sequenced
 LAST). The "manage tools from one place" shell experience is realized today only as the per-harness adapter set (§17),
 not a unifying proxy — consistent with the `[ADVISORY]` "be middleware, not a CLI" pivot, which is not yet acted on.
+Owner direction **23.A** extends this guest→host inversion into a full control-plane / task-dashboard surface (§23 `[OPEN]`).
 
 ---
 
@@ -417,6 +418,9 @@ channels deferred; guest→host inversion last.
 **Status — on track.** Current VERSION is `0.2.1` (a hardening point release on top of the 0.2.0 safety-core lock). The
 sequencing matches the build order in §1. 0.3.0 (L2) has not started. The single carried-over 0.2.0 item is DoD #5
 (Hermes + real-run validation, §10).
+
+**Owner-raised forward directions** (control-plane / orchestration hub; study-and-rewrite best-in-class components) are
+tracked in **§23 `[OPEN]`** — the intent is owner-set; the design is open until sequenced.
 
 ---
 
@@ -630,6 +634,59 @@ one line per adversary: **vector → responding floor/mechanism → residual gap
 | (d) **Misbehaving / self-modifying agent loop** | L3 loop tries to weaken the guard gradually ("policy-laundering") or is steered by poisoned content | Inviolable tier unreachable by `learned-allow` (unreachability tests, §3, §12); self-improvement is suggestion-only, through the guard; hooks/adapters never auto-applied (§13) | L3 is NOT-YET (no code); the gradual-weakening regression gate is proposed, not built (§19 #6) |
 | (e) **Compromised host / tampered safety-core** | Attacker edits `runtime/` source or baseline files on the host | Out of the **runtime** model by design (§21 host-trust); mitigated by hash baselines (`lattice-baseline.sha256`) + CI gate `check-inviolable-tier.sh` at build/review time | No runtime floor fires on safety-core writes (G6; open question §19 #1) |
 | (f) **Supply chain** | A malicious dependency or upstream copy injects code | **Zero external dependencies** (no `package.json`; Node built-ins only, §18) removes the dependency attack surface; clean-room rewrite avoids upstream code | Tampering of Lilara's own committed source is row (e), not this; an npm-distribution package (if adopted, §16) would reintroduce a channel to secure |
+
+---
+
+## 23. Roadmap directions (owner-raised) `[OPEN]`
+
+> Owner-raised (Khouly) forward directions. These are **directions, not yet committed milestones** — the *intent* is
+> owner-set, the **design is `[OPEN]`** until sequenced. They **extend** the build order (§1) and the L5 shell (§14)
+> without changing any `[LOCKED]` decision. Inline `[LOCKED]` markers flag guardrails that are already settled and that
+> bind these directions.
+
+### 23.A — Lilara as a control plane / orchestration hub `[OPEN]`
+
+**Intent.** The user **registers** the external tools he wants (e.g. Claude Code, Antigravity, Hermes, OpenClaw) into
+Lilara, then either runs them *from* Lilara or has Lilara **run/launch** them on his behalf — while still seeing the live
+**task/queue**. Lilara becomes the **single surface** to control and leverage all his agents, with the **guard always in
+front of every wrapped tool's actions**.
+
+**How it builds on what exists.**
+- It is the **"guest→host inversion"** already named as the largest architectural decision, sequenced LAST (§14) — this
+  direction **extends** it from a wrapping mechanism into a full **control / task-dashboard surface**.
+- The **multi-harness adapter set** (§16, §17: claude, codex, openclaw, opencode, clawcode, antegravity) is the
+  **substrate** — registration and launch reuse the same per-harness adapters that already put the guard in front of
+  each tool.
+- Consistent with the **competitive stance `[LOCKED]`** (§16): Lilara is a control plane **over** OpenClaw/Hermes, not
+  subordinate to them — beachhead/dogfood now, control surface later.
+- Ties to the **L5 shell + inbound-channel work** (§14): a control plane the user drives needs the inbound approval
+  channel currently **DEFERRED** until approver-authentication is designed.
+
+**Design flag to record (not resolve) `[OPEN]`.** When Lilara **launches** other agents it stops being only a hook
+*inside* a host tool and becomes an **execution surface** itself. That **widens the host-trust / privilege boundary**
+(§21 host-trust non-goal; §22 row (e)) and makes **Lilara itself a higher-value target**. The direction is **on-mission**
+— everything then flows *behind* the guard, which is exactly the point — but it must be designed **deliberately**: the
+larger the surface Lilara runs, the more its own integrity (host-trust, baseline tamper-resistance, inbound-approval
+authentication) has to be hardened first. Recorded here as an open design constraint, not a resolved approach.
+
+### 23.B — Study strong existing repos → rewrite + redesign best-in-class components `[OPEN]`
+
+**Intent.** Survey powerful existing repositories and **reimplement best-in-class** hooks, skills, agents, runtime, and a
+**Hermes** layer, so Lilara becomes a tool people *want* — matching or exceeding the strongest prior art on capability
+while keeping the safety core intact.
+
+**License guardrail `[LOCKED]` (first-order, non-negotiable).** This direction MUST run through the **clean-room rewrite
+invariant** (§18) and the **no-AGPL/GPL/SSPL/BSL rule**:
+- **Read what a repo *does*, then reimplement WITHOUT looking at its source.** Behavior in, original code out.
+- **Check each source repo's license BEFORE drawing from it.** Any copyleft / BSL / source-available license is
+  **flagged before any code is touched, not after**.
+- **Quality-and-license, never copy.** The clean-room path protects *both* the no-copyleft rule *and* code quality — it
+  is a hard gate on this entire direction, not a guideline.
+
+This guardrail is already `[LOCKED]` in §1 (weekly loop: "NEVER copy-paste — always redesign and rewrite better") and
+§18 (clean-room rewrite); it is restated here because 23.B is precisely the activity that rule exists to govern. The
+Hermes layer named here is also the open half of 0.2.0 DoD #5 (§10, §17) — building it satisfies that carried-over item
+under the same clean-room gate.
 
 ---
 
