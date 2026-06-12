@@ -251,7 +251,7 @@ detectability.
 | Point | Status | Evidence |
 |---|---|---|
 | (a) Deterministic action guard | **BUILT** | All floors fire in `runtime/decision-engine.js`; signatures for exfil (F19/F27/F28), unauthorized access (F17), MCP danger (F25/F26), deletion (F29). |
-| (b) Model content contract | **NOT-YET / GAP** | **No artifact exists in the repo** — no prompt template, content-policy file, or documented model instruction enforcing refusal. The whole content-harm surface (§6, plus CSAM and suicide-method refusal from §7) has no representation. See §19 #2. |
+| (b) Model content contract | **PARTIAL** | **Artifact exists:** `references/CONTENT-CONTRACT.md` (v1.0.0, 2026-06-12) encodes the clean-refusal shape, the decoy fake-all-the-way-down hard constraint, the sexual-content carve-out, the absolute tier (CSAM absolute-refusal-only; suicide-method refusal + generic crisis-support behavior), a canonical instruction template, and a red-team checklist. **Wiring NOT-YET** — the template is not installed on any harness surface (safety-boundary change; human-approved, separate PR). See §19 #2. |
 | (c) Action-gating: deterministic lattice precedence + consent gate | **BUILT** | The lattice + consent gate gate irreversible external actions and can only `block` or route to `consent-required` (`enforcementFor()` in `runtime/decision-lattice.js`); `runtime/floor-consent.js` fails closed and **never auto-allows** (default route = block; any error = block). Vision naming aligned to code by owner decision Q3 (2026-06-12); the former "advisory classifier" name is retired. |
 
 ---
@@ -267,12 +267,12 @@ Categories (enforced at **generation + action-gating**, NOT as deterministic Nod
   all the way down — ZERO real dangerous specifics.** Decoy scope = functional-harm categories ONLY. **Sexual content is
   NOT decoy-eligible** (clean refusal regardless of framing).
 
-**Status — NOT-YET / GAP-vs-vision.** None of these categories, and no "decoy"/"non-functional" mechanism, exist anywhere
-in the repo (code, templates, schemas). This is *correct* for the Node guard (it is content-blind by design — the action
-`curl https://x` reveals nothing about content), but it is a **GAP** because enforcement point (b) — the layer that is
-*supposed* to own these — has **no artifact at all** (see §5(b), §19 #2). The sexual-content carve-out and the
-"fake-all-the-way-down" constraint are likewise unrepresented. Until (b) exists, the content-harm surface is governed
-only by whatever the underlying model does on its own, with nothing checked into Lilara.
+**Status — PARTIAL (specified, not enforced).** The categories, the decoy/"non-functional" mechanism, the sexual-content
+carve-out, and the "fake-all-the-way-down" hard constraint are now **specified** in `references/CONTENT-CONTRACT.md`
+(v1.0.0, with a canonical instruction template and red-team checklist) — enforcement point (b) finally has an artifact
+(§5(b), §19 #2). The Node guard remains content-blind by design — correct and unchanged. **Generation-layer enforcement
+is still NOT-YET:** the template is not installed on any harness surface, so at runtime the content-harm surface is
+still governed by whatever the underlying model does on its own. Remaining delta: the wiring (G2) + dependent floors (G3).
 
 ---
 
@@ -294,9 +294,9 @@ separately.
 
 | Vision floor | Real floor in code | Status |
 |---|---|---|
-| CSAM (top-priority, mandatory-report) | — | **NOT-YET / GAP** (content-layer; belongs to enforcement point (b), which has no artifact). |
+| CSAM (top-priority, mandatory-report) | — | **PARTIAL / specified-only** (content-layer; absolute-refusal-only behavior specified in `CONTENT-CONTRACT.md` §7.1 — the contract encodes refusal exclusively; reporting stays an out-of-band, jurisdiction-dependent legal matter, never a Lilara egress path; no generation-layer wiring yet). |
 | `TAMPER_WITH_SAFETY_CORE` | inviolable-tier *property* (no runtime floor of this name) | **PARTIAL / GAP** — property enforced at CI/build-time + structurally; no runtime floor. See §3, §19 #1. |
-| Suicide/self-harm methods (+ crisis resources) | — | **NOT-YET / GAP** (content-layer; no artifact). |
+| Suicide/self-harm methods (+ crisis resources) | — | **PARTIAL / specified-only** (content-layer; refuse-methods + generic, non-region-specific crisis-support behavior specified in `CONTENT-CONTRACT.md` §7.2; no generation-layer wiring yet). |
 | `EXFIL_PERSONAL_DATA_OF_OTHERS` | F27 `secret-egress-external` (single-call), F28 `taint-egress-consent` (cross-call) | **PARTIAL** — only the credential/key-class subset; general personal data is not detectable at the boundary. |
 | `PUBLISH_PRIVATE_DATA_OF_OTHERS` | — | **NOT-YET** (no floor distinguishes "publish" content). |
 | `PUBLISH_INTIMATE_IMAGERY_OF_REAL_PEOPLE` | — | **NOT-YET** (content-layer). |
@@ -657,7 +657,7 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
    testable artifact (e.g. `references/CONTENT-CONTRACT.md` + a prompt/instruction template) that encodes the clean-
    refusal, the fake-all-the-way-down decoy constraint, the sexual-content carve-out, and the crisis-resource behavior —
    so (b) is a real thing the project owns and can red-team, not an unwritten assumption about the underlying model.
-   *Extends; does not revisit the locked three-points.*
+   *Extends; does not revisit the locked three-points.* **Landed (2026-06-12):** `references/CONTENT-CONTRACT.md` v1.0.0 — clean-refusal shape, decoy fake-all-the-way-down hard constraint, sexual-content carve-out, absolute tier (CSAM absolute-refusal-only with an explicit no-reporting-mechanics non-goal; suicide-method refusal + generic crisis-support behavior), canonical instruction template, red-team checklist. The third-party-harm remainder appears only as a PROPOSED section pending #4; wiring the template into a harness surface remains open (G2 → Med-High).
 3. **`[CC-PROPOSED]` — A "hard-exceptions benchmark" with explicit false-stop / false-allow budgets.** 0.2.0 DoD #5
    requires measuring FP/FN at the three hard exceptions on real runs; the eval corpus exists but ADR-019 (corpus shape
    coverage) is still *Proposed* and the gate runs at loose defaults. Propose a named eval slice that exercises each hard
@@ -747,8 +747,8 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 | # | Item | Vision says | Reality | Severity |
 |---|---|---|---|---|
 | G1 | Victim-aware enforcement (§4) | HARM_OTHERS hard-block vs HARM_SELF warn-then-obey | Not in code; only credential-egress (F27/F28) touches multi-party harm; content-blind | **High** |
-| G2 | Model content contract (§5b, §6) | Generation-layer refusal + decoy artifact | No artifact in repo at all | **High** |
-| G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | NOT-YET (depend on G2) | **High** |
+| G2 | Model content contract (§5b, §6) | Generation-layer refusal + decoy artifact | Artifact landed (`references/CONTENT-CONTRACT.md` v1.0.0: refusal shape, decoy hard constraint, carve-out, absolute tier, instruction template, red-team checklist); instruction wiring into harness surfaces NOT-YET | **Med-High** |
+| G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | Specified in CONTENT-CONTRACT.md (CSAM + suicide-methods settled; the third-party set is a PROPOSED section pending §19 #4); no generation-layer enforcement yet (depends on G2 wiring) | **High** |
 | G4 | Hard-exception #1 coverage (§4, §7) | "Personal data to an external party = no" | Only credential/secret subset enforced | **Med-High** |
 | G5 | 0.2.0 DoD #5 (§10, §17) | Hermes adapter + real-run FP/FN at hard exceptions | Hermes absent; no measured error rates | **Med-High** |
 | G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name. Scoping decided (Q7, ADR-050): inviolable runtime floor over the installed guard under `~/.lilara`; build in PLAN Phase 3 | **Med** |
