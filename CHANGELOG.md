@@ -8,6 +8,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs — content red lines + SCOPE §19 #4 closure (ADR-051)
+
+- **docs(scope+content-contract): close SCOPE §19 #4; elevate two content red lines to the absolute tier (ADR-051)** —
+  Reframes L1 hard-exceptions HX1/HX2/HX3 as the content-blind Node guard's deterministic *mechanical* stops (the
+  deterministic egress guarantee is the credential/secret subset F27/F28); routes general third-party PII to
+  enforcement point (b). Elevates **Red Line A** (sexual/nude/explicit content — flat refusal, no carve-out, no medical
+  exception) and **Red Line B** (fabricated/manipulated depiction of a real specific person — blanket refusal) to the
+  absolute tier in `references/CONTENT-CONTRACT.md` (→ **v1.1.0**), removing the prior sexual-content carve-out and
+  merging the former §8 third-party set into §5/§9. Recorded in SCOPE §7 as **two new `[LOCKED]` lines** (locked count
+  43→45; `artifacts/scope-locked-baseline.sha256` rebaselined in the same diff); every pre-existing `[LOCKED]` line is
+  byte-identical; no `decide()` / replay / lattice change. Point (b) enforcement remains **doc-only** (G2/G3) — a
+  binding statement of intent, not yet wired. See `references/adr-051-content-red-lines-and-hx-reframe.md` and
+  DECISIONS.md D51.
+
 ---
 
 ## [0.2.1] — 2026-06-11

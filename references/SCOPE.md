@@ -107,7 +107,12 @@ shell) is **NOT-YET** — see §11–14.
 
 `[CC-PROPOSED]` **Hard-exception naming.** The three fixed hard exceptions in L1 above are referred to elsewhere in this
 document by stable IDs: **HX1** = personal data leaving to an external party; **HX2** = personal data leaving the
-machine; **HX3** = deletion without coordination. (Naming only — the locked wording above is the definition.)
+machine; **HX3** = deletion without coordination. (Naming only — the locked wording above is the definition.) HX1–HX3
+are the content-blind Node guard's deterministic **mechanical** stops — *not* the product's ethical red lines. The
+guard's deterministic egress guarantee is the **credential/secret subset (F27/F28)** only; general third-party personal
+data is routed to enforcement point (b) (the content layer), not covered by the content-blind guard. The product's
+inviolable *content* red lines live at point (b) (§7), never in this L1 list. (Owner decision 2026-06-13 — ADR-051;
+§19 #4 reconciliation.)
 
 **Build order `[LOCKED]`:** L1 (consent) → thin L5 consent transport → L2 memory → L4 skills → L3 self-improvement LAST.
 **Moat = the CORE.** Orchestration + shell are commodity.
@@ -228,8 +233,12 @@ code.* A repo-wide search for `HARM_OTHERS` / `HARM_SELF` / victim-classificatio
   victim-classification layer at all.
 
 The vision is preserved verbatim above; the code reality is that **victim-aware enforcement is doc-only**, realized today
-only as the credential-egress subset. See §19 #4 for a `[CC-PROPOSED][OPEN]` reconciliation of hard-exception #1's
-detectability.
+only as the credential-egress subset. **Honest scope (owner decision 2026-06-13 — ADR-051, closing §19 #4):** the
+deterministic egress guarantee is precisely the **credential/secret subset (F27/F28)**; HX1/HX2/HX3 are the
+content-blind guard's deterministic *mechanical* stops, not the product's ethical red lines. General third-party
+personal data carries no ownership signal at the tool boundary and is **routed to enforcement point (b)**
+(`CONTENT-CONTRACT.md`), never implied as covered by the content-blind guard. The product's inviolable *content* red
+lines live at point (b)'s absolute tier (§7), not in this L1 model.
 
 ---
 
@@ -251,7 +260,7 @@ detectability.
 | Point | Status | Evidence |
 |---|---|---|
 | (a) Deterministic action guard | **BUILT** | All floors fire in `runtime/decision-engine.js`; signatures for exfil (F19/F27/F28), unauthorized access (F17), MCP danger (F25/F26), deletion (F29). |
-| (b) Model content contract | **PARTIAL** | **Artifact exists:** `references/CONTENT-CONTRACT.md` (v1.0.0, 2026-06-12) encodes the clean-refusal shape, the decoy fake-all-the-way-down hard constraint, the sexual-content carve-out, the absolute tier (CSAM absolute-refusal-only; suicide-method refusal + generic crisis-support behavior), a canonical instruction template, and a red-team checklist. **Wiring NOT-YET** — the template is not installed on any harness surface (safety-boundary change; human-approved, separate PR). See §19 #2. |
+| (b) Model content contract | **PARTIAL** | **Artifact exists:** `references/CONTENT-CONTRACT.md` (v1.1.0, 2026-06-13) encodes the clean-refusal shape, the decoy fake-all-the-way-down hard constraint, and the **absolute-refusal tier** — CSAM; **sexual/nude/explicit content** (flat refusal, any subject real or fictional, no carve-out — Red Line A); **fabricated depiction of a real specific person** (blanket refusal — Red Line B); suicide-method refusal + generic crisis-support behavior — plus a canonical instruction template and a red-team checklist. **Wiring NOT-YET** — the template is not installed on any harness surface (safety-boundary change; human-approved, separate PR). See §19 #2/#4. |
 | (c) Action-gating: deterministic lattice precedence + consent gate | **BUILT** | The lattice + consent gate gate irreversible external actions and can only `block` or route to `consent-required` (`enforcementFor()` in `runtime/decision-lattice.js`); `runtime/floor-consent.js` fails closed and **never auto-allows** (default route = block; any error = block). Vision naming aligned to code by owner decision Q3 (2026-06-12); the former "advisory classifier" name is retired. |
 
 ---
@@ -267,12 +276,13 @@ Categories (enforced at **generation + action-gating**, NOT as deterministic Nod
   all the way down — ZERO real dangerous specifics.** Decoy scope = functional-harm categories ONLY. **Sexual content is
   NOT decoy-eligible** (clean refusal regardless of framing).
 
-**Status — PARTIAL (specified, not enforced).** The categories, the decoy/"non-functional" mechanism, the sexual-content
-carve-out, and the "fake-all-the-way-down" hard constraint are now **specified** in `references/CONTENT-CONTRACT.md`
-(v1.0.0, with a canonical instruction template and red-team checklist) — enforcement point (b) finally has an artifact
-(§5(b), §19 #2). The Node guard remains content-blind by design — correct and unchanged. **Generation-layer enforcement
-is still NOT-YET:** the template is not installed on any harness surface, so at runtime the content-harm surface is
-still governed by whatever the underlying model does on its own. Remaining delta: the wiring (G2) + dependent floors (G3).
+**Status — PARTIAL (specified, not enforced).** The categories, the decoy/"non-functional" mechanism, **sexual/explicit
+content elevated to the absolute tier (Red Line A; the prior carve-out is removed)**, and the "fake-all-the-way-down"
+hard constraint are now **specified** in `references/CONTENT-CONTRACT.md` (v1.1.0, with a canonical instruction template
+and red-team checklist) — enforcement point (b) finally has an artifact (§5(b), §19 #2/#4). The Node guard remains
+content-blind by design — correct and unchanged. **Generation-layer enforcement is still NOT-YET:** the template is not
+installed on any harness surface, so at runtime the content-harm surface is still governed by whatever the underlying
+model does on its own. Remaining delta: the wiring (G2) + dependent floors (G3).
 
 ---
 
@@ -281,6 +291,9 @@ still governed by whatever the underlying model does on its own. Remaining delta
 **Absolute (never decoy-eligible, never demotable):** CSAM (separate top-priority, likely legal mandatory-report);
 `TAMPER_WITH_SAFETY_CORE`; Suicide/self-harm methods (EXCEPTION to the HARM_SELF "warn then obey" rule — refuse method
 info + surface crisis resources, do NOT obey).
+
+**Sexual/nude/explicit content `[LOCKED]`** (enforcement point (b), absolute tier — Red Line A): not generated — flat refusal for any subject (real or fictional), in any medium; no carve-out and no medical/clinical exception; never decoy-eligible, never demotable. Enforced entirely at the content layer (`CONTENT-CONTRACT.md` §7.2), never as an L1 deterministic floor.
+**Fabricated depiction of a real specific person `[LOCKED]`** (enforcement point (b), absolute tier — Red Line B): blanket refusal of any compositing, face-swap, deepfake, montage, or fabrication that places a named or identifiable real person in a scene, pose, or situation that did not occur (fabrication = misrepresentation/deception of a real person). Blanket by design — benign-looking edits are refused too, because separating benign from harmful needs intent the system cannot verify; not conditioned on consent or on fame (the private-individual case is the priority); a generic, non-identifiable person is general policy, not this red line. Enforced entirely at the content layer (`CONTENT-CONTRACT.md` §7.3), never as an L1 deterministic floor.
 
 **HARM_OTHERS group (victim definitional or deterministically detected):** `EXFIL_PERSONAL_DATA_OF_OTHERS`,
 `PUBLISH_PRIVATE_DATA_OF_OTHERS`, `PUBLISH_INTIMATE_IMAGERY_OF_REAL_PEOPLE`, `COVERT_SURVEILLANCE`,
@@ -296,10 +309,12 @@ separately.
 |---|---|---|
 | CSAM (top-priority, mandatory-report) | — | **PARTIAL / specified-only** (content-layer; absolute-refusal-only behavior specified in `CONTENT-CONTRACT.md` §7.1 — the contract encodes refusal exclusively; reporting stays an out-of-band, jurisdiction-dependent legal matter, never a Lilara egress path; no generation-layer wiring yet). |
 | `TAMPER_WITH_SAFETY_CORE` | inviolable-tier *property* (no runtime floor of this name) | **PARTIAL / GAP** — property enforced at CI/build-time + structurally; no runtime floor. See §3, §19 #1. |
-| Suicide/self-harm methods (+ crisis resources) | — | **PARTIAL / specified-only** (content-layer; refuse-methods + generic, non-region-specific crisis-support behavior specified in `CONTENT-CONTRACT.md` §7.2; no generation-layer wiring yet). |
+| Suicide/self-harm methods (+ crisis resources) | — | **PARTIAL / specified-only** (content-layer; refuse-methods + generic, non-region-specific crisis-support behavior specified in `CONTENT-CONTRACT.md` §7.4; no generation-layer wiring yet). |
+| Sexual/nude/explicit content (Red Line A) | — | **PARTIAL / specified-only** (content-layer; point (b) absolute tier, `CONTENT-CONTRACT.md` §7.2 — flat refusal, prior carve-out removed; no generation-layer wiring yet). |
+| Fabricated depiction of a real specific person (Red Line B) | — | **PARTIAL / specified-only** (content-layer; point (b) absolute tier, `CONTENT-CONTRACT.md` §7.3 — blanket refusal; no generation-layer wiring yet). |
 | `EXFIL_PERSONAL_DATA_OF_OTHERS` | F27 `secret-egress-external` (single-call), F28 `taint-egress-consent` (cross-call) | **PARTIAL** — only the credential/key-class subset; general personal data is not detectable at the boundary. |
 | `PUBLISH_PRIVATE_DATA_OF_OTHERS` | — | **NOT-YET** (no floor distinguishes "publish" content). |
-| `PUBLISH_INTIMATE_IMAGERY_OF_REAL_PEOPLE` | — | **NOT-YET** (content-layer). |
+| `PUBLISH_INTIMATE_IMAGERY_OF_REAL_PEOPLE` | — | **PARTIAL / specified-only** — subsumed by Red Lines A + B at the absolute tier (`CONTENT-CONTRACT.md` §7.2/§7.3); no generation-layer wiring yet. |
 | `COVERT_SURVEILLANCE` | — | **NOT-YET**. |
 | `UNAUTHORIZED_ACCESS` | F17 `cross-agent-lock` | **PARTIAL** — only the cross-agent-lock dimension; no general access-control floor. |
 | `FRAUD_DECEPTION` | — | **NOT-YET**. |
@@ -665,13 +680,21 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
    committed FP/FN budgets, run as a release gate, **measured under a declared flags-on posture** (at defaults F28/F29
    are inert — §18 Default posture — so default-posture measurement would be degenerate). *Supports the locked DoD; adds
    instrumentation only.*
-4. **`[CC-PROPOSED][OPEN]` — Reconcile hard-exception #1 with what is deterministically detectable.** The vision's
+4. **`[CC-PROPOSED]` — Reconcile hard-exception #1 with what is deterministically detectable.** The vision's
    hard-exception #1 ("personal data leaving to an external party = no") is realized today only for the credential/key-
    class subset (F27/F28); general third-party personal data is byte-identical to the user's own at the tool boundary
    (ADR-036's "no ownership signal"). *Open question (touches LOCKED §4):* state the deterministic guarantee precisely
    (credential/secret egress) and route the remainder of "personal data of others" to enforcement point (b), rather than
    implying the Node guard already covers all personal-data egress. Rationale: avoid a false sense of coverage; make the
    real boundary explicit.
+   **Resolved (owner decision, 2026-06-13 — ADR-051):** the deterministic egress guarantee is stated precisely as the
+   **credential/secret subset (F27/F28)**. HX1/HX2/HX3 are reframed as the content-blind Node guard's deterministic
+   **mechanical** stops (§1, §4) — *not* the product's ethical red lines. General third-party personal data has no
+   ownership signal at the tool boundary and is **routed to enforcement point (b)** (the content layer —
+   `CONTENT-CONTRACT.md` §5/§9), never implied as covered by the content-blind guard. The product's inviolable *content*
+   red lines (sexual/explicit content; fabricated depiction of a real specific person) live at point (b)'s absolute
+   tier (§7), and are **never** added to the L1 deterministic hard-exception list (that would falsely imply the
+   content-blind guard enforces them). Generation-layer wiring remains open as G2/G3.
 5. **`[CC-PROPOSED]` — Specify L2's privacy-by-construction egress boundary now.** The vision requires privacy to be
    ARCHITECTURAL ("we physically can't send your content"). Propose adopting a typed, allowlist-only serializer as the
    *only* path by which anything derived from memory can leave a process boundary — the existing `KEEP_KEYS` scrubber in
@@ -746,10 +769,10 @@ addition would touch a `[LOCKED]` item, it is raised as `[OPEN]` (never as a cha
 
 | # | Item | Vision says | Reality | Severity |
 |---|---|---|---|---|
-| G1 | Victim-aware enforcement (§4) | HARM_OTHERS hard-block vs HARM_SELF warn-then-obey | Not in code; only credential-egress (F27/F28) touches multi-party harm; content-blind | **High** |
+| G1 | Victim-aware enforcement (§4) | HARM_OTHERS hard-block vs HARM_SELF warn-then-obey | Not in code; only credential-egress (F27/F28) touches multi-party harm; content-blind. Honest-scoped (ADR-051, §19 #4): general third-party PII routed to point (b); HX1–HX3 reframed as the guard's deterministic mechanical stops | **High** |
 | G2 | Model content contract (§5b, §6) | Generation-layer refusal + decoy artifact | Artifact landed (`references/CONTENT-CONTRACT.md` v1.0.0: refusal shape, decoy hard constraint, carve-out, absolute tier, instruction template, red-team checklist); instruction wiring into harness surfaces NOT-YET | **Med-High** |
-| G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | Specified in CONTENT-CONTRACT.md (CSAM + suicide-methods settled; the third-party set is a PROPOSED section pending §19 #4); no generation-layer enforcement yet (depends on G2 wiring) | **High** |
-| G4 | Hard-exception #1 coverage (§4, §7) | "Personal data to an external party = no" | Only credential/secret subset enforced | **Med-High** |
+| G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, sexual/explicit, fabricated-real-person, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | Specified in CONTENT-CONTRACT.md v1.1.0 (CSAM + suicide + sexual/explicit Red Line A + fabricated-real-person Red Line B settled at the absolute tier; third-party set merged on §19 #4 sign-off); no generation-layer enforcement yet (depends on G2 wiring) | **High** |
+| G4 | Hard-exception #1 coverage (§4, §7) | "Personal data to an external party = no" | Only credential/secret subset enforced — **reconciled (ADR-051, §19 #4):** deterministic guarantee stated precisely (credential/secret egress F27/F28); remainder of third-party PII routed to point (b); boundary now explicit | **Med-High** |
 | G5 | 0.2.0 DoD #5 (§10, §17) | Hermes adapter + real-run FP/FN at hard exceptions | Hermes absent; no measured error rates | **Med-High** |
 | G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name. Scoping decided (Q7, ADR-050): inviolable runtime floor over the installed guard under `~/.lilara`; build in PLAN Phase 3 | **Med** |
 | G7 | Auto-update (§16) | Background check + `lilara upgrade` | NOT-YET | **Low** |
