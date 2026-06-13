@@ -20,8 +20,8 @@
 > - **It contains no reporting or escalation mechanics** (see §7.5 — an explicit non-goal).
 >
 > Normative source: SCOPE §4, §5(b), §6, §7, §21. Decision tags (`LOCKED`/`OPEN`/…) live in SCOPE.md only. As of v1.1.0
-> the SCOPE §19 #4 owner decision (ADR-051) is settled, so no section depends on an open question; §8 records where
-> that decision routed each third-party harm.
+> (and unchanged in v2.0.0) the SCOPE §19 #4 owner decision (ADR-051) is settled, so no section depends on an open
+> question; §8 records where that decision routed each third-party harm.
 
 ---
 
@@ -233,7 +233,7 @@ meaning is visible: the generation layer (point (b)).
 None of these become L1 deterministic floors — the content-blind Node guard stays content-blind (SCOPE §5); they are
 point (b) refusals, enforced at the generation layer once §9 is wired (G2/G3).
 
-## 9. Canonical instruction template — v1.1.0
+## 9. Canonical instruction template — v2.0.0
 
 The block below is the installable artifact: the exact instruction text to be placed on a generation surface (system
 prompt / adapter instruction seam) **when wiring is approved** (a separate, human-approved change — see header).
