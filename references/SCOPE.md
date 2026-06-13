@@ -1041,7 +1041,7 @@ under the same clean-room gate.
 > owner-confirmed 2026-06-13 and folded into the sections they touch; this table is the decision record. Several
 > **correct drift** in previously-locked text — noted as REVERSALS. ADRs: amended **ADR-049** (definitional-tier
 > on-at-install) and **ADR-051** (Red Line B deception+harm); new Proposed ADRs for default-deny egress and the
-> structured-PII floor. Recorded as **D51** in `DECISIONS.md`.
+> structured-PII floor. Recorded as **D52** in `DECISIONS.md`.
 
 | # | Touched | Decision (owner, 2026-06-13) |
 |---|---|---|

@@ -1,7 +1,8 @@
 # ADR-051 — Content red lines elevated to the absolute tier; L1 hard-exceptions reframed as deterministic mechanical stops (§19 #4 closed)
 
-**Status:** Accepted (owner decision) — owner (Khouly) decision, 2026-06-13
-**Date:** 2026-06-13
+**Status:** Accepted (owner decision) — owner (Khouly) decision, 2026-06-13; **amended same day (R3 re-verification)** —
+Red Line B reversed from blanket to a deception+harm rule (see Amendment at end); `CONTENT-CONTRACT.md` → v2.0.0.
+**Date:** 2026-06-13 (amended 2026-06-13, R3)
 **Scope:** specification decision encoding intent at enforcement point (b) (the model content layer). It changes
 documentation only — `references/SCOPE.md` (§1/§4/§5/§6/§7/§19 #4/§20) and `references/CONTENT-CONTRACT.md` (→ v1.1.0).
 It adds **no** runtime floor, touches **no** `decide()` path, and changes **no** replay/lattice baseline. Generation-layer
@@ -84,3 +85,38 @@ clean refusal, no decoy, no partial help):
 - Point (b) now has **red-teamable, regression-guardable** red lines (the §10 checklist gains R12/R13), which the
   follow-on conformance-corpus + propose-only template-install PR operationalizes.
 - The decision is loophole-resistant by construction: nothing rests on consent (unverifiable) or fame (irrelevant).
+
+---
+
+## Amendment — 2026-06-13 (R3 intent re-verification, SCOPE §25): Red Line B reversed to a deception+harm rule
+
+The owner re-verified this ADR against intent and **corrected drift in Red Line B**. The original "blanket refusal,
+benign edits refused too, consent irrelevant" encoding (Part 2 above) was **wrong**: it over-refused legitimate work
+(editing one's own photo, background swaps, retouch) and read as the system mistrusting the user.
+
+**Corrected Red Line B (supersedes Part 2's Red Line B):**
+
+- The discriminator is **output deception + harm, NOT "did the situation happen," and NEVER the consent claim.**
+- **The guiding principle is unchanged and is the reason for the new shape.** A content-blind system cannot verify
+  "it's my photo / they consented," so the rule **still does not condition on consent** (or fame). Rather than resolve
+  that unverifiability by blanket-refusing, it resolves it by conditioning on what the **output is and does** — which
+  the generation layer *can* assess. (This closes the apparent contradiction: the original ADR said "never condition on
+  consent," and the amended rule still doesn't — it never starts trusting consent; it judges the output.)
+- **B-images:** ALLOW benign, non-deceptive edits (own photo, keepsake composite, background swap, retouch, style)
+  because the output is benign. REFUSE — **even when consent is asserted** — sexual/intimate imagery of a real person
+  (also Red Line A), placement in a false situation that would appear real (defamation/fabrication), and photorealistic
+  deepfakes meant to deceive.
+- **B-text (new sub-rule):** REFUSE fabricated/defamatory written claims about an identifiable real person presented as
+  real; ALLOW clearly-labelled fiction/satire.
+- A generic, non-identifiable person remains out of scope (general policy).
+
+**What did NOT change:** Part 1 (HX reframe) stands. **Red Line A (sexual content) stands verbatim — re-verified.**
+CSAM and suicide-method refusal stand. Layer purity stands (no L1 floor; no `decide()`/replay/lattice change).
+
+**Contract & gate consequences:** because this **narrows/relaxes** a refusal (benign edits now allowed), it is a
+**major** revision under the contract's strengthen-only rule — `CONTENT-CONTRACT.md` → **v2.0.0** (not v1.1.0). The §9
+template, §7 tier intro, the §10 checklist (R12), and the deterministic conformance gate's spec bar
+(`scripts/check-content-contract.sh`) + red-team corpus were updated in lockstep; the corpus keeps ≥1 §7.3
+`absolute-refuse` case (the deceptive-deepfake / consent-claimed-deepfake anti-bypass controls) and adds benign-output
+`allow` cases. SCOPE §7 line and §25 row updated; locked-line baseline rebaselined (45 → 77) in the SCOPE diff.
+Recorded as decision 5 in SCOPE §25 / DECISIONS.md D52.

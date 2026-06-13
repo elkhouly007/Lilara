@@ -87,7 +87,7 @@ packet instead of ambushing the schedule mid-phase.
 6. **R3 intent re-verification (DONE 2026-06-13, SCOPE §25).** 16 owner decisions + the §19 batch encoded into
    SCOPE.md, PLAN.md, and CONTENT-CONTRACT.md (→ v2.0.0) + its conformance gate/corpus; ADR-049 (definitional-tier
    on-at-install) and ADR-051 (Red Line B → deception+harm) amended; ADR-052 (default-deny egress) + ADR-053
-   (structured-PII floor) proposed; D51 recorded in DECISIONS.md; scope-locked baseline rebaselined (45 → 77 lines).
+   (structured-PII floor) proposed; D52 recorded in DECISIONS.md; scope-locked baseline rebaselined (45 → 77 lines).
 
 **Risks:** bulk-flipping ADR headers without evidence would corrupt the record — each flip needs a CHANGELOG/commit
 citation in the ADR itself.
@@ -448,7 +448,7 @@ the guard fronts 100% of launched-tool actions; UI-DESIGN.md's acceptance checkl
 | P0 | ADR-048 F4 demotion design | F4 posture work | open |
 | P0 | LICENSE + D23 trademark | public launch | open |
 | P0 | §19 #4 — HX1/HX2 deterministic meaning | Phase 1 slices | **DECIDED 2026-06-13** (ADR-051 + structured-PII split; §19 #4 CLOSED) |
-| P0 | R3 intent re-verification (16 decisions + §19 batch) | SCOPE/PLAN/contract alignment | **DONE 2026-06-13** (SCOPE §25; ADR-049/051 amended; ADR-052/053 proposed; D51) |
+| P0 | R3 intent re-verification (16 decisions + §19 batch) | SCOPE/PLAN/contract alignment | **DONE 2026-06-13** (SCOPE §25; ADR-049/051 amended; ADR-052/053 proposed; D52) |
 | P3.5 | ADR-052 default-deny egress + ADR-053 structured-PII floor | Phase 3.5 build | **Proposed 2026-06-13** (decisions 6/14) |
 | P0 | Q1 canonical sequencing | doc alignment | **DECIDED 2026-06-12** (§1.5 canonical) |
 | P0 | Q6 dashboard-as-seed | Phase 8 shape | **DECIDED 2026-06-12** (dashboard is the seed) |

@@ -1,7 +1,8 @@
 # ADR-049 — Default-posture graduation policy (secure-by-default, evidence-gated)
 
-**Status:** Accepted (policy) — owner (Khouly) decision Q2, 2026-06-12
-**Date:** 2026-06-12
+**Status:** Accepted (policy) — owner (Khouly) decision Q2, 2026-06-12; **amended 2026-06-13 (R3, decision 12)** —
+definitional tier ships ON at install unconditionally; F3/F27 move out of the calibration-gated wave (see Amendment).
+**Date:** 2026-06-12 (amended 2026-06-13, R3)
 **Scope:** policy only — no runtime change in this ADR; each actual default flip lands later as its own ADR + code
 change in its planned phase (PLAN Phase 1 calibration → Phase 3 flips)
 
@@ -75,3 +76,32 @@ class:
 - This ADR changes no runtime behavior, no lattice entry, no `demotableBy`, no replay corpus.
 - It does not decide consent-gate (`LILARA_CONSENT`) defaults — the consent transport default is a UX decision tied
   to the L5 shell work and P2, taken up with the relevant phase.
+
+---
+
+## Amendment — 2026-06-13 (R3 intent re-verification, SCOPE §25, decision 12): definitional tier ON at install, unconditionally
+
+The owner sharpened secure-by-default: a fresh install must ENFORCE immediately, and the **definitional** floors must
+**not wait on a calibration gate** (they are definitional, not heuristic). This **re-partitions** the original "first
+wave" into three buckets:
+
+- **(a) ON at install, UNCONDITIONALLY (no FP-budget gate):** **F3** (critical-risk / catastrophic commands), **F27**
+  (secret-egress-external, inviolable single-call), the **installed-core tamper floor** (ADR-050), and — *once
+  enforcement point (b) is wired (G2/G3, still NOT-YET)* — the **content red lines** (Red Line A, CSAM, suicide
+  methods; Red Line B's deception+harm rule). These are definitional; calibration cannot make a catastrophic-command or
+  credential-egress signature "more true."
+- **(b) Calibration-gated (heuristic-leaning inviolable):** **F10** (taint-floor) and **F14 / F14b** (budget /
+  duration) — these were in the original first wave but are heuristic-leaning, so they **stay** behind the Phase-1
+  near-zero-FP calibration gate. This is the **amended first wave**.
+- **(c) Opt-in until each meets its own FP budget:** **F28** (demotable — explicitly NOT in bucket (a) despite being a
+  credential-egress floor, because it is consent-demotable), **F29**, **F23** — unchanged from the original policy;
+  flip one at a time, each by its own ADR + owner sign-off.
+
+**Terminology guard:** "definitional tier" (bucket a) is a **subset** of the code's `tier:"inviolable"` set, NOT all of
+it — several code-inviolable floors are heuristic-leaning (bucket b). And **F28 is `demotable`**, so it is never in the
+on-at-install set even though it concerns credential egress.
+
+**What did NOT change:** the env override always remains; one ADR + owner sign-off per flip for buckets (b)/(c);
+secure-by-default must never mean nag-by-default (P1/P2); replay-posture hardening (§19 #14) remains the hard
+prerequisite for any flip; no runtime/lattice/`demotableBy`/replay change in this ADR. Content-tier "on" is gated on the
+**wiring** of point (b), not on an FP budget. Recorded as decision 12 in SCOPE §25 / DECISIONS.md D52.
