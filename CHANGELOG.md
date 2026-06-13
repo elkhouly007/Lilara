@@ -8,6 +8,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs — R3 intent re-verification: 16 owner decisions + §19 batch (SCOPE §25; D52)
+
+- **docs(scope+plan+content-contract): R3 re-verification of SCOPE against owner intent (2026-06-13)** —
+  One-question-at-a-time re-verification encoding 16 owner decisions + the §19 batch. Highlights: productivity & security
+  made **co-equal** (drop "security in service of productivity"; decision 1 — reverses prior locked wording); **Red Line
+  B reversed** from blanket refusal to a **deception+harm** discrimination rule (consent is never the trigger) + new
+  B-text rule (decision 5) — `CONTENT-CONTRACT.md` → **v2.0.0** (first relaxation; `check-content-contract.sh` spec bar
+  + red-team corpus updated in lockstep, 34→37 cases); **memory ambition restored** (decision 8 — reverses 2026-06-12
+  Q5); **default-deny egress allowlist** + approved-destinations contract + network backstop (decision 14 — deletes §21
+  non-goal #2, promotes #1/#3/#4/#5 to `[LOCKED]`); **bulk structured-PII egress floor** (decision 6); **secure-by-
+  default** re-partitioned — definitional tier on-at-install unconditionally (decision 12 — amends ADR-049);
+  product-improvement **artifact-sharing** (scrubbed system artifacts, default-on, opt-out; decision 15 — supersedes the
+  telemetry framing + §19 #8); **three product forms** + §23.A promoted to a `[LOCKED]` direction (decision 10). §19
+  batch: #3/#5/#6/#7/#11/#12/#13/#14 accepted → `[LOCKED]`, #4 amended, #8 dropped, **§19 #4 CLOSED**. PLAN gains
+  **Phase 3.5** (egress model; decimal-inserted, no renumber). New SCOPE §25 decision record; scope-locked baseline
+  rebaselined **45→77**; Appendix B ADR count fixed **46→49** (ADR-051 had been unindexed). ADR-049 + ADR-051
+  **amended**; **ADR-052** (default-deny egress) + **ADR-053** (structured-PII floor) **Proposed**. Docs-only — **no
+  `decide()` / lattice / replay change**; new enforcement scheduled in PLAN, not implemented. See SCOPE §25,
+  DECISIONS.md **D52**.
+
 ### Added — content-contract red-team conformance gate (enforcement point (b), ADR-051)
 
 - **test(content-contract): deterministic red-team conformance corpus + CI gate** — Adds

@@ -610,3 +610,48 @@ establish — a layer that cannot enforce it, or a fact it cannot verify. This r
   separate, human-approved work (the follow-on conformance-corpus + propose-only template-install PR).
 
 **Owner:** Khouly.
+
+## D52: R3 intent re-verification — 16 owner decisions + §19 batch (SCOPE §25)
+
+**Date:** 2026-06-13
+
+**Context:** A one-question-at-a-time re-verification of `references/SCOPE.md` against owner *intent* — because a
+`[LOCKED]` tag means "owner decided," not "owner re-verified the wording still means what he intended" (the §19 #4
+lesson). Several decisions correct drift in previously-locked text. Docs-only (SCOPE/PLAN/CONTENT-CONTRACT + ADRs +
+gates/corpus); no `decide()`/lattice/replay change; new enforcement (structured-PII floor, default-deny egress, network
+backstop) is scheduled in PLAN, not implemented here.
+
+**Decisions (full record in SCOPE §25):**
+1. Productivity & security **CO-EQUAL** (drop "security in service of productivity"); tie-breaker = security wins only
+   when an action crosses into non-consented territory (data leak / deletion beyond authorization). *Reverses the
+   2026-06-12 subordination wording.*
+2. HARM_SELF own-data wholesale-wipe carve-out: snapshot + one confirm (reuse F29), not a red line.
+3. Decoy **disclosed, not silent**; CBRN/weapons in fiction narrative-only (no procedural skeleton).
+4. Red Line A (sexual/explicit) **re-verified verbatim** — no change.
+5. Red Line B **REVERSED** blanket → **deception+harm** rule (consent never the trigger); + B-text rule. Amends
+   ADR-051; CONTENT-CONTRACT → v2.0.0.
+6. Bulk **structured-PII egress floor** (near-term, reuse F27/F28); only unstructured/contextual PII → point (b).
+   ADR-053 (Proposed).
+7. Self-improvement = **one engine, four sources**; one absolute limit (never touch red lines); tier-a only w/ explicit
+   approval, tier-b never; hooks/adapters human-approved always.
+8. Memory ambition **RESTORED** ("over time, better than he knows himself"). *Reverses the 2026-06-12 Q5 softening.*
+9. Consent: three impact bands + gather-upfront + mode-independent red lines; autonomy dial `[ADVISORY]`.
+10. Control-plane §23.A promoted `[OPEN]`→`[LOCKED]` direction; three product forms; live-visibility; web dashboard.
+11. Installed-core tamper runtime floor (ADR-050) = runtime enforcement of #7.
+12. Secure-by-default: definitional tier ON at install unconditionally; heuristic floors FP-gated. **Amends ADR-049.**
+13. Core thesis "why Lilara exists": collect → clean-room rewrite → full power AND safety; data local, leaves only to
+    approved destinations, weekly re-confirm.
+14. Egress **default-deny allowlist** + approved-destinations contract + network backstop; delete non-goal #2; promote
+    §21 #1/#3/#4/#5 to `[LOCKED]`. ADR-052 (Proposed).
+15. Product-improvement **artifact-sharing** (scrubbed system artifacts, NOT user data) — exempt from default-deny,
+    default-on, opt-out, privacy never paywalled. Supersedes the telemetry framing + §19 #8.
+16. Business model / licensing **DEFERRED** — build first, decide later; don't tier features; privacy not a paywall.
+
+**§19 batch:** #1 resolved; #3/#5/#6/#7/#11/#12/#13/#14 accepted → `[LOCKED]`; #4 amended; #8 dropped.
+
+**Encoding:** SCOPE §25 (new decision record) + all touched sections; scope-locked baseline rebaselined 45 → 77;
+CONTENT-CONTRACT v2.0.0 + `check-content-contract.sh` spec bar + red-team corpus; PLAN Phase 3.5 inserted (no
+renumber); ADR-049 + ADR-051 amended; ADR-052/053 Proposed; Appendix B count fixed (46 → 49, ADR-051 had been
+unindexed).
+
+**Owner:** Khouly.
