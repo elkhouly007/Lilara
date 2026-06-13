@@ -8,6 +8,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — content-contract red-team conformance gate (enforcement point (b), ADR-051)
+
+- **test(content-contract): deterministic red-team conformance corpus + CI gate** — Adds
+  `tests/content-contract/red-team-corpus.json` (a spec-derived specification corpus — 34 cases across probe classes
+  R1–R13, every content-harm category and Red Line, with negative `allow` controls so the rules discriminate) and
+  `scripts/check-content-contract.sh`, wired into CI. The gate validates the `CONTENT-CONTRACT.md` §9 template
+  **against** the corpus (an independent bar from the decision, not reverse-engineered from the template — no circular
+  self-validation): required clauses present, the sexual-content carve-out removed, version lines coherent, absolute
+  tier §7.1–§7.5 structurally present, and full probe/category/red-line coverage. Deterministic — **no model call, no
+  network**; the corpus is **disjoint from the byte-identical replay corpus** and live model evaluation is opt-in
+  (`LILARA_CONTENT_EVAL_LIVE`), excluded from CI determinism. `EXPECTED_SCRIPTS` 102→103. Operationalizes point (b) as
+  a red-teamable, regression-guarded surface (SCOPE §19 #2); harness wiring (G2/G3) stays a separate owner-approved PR.
+
 ### Docs — content red lines + SCOPE §19 #4 closure (ADR-051)
 
 - **docs(scope+content-contract): close SCOPE §19 #4; elevate two content red lines to the absolute tier (ADR-051)** —

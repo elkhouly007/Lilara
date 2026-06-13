@@ -167,6 +167,9 @@ jobs:
       - name: Contract module
         run: bash scripts/check-contract.sh
 
+      - name: Content contract conformance (point (b), ADR-051)
+        run: bash scripts/check-content-contract.sh
+
       - name: Contract schema v2 migration
         run: bash scripts/check-migrate-v1-v2.sh
 
