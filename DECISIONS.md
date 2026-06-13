@@ -581,3 +581,32 @@ re-prompts inside a granted scope = P2 defect target zero, grant-to-first-action
 feeding both the ADR-049 graduation gates and the L2/L4/L3 loop as guard-routed suggestion-only proposals (never
 auto-applied); (b) SCOPE §19 #11–#13 explicitly labeled DEFERRED PROPOSALS (placeholders, not commitments);
 (c) PRs #164 and #165 approved to merge, #164 first.
+
+## D51: §19 #4 closed — content red lines elevated to the absolute tier; L1 hard-exceptions reframed (ADR-051)
+
+**Date:** 2026-06-13
+
+**Context:** SCOPE §19 #4 (`[CC-PROPOSED][OPEN]`) asked how hard-exception #1 reconciles with what is deterministically
+detectable. Guiding principle (owner): never make a promise or rule that hinges on something the system cannot
+establish — a layer that cannot enforce it, or a fact it cannot verify. This rules out conditioning on **consent**
+(unverifiable) or **fame** (irrelevant).
+
+**Decision (ADR-051):**
+- **Part 1 — honest scoping (closes §19 #4):** HX1/HX2/HX3 stay but are reframed as the content-blind Node guard's
+  deterministic **mechanical** stops, not the product's ethical red lines. The guard's deterministic egress guarantee
+  is stated precisely as the **credential/secret subset (F27/F28)**; general third-party PII is routed to enforcement
+  point (b), never implied as covered by the content-blind guard (LOCKED §5). SCOPE §1/§4/§5/§6/§7/§19 #4/§20 updated;
+  G1 honest-scoped, G4 reconciled.
+- **Part 2 — two inviolable content red lines at point (b)'s ABSOLUTE tier** (CONTENT-CONTRACT.md → v1.1.0): **Red Line
+  A** — sexual/nude/explicit content: flat refusal, any subject (real or fictional), any medium, no carve-out, no
+  medical exception (removes the v1.0.0 sexual-content carve-out). **Red Line B** — fabricated/manipulated depiction of
+  a real specific person: blanket refusal (even benign-looking edits), discriminator = "fabricated depiction of a real
+  specific person", defamation/harm an aggravator not the trigger, not conditioned on consent or fame, generic person =
+  general policy. The former §8 third-party set merged into §5/§9 on this sign-off.
+- **Architectural constraint:** neither red line is added to the L1 deterministic hard-exception list — they are
+  enforced entirely at the content layer (point (b)). Recorded in SCOPE §7 as **two new `[LOCKED]` lines** (count
+  43→45; baseline rebaselined); no existing locked text changed. No `decide()` / replay / lattice change.
+- **Honest status:** point (b) is doc-only today (G2/G3). This is a binding statement of **intent**; harness wiring is
+  separate, human-approved work (the follow-on conformance-corpus + propose-only template-install PR).
+
+**Owner:** Khouly.
