@@ -136,8 +136,8 @@ enforcement point (b) (the content layer), not covered by the content-blind guar
 floors are **defense-in-depth**. The product's inviolable *content* red lines live at point (b) (§7), never in this L1
 list. (Owner decisions 2026-06-13 — ADR-051 §19 #4 reconciliation + the structured-PII split, §19 #4 amended.)
 
-**Build order `[LOCKED]`:** L1 (consent) → thin L5 consent transport → L2 memory → L4 skills → L3 self-improvement LAST.
-**Moat = the CORE.** Orchestration + shell are commodity.
+**Build order `[LOCKED]`:** L1 (consent) → thin L5 consent transport → L2 memory → L4 skills → full L5 shell (incl.
+**Breath**) → **L3 self-improvement LAST**. Moat = the CORE. Orchestration + shell are commodity.
 
 **Weekly loop:** two strands of the one improvement engine (§12/§13) — (1) research competitors + free/OSS communities
 to find capability gaps, and (2) learn on the **user's own interests**. Both feed self-improvement. **NEVER copy-paste —
@@ -737,13 +737,16 @@ one ADR + owner sign-off per flip, env override always retained. (Note: this "de
 code's `tier:"inviolable"` set, not all of it — several code-inviolable floors are heuristic-leaning and sit in bucket
 (b).) Floors fall into **three buckets**:
 - **(a) Definitional tier — ON at install, UNCONDITIONALLY (no FP-budget excuse, because they are definitional):**
-  catastrophic-command signatures (**F3**), credential/secret single-call egress (**F27**, inviolable), the
+  catastrophic-command signatures (**F3**), credential/secret single-call egress (**F27**, currently inviolable in the
+  lattice — **target per 2026-06-16 owner refinement: Level 3 mandatory manual approval; runtime reclassification is the
+  Phase-3 build task**), the
   installed-core **tamper floor** (ADR-050), and — *once enforcement point (b) is wired (G2/G3, still NOT-YET)* — the
   **content red lines** (sexual content Red Line A, CSAM, suicide methods; Red Line B's deception+harm rule). These do
   not wait on calibration. **F28 is NOT here** — it is demotable (consent) and sits in bucket (c).
 - **(b) Calibration-gated inviolable floors:** the heuristic-leaning inviolable floors — taint (**F10**), duration /
   budget (**F14 / F14b**) — flip to enforce once Phase-1 real-run calibration shows near-zero false positives (this is
-  the **amended ADR-049 first wave**; F3/F27 moved up to bucket (a)).
+  the **amended ADR-049 first wave**; F3 moved up to bucket (a) at install; F27 sits in (a) **today** (inviolable in
+  code) but the **target** is Level 3 mandatory manual approval — runtime reclassification is the Phase-3 build task).
 - **(c) Opt-in until each meets its own FP budget:** the demotable heuristic floors — **F28** taint-egress, **F29**
   delete-coordination, **F23** kill-chain — stay opt-in, then flip one at a time by their own ADR + owner sign-off.
 The env override always remains, so operators can dial down. Binding constraint (P1/P2, §0.1): **secure-by-default must
@@ -1179,7 +1182,7 @@ listed for code-registry completeness with their real shape stated.
 | F24 | credential-persistence-write | `runtime/floor-credential-persist.js` | demotable (`scopes.files.allow`) | BUILT |
 | F25 | mcp-arg-danger | `runtime/floor-mcp.js` | inviolable | BUILT |
 | F26 | mcp-registration-write | `runtime/floor-mcp.js` | demotable (`scopes.files.allow`) | BUILT |
-| F27 | secret-egress-external | `runtime/floor-secret-egress.js` | **inviolable** | BUILT (single-call) |
+| F27 | secret-egress-external | `runtime/floor-secret-egress.js` | **inviolable (current); target Level 3 per 2026-06-16** | BUILT (single-call) |
 | F28 | taint-egress-consent | `runtime/floor-taint-egress.js` | demotable (consent) | BUILT (cross-call; active when `LILARA_TAINT_EGRESS=1`) |
 | F29 | destructive-delete-coord | `runtime/decision-lattice.js`, `runtime/snapshot.js`, `runtime/pretool-gate.js` | demotable (consent) | BUILT (active when `LILARA_DELETE_COORD=1`) |
 

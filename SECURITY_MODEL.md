@@ -91,12 +91,16 @@ The prompt injection patterns in `dangerous-patterns.json` scan the command stri
 
 ## Egress Sanitization Scope
 
-> **Owner refinement 2026-06-16:** Secret/credential egress is **Level 3 mandatory explicit manual approval** — never
-> silent, never absolute, remembered per-destination. F27 (single-call secret-egress-external) and F28 (cross-call
-> staged/taint-egress) are the *mechanism* that **detects** the secret; they raise the egress to Level 3 and **never
-> hard-block** the action outright. **A legitimate deploy that must upload an API key is not broken** — the user is
-> prompted, approves, and the action proceeds and is remembered. This is the F27 reclassification — finalize in the
-> Phase 3 encoding sprint (`references/PLAN.md` Phase 3 / 3.5).
+> **Owner refinement 2026-06-16 — target posture vs current behavior.** The **target** for secret/credential egress is
+> **Level 3 mandatory explicit manual approval** — never silent, never absolute, remembered per-destination on
+> approval. F27 (single-call secret-egress-external) and F28 (cross-call staged/taint-egress) are the *mechanism* that
+> **detects** the secret; they raise the egress to Level 3 and **never hard-block** the action. A legitimate deploy
+> that must upload an API key is not broken — the user is prompted, approves, and the action proceeds and is remembered.
+> **Encoding status (2026-06-16 → Phase 3, see `references/PLAN.md`):** the **docs** (`CONTRACT.md` §2, this file,
+> `references/SCOPE.md` §25.5) record the Level-3 target. The **runtime encoding** (rewiring `secret-warning` from
+> `payloadClass=C` → hard floor to "raise to Level 3, prompt with destination name, remember on approval") is the
+> **Phase-3 build task** — until that lands, F27 continues to fire on the existing mechanism (raise to
+> `payloadClass=C` → hard floor). The canonical target is the L3 model — not a silent allow, not an absolute block.
 
 **PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode,
 openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or

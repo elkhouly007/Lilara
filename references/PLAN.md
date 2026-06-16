@@ -207,10 +207,13 @@ with evidence and owner sign-off.
    (corpus green under both postures); optionally migrate posture into `decide()` input per the ADR-046 pattern.
 4. **Default-posture graduation — policy DECIDED (Q2, 2026-06-12, ADR-049; SHARPENED 2026-06-13, decision 12):**
    secure-by-default, evidence-gated, re-partitioned into three buckets. **(a) ON at install, UNCONDITIONALLY**
-   (definitional — no FP-budget gate): F3 (catastrophic commands), F27 (secret egress, inviolable), the installed-core
+   (definitional — no FP-budget gate): F3 (catastrophic commands), **F27 (secret egress — currently inviolable in the
+   lattice; target per 2026-06-16 owner refinement: Level 3 mandatory manual approval; runtime reclassification is the
+   Phase-3 build task)**, the installed-core
    tamper floor (ADR-050), and the content red lines once point (b) is wired. **(b) Calibration-gated** (heuristic
    inviolable): F10 taint, F14/F14b duration/budget — flip once Phase-1 calibration shows near-zero FP (the **amended
-   ADR-049 first wave**; F3/F27 moved up to (a)). **(c) Opt-in until own FP budget:** F28 (demotable — NOT in (a)),
+   ADR-049 first wave**; F3 moved up to (a) at install; F27 sits in (a) today (inviolable in code) but the target is
+   Level 3 (Phase 3). **(c) Opt-in until own FP budget:** F28 (demotable — NOT in (a)),
    F29, F23 — flip one at a time, each by its own ADR + owner sign-off. Env override always retained; per P1/P2,
    secure-by-default must never become nag-by-default — a floor that would nag fails its graduation gate even at zero FP.
 

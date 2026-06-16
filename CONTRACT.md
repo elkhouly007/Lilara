@@ -108,7 +108,21 @@ keep the property: **defense is structural, never "read the text and judge wheth
 
 ---
 
-## 5. Approved-destinations contract (accepted L2; ADR-052 Proposed)
+## 4. Impact bands (accepted L2, decision 9) — aligned to the block ladder
+
+- **Band 1 — absolute:** harm-to-a-person only. Always blocked, mode-independent, never lifted (Level 4).
+- **Band 2 — high-friction resolvable:** secret / credential egress. Mandatory explicit manual approval every new
+  destination, never silent, never absolute; remembered per-destination on approval (Level 3).
+- **Band 3 — resolvable / authorizable:** unapproved delete or ordinary unapproved egress. Held + warned + the rest
+  continues; runs and is remembered once approved (Level 2).
+- **Band 4 — routine:** ordinary work. Proceeds (Level 1).
+
+**"Silence = consent" never applies to Bands 1–2;** a Band-2 secret-egress and a Band-3 action are held (not silently
+run) until the user decides. Gather consent-requiring actions upfront where possible, approve once, then run freely.
+
+---
+
+## 5. Approved-destinations contract (accepted L2, decision 14; ADR-052 Proposed)
 
 - The user approves a destination list; **approved destinations run freely** for ordinary data (anti-nag), never blocked.
 - An **ordinary-data** destination **not** on the list is a **Level-2 resolvable block:** the egress action is held, the
@@ -133,12 +147,21 @@ contract exists so the user grants once and is left to work — and a single sen
 
 ---
 
+## 7. The autonomy dial (accepted L2, [ADVISORY], open)
+
+Model autonomy as a **risk-calibrated dial**, redesigned best-in-class (NOT a copy of Claude's discrete modes): earned
+scope-specific trust, plan as a transparency toggle, time-boxed non-blocking holds for Level-2/Level-3 actions (the rest
+of the work keeps moving while one held action waits), and constant after-the-fact accountability (decision journal +
+snapshots).
+
+---
+
 *Summary for review: (1) a graded ladder — Level 1 proceeds; Level 2 resolvable block (unapproved delete / ordinary
 unapproved egress); Level 3 mandatory explicit manual approval (secret / credential egress — never silent, never
 absolute); Level 4 absolute block (harm-to-a-person only); (2) on a Level-2/3 hold, **hold that action and continue the
 rest of the work**; (3) data egress — including secret egress — is **consent-based, not an absolute red line** (F27
-reclassified from absolute block to Level-3 mandatory manual approval). Related: `../RED-LINES.md`, `../MEMORY.md`,
-`../SCOPE.md` (in `references/`).*
+reclassified from absolute block to Level-3 mandatory manual approval). Related: `RED-LINES.md`, `MEMORY.md`,
+`references/SCOPE.md`.
 
 *Encoded as ADR-035 (consent gate, BUILT), ADR-049 (posture), ADR-052 (default-deny egress, Proposed), F27 (to be
 reclassified in the encoding sprint).*
