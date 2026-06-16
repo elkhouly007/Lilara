@@ -8,6 +8,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Docs — Owner refinement 2026-06-16: the block model (D52–D56)
+
+- **docs(package reconciliation): encode the 2026-06-16 owner refinement into the repo** —
+  `CONTRACT.md` now opens with the **graded block ladder** (Level 1 proceeds; Level 2 resolvable block; Level 3
+  mandatory explicit manual approval; Level 4 absolute block = harm-to-a-person only — the **only** absolute,
+  always-on, user-independent red line). `SECURITY_MODEL.md` top-of-file + the §"Egress Sanitization Scope" subsection
+  are corrected: **F27 (secret-egress-external) is reclassified from absolute block to Level 3 mandatory manual
+  approval — never silent, never absolute, remembered per-destination**. `references/SCOPE.md` gains **§25.5** recording
+  the five 2026-06-16 owner resolutions; the prior HX1/HX2/HX3 hard-exception framing is superseded (kept as historical
+  naming). `references/PLAN.md` Phase overview records the 2026-06-16 refinement: Phase 3 deliverable is now "block-
+  model secure-by-default posture (L1/L2/L3/L4 ladder; F27 reclassification to Level 3)"; Phase 4 calls out **Memory
+  Souls** (smart-tag recall; first-class, owner elevation); Phase 6 calls out **Breath** (proactive-watch loop;
+  first-class, owner elevation). `DECISIONS.md` adds **D52–D56**. New canonical files at repo root:
+  `RED-LINES.md`, `MEMORY.md`, `SOUL.md`, `VISION.md`, `MISSION.md` (mirrors of the handover package, byte-faithful).
+  Docs-only — **no `decide()` / lattice / replay change**; the F27 reclassification runtime encoding remains a Phase-3
+  build task per `references/PLAN.md`. See `HANDOVER-HERMES.md` §7 and `HANDOVER-OPENCLAW.md` §7 for the source-of-truth
+  resolution text.
+
 ### Docs — R3 intent re-verification: 16 owner decisions + §19 batch (SCOPE §25; D52)
 
 - **docs(scope+plan+content-contract): R3 re-verification of SCOPE against owner intent (2026-06-13)** —

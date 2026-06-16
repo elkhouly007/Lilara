@@ -1068,6 +1068,74 @@ under the same clean-room gate.
 
 ---
 
+## 25.5 2026-06-16 — Owner refinement: the block model `[LOCKED]`
+
+> **Five prior Level-3 conflicts resolved by owner 2026-06-16 (see `HANDOVER-HERMES.md` §7).** This section is the
+> canonical record of those resolutions in the repo. **These supersede the HX1/HX2/HX3 hard-exception framing in §1**
+> (kept as historical naming); the only absolute block now is harm-to-a-person. Ordinary work proceeds; egress (incl.
+> secret egress) and deletion are consent-based, not absolute red lines.
+
+### 25.5.1 Default posture = the block ladder (resolves G12)
+
+A graded ladder; **only harm-to-a-person is absolute, everything else is resolvable**, and ordinary work proceeds
+(Lilara does not block it). Full model in `CONTRACT.md` §2:
+
+- **Level 1 — PROCEEDS:** in-contract actions and ordinary work (reading/verifying files, in-repo edits — anything that
+  does not delete data, egress to an unapproved destination, send a secret, or touch the harm line).
+- **Level 2 — RESOLVABLE BLOCK:** unapproved data deletion or **ordinary** egress to an unapproved destination. Hold
+  **that action only**, warn, **continue the rest of the task**; run + remember once approved.
+- **Level 3 — MANDATORY EXPLICIT MANUAL APPROVAL:** secret / credential egress. Stop and name the destination every new
+  destination, **never silent**, **never absolute** (the user can always approve — a legitimate deploy is not broken);
+  remembered per-destination. **F27 reclassified from absolute block to this.**
+- **Level 4 — ABSOLUTE BLOCK:** harming a person — refused outright, never asked, never lifted even with user approval.
+  The **only** absolute, always-on, user-independent red line.
+
+**Data egress (incl. secret egress) and deletion are consent-based, not absolute red lines.** This supersedes the old
+shipped warn-only default and the HX1/HX2/HX3 hard-exception framing; encoding the block ladder into the runtime
+default is a Phase-3 / Phase-3.5 build task.
+
+### 25.5.2 Breath + Memory Souls = first-class (owner elevation)
+
+Per `MEMORY.md` (canonical at the repo root):
+
+- **Smart Memory (Memory Souls)** — long-term memory for what matters; less-important things become clear **smart tags**
+  that point to what to load. Always-on, token-efficient (it **reduces** tokens, never inflates). Now scoped at L2.
+- **Breath** — Lilara is always running and watching its tasks (does not sleep waiting to be woken). When a dispatched
+  tool needs input or finishes, Breath acts. It runs tests periodically, finds issues, and either acts (within granted
+  scope) or asks. **Now scoped at L5** — built with the full shell phase. Together they make Lilara a teammate, not a
+  tool that only reacts.
+
+Both honor the locked build order — safety core first, memory and the proactive loop build on top, self-improvement
+last.
+
+### 25.5.3 Red Line B = deception+harm test, consent never a free pass
+
+Confirmed: the discriminator is **output deception + harm**, never the consent claim. A content-blind generation layer
+cannot verify "they consented," so that assertion is never a free pass. Benign edits (own photo, background swap,
+retouch, style) are allowed because the output is benign, not because consent is asserted. Full text in `RED-LINES.md`.
+
+### 25.5.4 Inviolable tier = never weakened, even with user approval (for the most severe tier)
+
+Confirmed: the **absolute tier** (harm-to-a-person) cannot be lifted by user approval, by self-improvement, or by any
+other mechanism. Strong memory may sharpen edge-case judgment inside the lines but can never soften the line. Full text
+in `RED-LINES.md`.
+
+### 25.5.5 "Propose AND act" reconciled
+
+Act freely inside the consent contract in normal work (writing code, executing tasks, managing a tool). **Only**
+modifying Lilara's own safety/guard code/hooks/adapters requires explicit approval and is never auto-applied. The
+auto-apply path must not exist structurally (engineering invariant). Full text in `CONTRACT.md` §2 and `RED-LINES.md`.
+
+### 25.5.6 Encoding roadmap
+
+The block ladder is the **default posture**. Encoding it into the runtime default is the Phase 3 / Phase 3.5 build work
+in `references/PLAN.md` — including finalizing the **F27 reclassification** (Level 3 mandatory manual approval rather
+than absolute block). Until that lands, F27 continues to fire on the existing mechanism (`secret-warning` →
+`payloadClass=C` → hard floor), but the **canonical target** is the L3 model above — never silent, never absolute,
+remembered per-destination on approval.
+
+---
+
 ## Appendix A — Floor inventory (current code)
 
 Source: `runtime/floor-codes.js`, `runtime/decision-lattice.js`, `runtime/decision-engine.js`, and the `runtime/floor-*.js`

@@ -1,8 +1,15 @@
 # Security Model
 
-## Boundary
+> **Owner refinement 2026-06-16 — the block model.** Lilara enforces a **graded ladder** on egress and destructive
+> actions: **Level 1** ordinary work proceeds silently; **Level 2** resolvable block (unapproved delete or ordinary
+> egress to an unapproved destination) holds *that action*, warns the user, and continues the rest of the task; **Level
+> 3** mandatory explicit manual approval (secret / credential egress — **never silent, never absolute**, remembered
+> per-destination); **Level 4** absolute block (harm-to-a-person only — the only absolute, user-independent red line).
+> **F27 (secret-egress-external)** is **reclassified from absolute block to Level 3** (mandatory manual approval). Full
+> contract in [`CONTRACT.md`](CONTRACT.md). Red lines in [`RED-LINES.md`](RED-LINES.md).
 
-Agent Runtime Guard assumes the current project directory is the primary trust boundary, with controlled exceptions for reviewed external tools and trusted agents. The goal is not to ban capability. The goal is to ban silent trust expansion.
+## Boundary
+Agent Runtime Guard (Lilara) assumes the current project directory is the primary trust boundary, with controlled exceptions for reviewed external tools and trusted agents. The goal is not to ban capability. The goal is to ban silent trust expansion.
 
 The toolkit cannot make an agent safe by itself. It provides policy, defaults, and reminders. The agent is expected to review commands, diffs, secrets, payloads, and data flow before acting.
 
@@ -84,7 +91,19 @@ The prompt injection patterns in `dangerous-patterns.json` scan the command stri
 
 ## Egress Sanitization Scope
 
-**PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode, openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or payload, `payloadClass` is upgraded to C (critical) and the hard floor in `decide()` fires. This applies across all six harnesses.
+> **Owner refinement 2026-06-16:** Secret/credential egress is **Level 3 mandatory explicit manual approval** — never
+> silent, never absolute, remembered per-destination. F27 (single-call secret-egress-external) and F28 (cross-call
+> staged/taint-egress) are the *mechanism* that **detects** the secret; they raise the egress to Level 3 and **never
+> hard-block** the action outright. **A legitimate deploy that must upload an API key is not broken** — the user is
+> prompted, approves, and the action proceeds and is remembered. This is the F27 reclassification — finalize in the
+> Phase 3 encoding sprint (`references/PLAN.md` Phase 3 / 3.5).
+
+**PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode,
+openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or
+payload, the action is raised to **Level 3 mandatory explicit manual approval** (per the block model) — never a silent
+allow and never a hard absolute block. The destination gate (per the §5 approved-destinations contract) governs
+ordinary egress; a secret in the payload raises the egress to Level 3 regardless. This applies across all six
+harnesses.
 
 **PostToolUse (Claude Code only):** `claude/hooks/output-sanitizer.js` scans tool output for the same 23-pattern set after each tool call, warning when a credential appears in a tool response. This hook is a Claude Code PreToolUse/PostToolUse informational warning only — it cannot block (PostToolUse hooks are informational).
 
