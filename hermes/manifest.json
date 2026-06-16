@@ -1,0 +1,79 @@
+{
+  "harness": "hermes",
+  "harnessVersion": "0.1",
+  "envelopeReporting": false,
+  "argsFidelity": "exact",
+  "cwdFidelity": "exact",
+  "mcpInterception": "supported",
+  "skillInterception": "supported",
+  "outputChannels": {
+    "toolOutput": "intercept",
+    "generatedFiles": "observe",
+    "commitText": "observe",
+    "prText": "observe",
+    "finalMessage": "observe",
+    "terminal": "observe",
+    "screenshots": "none"
+  },
+  "outputChannelObservability": {
+    "stdout": "observed",
+    "stderr": "observed",
+    "generatedFile": "observed",
+    "commitMessage": "observed",
+    "prText": "limited",
+    "finalMessage": "limited"
+  },
+  "outputChannelCompensations": {
+    "finalMessage": "Hermes (like OpenClaw / OpenCode / etc.) does not expose a pre-emit hook for the assistant's final message; only post-hoc observation via the F19 output-exfil floor is possible. Hermes-specific note: Hermes's gateway routes messages between platforms (Telegram, Discord, Slack, WhatsApp, Signal) and the AI agent. The final assistant message is the response the user sees on whichever platform they messaged from. F19 routes finalMessage hits to require-review, demotable only by the operator-token-suspicious-only sentinel.",
+    "prText": "PR body text passes through Hermes's gh CLI tool path (Hermes executes the gh command via its terminal tool); F19 observes post-hoc and routes suspicious matches to require-review (operator-token-suspicious-only).",
+    "envelopeReporting": "Hermes's tool-handler-wrap integration does not (yet) carry the F15 execution envelope fields (cwd inode, git HEAD, normalized command AST, env diff, resolved executable path, tracked target metadata). The handler's `args` and `cwd` are forwarded by Lilara; the other envelope fields would require a Hermes-side build/verify integration that is not part of Phase 2. envelopeReporting: false until that wiring lands."
+  },
+  "capabilities": {
+    "pretoolBlocking": "supported",
+    "posttoolObservation": "supported",
+    "exactCwd": true,
+    "exactEnv": false,
+    "argsFidelity": "exact",
+    "mcpInterception": "supported",
+    "skillInterception": "supported",
+    "finalMessageInterception": "observe",
+    "outputChannelCoverage": "broad",
+    "envelopeReporting": false
+  },
+  "negativeCapabilities": [
+    {
+      "capability": "envelopeReporting",
+      "reason": "Hermes's tool-handler-wrap integration does not (yet) carry F15 execution envelope fields beyond args/cwd. F15 wiring for Hermes requires a Hermes-side build/verify integration that is out of scope for Phase 2 step 2.",
+      "evidence": "hermes/hooks/adapter.js declares envelopeReporting: false; no Hermes-style envelope build call in the Hermes adapter path; hermes/manifest.json outputChannelCompensations.envelopeRecording documents the gap"
+    },
+    {
+      "capability": "exactEnv",
+      "reason": "Without envelope reporting the adapter cannot report a verified env delta against a baseline",
+      "evidence": "envelopeReporting: false implies env diff is not collected at hook time"
+    },
+    {
+      "capability": "finalMessageInterception",
+      "reason": "Hermes (like OpenClaw / OpenCode / Codex / Claw Code / Antegravity) does not surface a pre-emit hook for the assistant's final message; only post-hoc observation is possible",
+      "evidence": "outputChannels.finalMessage = observe"
+    },
+    {
+      "capability": "terminalInterception",
+      "reason": "Terminal output is observed via post-adapter but not rewritten or blocked in-line",
+      "evidence": "outputChannels.terminal = observe"
+    },
+    {
+      "capability": "screenshotInterception",
+      "reason": "Hermes does not surface screenshot artifacts to plugin hooks (Hermes's browser supervisor owns screenshot capture separately)",
+      "evidence": "outputChannels.screenshots = none"
+    }
+  ],
+  "compensatingRestrictions": [
+    "Critical-write floors (payload-class-C, protected-branch) must rely on adapter pretool blocking + post-tool secret-scan rather than envelope re-verification until F15 Hermes wiring lands",
+    "PostToolUse output is scanned for secrets (scanSecrets) and tagged as external-source for taint tracking on every tool output",
+    "Hermes's plugin path (recommended) means Lilara is installed as a third-party plugin under ~/.hermes/plugins/lilara/; no Hermes core code is modified — this preserves Hermes's clean upgrade path and Lilara's third-party stance"
+  ],
+  "additionalContextSupported": false,
+  "integrationModel": "handler-wrap",
+  "integrationModelRationale": "Hermes's tools are self-registering functions; Lilara wraps the handler before Hermes's dispatcher invokes it. This is fundamentally different from PreToolUse-hook-based harnesses (Claude Code, OpenCode, OpenClaw, Codex, Claw Code, Antegravity). The wrapper delegates to runtime/decide() for the decision and to runtime/pretool-gate.js for the gate — the same gate the hook-based adapters use. Result: byte-identical decision semantics across all 7 harnesses.",
+  "verifiedAt": null
+}
