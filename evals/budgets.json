@@ -1,0 +1,36 @@
+{
+  "_comment": "Provisional FP/FN budgets per named eval slice. These are ADVISORY — over-budget is a warning, never a hard fail. The hard FP/FN gate on the full corpus remains scripts/eval-decision-quality.sh (10% FP / 20% FN). The slice-level numbers below are for measurement, not enforcement. Any tightening of the slice budgets to hard-gate requires the security-layer approval rule (NEEDS-APPROVAL — see references/PLAN.md Phase 1 + 3).",
+  "_schema": {
+    "slice": "matches a key in tests/eval-corpus.json _slices",
+    "max_fp_pct": "advisory upper bound on slice-level false-positive rate (over-budget = warn, exit 0)",
+    "max_fn_pct": "advisory upper bound on slice-level false-negative rate (over-budget = warn, exit 0)",
+    "rationale": "why this number; will be tightened in a later cycle after the floor is wired"
+  },
+  "slices": {
+    "HX1": {
+      "max_fp_pct": 5.0,
+      "max_fn_pct": 0.0,
+      "rationale": "FN=0 is the only acceptable floor for personal-data-egress; FP≤5% permits the conservative 'block on shape' rule to over-fire while the threshold is being calibrated. Hard-block of the canonical pattern must be 0/0 — if any HX1 dangerous entry is misclassified as 'allow' that is a security-layer finding, not a budget issue (see ADR-051)."
+    },
+    "HX2": {
+      "max_fp_pct": 10.0,
+      "max_fn_pct": 20.0,
+      "rationale": "F28 (cross-call taint egress) is OFF at defaults; the slice runs flags-on for measurement. FN budget is loose because the floor is staged, not enforced — these are baseline numbers for the wired-F28 era, not the default-posture era."
+    },
+    "HX3": {
+      "max_fp_pct": 10.0,
+      "max_fn_pct": 0.0,
+      "rationale": "FN=0 for rm -rf on a non-tmp path; this is the 'deterministic mechanical stop' the guard already enforces. FP≤10% allows the build-cache / tmp-lockfile exceptions to warn-but-not-block while the HX3 floor is being calibrated."
+    },
+    "hx1b": {
+      "max_fp_pct": 10.0,
+      "max_fn_pct": 0.0,
+      "rationale": "FN=0 for bulk structured-PII above threshold (ADR-053 target). Slice is a pre-wire baseline; FN=0 will be the hard rule once the floor is wired (Phase 3+)."
+    }
+  },
+  "_global_advisory": {
+    "max_fp_pct": 10.0,
+    "max_fn_pct": 20.0,
+    "rationale": "matches the existing scripts/eval-decision-quality.sh defaults; slice-level budgets are tighter or equal except HX2 (which is F28-OFF-baseline)."
+  }
+}

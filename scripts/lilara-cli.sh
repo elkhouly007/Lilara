@@ -386,7 +386,11 @@ case "$cmd" in
     section "B.12 — Perf regression guard"
     bash "${scripts}/bench-perf-regression.sh" || failed=1
 
-    section "B.13 — Eval quality (FP/FN gate — CI pinned at 0.0%/0.0%)"
+    section "B.13 — Eval slice budgets (ADVISORY — never fails pre-push)"
+    bash "${scripts}/check-eval-budgets.sh" || true
+    printf '%s  (advisory only — over-budget is a warning, not a gate failure)%s\n' "$YELLOW" "$RESET"
+
+    section "B.14 — Eval quality (FP/FN gate — CI pinned at 0.0%/0.0%)"
     LILARA_EVAL_MAX_FP_PCT=0 LILARA_EVAL_MAX_FN_PCT=0 \
       bash "${scripts}/eval-decision-quality.sh" || failed=1
 
