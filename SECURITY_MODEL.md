@@ -77,15 +77,24 @@ a=rm; b="-rf /"; $a $b
 
 **Accepted because:** rate limiting here is a performance optimization to prevent thousands of Node.js process spawns, not a security gate. The "fail open" fallback on any file error already admits unbounded invocations. The practical burst overhead is bounded by the number of concurrent hooks (≤ 4) times capacity.
 
-### Prompt injection detection is content-heuristic only
+### Prompt injection patterns are defense-in-depth, not the primary defense
 
-The prompt injection patterns in `dangerous-patterns.json` scan the command string for known injection phrases. This does not cover:
+Defense is **structural** (taint tracking F10/F23, content contract red lines, the classify/redact pipeline, user
+review of agent actions before approval — see `references/SCOPE.md:932` and `CONTRACT.md:105-130` which explicitly
+avoid the "semantic injection-text classifier" non-deterministic trap). The static command-string patterns below are
+one supplementary layer only, never the primary defense.
+
+The static command-string regexes in `dangerous-patterns.json` scan the command string for known injection phrases.
+These do not cover:
 
 - Injections embedded in file content that the agent reads and then executes
 - Indirect prompt injection via external data sources (MCP results, browser output, API responses)
 - Novel injection phrasing not covered by the current patterns
 
-**Mitigation:** The classify/redact pipeline and user review of agent actions before approval are the primary defenses.
+**These gaps are deliberate, not a defect.** A semantic injection-text classifier would be a non-deterministic trap
+(see the canonical "no semantic injection-text classifier" statement in `CONTRACT.md:105-130`); structural defenses
+(F10 taint tracking, F23 kill chain, content contract red lines, user review) are what actually stop injected
+commands from running.
 
 ---
 
