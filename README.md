@@ -98,7 +98,7 @@ for the phased build plan.
 # 6. Run runtime and structural checks, including install and apply-status verification:
 ./scripts/lilara-cli.sh check
 
-# 7. Run all 402 fixture-based tests:
+# 7. Run all 406 fixture-based tests:
 ./scripts/lilara-cli.sh fixtures
 
 # 8. Measure decision quality (FP/FN rates against the labeled corpus):
