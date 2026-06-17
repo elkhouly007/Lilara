@@ -31,8 +31,9 @@ POST_ADAPTERS["openclaw"]="openclaw/hooks/post-adapter.js"
 POST_ADAPTERS["codex"]="codex/hooks/post-adapter.js"
 POST_ADAPTERS["clawcode"]="clawcode/hooks/post-adapter.js"
 POST_ADAPTERS["antegravity"]="antegravity/hooks/post-adapter.js"
+POST_ADAPTERS["hermes"]="hermes/hooks/post-adapter.js"
 
-for harness in claude opencode openclaw codex clawcode antegravity; do
+for harness in claude opencode openclaw codex clawcode antegravity hermes; do
   adapter="${POST_ADAPTERS[$harness]}"
 
   if [ ! -f "$adapter" ]; then
@@ -72,4 +73,4 @@ if [ "$FAILED" -ne 0 ]; then
   printf 'check-post-adapter-parity FAILED — see errors above.\n' >&2
   exit 1
 fi
-printf 'check-post-adapter-parity passed — all 6 harnesses use createPostAdapter (secret-scan + taint).\n'
+printf 'check-post-adapter-parity passed — all 7 harnesses use createPostAdapter (secret-scan + taint).\n'
