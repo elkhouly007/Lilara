@@ -61,7 +61,7 @@ const fs   = require("fs");
 const path = require("path");
 const root = process.argv[2];
 
-const HARNESSES = ["claude", "opencode", "openclaw", "codex", "clawcode", "antegravity"];
+const HARNESSES = ["claude", "opencode", "openclaw", "codex", "clawcode", "antegravity", "hermes"];
 
 const FIDELITY = new Set(["exact", "best-effort", "opaque"]);
 const INTERCEPTION = new Set(["supported", "unsupported", "unverified", "partial"]);

@@ -108,7 +108,7 @@ keep the property: **defense is structural, never "read the text and judge wheth
 
 ---
 
-## 4. Impact bands (accepted L2, decision 9) — aligned to the block ladder
+## 4b. Impact bands (accepted L2, decision 9) — aligned to the block ladder
 
 - **Band 1 — absolute:** harm-to-a-person only. Always blocked, mode-independent, never lifted (Level 4).
 - **Band 2 — high-friction resolvable:** secret / credential egress. Mandatory explicit manual approval every new

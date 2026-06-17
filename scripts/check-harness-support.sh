@@ -78,6 +78,16 @@ grep -qE 'VERIFIED' "$root/antegravity/README.md" \
 [ -f "$root/antegravity/COMPATIBILITY_NOTES.md" ] || fail "antegravity/COMPATIBILITY_NOTES.md missing"
 pass 'antegravity verified directory layout present (README + WIRING_PLAN + COMPATIBILITY_NOTES)'
 
+# Hermes is now VERIFIED — it must NOT carry the planned-stub marker and
+# MUST carry a WIRING_PLAN.md authored against verified source.
+[ -f "$root/hermes/README.md" ] || fail "hermes/README.md missing"
+grep -qE 'NOT YET SUPPORTED|EXPERIMENTAL' "$root/hermes/README.md" \
+  && fail "hermes/README.md still carries planned-stub marker after verification (2026-06-17)"
+grep -qE 'VERIFIED' "$root/hermes/README.md" \
+  || fail "hermes/README.md missing VERIFIED marker"
+[ -f "$root/hermes/WIRING_PLAN.md" ] || fail "hermes/WIRING_PLAN.md missing — required for verified harness"
+pass 'hermes verified directory layout present (README + WIRING_PLAN)'
+
 # setup-wizard.sh must NOT silently fall back for unknown tools
 # It should contain clawcode|antegravity rejection case (or exit 1 path)
 grep -q 'antegravity' "$wizard" || fail 'setup-wizard.sh does not handle antegravity tool name'
