@@ -219,6 +219,13 @@ run_hook_fixtures \
   "tests/fixtures/openclaw" \
   "openclaw adapter fixtures"
 
+# ── hermes adapter fixtures ───────────────────────────────────────────────────
+
+run_hook_fixtures \
+  "hermes/hooks/adapter.js" \
+  "tests/fixtures/hermes" \
+  "hermes adapter fixtures"
+
 # ── kill-switch fixtures ───────────────────────────────────────────────────────
 # Each hook is tested with LILARA_KILL_SWITCH=1 LILARA_ENFORCE=1.
 # PreToolUse hooks must exit 2 (block). Informational hooks must exit 0 (no-op).
