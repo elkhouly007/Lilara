@@ -44,7 +44,7 @@
     {
       "capability": "envelopeReporting",
       "reason": "Hermes's tool-handler-wrap integration does not (yet) carry F15 execution envelope fields beyond args/cwd. F15 wiring for Hermes requires a Hermes-side build/verify integration that is out of scope for Phase 2 step 2.",
-      "evidence": "hermes/hooks/adapter.js declares envelopeReporting: false; no Hermes-style envelope build call in the Hermes adapter path; hermes/manifest.json outputChannelCompensations.envelopeRecording documents the gap"
+      "evidence": "hermes/hooks/adapter.js declares envelopeReporting: false; no Hermes-style envelope build call in the Hermes adapter path; hermes/manifest.json outputChannelCompensations.envelopeReporting documents the gap"
     },
     {
       "capability": "exactEnv",

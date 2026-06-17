@@ -175,6 +175,12 @@ openclaw/README.md
 openclaw/prompts/planner.md
 openclaw/prompts/reviewer.md
 openclaw/prompts/security.md
+hermes/manifest.json
+hermes/README.md
+hermes/WIRING_PLAN.md
+hermes/HERMES_POLICY_MAP.md
+hermes/hooks/adapter.js
+hermes/hooks/post-adapter.js
 references/phase1-policy.md
 references/phase2-policy.md
 references/phase3-policy.md

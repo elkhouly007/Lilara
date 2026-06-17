@@ -1,5 +1,16 @@
 # Hermes Adapter
 
+> **VERIFIED — 2026-06-17.** Integration model paraphrased from public Hermes docs only
+> (`https://hermes-agent.nousresearch.com/docs/developer-guide/adding-platform-adapters` and adjacent
+> surfaces). **No Hermes source code was read** — license red line held, clean-room boundary recorded in
+> `../references/hermes-license-check.md`. Target license MIT (NousResearch/hermes-agent, permissive,
+> clean-room-compatible). Hermes uses a **handler-wrap** integration model (tools are self-registering
+> functions with a `handler`, not PreToolUse hooks); the Lilara wrapper sits between Hermes's tool
+> dispatcher and the handler, calling `runtime.decide()` before the handler executes. Adapter
+> exercised end-to-end against the canonical payload shape; module loads cleanly under `node -e
+> "require('./hermes/hooks/post-adapter')"`. See [`WIRING_PLAN.md`](./WIRING_PLAN.md) for the
+> operator-facing wiring guide.
+
 This folder contains Lilara's adapter for **Hermes Agent** (https://hermes-agent.nousresearch.com) — the second
 reference integration in `references/SCOPE.md` §17 (Phase 2 deliverable, target version 0.2.3, closes 0.2.0 DoD #5).
 
