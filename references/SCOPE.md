@@ -452,7 +452,7 @@ unbuilt content layer.
 
 ## 10. 0.2.0 — definition-of-done `[LOCKED]`
 
-0.2.0 is **ADDITIVE** — wire + lock what's built. Memory (L2) is OUT → starts 0.3.0. Ships when all six hold:
+0.2.0 is **ADDITIVE** — wire + lock what's built. Memory (L2) is OUT → starts 0.3.0. Ships when all seven hold:
 
 | # | DoD criterion | Status | Evidence / delta |
 |---|---|---|---|
@@ -639,8 +639,8 @@ tracked in **§23 `[OPEN]`** — the intent is owner-set; the design is open unt
   OPEN, confirmed.** No `LICENSE` file exists at repo root; DECISIONS.md D23 (trademark clearance for "Lilara") is an
   open pre-launch blocker.
 - **Multi-harness `[OPEN]`:** deepen one then fan out vs. polyglot day one. Existing adapters: claude, codex, openclaw,
-  clawcode, opencode, antegravity; **Hermes NOT built** (in-scope 0.2.0). → **Status: OPEN.** Six adapters present
-  (§17); Hermes absent.
+  clawcode, opencode, antegravity, hermes; **Hermes BUILT (clean-room, MIT) 2026-06-17**. → **Status: OPEN on deepening
+  vs. fan-out, CLOSED on Hermes presence.** Seven adapters present (§17).
 - **Competitive stance `[LOCKED]`:** Lilara will eventually COMPETE with OpenClaw/Hermes — beachhead/dogfood, not a
   permanent dependency. → preserved.
 - **Decision-debt (headers reconciled 2026-06-12):** the ADR set has two number collisions — ADR-021
@@ -669,14 +669,15 @@ exceptions.
 | Integration | Status | Evidence / delta |
 |---|---|---|
 | OpenClaw | **BUILT (adapter)** | `openclaw/hooks/adapter.js` + `post-adapter.js`; manifest verified. |
-| Hermes | **NOT-YET / GAP** | No `hermes/` adapter anywhere; this is the open half of 0.2.0 DoD #5. |
+| Hermes | **BUILT (adapter, clean-room)** | `hermes/hooks/adapter.js` + `post-adapter.js`; manifest verified; built from public docs only (NousResearch/hermes-agent, MIT) per `references/hermes-license-check.md`. **Handler-wrap integration model** (fundamentally different from the PreToolUse-hook harnesses — see `hermes/WIRING_PLAN.md`). End-to-end real Hermes run is Phase 2 step 5 (measurement, not build). |
 | Real-run false-stop / false-allow at hard exceptions | **NOT-YET / GAP** | Measured FP/FN at the three hard exceptions on real runs is not in place (eval gate at loose defaults; ADR-019 *Proposed*). See §19 #3. |
 
 Other adapters present (beyond the two named reference integrations): `claude`, `codex`, `opencode`, `clawcode`,
-`antegravity` — each with a manifest. `codex`, `opencode`, `clawcode`, and `antegravity` follow the
+`antegravity` — each with a manifest. `codex`, `opencode`, `clawcode`, `antegravity` and `hermes` follow the
 `hooks/adapter.js` + `hooks/post-adapter.js` pattern; **`claude` is modularized** (per-concern hook modules under
 `claude/hooks/` driven by `hooks.json`; its PostToolUse parity surface is `claude/hooks/output-sanitizer.js`). Parity
-across all six is enforced by `scripts/check-post-adapter-parity.sh`.
+across all seven harnesses (claude, opencode, openclaw, codex, clawcode, antegravity, hermes) is enforced by
+`scripts/check-post-adapter-parity.sh`.
 
 ---
 
@@ -857,8 +858,9 @@ Phase 4); **#12 / #13** accepted as principles (implementation deferred); **#15*
     *Codifies practice already implied by §3/§18; mechanism deferred.*
 13. **`[LOCKED]` PRINCIPLE (accepted by owner, 2026-06-13; implementation deferred) — Support matrix.** CI gates run on
     Node 20 (`.github/workflows/check.yml`); bench/perf baselines are committed for Node 20 and 24 across
-    Linux/macOS/Windows (incl. Windows slow-fs variants); six harness adapters are parity-gated. The supported matrix is
-    **Node ≥ 20 (CI-proven on 20 and 24), three OSes, six harnesses** — so "works on my machine" has a defined boundary.
+    Linux/macOS/Windows (incl. Windows slow-fs variants); seven harness adapters are parity-gated. The supported matrix
+    is **Node ≥ 20 (CI-proven on 20 and 24), three OSes, seven harnesses** — so "works on my machine" has a defined
+    boundary.
     *Disclosure accepted as a principle; any guarantee tightening is deferred.*
 14. **`[LOCKED]` (accepted from `[CC-PROPOSED]` by owner, 2026-06-13) — Posture flags become injected input to
     `decide()`.** `decide()` reads `LILARA_TAINT_EGRESS`,
@@ -892,7 +894,7 @@ Phase 4); **#12 / #13** accepted as principles (implementation deferred); **#15*
 | G2 | Model content contract (§5b, §6) | Generation-layer refusal + decoy artifact | Artifact landed (`references/CONTENT-CONTRACT.md` v1.0.0: refusal shape, decoy hard constraint, carve-out, absolute tier, instruction template, red-team checklist); instruction wiring into harness surfaces NOT-YET | **Med-High** |
 | G3 | Content/identity harm floors (§7) | CSAM, suicide-method refusal, sexual/explicit, fabricated-real-person, publish-private-data, intimate-imagery, surveillance, fraud, forgery, stalk | Specified in CONTENT-CONTRACT.md v2.0.0 (CSAM + suicide + sexual/explicit Red Line A at the absolute tier; Red Line B *reversed 2026-06-13* to a deception+harm rule, §7.3; third-party set merged on §19 #4 sign-off); no generation-layer enforcement yet (depends on G2 wiring) | **High** |
 | G4 | Hard-exception #1 coverage (§4, §7) | "Personal data to an external party = no" | **Reconciled (ADR-051, §19 #4) + amended (decision 6):** deterministic guarantee = credential/secret subset (F27/F28) today + a near-term **bulk structured-PII floor** (emails/phones/IDs/cards/IBANs above threshold); only **unstructured/contextual** PII routed to point (b); under default-deny egress (decision 14) the destination gate is primary and these floors are defense-in-depth | **Med-High** |
-| G5 | 0.2.0 DoD #5 (§10, §17) | Hermes adapter + real-run FP/FN at hard exceptions | Hermes absent; no measured error rates | **Med-High** |
+| G5 | 0.2.0 DoD #5 (§10, §17) | Hermes adapter + real-run FP/FN at hard exceptions | **Hermes adapter BUILT 2026-06-17** (clean-room from public docs, MIT, handler-wrap integration). **Real-run FP/FN still not measured** — Phase 2 step 5 (measurement) is the open half. | **Med** (was Med-High) |
 | G6 | `TAMPER_WITH_SAFETY_CORE` (§3, §7, §8) | Named absolute floor | Property enforced at CI/build-time + structurally; no runtime floor of that name. Scoping decided (Q7, ADR-050): inviolable runtime floor over the installed guard under `~/.lilara`; build in PLAN Phase 3 | **Med** |
 | G7 | Auto-update (§16) | Background check + `lilara upgrade` | NOT-YET | **Low** |
 | G8 | Telemetry wording (§16) | NONE by default | Local-only log on by default (no payloads, no egress) | **Low** |

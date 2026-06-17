@@ -8,6 +8,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Chore — Hermes doc-honesty clean-up (P2.6) + 4 new hermes fixture files
+
+- **chore(p2-6): Hermes doc-honesty clean-up** — fixes 11 doc-honesty / fixture-coverage issues found in the
+  post-merge review of PRs #171 and #172 (Hermes adapter). Includes 4 new hermes fixture cases
+  (`tests/fixtures/hermes/hermes-{safe-ls,dangerous-rm-rf,enforce-rm-rf,borderline-sudo}`) matching the
+  opencode/openclaw pattern. Fixture count: 402 → **406 fixtures** (the hermes block in `scripts/run-fixtures.sh`
+  is now wired). All 13 local gates green. No security-layer change. See
+  `/root/Lilara-pr-review.md` §3.5 + `/root/Lilara-task-plan.md` §Phase 2 P2.6. PR #173.
+
 ### Docs — Owner refinement 2026-06-16: the block model (D52–D56)
 
 - **docs(package reconciliation): encode the 2026-06-16 owner refinement into the repo** —

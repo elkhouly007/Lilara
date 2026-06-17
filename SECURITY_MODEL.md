@@ -112,15 +112,19 @@ commands from running.
 > `payloadClass=C` → hard floor). The canonical target is the L3 model — not a silent allow, not an absolute block.
 
 **PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode,
-openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or
+openclaw, clawcode, codex, antegravity, **hermes**) before any tool call. If a secret pattern is detected in the command or
 payload, the action is raised to **Level 3 mandatory explicit manual approval** (per the block model) — never a silent
 allow and never a hard absolute block. The destination gate (per the §5 approved-destinations contract) governs
-ordinary egress; a secret in the payload raises the egress to Level 3 regardless. This applies across all six
+ordinary egress; a secret in the payload raises the egress to Level 3 regardless. This applies across all seven
 harnesses.
 
-**PostToolUse (Claude Code only):** `claude/hooks/output-sanitizer.js` scans tool output for the same 23-pattern set after each tool call, warning when a credential appears in a tool response. This hook is a Claude Code PreToolUse/PostToolUse informational warning only — it cannot block (PostToolUse hooks are informational).
-
-**PostToolUse parity for OpenCode, OpenClaw, and EXPERIMENTAL harnesses:** Not implemented. `opencode/WIRING_PLAN.md` documents that PostToolUse extension is deferred pending contributor verification of upstream support. OpenClaw PostToolUse event model is also unverified. The three EXPERIMENTAL harnesses (codex, clawcode, antegravity) have no PostToolUse hook at all. Operators who need egress sanitization for these harnesses must rely on the PreToolUse secret-scan floor only.
+**PostToolUse (all seven harnesses — parity enforced):** each harness has a `hooks/post-adapter.js` that scans tool
+output for the same 23-pattern set after each tool call. For Claude Code the surface is `claude/hooks/output-sanitizer.js`;
+for the other six harnesses (opencode, openclaw, codex, clawcode, antegravity, hermes) it is the harness-local
+`hooks/post-adapter.js`. Parity across all seven is enforced by `scripts/check-post-adapter-parity.sh` (a CI-gate check
+that asserts every harness's post-adapter produces the same decision for the same logical output class). The PostToolUse
+hook is **informational warning only** — it cannot block, because PostToolUse hooks are inherently post-hoc (the tool
+has already run). The next decide() call raises the action to Level 3 if a secret is observed in the output.
 
 ---
 

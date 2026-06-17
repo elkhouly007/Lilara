@@ -1,0 +1,1 @@
+{"tool":"terminal","cmd":"ls -la","cwd":"/tmp","args":[],"mcp_server":null,"skill_name":null,"session_id":"hermes-test","tool_call_id":"hermes-test-safe-ls-1"}
