@@ -261,8 +261,12 @@ If you add them, document the module, make it opt-in, state what data may leave 
 | Codex | Supported (verified 2026-05-24) | `codex/` | `--tool codex` | `codex/WIRING_PLAN.md` |
 | Claw Code | Supported (verified 2026-05-23) | `clawcode/` | `--tool clawcode` | `clawcode/WIRING_PLAN.md` |
 | antegravity | Supported (verified 2026-05-24) | `antegravity/` | `--tool antegravity` | `antegravity/WIRING_PLAN.md` |
+| **Hermes Agent** | **Supported (clean-room, MIT, 2026-06-17)** | `hermes/` | `--tool hermes` | `hermes/WIRING_PLAN.md` |
 
-All six harnesses are now verified or supported. See each harness's `WIRING_PLAN.md` for the verified protocol and integration instructions.
+All seven harnesses are now verified or supported. See each harness's `WIRING_PLAN.md` for the verified protocol and
+integration instructions. **Note: Hermes uses a handler-wrap integration model (NOT a PreToolUse hook) — the Lilara
+wrapper sits between Hermes's tool dispatcher and the handler.** See `hermes/WIRING_PLAN.md` for the model and
+`references/hermes-license-check.md` for the clean-room / license attestation.
 
 ## Compatibility
 

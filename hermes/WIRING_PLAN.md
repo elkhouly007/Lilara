@@ -107,8 +107,10 @@ normalized by `extractCommand` / `extractCwd` / `extractTool` in `hooks/adapter.
 ## Fixtures
 
 Hermes-fixture-equivalents live under `tests/fixtures/hermes/` — same shape as the other harnesses'
-`tests/fixtures/{claude,opencode,openclaw,codex,clawcode,antegravity}/` (dangerous commands, enforce mode, safe
-pass-through, borderline sudo). The CI parity gate (`scripts/check-post-adapter-parity.sh`) is extended in the
+`tests/fixtures/{opencode,openclaw,codex,clawcode,antegravity}/` (dangerous commands, enforce mode, safe
+pass-through, borderline sudo). The current fixture set covers the canonical four cases (safe `ls`, dangerous
+`rm -rf`, enforce `rm -rf`, borderline `sudo systemctl`); full coverage matching the other harnesses' full
+fixture grids is a follow-up. The CI parity gate (`scripts/check-post-adapter-parity.sh`) is extended in the
 follow-up PR to cover the 7th harness.
 
 ## PostToolUse parity

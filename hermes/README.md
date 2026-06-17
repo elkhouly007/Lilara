@@ -6,8 +6,12 @@
 > `../references/hermes-license-check.md`. Target license MIT (NousResearch/hermes-agent, permissive,
 > clean-room-compatible). Hermes uses a **handler-wrap** integration model (tools are self-registering
 > functions with a `handler`, not PreToolUse hooks); the Lilara wrapper sits between Hermes's tool
-> dispatcher and the handler, calling `runtime.decide()` before the handler executes. Adapter
-> exercised end-to-end against the canonical payload shape; module loads cleanly under `node -e
+> dispatcher and the handler, calling `runtime.decide()` before the handler executes. The Lilara adapter
+> is wired and `scripts/check-install-smoke.sh` exercises it under a Hermes-shaped payload
+> (`{ tool: 'terminal', cmd: '...', cwd: '...' }`), asserting both F27 (ssh-exfil) and F3 (rm-rf-root)
+> return `block` end-to-end through the installed Lilara runtime. **Full Hermes integration end-to-end
+> (the Python bridge, the plugin, real Hermes run) is Phase 2 step 5** — the build target for that step
+> is real-run measurement, not this adapter skeleton. Module loads cleanly under `node -e
 > "require('./hermes/hooks/post-adapter')"`. See [`WIRING_PLAN.md`](./WIRING_PLAN.md) for the
 > operator-facing wiring guide.
 

@@ -669,14 +669,15 @@ exceptions.
 | Integration | Status | Evidence / delta |
 |---|---|---|
 | OpenClaw | **BUILT (adapter)** | `openclaw/hooks/adapter.js` + `post-adapter.js`; manifest verified. |
-| Hermes | **NOT-YET / GAP** | No `hermes/` adapter anywhere; this is the open half of 0.2.0 DoD #5. |
+| Hermes | **BUILT (adapter, clean-room)** | `hermes/hooks/adapter.js` + `post-adapter.js`; manifest verified; built from public docs only (NousResearch/hermes-agent, MIT) per `references/hermes-license-check.md`. **Handler-wrap integration model** (fundamentally different from the PreToolUse-hook harnesses — see `hermes/WIRING_PLAN.md`). End-to-end real Hermes run is Phase 2 step 5 (measurement, not build). |
 | Real-run false-stop / false-allow at hard exceptions | **NOT-YET / GAP** | Measured FP/FN at the three hard exceptions on real runs is not in place (eval gate at loose defaults; ADR-019 *Proposed*). See §19 #3. |
 
 Other adapters present (beyond the two named reference integrations): `claude`, `codex`, `opencode`, `clawcode`,
-`antegravity` — each with a manifest. `codex`, `opencode`, `clawcode`, and `antegravity` follow the
+`antegravity` — each with a manifest. `codex`, `opencode`, `clawcode`, `antegravity` and `hermes` follow the
 `hooks/adapter.js` + `hooks/post-adapter.js` pattern; **`claude` is modularized** (per-concern hook modules under
 `claude/hooks/` driven by `hooks.json`; its PostToolUse parity surface is `claude/hooks/output-sanitizer.js`). Parity
-across all six is enforced by `scripts/check-post-adapter-parity.sh`.
+across all seven harnesses (claude, opencode, openclaw, codex, clawcode, antegravity, hermes) is enforced by
+`scripts/check-post-adapter-parity.sh`.
 
 ---
 
