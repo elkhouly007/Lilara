@@ -1,4 +1,174 @@
-# Contract Reference — lilara.contract.json
+# Lilara — The Consent / Security Contract + Block Model
+
+> **Canonical block model (Level 1) plus accepted Level-2 additions (cited).** This file is the single reference for
+> **when Lilara stops and when it keeps working.** The block model below is the **owner refinement of 2026-06-16**:
+> **only harm-to-a-person is an absolute block; everything else — including data egress — is consent-based and
+> resolvable.** Lilara must stay a powerful tool: it does **not** block ordinary work.
+
+---
+
+## 0. Block-model summary
+
+| Situation | Response |
+|---|---|
+| In approved contract, or ordinary work (read/verify files, in-repo edits) | **Proceeds** — in-contract runs silently |
+| Delete without approval, or ordinary egress to an unapproved destination | **Resolvable block:** hold that action, warn, **continue the rest**; run + remember if approved |
+| Egress containing a secret / API key / credential | **Mandatory explicit manual approval:** stop, name the destination, ask every new destination; never silent, never absolute; remember per-destination on approval |
+| Harming a person | **Absolute block:** refuse, no ask, never lift |
+
+The detailed ladder, the four invariants, the approved-destinations contract, and the structural injection-defense
+rule live below. The mechanical contract schema (`lilara.contract.json`) — the machine-readable answer to "what is this
+agent allowed to do in this project?" — is documented in **§5 onwards** of this file.
+
+---
+
+## 1. The contract comes first
+
+**Every task starts with a contract, up front.** Before working, Lilara declares what it will do:
+
+> "I will take these actions (reading these files, editing these, running these commands), and I will send data to
+> these destinations." -> the user approves **once** -> everything inside that approved contract runs with **no
+> warning at all** and is remembered for next time.
+
+This holds even when the user only asks Lilara to **plan** a task: Lilara still declares the actions it will take up
+front for approval. The contract is a one-time scoped grant, **not** per-action prompting. If an action is already
+covered by the approved configuration, Lilara does **not** ask again. [L1 core idea; BUILT as ADR-035.]
+
+---
+
+## 2. The block model (owner refinement 2026-06-16)
+
+A graded ladder. **Only harm-to-a-person is an absolute block; everything else is resolvable** (the user can always
+approve it). Ordinary work proceeds — Lilara does not block it.
+
+### Level 1 — PROCEEDS (do not block)
+
+Any action inside the approved contract, or any ordinary action that does **not** delete data, send data to an
+unapproved destination, send a secret, or touch the harm red line, **runs without a block.** This explicitly includes
+running a script to read or verify files, in-repo edits, and ordinary work. If the agent produces a plan, finds an
+issue, and needs to run something to confirm it, **blocking that would make Lilara useless** — so it does not block it.
+In-contract actions run silently and are remembered.
+
+### Level 2 — RESOLVABLE BLOCK (hold the action, warn, keep working)
+
+**Triggers:**
+- **Deleting data** without the user's approval.
+- **Sending ordinary (non-secret) data to a destination the user has NOT approved.**
+
+**Behavior:**
+1. **Stop that specific action only** — never the whole task.
+2. **Send the user a warning** to approve or reject that action.
+3. **Continue everything else that can proceed without it.** Do **not** kill the task.
+4. **Hold the action pending** the user's decision. On approval it runs **and is remembered** so it is not asked again
+   next time. On rejection only that action is dropped.
+
+### Level 3 — MANDATORY EXPLICIT MANUAL APPROVAL (secret / credential egress)
+
+**Trigger:**
+- **Egress that contains a secret / API key / credential.**
+
+**Behavior:** a **high-friction resolvable** — distinct from ordinary egress. Lilara **stops and tells the user clearly**:
+*"a secret / API key is about to be sent to <destination> — approve?"*
+- **Never passes silently** — even to an otherwise-approved destination, a secret gets an explicit prompt the **first
+  time** for that destination.
+- **Never an absolute block** — the user can always approve. On manual approval it proceeds **and the decision is
+  remembered for that destination** next time.
+- **Rationale:** this protects against injection (an injected agent cannot silently exfiltrate the user's keys — he sees
+  the prompt and can reject) while **never breaking a legitimate deploy** (the user uploading his own API key to his own
+  server sees the prompt, approves once, and it proceeds and remembers). **F27 — formerly an absolute secret-egress
+  block — is reclassified to this model** (finalize in the encoding sprint, see `references/PLAN.md` Phase 3.5).
+
+### Level 4 — ABSOLUTE BLOCK (the only real red line)
+
+**Trigger:**
+- **Harming a person** — sexual / nude content; defamation / fabrication to disgrace. (Full definition in `RED-LINES.md`.)
+
+**Behavior:** blocked outright, **never asked about, cannot be lifted even with user approval.** This is the **only**
+absolute, always-on, user-independent red line.
+
+---
+
+## 3. The four invariants (deterministic + unspoofable)
+
+1. **Decision from real action args**, not the agent's narrative.
+2. **No agent self-approve path** — only a human answers, read from the controlling TTY, never the agent's stdin.
+3. **Authenticated transport.**
+4. **Tamper-proof.**
+
+The gate doubles as injection defense because it gates **actions, not instructions** (see §4 below).
+
+---
+
+## 4. Prompt-injection defense is first-class [L1 + BUILT]
+
+The action-guard **is** the defense: injection changes *intent* but cannot widen *authority*. There is deliberately
+**no semantic injection-text classifier** — that is the non-deterministic trap the design avoids. Defense is structural:
+taint -> sink (F10 / F27 / F28) plus the deterministic consent prompt close the wires. Any code that touches this must
+keep the property: **defense is structural, never "read the text and judge whether it is an injection."**
+
+---
+
+## 4. Impact bands (accepted L2, decision 9) — aligned to the block ladder
+
+- **Band 1 — absolute:** harm-to-a-person only. Always blocked, mode-independent, never lifted (Level 4).
+- **Band 2 — high-friction resolvable:** secret / credential egress. Mandatory explicit manual approval every new
+  destination, never silent, never absolute; remembered per-destination on approval (Level 3).
+- **Band 3 — resolvable / authorizable:** unapproved delete or ordinary unapproved egress. Held + warned + the rest
+  continues; runs and is remembered once approved (Level 2).
+- **Band 4 — routine:** ordinary work. Proceeds (Level 1).
+
+**"Silence = consent" never applies to Bands 1–2;** a Band-2 secret-egress and a Band-3 action are held (not silently
+run) until the user decides. Gather consent-requiring actions upfront where possible, approve once, then run freely.
+
+---
+
+## 5. Approved-destinations contract (accepted L2, decision 14; ADR-052 Proposed)
+
+- The user approves a destination list; **approved destinations run freely** for ordinary data (anti-nag), never blocked.
+- An **ordinary-data** destination **not** on the list is a **Level-2 resolvable block:** the egress action is held, the
+  user is warned to approve/reject, **the rest of the task continues**, and on approval the destination is added and
+  remembered.
+- **Secret / credential egress is always Level-3 mandatory manual approval** — even to an otherwise-approved destination,
+  the first time for that destination Lilara names the destination and asks explicitly; never silent, never absolute;
+  remembered per-destination on approval.
+- A weekly reminder re-confirms the approved list.
+- Backed by **taint-tracking** so an injected agent structurally cannot quietly reach a non-approved destination — but
+  the result is **hold-and-ask** (or, for secrets, an explicit named prompt), not a task kill. **Gate on where data goes,
+  not on what is inside it** — except that a **secret** in the payload raises the egress to Level 3. A bulk structured-PII
+  threshold (ADR-053, Proposed) can similarly raise an egress action's sensitivity.
+
+---
+
+## 6. Anti-nag is a hard requirement
+
+Re-prompting inside a granted scope is a **defect**, target zero. An approved destination/deletion is **remembered** so
+it is never asked twice. Friction events feed the self-improvement loop as "could this be done better?" inputs. The
+contract exists so the user grants once and is left to work — and a single sensitive action never stalls the whole task.
+
+---
+
+## 7. The autonomy dial (accepted L2, [ADVISORY], open)
+
+Model autonomy as a **risk-calibrated dial**, redesigned best-in-class (NOT a copy of Claude's discrete modes): earned
+scope-specific trust, plan as a transparency toggle, time-boxed non-blocking holds for Level-2/Level-3 actions (the rest
+of the work keeps moving while one held action waits), and constant after-the-fact accountability (decision journal +
+snapshots).
+
+---
+
+*Summary for review: (1) a graded ladder — Level 1 proceeds; Level 2 resolvable block (unapproved delete / ordinary
+unapproved egress); Level 3 mandatory explicit manual approval (secret / credential egress — never silent, never
+absolute); Level 4 absolute block (harm-to-a-person only); (2) on a Level-2/3 hold, **hold that action and continue the
+rest of the work**; (3) data egress — including secret egress — is **consent-based, not an absolute red line** (F27
+reclassified from absolute block to Level-3 mandatory manual approval). Related: `RED-LINES.md`, `MEMORY.md`,
+`references/SCOPE.md`.
+
+*Encoded as ADR-035 (consent gate, BUILT), ADR-049 (posture), ADR-052 (default-deny egress, Proposed), F27 (to be
+reclassified in the encoding sprint).*
+
+---
+
+# lilara.contract.json schema reference
 
 The contract pre-agrees all security permissions before agent work begins. It is the machine-readable answer to: "what is this agent allowed to do in this project?"
 

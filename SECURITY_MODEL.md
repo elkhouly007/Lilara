@@ -1,8 +1,15 @@
 # Security Model
 
-## Boundary
+> **Owner refinement 2026-06-16 — the block model.** Lilara enforces a **graded ladder** on egress and destructive
+> actions: **Level 1** ordinary work proceeds silently; **Level 2** resolvable block (unapproved delete or ordinary
+> egress to an unapproved destination) holds *that action*, warns the user, and continues the rest of the task; **Level
+> 3** mandatory explicit manual approval (secret / credential egress — **never silent, never absolute**, remembered
+> per-destination); **Level 4** absolute block (harm-to-a-person only — the only absolute, user-independent red line).
+> **F27 (secret-egress-external)** is **reclassified from absolute block to Level 3** (mandatory manual approval). Full
+> contract in [`CONTRACT.md`](CONTRACT.md). Red lines in [`RED-LINES.md`](RED-LINES.md).
 
-Agent Runtime Guard assumes the current project directory is the primary trust boundary, with controlled exceptions for reviewed external tools and trusted agents. The goal is not to ban capability. The goal is to ban silent trust expansion.
+## Boundary
+Agent Runtime Guard (Lilara) assumes the current project directory is the primary trust boundary, with controlled exceptions for reviewed external tools and trusted agents. The goal is not to ban capability. The goal is to ban silent trust expansion.
 
 The toolkit cannot make an agent safe by itself. It provides policy, defaults, and reminders. The agent is expected to review commands, diffs, secrets, payloads, and data flow before acting.
 
@@ -70,21 +77,46 @@ a=rm; b="-rf /"; $a $b
 
 **Accepted because:** rate limiting here is a performance optimization to prevent thousands of Node.js process spawns, not a security gate. The "fail open" fallback on any file error already admits unbounded invocations. The practical burst overhead is bounded by the number of concurrent hooks (≤ 4) times capacity.
 
-### Prompt injection detection is content-heuristic only
+### Prompt injection patterns are defense-in-depth, not the primary defense
 
-The prompt injection patterns in `dangerous-patterns.json` scan the command string for known injection phrases. This does not cover:
+Defense is **structural** (taint tracking F10/F23, content contract red lines, the classify/redact pipeline, user
+review of agent actions before approval — see `references/SCOPE.md:932` and `CONTRACT.md:105-130` which explicitly
+avoid the "semantic injection-text classifier" non-deterministic trap). The static command-string patterns below are
+one supplementary layer only, never the primary defense.
+
+The static command-string regexes in `dangerous-patterns.json` scan the command string for known injection phrases.
+These do not cover:
 
 - Injections embedded in file content that the agent reads and then executes
 - Indirect prompt injection via external data sources (MCP results, browser output, API responses)
 - Novel injection phrasing not covered by the current patterns
 
-**Mitigation:** The classify/redact pipeline and user review of agent actions before approval are the primary defenses.
+**These gaps are deliberate, not a defect.** A semantic injection-text classifier would be a non-deterministic trap
+(see the canonical "no semantic injection-text classifier" statement in `CONTRACT.md:105-130`); structural defenses
+(F10 taint tracking, F23 kill chain, content contract red lines, user review) are what actually stop injected
+commands from running.
 
 ---
 
 ## Egress Sanitization Scope
 
-**PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode, openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or payload, `payloadClass` is upgraded to C (critical) and the hard floor in `decide()` fires. This applies across all six harnesses.
+> **Owner refinement 2026-06-16 — target posture vs current behavior.** The **target** for secret/credential egress is
+> **Level 3 mandatory explicit manual approval** — never silent, never absolute, remembered per-destination on
+> approval. F27 (single-call secret-egress-external) and F28 (cross-call staged/taint-egress) are the *mechanism* that
+> **detects** the secret; they raise the egress to Level 3 and **never hard-block** the action. A legitimate deploy
+> that must upload an API key is not broken — the user is prompted, approves, and the action proceeds and is remembered.
+> **Encoding status (2026-06-16 → Phase 3, see `references/PLAN.md`):** the **docs** (`CONTRACT.md` §2, this file,
+> `references/SCOPE.md` §25.5) record the Level-3 target. The **runtime encoding** (rewiring `secret-warning` from
+> `payloadClass=C` → hard floor to "raise to Level 3, prompt with destination name, remember on approval") is the
+> **Phase-3 build task** — until that lands, F27 continues to fire on the existing mechanism (raise to
+> `payloadClass=C` → hard floor). The canonical target is the L3 model — not a silent allow, not an absolute block.
+
+**PreToolUse (all harnesses):** `runtime/pretool-gate.js` calls `scanSecrets()` for every harness (claude, opencode,
+openclaw, clawcode, codex, antegravity) before any tool call. If a secret pattern is detected in the command or
+payload, the action is raised to **Level 3 mandatory explicit manual approval** (per the block model) — never a silent
+allow and never a hard absolute block. The destination gate (per the §5 approved-destinations contract) governs
+ordinary egress; a secret in the payload raises the egress to Level 3 regardless. This applies across all six
+harnesses.
 
 **PostToolUse (Claude Code only):** `claude/hooks/output-sanitizer.js` scans tool output for the same 23-pattern set after each tool call, warning when a credential appears in a tool response. This hook is a Claude Code PreToolUse/PostToolUse informational warning only — it cannot block (PostToolUse hooks are informational).
 

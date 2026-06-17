@@ -50,13 +50,22 @@
 | 0 | Truth, hygiene & owner-decision packet | 0.2.2 | — |
 | 1 | Hard-exception eval harness + OpenClaw calibration | 0.2.2–0.2.3 | P0 decision §19 #4 |
 | 2 | Hermes adapter + dual-integration measurement (closes 0.2.0 DoD #5) | 0.2.3 | P1 harness |
-| 3 | L1 completeness: laundering gates → tamper floor → posture graduation | 0.2.4 | P1 budgets; ADR-049/050 (Q2/Q7 DECIDED) |
-| 3.5 | Egress model: default-deny allowlist + approved-destinations contract + structured-PII floor + network backstop | 0.2.5 | P3 gates; decisions 6/14 |
-| 4 | L2 memory (privacy-by-construction first) | 0.3.x | P3.5 egress foundation + P3 gates |
+| 3 | L1 completeness: laundering gates → tamper floor → **block-model secure-by-default posture (L1/L2/L3/L4 ladder; F27 reclassification to Level 3)** | 0.2.4 | P1 budgets; ADR-049/050 (Q2/Q7 DECIDED) |
+| 3.5 | Egress model: default-deny allowlist + approved-destinations + structured-PII floor + network backstop | 0.2.5 | P3 gates; decisions 6/14 |
+| 4 | L2 memory + **Memory Souls (smart-tag recall; first-class, owner elevation 2026-06-16)** | 0.3.x | P3.5 egress foundation + P3 gates |
 | 5 | L4 orchestration | 0.4.x | P4 (L4 depends on L2) |
-| 6 | L5 full shell: approver-auth → inbound → guest→host inversion | 0.5.x | P3 integrity hardening |
+| 6 | L5 full shell: approver-auth → inbound → guest→host inversion → **Breath proactive-watch loop (first-class, owner elevation 2026-06-16)** | 0.5.x | P3 integrity hardening |
 | 7 | L3 self-improvement (suggestion-only) — LAST layer | 0.6.x | P3 gates + P4 wiring |
 | 8 | §23.A control-plane UI real build (web + TUI) | after core | P6 approver-auth; owner go |
+
+**Owner refinement 2026-06-16 (recorded here so it is not re-litigated; full text in `references/SCOPE.md` §25.5 and
+`HANDOVER-HERMES.md` §7):** the default posture is **the block ladder** (Level 1 proceeds; Level 2 resolvable block;
+Level 3 mandatory manual approval — **F27 reclassified from absolute to Level 3, never silent, never absolute,
+remembered per-destination**; Level 4 absolute block = harm-to-a-person only — the *only* absolute red line). **Breath
+and Memory Souls are first-class scoped items** (Memory Souls at L2; Breath at L5). Red Line B = deception+harm test
+(consent never a free pass); inviolable tier = never weakened, even with user approval (for the absolute tier); the
+"propose AND act" question = reconciled (act freely inside the contract; only safety-code self-mod is suggestion-only).
+Phase 3's block-model secure-by-default posture work is the encoding of these resolutions into the runtime default.
 
 Cross-cutting tracks (§7 below) run alongside: §23.B study-and-rewrite, red-team release gates, perf SLO, weekly loop.
 
@@ -198,10 +207,13 @@ with evidence and owner sign-off.
    (corpus green under both postures); optionally migrate posture into `decide()` input per the ADR-046 pattern.
 4. **Default-posture graduation — policy DECIDED (Q2, 2026-06-12, ADR-049; SHARPENED 2026-06-13, decision 12):**
    secure-by-default, evidence-gated, re-partitioned into three buckets. **(a) ON at install, UNCONDITIONALLY**
-   (definitional — no FP-budget gate): F3 (catastrophic commands), F27 (secret egress, inviolable), the installed-core
+   (definitional — no FP-budget gate): F3 (catastrophic commands), **F27 (secret egress — currently inviolable in the
+   lattice; target per 2026-06-16 owner refinement: Level 3 mandatory manual approval; runtime reclassification is the
+   Phase-3 build task)**, the installed-core
    tamper floor (ADR-050), and the content red lines once point (b) is wired. **(b) Calibration-gated** (heuristic
    inviolable): F10 taint, F14/F14b duration/budget — flip once Phase-1 calibration shows near-zero FP (the **amended
-   ADR-049 first wave**; F3/F27 moved up to (a)). **(c) Opt-in until own FP budget:** F28 (demotable — NOT in (a)),
+   ADR-049 first wave**; F3 moved up to (a) at install; F27 sits in (a) today (inviolable in code) but the target is
+   Level 3 (Phase 3). **(c) Opt-in until own FP budget:** F28 (demotable — NOT in (a)),
    F29, F23 — flip one at a time, each by its own ADR + owner sign-off. Env override always retained; per P1/P2,
    secure-by-default must never become nag-by-default — a floor that would nag fails its graduation gate even at zero FP.
 

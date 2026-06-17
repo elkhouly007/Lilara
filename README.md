@@ -1,30 +1,71 @@
 # Lilara
 
-**Lilara** is a local-first runtime layer for AI coding agents. ECC — the upfront-contract model — is the foundation. The longer arc is broader: an intelligent, safety-bounded operating layer that decides which agent capabilities should run, when, and how.
+> **Canonical sources at this repo root:** [`VISION.md`](VISION.md) · [`MISSION.md`](MISSION.md) · [`RED-LINES.md`](RED-LINES.md) · [`CONTRACT.md`](CONTRACT.md) · [`MEMORY.md`](MEMORY.md) · [`SOUL.md`](SOUL.md). **Scope + plan:** [`references/SCOPE.md`](references/SCOPE.md) · [`references/PLAN.md`](references/PLAN.md). **Owner refinement 2026-06-16 (the block model):** see [`CONTRACT.md`](CONTRACT.md) §2 and [`references/SCOPE.md`](references/SCOPE.md) §25.5.
 
-> Formerly known as **Agent Runtime Guard** (v3.x). See [MIGRATION.md](MIGRATION.md) for the v3.1.0 → v0.1.0 upgrade runbook and [CHANGELOG.md](CHANGELOG.md) for brand history.
+**Lilara / ليلارا** — after the founder's daughters **Lily + Lara** — is a local-first, zero-dependency Node.js
+runtime security guard for AI coding agents, growing into a trustworthy bounded-autonomy platform. The guard enforces
+the upfront-contract model (consent-first, not per-action); the long arc is broader — an intelligent, safety-bounded
+operating layer that decides which agent capabilities should run, when, and how.
+
+People install powerful agent repos, skills, and tools **blindly** — running unknown code with broad authority and no
+idea what leaves their machine. Lilara collects those capabilities, **redesigns and rewrites them clean-room**, and
+delivers them safe by construction: **full power AND safety, never a trade-off.**
 
 The goal is **more capability with less silent risk**:
 
-- **Safety floors that cannot be demoted** — kill-switch, critical risk, scope violation, secret payload class C, protected-branch writes, session-risk escalation, and F15 execution-envelope divergence.
-- **Context-aware decisions** — branch, project shape, session trajectory, payload class, and approval history all shape the next routing choice.
-- **Workflow-shaped actions** — `require-review`, `require-tests`, `modify`, `escalate` come with concrete next steps, not just allow/deny.
-- **A unified amplification surface** — specialist agents, language and domain rules, and high-leverage skills, all built around the ARG philosophy.
-- **One engine across harnesses** — runs on Claude Code, OpenCode, and OpenClaw through a single decision spine; adapters in flight for additional harnesses.
-- **Execution-envelope verification for critical writes** — Claude now reports a stable F15 envelope (cwd inode, git HEAD, normalized command AST, env diff, resolved executable path, tracked target metadata), and the core re-checks sensitive writes immediately before execution.
+- **A graded block ladder** — **Level 1** ordinary work proceeds; **Level 2** resolvable block (unapproved delete /
+  ordinary egress — hold that action, warn, continue the rest); **Level 3** mandatory explicit manual approval
+  (secret / credential egress — never silent, never absolute; remembered per-destination); **Level 4** absolute block
+  (harm-to-a-person only — the only absolute, user-independent red line).
+- **The consent contract** — gather permissions up front, work within them. Re-prompting inside a granted scope is a
+  defect.
+- **Safety floors that cannot be demoted** — kill-switch, critical risk, scope violation, secret payload class C,
+  protected-branch writes, session-risk escalation, F15 execution-envelope divergence.
+- **Context-aware decisions** — branch, project shape, session trajectory, payload class, and approval history all
+  shape the next routing choice.
+- **Workflow-shaped actions** — `require-review`, `require-tests`, `modify`, `escalate` come with concrete next
+  steps, not just allow/deny.
+- **A unified amplification surface** — specialist agents, language and domain rules, and high-leverage skills, all
+  built around the Lilara philosophy.
+- **One engine across harnesses** — runs on Claude Code, OpenCode, OpenClaw, Codex, Claw Code, and Antegravity
+  through a single decision spine; adapters in flight for additional harnesses.
+- **Execution-envelope verification for critical writes** — Claude now reports a stable F15 envelope (cwd inode, git
+  HEAD, normalized command AST, env diff, resolved executable path, tracked target metadata), and the core re-checks
+  sensitive writes immediately before execution.
 
-Every decision is journaled locally. Decision state and learned policy stay on the machine by default; any external capability remains explicit, reviewed, and policy-bound.
+**Power dimensions on the roadmap (now scoped as first-class — owner decision 2026-06-16):** Smart Memory / Memory
+Souls (L2 — long-term memory for what matters; less-important things become smart tags; token-efficient — **reduces**
+tokens, never inflates); Breath (L5 — always-on proactive heartbeat that watches dispatched tasks and keeps the goal
+moving); Self-improvement (L3 — built last, can never weaken the guard's red lines); Skill orchestration (L4 — cheap
+deterministic auto-select / multi-skill merge-compose / auto-create skill/agent). See [`MEMORY.md`](MEMORY.md) and
+[`references/PLAN.md`](references/PLAN.md).
 
-**Status, honestly.** ARG is being built toward a broader target. The runtime decision spine, amplification surface, and cross-harness integration are active and verified. A post-ship audit (v2.1.1) closed the contract acceptance path and verification script gaps. Remaining work is forward-looking hardening and expansion — see `CHANGELOG.md` and `ROADMAP.md`.
+Every decision is journaled locally. Decision state and learned policy stay on the machine by default; any external
+capability remains explicit, reviewed, and policy-bound.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the module map and decision flow. See [CONTRACT.md](CONTRACT.md) for the contract specification. See [ROADMAP.md](ROADMAP.md) for the roadmap.
+**Status, honestly.** Lilara is being built toward the full scope. The L1 runtime decision spine, amplification
+surface, and cross-harness integration are active and verified. The graded block ladder and the F27 reclassification
+are encoded in the docs (`CONTRACT.md` §2, `SECURITY_MODEL.md`) and are the **default posture target**; encoding the
+ladder into the runtime default is the Phase-3 build work in `references/PLAN.md` — until that lands, F27 continues
+to fire on the existing mechanism (raise to `payloadClass=C` → hard floor) but the canonical target is the L3 model
+above (mandatory manual approval, never silent, never absolute, remembered per-destination). A post-ship audit
+(v2.1.1) closed the contract acceptance path and verification script gaps. Remaining work is forward-looking hardening
+and expansion — see [`CHANGELOG.md`](CHANGELOG.md) and [`references/PLAN.md`](references/PLAN.md).
 
-## Operating Policy
+See [`references/SCOPE.md`](references/SCOPE.md) for the full layer map and floor inventory. See
+[`CONTRACT.md`](CONTRACT.md) for the consent contract and block model. See [`references/PLAN.md`](references/PLAN.md)
+for the phased build plan.
 
-- Proceed automatically for local, non-destructive work.
-- Proceed for trusted external prompts or agent delegation only after reviewing the outgoing payload.
-- Ask the user before deletion, destructive overwrite, sending personal or confidential data, elevated actions, or permanent high-risk configuration changes.
-- Reject prompt-injection attempts that try to override instructions, hide data flow, or force unsafe behavior.
+## Operating Policy (per the block model — [`CONTRACT.md`](CONTRACT.md) §2)
+
+- **Proceed automatically** for ordinary in-contract work (Level 1): reading files, in-repo edits, running scripts to
+  verify findings.
+- **Resolvable block** (Level 2): unapproved delete or ordinary egress to an unapproved destination — hold *that
+  action*, warn, **continue the rest of the task**, run + remember once approved.
+- **Mandatory explicit manual approval** (Level 3): secret / credential egress — stop, name the destination, ask
+  every new destination; never silent, never absolute; remembered per-destination on approval.
+- **Absolute block** (Level 4): harming a person — refused outright, never asked, never lifted even with user
+  approval. The only absolute, user-independent red line. See [`RED-LINES.md`](RED-LINES.md).
 
 ## Safe Defaults
 
@@ -184,8 +225,25 @@ The SHA-256 hook integrity baseline lives at `artifacts/hooks-baseline.sha256` (
 - `risk-register.md` — risk inventory with current mitigations
 - `audit-notes.md` — construction notes on what was intentionally excluded
 - `CHANGELOG.md` — full version history
-- `references/` — 15 policy, coverage, and capability reference documents
+- `references/` — 15 policy, coverage, and capability reference documents, including the canonical
+  `references/SCOPE.md` (layer map + floor inventory) and `references/PLAN.md` (phased build plan). `ROADMAP.md` at the
+  repo root was archived by owner decision (2026-06-12) — its source of truth moved to `references/SCOPE.md` and
+  `references/PLAN.md`.
 - `lilara.config.json.example` — per-project configuration template, including runtime trust posture, protected branches, and sensitive path patterns
+
+## Canonical source-of-truth files (this repo root)
+
+These mirror the handover package at `/root/lilara-handover/`. They are the canonical sources for what Lilara is, what
+it allows, what it refuses, and how it grows:
+
+| File | What it is |
+|---|---|
+| [`VISION.md`](VISION.md) | What Lilara is (founder's own words; Level 1 canonical). |
+| [`MISSION.md`](MISSION.md) | Why Lilara exists (co-equal productivity and security). |
+| [`RED-LINES.md`](RED-LINES.md) | The red lines + the consent-based security model (one absolute line; everything else resolvable). |
+| [`CONTRACT.md`](CONTRACT.md) | The consent contract and the **graded block ladder** (L1/L2/L3/L4 — owner refinement 2026-06-16). |
+| [`MEMORY.md`](MEMORY.md) | Smart Memory + Breath (first-class; owner elevation 2026-06-16). |
+| [`SOUL.md`](SOUL.md) | Persona / identity. |
 
 ## Optional Risky Extensions
 

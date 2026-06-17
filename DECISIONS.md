@@ -655,3 +655,87 @@ renumber); ADR-049 + ADR-051 amended; ADR-052/053 Proposed; Appendix B count fix
 unindexed).
 
 **Owner:** Khouly.
+
+---
+
+## D52–D56 — Owner refinement 2026-06-16: the block model
+
+> **Date:** 2026-06-16. **Owner:** Khouly. **Source:** `HANDOVER-HERMES.md` §7 (resolved owner decisions, recorded
+> verbatim from the handover package). **Scope:** canonical; not re-litigated. **Encoding:** `references/SCOPE.md`
+> §25.5 (new section); `CONTRACT.md` §0–§6 (block ladder at the top of the contract reference); `SECURITY_MODEL.md`
+> (top of file + the §"Egress Sanitization Scope" subsection); `MEMORY.md` (Smart Memory + Breath, canonical at repo
+> root); `references/PLAN.md` Phase table (Breath + Memory Souls elevation called out).
+
+The five prior Level-3 conflicts (G12 default posture, Breath/Memory Souls scope, Red Line B, inviolable tier,
+"propose AND act") are now **resolved by the owner**. Recorded as D52–D56 so they are not re-litigated in routed work.
+
+### D52 — Default posture = the block ladder (resolves G12)
+
+A graded ladder; **only harm-to-a-person is absolute, everything else is resolvable**, and ordinary work proceeds
+(Lilara does not block it).
+
+- **Level 1 — PROCEEDS:** in-contract actions and ordinary work (reading/verifying files, in-repo edits).
+- **Level 2 — RESOLVABLE BLOCK:** unapproved delete or ordinary egress to an unapproved destination → hold **that
+  action only**, warn, **continue the rest of the task**, run + remember once approved.
+- **Level 3 — MANDATORY EXPLICIT MANUAL APPROVAL:** secret / credential egress → stop and name the destination every
+  new destination, **never silent**, **never absolute**, remembered per-destination. **F27 reclassified from absolute
+  block to this.** A legitimate deploy uploading an API key approves once and proceeds + remembers; an injected agent
+  exfiltrating keys is caught because the prompt cannot be silent.
+- **Level 4 — ABSOLUTE BLOCK:** harming a person → refused outright, never asked, never lifted even with user
+  approval. **The only absolute, always-on, user-independent red line.**
+
+**Data egress (incl. secret egress) and deletion are consent-based, not absolute red lines.** This supersedes the old
+shipped warn-only default. Encoding it into the runtime default is a Phase-3 / Phase-3.5 build task (see
+`references/PLAN.md`).
+
+### D53 — Breath + Memory Souls = first-class (owner elevation)
+
+Per `MEMORY.md` (canonical at the repo root):
+
+- **Smart Memory / Memory Souls (L2)** — long-term memory for what matters; less-important things become clear **smart
+  tags** that point to what to load. Always-on, **token-efficient (reduces tokens, never inflates)**. Privacy is
+  architectural (typed allowlist-only serializer; memory cannot become a silent egress path).
+- **Breath (L5)** — Lilara is always running and watching its tasks (does not sleep waiting to be woken). When a
+  dispatched tool needs input or finishes, Breath acts. It periodically runs tests, finds issues, and either acts
+  (within granted scope) or asks. **Together they make Lilara a teammate, not a tool that only reacts.**
+
+Both honor the locked build order — safety core first, memory and the proactive loop build on top, self-improvement
+last.
+
+### D54 — Red Line B = deception+harm test (consent never a free pass)
+
+Confirmed: the discriminator is **output deception + harm**, never the consent claim. A content-blind generation
+layer cannot verify "they consented," so that assertion is never a free pass. Benign edits (own photo, background swap,
+retouch, style) are allowed because the output is benign, not because consent is asserted. Refused are deceptive
+deepfakes, false situations presented as real, intimate imagery of a real person, defamatory/fabricated written claims
+about an identifiable real person presented as real. Clearly-labelled fiction or satire is allowed. Full text in
+`RED-LINES.md` §1.
+
+### D55 — Inviolable tier = never weakened, even with user approval (absolute tier)
+
+Confirmed: the **absolute tier** (harm-to-a-person) cannot be lifted by user approval, by self-improvement, or by any
+other mechanism. Strong memory may sharpen edge-case judgment inside the lines but can never soften the line.
+Enforced at runtime by the never-demotable lattice tier (ADR-036) and the installed-core tamper floor (ADR-050). The
+engineering invariant — "no learned/self-improvement source in any inviolable floor's `demotableBy`" — is non-
+negotiable and CI-gated.
+
+### D56 — "Propose AND act" reconciled
+
+Act freely inside the consent contract in normal work (writing code, executing tasks, managing a tool). **Only**
+modifying Lilara's own safety/guard code/hooks/adapters requires explicit approval and is never auto-applied. The
+auto-apply path **must not exist structurally** (engineering invariant — `references/SCOPE.md` §18). Created skills
+and agents pass through the guard as untrusted proposals before they run. The full four-source self-improvement engine
+(memory, better methods, created skills/hooks/adapters/agents, weekly interest loop) is built **LAST** (L3); the
+§19 #6 policy-laundering / gradual-weakening regression gates land **before** any L3 code (Phase 3, item 1).
+
+---
+
+## Cross-references
+
+- Full text: `HANDOVER-HERMES.md` §7 (resolved owner decisions); `HANDOVER-OPENCLAW.md` §7 (planner-side mirror).
+- `RED-LINES.md` §1–§2 (red lines + consent-based model).
+- `MEMORY.md` (Smart Memory + Breath canonical definitions).
+- `CONTRACT.md` §0–§6 (block ladder).
+- `references/SCOPE.md` §25.5 (repo-side decision record).
+- `references/PLAN.md` Phase overview (the 2026-06-16 refinement recorded in the Phase table + footer).
+
