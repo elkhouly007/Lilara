@@ -21,7 +21,8 @@
 
 "use strict";
 
-const { createPostAdapter, loadManifest } = require("../../claude/hooks/hook-utils");
+const { createPostAdapter } = require("../../runtime/post-adapter-factory");
+const { loadManifest } = require("../../claude/hooks/hook-utils");
 
 createPostAdapter({
   harness:           "hermes",
