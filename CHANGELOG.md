@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 1.4 — OpenClaw real-run calibration (P1.4)
+
+- **feat(eval): Phase 1.4 OpenClaw real-run calibration** — NEW `evals/openclaw-calibration.eval.js` (189 lines) drives the OpenClaw harness adapter directly with 8 seeded hard-exception probes (2 safe / 4 dangerous / 2 borderline) shaped exactly like the production `runtime/pretool-gate.js` payload. **Result: 8/8 PASS, 0 FP / 0 FN at the shipped default posture** (dangerous patterns emit `WARN` as designed per decision 12 — the engine classifies them correctly). NEW `artifacts/calibration/openclaw.json` records per-probe decisions + FP/FN counts. **Measurement only — no `runtime/`, no `openclaw/hooks/adapter.js`, no floor, no lattice, no replay-corpus, no `decide()` change.** No `[LOCKED]/[ADVISORY]/[OPEN]/[CC-PROPOSED]` tag change. Additivity guard held. All 16 local gates green. Per `references/SCOPE.md` §19 #15 calibration-gated flow.
+
 ### Chore — Hermes doc-honesty clean-up (P2.6) + 4 new hermes fixture files
 
 - **chore(p2-6): Hermes doc-honesty clean-up** — fixes 11 doc-honesty / fixture-coverage issues found in the
