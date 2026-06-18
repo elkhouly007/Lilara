@@ -6,7 +6,12 @@ parity_file="$root/references/parity-matrix.json"
 
 [ -f "$parity_file" ] || { printf 'parity-matrix.json missing\n' >&2; exit 1; }
 
-today="$(git -C "$root" log -1 --format=%cd --date=format:%Y-%m-%d -- references/per-tool-apply-status.md 2>/dev/null | grep . || date -u +%Y-%m-%d)"
+# NOTE: this generator intentionally does NOT embed a volatile date stamp.
+# A 'Last updated:' line was removed 2026-06-17 because (a) it caused the
+# check-apply-status byte-cmp gate to drift whenever the host clock differed
+# from the commit date, and (b) `git log -1 references/per-tool-apply-status.md`
+# is the authoritative "when did this artifact last change" signal.
+# See commit that drops the line for context.
 
 # Extract current totals from parity-matrix.json summary
 read -r agents rules skills <<EOF
@@ -32,8 +37,6 @@ cat <<EOF
 # Per-Tool Apply Status
 
 Tracks which Agent Runtime Guard components are applied (wired and active) vs. template-only (file exists but not yet configured) for each supported tool.
-
-Last updated: ${today}
 
 ---
 
