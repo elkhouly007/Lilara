@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 1.6 — Hermes real-run calibration (P1.6)
+
+- **feat(eval): Phase 1.6 Hermes real-run calibration** — NEW `evals/hermes-calibration.eval.js` (companion to Phase 1.4 OpenClaw calibration). Same 8 seeded probes, same taxonomy (2 safe / 4 dangerous / 2 borderline), same expected classes — only the harness label differs (`harness: "hermes"` instead of `"openclaw"`). Probes shaped as Hermes-primary IR (`{ tool: "terminal", cmd, cwd, args, mcp_server, skill_name, session_id, tool_call_id }`) per `hermes/hooks/adapter.js` extraction. NEW `artifacts/calibration/hermes.json` records per-probe decisions + FP/FN counts. **Result: 8/8 PASS, 0 FP / 0 FN at the shipped default posture** (mirrors Phase 1.4 OpenClaw). **Measurement only — no `runtime/`, no `hermes/hooks/adapter.js`, no floor, no lattice, no replay-corpus, no `decide()` change.** No `[LOCKED]/[ADVISORY]/[OPEN]/[CC-PROPOSED]` tag change. Additivity guard held. All 16 local gates green.
+
 ### Phase 1.4 — OpenClaw real-run calibration (P1.4)
 
 - **feat(eval): Phase 1.4 OpenClaw real-run calibration** — NEW `evals/openclaw-calibration.eval.js` (189 lines) drives the OpenClaw harness adapter directly with 8 seeded hard-exception probes (2 safe / 4 dangerous / 2 borderline) shaped exactly like the production `runtime/pretool-gate.js` payload. **Result: 8/8 PASS, 0 FP / 0 FN at the shipped default posture** (dangerous patterns emit `WARN` as designed per decision 12 — the engine classifies them correctly). NEW `artifacts/calibration/openclaw.json` records per-probe decisions + FP/FN counts. **Measurement only — no `runtime/`, no `openclaw/hooks/adapter.js`, no floor, no lattice, no replay-corpus, no `decide()` change.** No `[LOCKED]/[ADVISORY]/[OPEN]/[CC-PROPOSED]` tag change. Additivity guard held. All 16 local gates green. Per `references/SCOPE.md` §19 #15 calibration-gated flow.
