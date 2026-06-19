@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# check-cross-harness-equivalence.sh — Assert that all six harness adapters
-# (claude, openclaw, opencode, codex, clawcode, antegravity) produce identical
-# enforcement decisions for the same command.
+# check-cross-harness-equivalence.sh — Assert that all seven harness adapters
+# (claude, openclaw, opencode, codex, clawcode, antegravity, hermes) produce
+# identical enforcement decisions for the same command.
 #
 # Calls runtime/pretool-gate.js directly with each harness name and compares
 # exitCode + logAction.  Any divergence fails the check.
 #
 # 21 representative commands are tested across safe, warn, enforce, and secret-scan paths.
-# The three EXPERIMENTAL harnesses (codex, clawcode, antegravity) must match the
+# The four EXPERIMENTAL harnesses (codex, clawcode, antegravity, hermes) must match the
 # three primary harnesses; their adapters all delegate to the same pretool-gate spine.
+# Hermes uses handler-wrap integration (see hermes/WIRING_PLAN.md) but exercises the
+# same pretool-gate spine, so equivalence holds.
 
 set -eu
 
@@ -81,7 +83,7 @@ if (fs.existsSync(fixtureDir)) {
   ];
 }
 
-const harnesses = ["claude", "openclaw", "opencode", "codex", "clawcode", "antegravity"];
+const harnesses = ["claude", "openclaw", "opencode", "codex", "clawcode", "antegravity", "hermes"];
 let failed = 0;
 
 for (const cmd of commands) {
