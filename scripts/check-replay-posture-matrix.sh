@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# check-replay-posture-matrix.sh — SCOPE §19 #14 (LOCKED 2026-06-13)
+# posture-matrix replay gate.
+#
+# §19 #14 pins the three posture flags that decide() reads from ambient env
+# (LILARA_TAINT_EGRESS, LILARA_DELETE_COORD, LILARA_KILL_CHAIN_ENFORCE) and
+# requires a posture-matrix replay: the shipped corpus must be replayed under
+# EVERY combination of those flags, and the canonical baseline posture (all
+# flags off) MUST be zero-drift. The other 7 combinations may show legitimate
+# drift (e.g. DELETE_COORD=1 engages the F29 floor, which changes
+# require-tests → require-review for destructive rm patterns); that drift is
+# the posture surface being exposed, not a regression.
+#
+# This gate is two-faced:
+#
+#   1. CANONICAL BASELINE (all-off, TE=0 DC=0 KC=0): MUST be zero-drift. A
+#      non-zero drift here is a regression in the shipped default — the
+#      corpus's recorded irHashes are the canonical baseline; if the engine
+#      now produces different actions/irHashes for the same input under the
+#      default posture, the corpus is silently invalidated. The check exits
+#      NON-ZERO on any drift in this combination.
+#
+#   2. POSTURE SURFACE (the other 7 combinations): the script replays and
+#      REPORTS the per-entry drift per combination so a reviewer can see the
+#      posture surface (which floors engage when which flags are on, and
+#      which corpus entries flip). Drift in these combinations is NOT a
+#      gate failure — it's the documented posture surface. The exit code
+#      is still 0 for these combinations as long as the canonical baseline
+#      (1) is zero-drift.
+#
+# Future work (NEEDS-APPROVAL, not in P3.3): regenerate the corpus per
+# posture so EVERY combination has a canonical baseline and the gate
+# requires zero-drift everywhere. That is the §19 #14 long-term ask; P3.3
+# is the surface-detection scaffold.
+#
+# The 8 combinations (2^3):
+#   000 — canonical baseline (all off) — MUST be zero-drift
+#   001, 010, 011, 100, 101, 110, 111 — posture surface (drift reported, not failed)
+#
+# For each combination, every shipped corpus file is replayed via
+# scripts/replay-decisions.js. The script sets LILARA_REPLAY_RESPECT_POSTURE=1
+# to opt replay-decisions.js out of its default posture pin (so the matrix
+# flags take effect), then exports the three flags for that combination.
+#
+# Exit codes:
+#   0 — canonical baseline (all-off) is zero-drift; other combinations may
+#       have reported drift but the gate is satisfied for this PR
+#   1 — canonical baseline (all-off) has drift — REGRESSION, must be fixed
+#   2 — fatal (node missing, corpus dir missing, etc.)
+
+set -u
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
+CORPUS_DIR="tests/fixtures/replay-corpus"
+
+if ! command -v node >/dev/null 2>&1; then
+  if [ "${LILARA_ALLOW_MISSING_NODE:-0}" = "1" ]; then
+    printf '[check-replay-posture-matrix] node not found — skipping (LILARA_ALLOW_MISSING_NODE=1)\n' >&2
+    exit 0
+  fi
+  printf 'FATAL: node not found on PATH\n' >&2
+  exit 2
+fi
+
+if [ ! -d "$CORPUS_DIR" ]; then
+  printf 'FATAL: corpus dir missing: %s\n' "$CORPUS_DIR" >&2
+  exit 2
+fi
+
+# Note: we deliberately use `set -u` (not `set -eu`) so the script does NOT
+# abort on a non-zero exit from the per-corpus `node` invocation. Drift is
+# a normal posture-matrix result that we capture and report; it must not
+# kill the rest of the matrix sweep.
+
+printf '[check-replay-posture-matrix]\n'
+
+CANONICAL_DRIFT=0
+TOTAL_RUNS=0
+TOTAL_ENTRIES=0
+COMBINATIONS=8
+BASELINE_LABEL="TE=0 DC=0 KC=0"
+
+for TE in 0 1; do
+  for DC in 0 1; do
+    for KC in 0 1; do
+      LABEL="TE=${TE} DC=${DC} KC=${KC}"
+      IS_CANONICAL=0
+      if [ "$TE" = "0" ] && [ "$DC" = "0" ] && [ "$KC" = "0" ]; then
+        IS_CANONICAL=1
+      fi
+      for corpus in "$CORPUS_DIR"/*.jsonl; do
+        [ -f "$corpus" ] || continue
+        rel="${corpus#$root/}"
+        # Capture the inner rc first (before the || true on the next line eats it).
+        out="$(LILARA_REPLAY_RESPECT_POSTURE=1 \
+               LILARA_TAINT_EGRESS="$TE" \
+               LILARA_DELETE_COORD="$DC" \
+               LILARA_KILL_CHAIN_ENFORCE="$KC" \
+               node scripts/replay-decisions.js --corpus "$corpus" 2>&1)"
+        rc=$?
+        : "${rc:=0}"  # normalize unset to 0
+        TOTAL_RUNS=$((TOTAL_RUNS + 1))
+        # Extract the entry count from the "N entries OK" line if present.
+        # A drift line says "N/M entries" — use the M (total) for the matrix tally.
+        entries="$(echo "$out" | grep -oE '[0-9]+ entries OK' | head -1 | grep -oE '^[0-9]+' | head -1)"
+        total_replayed="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/[0-9]+ entries' | head -1 | grep -oE '[0-9]+ entries' | grep -oE '^[0-9]+' | head -1)"
+        # For drift lines, total_replayed is set; for clean lines, entries is set.
+        if [ -n "$total_replayed" ]; then
+          TOTAL_ENTRIES=$((TOTAL_ENTRIES + total_replayed))
+        else
+          TOTAL_ENTRIES=$((TOTAL_ENTRIES + ${entries:-0}))
+        fi
+        if [ "$rc" -ne 0 ]; then
+          if [ "$IS_CANONICAL" -eq 1 ]; then
+            printf '  REGRESSION  %s | %s\n' "$LABEL" "$rel" >&2
+            echo "$out" | sed 's/^/    /' >&2
+            CANONICAL_DRIFT=1
+          else
+            # Non-canonical combination: report drift as posture surface, do not fail.
+            drift_count="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/' | head -1 | grep -oE '[0-9]+' | head -1)"
+            drift_count="${drift_count:-?}"
+            printf '  surface  %s | %s | %s entries drifted (legitimate posture surface)\n' "$LABEL" "$rel" "$drift_count"
+          fi
+        else
+          if [ "$IS_CANONICAL" -eq 1 ]; then
+            printf '  ok      [CANONICAL]  %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+          else
+            printf '  ok      %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+          fi
+        fi
+      done
+    done
+  done
+done
+
+printf '\n'
+printf 'combinations: %d | runs: %d | total entries: %d\n' "$COMBINATIONS" "$TOTAL_RUNS" "$TOTAL_ENTRIES"
+printf 'canonical baseline: %s\n' "$BASELINE_LABEL"
+
+if [ "$CANONICAL_DRIFT" -ne 0 ]; then
+  printf '\ncheck-replay-posture-matrix: FAILED\n' >&2
+  printf 'The canonical baseline (all posture flags off) MUST be zero-drift.\n' >&2
+  printf 'Drift in the canonical baseline is a regression in the shipped default\n' >&2
+  printf 'posture — the corpus has been silently invalidated.\n' >&2
+  exit 1
+fi
+printf 'check-replay-posture-matrix: PASS\n'
+printf '  (canonical baseline is zero-drift; other combinations reported as posture surface)\n'
+exit 0

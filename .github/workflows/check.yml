@@ -173,6 +173,20 @@ jobs:
           LILARA_CONTRACT_ENABLED=0 LILARA_TRAJECTORY_WINDOW_MIN=0 \
           bash scripts/check-decision-replay.sh
 
+      - name: Replay posture matrix (SCOPE §19 #14, P3.3)
+        # §19 #14 (LOCKED 2026-06-13) requires the replay harness to pin the
+        # three posture flags (LILARA_TAINT_EGRESS, LILARA_DELETE_COORD,
+        # LILARA_KILL_CHAIN_ENFORCE) AND a posture-matrix replay. The matrix
+        # gate is two-faced: the canonical baseline (all flags off) MUST be
+        # zero-drift (hard-fail, exit 1); the other 7 combinations report
+        # their posture surface (drift is the F29 floor engaging, not a
+        # regression) and exit 0. This catches a future default flip, a
+        # non-deterministic posture read, or a stale-fixture regression in a
+        # pinned-floor path BEFORE the shipped corpus can be silently
+        # invalidated. Per-posture canonicalization (zero-drift required
+        # everywhere) is NEEDS-APPROVAL future work, not bundled here.
+        run: bash scripts/check-replay-posture-matrix.sh
+
       - name: Contract module
         run: bash scripts/check-contract.sh
 
