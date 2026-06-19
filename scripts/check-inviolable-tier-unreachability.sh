@@ -183,15 +183,50 @@ if [ "$TIER_FILE_TOUCHED" -eq 1 ] && [ "$BASELINE_TOUCHED" -eq 0 ]; then
 fi
 
 # Case 3: tier file touched AND baseline touched → the rebaseline was
-# committed; require a CHANGELOG marker so the rebaseline is reviewable.
-# We look for the marker in the CHANGELOG.md diff for the same range.
-RANGE_CHANGELOG="$(git diff "$BASE_SHA".."$HEAD_SHA" -- CHANGELOG.md 2>/dev/null || true)"
-if echo "$RANGE_CHANGELOG" | grep -qE '\[LATTICE-BASELINE-REBASELINE\]'; then
-  pass "axis (b) — lattice rebaseline marker [LATTICE-BASELINE-REBASELINE] present in CHANGELOG.md for $RESOLVED_BASE..HEAD"
+# committed; require a CHANGELOG marker on EVERY commit that touches the
+# tier files or the baseline (so a stacked silent rebaseline on top of a
+# previously-marked PR cannot bypass the check by inheriting an old
+# marker from the PR's own CHANGELOG).
+#
+# Per-commit rule: for each commit c in $BASE..HEAD that touches any of
+# {runtime/decision-lattice.js, runtime/floor-codes.js,
+# artifacts/lattice-baseline.sha256}, the SAME commit c's diff to
+# CHANGELOG.md must contain the [LATTICE-BASELINE-REBASELINE] marker.
+# This ensures every rebaseline gets its own reviewable marker.
+MARKER='\[LATTICE-BASELINE-REBASELINE\]'
+# Enumerate commits in the range that touch the tier files or baseline.
+TIER_COMMITS="$(git rev-list --reverse "$BASE_SHA".."$HEAD_SHA" -- $TIER_FILES "$BASELINE_FILE" 2>/dev/null || true)"
+if [ -z "$TIER_COMMITS" ]; then
+  # No tier-touching commits but the files DID change in the range —
+  # that means the change came in via a merge or something unusual.
+  # Fall back to the legacy range check: marker must appear in CHANGELOG.md diff.
+  RANGE_CHANGELOG="$(git diff "$BASE_SHA".."$HEAD_SHA" -- CHANGELOG.md 2>/dev/null || true)"
+  if echo "$RANGE_CHANGELOG" | grep -qE "$MARKER"; then
+    pass "axis (b) — lattice rebaseline marker [LATTICE-BASELINE-REBASELINE] present in CHANGELOG.md for $RESOLVED_BASE..HEAD (legacy fallback)"
+  else
+    fail "axis (b) — runtime/decision-lattice.js and/or runtime/floor-codes.js and/or artifacts/lattice-baseline.sha256 changed in $RESOLVED_BASE..HEAD, but no [LATTICE-BASELINE-REBASELINE] marker was found in the CHANGELOG.md diff. Add a one-line entry: '\`[LATTICE-BASELINE-REBASELINE]\` — <reason>' under the [Unreleased] section."
+    printf '\ncheck-inviolable-tier-unreachability: FAILED\n' >&2
+    exit 1
+  fi
 else
-  fail "axis (b) — one of $TIER_FILES AND artifacts/lattice-baseline.sha256 both changed in $RESOLVED_BASE..HEAD, but CHANGELOG.md in the same range lacks the [LATTICE-BASELINE-REBASELINE] marker. Add a one-line entry: '\`[LATTICE-BASELINE-REBASELINE]\` — <reason>' under the [Unreleased] section so the rebaseline is reviewable."
-  printf '\ncheck-inviolable-tier-unreachability: FAILED\n' >&2
-  exit 1
+  # Iterate every tier-touching commit and require the marker in its
+  # own CHANGELOG.md diff.
+  MISSING_COMMITS=""
+  while IFS= read -r COMMIT; do
+    [ -z "$COMMIT" ] && continue
+    COMMIT_CHANGELOG="$(git show "$COMMIT" -- CHANGELOG.md 2>/dev/null || true)"
+    if ! echo "$COMMIT_CHANGELOG" | grep -qE "$MARKER"; then
+      MISSING_COMMITS="${MISSING_COMMITS}${COMMIT} "
+    fi
+  done <<EOF
+$TIER_COMMITS
+EOF
+  if [ -n "$MISSING_COMMITS" ]; then
+    fail "axis (b) — the following tier-touching commit(s) lack the [LATTICE-BASELINE-REBASELINE] marker in their CHANGELOG.md diff: $MISSING_COMMITS. Each rebaseline commit must add a marker of its own — inheriting one from a parent commit's CHANGELOG is not enough (silent rebaseline bypass)."
+    printf '\ncheck-inviolable-tier-unreachability: FAILED\n' >&2
+    exit 1
+  fi
+  pass "axis (b) — every tier-touching commit in $RESOLVED_BASE..HEAD has a [LATTICE-BASELINE-REBASELINE] marker in its own CHANGELOG.md diff"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
