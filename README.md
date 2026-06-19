@@ -166,6 +166,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `check-evals.sh` | Optional CI gate: run all `evals/*.eval.js` and assert exit 0; skip via `LILARA_SKIP_EVAL=1` |
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |
+| `check-inviolable-tier-unreachability.sh` | P3.1 / §19 #6 standing gate: (a) `canDemote(inviolable, *) === false` for every demotion source the engine uses; (b) monotonic — any change to `runtime/decision-lattice.js` or `runtime/floor-codes.js` in a commit range must be accompanied by an `artifacts/lattice-baseline.sha256` rebaseline AND a `[LATTICE-BASELINE-REBASELINE]` marker in `CHANGELOG.md` (so the rebaseline is reviewable, not silent) |
 | `check-config-integration.sh` | Verify `generate-config`, `install-local`, and `wire-hooks --check` integration paths |
 | `check-runtime-core.sh` | Verify the runtime decision core, learned policy, adaptive action plans, workflow routing guidance plus concrete tool targets for checks/review/setup/payload/wiring, source-file routing under balanced/strict trust postures, tool-aware wiring routing, payload-class-aware routing, session context, project-aware decisioning scaffold, and F15 envelope stability/divergence handling |
 | `check-runtime-cli.sh` | Verify runtime local state display, suggestion accept/promote/dismiss flows, workflow routing guidance, concrete tool targets, and adaptive explain output |
