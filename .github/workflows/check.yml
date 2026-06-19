@@ -147,6 +147,15 @@ jobs:
       - name: Check zero deps (runtime/)
         run: bash scripts/check-zero-deps.sh
 
+      - name: Inviolable tier regression gate (SCOPE §19 #6, P3.1)
+        # Axis (a): canDemote(inviolable, *) === false for every demotion source the engine uses.
+        # Axis (b): any change to runtime/decision-lattice.js or runtime/floor-codes.js
+        # in the merge-base range must be accompanied by an artifacts/lattice-baseline.sha256
+        # rebaseline AND a [LATTICE-BASELINE-REBASELINE] marker in CHANGELOG.md.
+        # This is the standing gate for the §19 #6 (LOCKED 2026-06-13) policy-laundering
+        # and self-modification-poisoning regression — it must land BEFORE any L3 code.
+        run: bash scripts/check-inviolable-tier-unreachability.sh origin/master
+
       - name: Check counts
         run: bash scripts/check-counts.sh
 
