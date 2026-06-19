@@ -80,6 +80,19 @@ if (!fs.existsSync(file)) {
 process.env.LILARA_CONTRACT_ENABLED = "0";
 process.env.LILARA_TRAJECTORY_WINDOW_MIN = "0";
 process.env.LILARA_RATE_LIMIT = "0";
+// SCOPE §19 #14 (LOCKED 2026-06-13) — pin the three posture flags explicitly so
+// the replay harness is posture-deterministic regardless of the ambient CI env.
+// decide() reads these as `=== "1"` to enable; pinning to "0" is the no-op
+// (inert-when-off) default. The posture-matrix check (scripts/check-replay-
+// posture-matrix.sh) sets LILARA_REPLAY_RESPECT_POSTURE=1 to opt out of this
+// pin so it can verify that enabling each flag individually produces no
+// drift in the shipped corpus — so a future default flip is caught before
+// it can silently break byte-identical replay.
+if (!process.env.LILARA_REPLAY_RESPECT_POSTURE) {
+  process.env.LILARA_TAINT_EGRESS = "0";
+  process.env.LILARA_DELETE_COORD = "0";
+  process.env.LILARA_KILL_CHAIN_ENFORCE = "0";
+}
 delete process.env.LILARA_KILL_SWITCH;
 delete process.env.LILARA_CONTRACT_REQUIRED;
 delete process.env.LILARA_F4_DEMOTE_TOKEN;

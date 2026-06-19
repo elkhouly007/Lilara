@@ -148,7 +148,7 @@ Security, coding-style, patterns, testing, hooks, and performance rules across 1
 
 High-leverage workflow entry points: ARG runtime debug, policy tuning, learning review, capability audit, deep code analysis, intelligence amplification, autonomous improvement, multi-agent debug, semantic refactor, test intelligence, deployment safety, context maximizer, orchestration design, workflow acceleration, pattern extraction, plus domain-specific skills for git workflows, multi-agent orchestration, and infrastructure patterns.
 
-### Scripts (`scripts/`) — 105 files
+### Scripts (`scripts/`) — 106 files
 
 | Script | Purpose |
 |--------|---------|
@@ -167,6 +167,7 @@ High-leverage workflow entry points: ARG runtime debug, policy tuning, learning 
 | `check-skills.sh` | Validate skill file structure |
 | `check-installation.sh` | Verify install profiles, config generation, and hook wiring |
 | `check-inviolable-tier-unreachability.sh` | P3.1 / §19 #6 standing gate: (a) `canDemote(inviolable, *) === false` for every demotion source the engine uses; (b) monotonic — any change to `runtime/decision-lattice.js` or `runtime/floor-codes.js` in a commit range must be accompanied by an `artifacts/lattice-baseline.sha256` rebaseline AND a `[LATTICE-BASELINE-REBASELINE]` marker in `CHANGELOG.md` (so the rebaseline is reviewable, not silent) |
+| `check-replay-posture-matrix.sh` | P3.3 / §19 #14 posture-matrix replay: replays the shipped replay corpus under all 8 combinations of `LILARA_TAINT_EGRESS` × `LILARA_DELETE_COORD` × `LILARA_KILL_CHAIN_ENFORCE`. **Two-faced gate**: the canonical baseline (all flags off) MUST be zero-drift (hard-fails on drift, exit 1); the other 7 combinations report their posture surface (drift is the F29 floor engaging, not a regression) and exit 0. Catches future default flips and non-deterministic posture reads in the canonical baseline before they can silently break byte-identical replay. Per-posture canonicalization is `NEEDS-APPROVAL` future work, not bundled. |
 | `check-config-integration.sh` | Verify `generate-config`, `install-local`, and `wire-hooks --check` integration paths |
 | `check-runtime-core.sh` | Verify the runtime decision core, learned policy, adaptive action plans, workflow routing guidance plus concrete tool targets for checks/review/setup/payload/wiring, source-file routing under balanced/strict trust postures, tool-aware wiring routing, payload-class-aware routing, session context, project-aware decisioning scaffold, and F15 envelope stability/divergence handling |
 | `check-runtime-cli.sh` | Verify runtime local state display, suggestion accept/promote/dismiss flows, workflow routing guidance, concrete tool targets, and adaptive explain output |
