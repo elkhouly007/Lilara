@@ -210,7 +210,9 @@ with evidence and owner sign-off.
    (definitional — no FP-budget gate): F3 (catastrophic commands), **F27 (secret egress — currently inviolable in the
    lattice; target per 2026-06-16 owner refinement: Level 3 mandatory manual approval; runtime reclassification is the
    Phase-3 build task)**, the installed-core
-   tamper floor (ADR-050), and the content red lines once point (b) is wired. **(b) Calibration-gated** (heuristic
+   tamper floor (ADR-050), and the content red lines once point (b) is wired (the **content seam** + its first build
+   task **T1** are now ADR-published — ADR-054 — and **awaiting build**; the definitional-tier flip for the content red
+   lines lands only after T1 and its downstream work). **(b) Calibration-gated** (heuristic
    inviolable): F10 taint, F14/F14b duration/budget — flip once Phase-1 calibration shows near-zero FP (the **amended
    ADR-049 first wave**; F3 moved up to (a) at install; F27 sits in (a) today (inviolable in code) but the target is
    Level 3 (Phase 3). **(c) Opt-in until own FP budget:** F28 (demotable — NOT in (a)),
@@ -462,6 +464,7 @@ the guard fronts 100% of launched-tool actions; UI-DESIGN.md's acceptance checkl
 | P0 | §19 #4 — HX1/HX2 deterministic meaning | Phase 1 slices | **DECIDED 2026-06-13** (ADR-051 + structured-PII split; §19 #4 CLOSED) |
 | P0 | R3 intent re-verification (16 decisions + §19 batch) | SCOPE/PLAN/contract alignment | **DONE 2026-06-13** (SCOPE §25; ADR-049/051 amended; ADR-052/053 proposed; D52) |
 | P3.5 | ADR-052 default-deny egress + ADR-053 structured-PII floor | Phase 3.5 build | **Proposed 2026-06-13** (decisions 6/14) |
+| P3.0 | ADR-054 content seam + T1 (point (b) attachment surface) | content-red-line definitional-tier flip | **ADR-published 2026-06-21** (ADR-054) — awaiting T1 build |
 | P0 | Q1 canonical sequencing | doc alignment | **DECIDED 2026-06-12** (§1.5 canonical) |
 | P0 | Q6 dashboard-as-seed | Phase 8 shape | **DECIDED 2026-06-12** (dashboard is the seed) |
 | P0 | Q7 tamper-floor scoping | Phase 3 item 2 | **DECIDED 2026-06-12** (ADR-050: installed guard, inviolable) |

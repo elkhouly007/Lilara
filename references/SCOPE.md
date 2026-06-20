@@ -1135,7 +1135,11 @@ auto-apply path must not exist structurally (engineering invariant). Full text i
 
 The block ladder is the **default posture**. Encoding it into the runtime default is the Phase 3 / Phase 3.5 build work
 in `references/PLAN.md` — including finalizing the **F27 reclassification** (Level 3 mandatory manual approval rather
-than absolute block). Until that lands, F27 continues to fire on the existing mechanism (`secret-warning` →
+than absolute block). The content-layer half of the ladder (Level 4 harm-to-a-person, the absolute content red lines)
+attaches at **enforcement point (b)** via the **content seam** specified in
+[`references/adr-054-content-seam-and-t1.md`](adr-054-content-seam-and-t1.md) — deterministic output-before-emit +
+PostToolUse gates, no classifier, no-TTY fail-closed, no-refuse/allow-mismatch — whose first build task **T1** is
+ADR-published and awaiting build. Until that lands, F27 continues to fire on the existing mechanism (`secret-warning` →
 `payloadClass=C` → hard floor), but the **canonical target** is the L3 model above — never silent, never absolute,
 remembered per-destination on approval.
 
