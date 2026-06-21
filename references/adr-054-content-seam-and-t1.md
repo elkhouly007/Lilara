@@ -138,14 +138,18 @@ judge.
 
 - The "point (b) is doc-only / G2 wiring remaining" gap now has a **named, regression-guardable seam** and a concrete
   first build task (T1), rather than an open hand-wave.
-- The seam is loophole-resistant by construction: layer purity is preserved, the output-before-emit and PostToolUse
-  gates are structural, the no-refuse/allow-mismatch rule forbids unsafe downgrades, and the no-TTY fail-closed rule
-  forbids fall-open.
+- The seam is loophole-resistant by construction for the tool-output ingress path and for honoring a produced
+  refusal: layer purity is preserved, the output-before-emit and PostToolUse gates are structural, the no-refuse/allow-
+  mismatch rule forbids unsafe downgrades, and the no-TTY fail-closed rule forbids fall-open.
 - It adds **no** classifier, embedding, or probabilistic content judgment — the deterministic core stays content-blind
   and the content judgment stays in the instructed generation layer.
 - `decide()`, the replay corpus, and `artifacts/lattice-baseline.sha256` are untouched. `CONTENT-CONTRACT.md`'s
   normative content is unchanged by this ADR; only its "not wired into any harness" status is now scheduled to change
   via T1.
+
+## Residual limitation
+
+Residual limitation: The output-before-emit gate makes a model-produced refuse verdict load-bearing and fail-safe; it does not manufacture a refusal the generation layer failed to produce. A subverted or prompt-injected model that emits forbidden content without a refuse verdict gives the content-blind seam nothing to enforce, and per F.9 the seam may not classify content itself to catch it. That residual model-subversion path is bounded by the deterministic L1 action floors (F27/egress/deletion catch the exfil regardless of content), not by the content seam. The seam is loophole-resistant for the tool-output ingress path; for the output path it guarantees a produced refusal is honored, not that every forbidden generation is caught.
 
 ## Non-goals / open questions (fixed in the T1 design PR)
 
