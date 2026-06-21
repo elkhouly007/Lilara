@@ -214,8 +214,13 @@ for (const c of CASES) {
       fail++;
       continue;
     }
-    if (result.enforcementAction !== "block") {
-      process.stderr.write(`  FAIL  ${c.tag}: enforcementAction=${result.enforcementAction} (expected block)\n`);
+    // PR-C: F27 is now demotable tier, so default-posture enforcementAction is
+    // "consent-required" (not "block") even though the hard action stays "block"
+    // and the corpus records the byte-identical block outcome. The protection
+    // that must hold is that an injected/default-posture F27 egress is NEVER
+    // silently allowed — assert never-allow rather than the stale ==="block".
+    if (result.enforcementAction === "allow") {
+      process.stderr.write(`  FAIL  ${c.tag}: enforcementAction=allow — F27 must never silently allow secret egress\n`);
       fail++;
       continue;
     }

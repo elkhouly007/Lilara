@@ -94,10 +94,14 @@ function buildEarlyBlock(reasonCode, enriched, discovered, input, explanation, e
   // enforcementFor derives the correct enforcement from the lattice:
   // consent-eligible floors (F18/F19/F4/F20) → "consent-required";
   // inviolable floors → "block". Never inline this — always use the helper.
+  // extra.enforcementAction may override the computed value for callers that
+  // must fail-closed regardless of lattice demotability (e.g. F27 no-TTY path).
   const _floorFired = extra.floorFired || null;
   const result = {
     action: "block",
-    enforcementAction: enforcementFor("block", _floorFired),
+    enforcementAction: extra.enforcementAction !== undefined
+      ? extra.enforcementAction
+      : enforcementFor("block", _floorFired),
     floorFired: _floorFired,
     ...(_code     != null ? { code:     _code     } : {}),
     riskScore: 10,

@@ -19,7 +19,7 @@ const path   = require("path");
 // ---------------------------------------------------------------------------
 const { evalTaintEgressFloor } = require(path.join(__dirname, "..", "runtime", "floor-taint-egress"));
 const { pathHash, tokenHashSet } = require(path.join(__dirname, "..", "runtime", "provenance-graph"));
-const { enforcementFor, canDemote, getEntry } = require(path.join(__dirname, "..", "runtime", "decision-lattice"));
+const { enforcementFor, canDemote, getEntry, INVIOLABLE_FLOOR_IDS } = require(path.join(__dirname, "..", "runtime", "decision-lattice"));
 
 let passed = 0;
 let failed = 0;
@@ -94,11 +94,14 @@ test("T10b — canDemote(F28, consent:interactive) === true", () => {
   assert.strictEqual(canDemote("F28", "consent:interactive"), true);
 });
 
-test("T10c — F28 is NOT in INVIOLABLE_FLOOR_IDS", () => {
-  // canDemote returns false for inviolable floors; we already verified it returns true above.
-  // Additionally verify F27 (inviolable) still returns false.
-  assert.strictEqual(canDemote("F27", "consent:interactive"), false,
-    "F27 should remain inviolable and not demotable");
+test("T10c — F27 is demotable by consent:interactive (PR-C reclassification)", () => {
+  // PR-C: F27 reclassified from inviolable to demotable (22→21 inviolable set).
+  // canDemote must return true for consent:interactive, and F27 must not appear
+  // in INVIOLABLE_FLOOR_IDS.
+  assert.strictEqual(canDemote("F27", "consent:interactive"), true,
+    "F27 must be demotable by consent:interactive after PR-C reclassification");
+  assert.strictEqual(INVIOLABLE_FLOOR_IDS.includes("F27"), false,
+    "F27 must not be in INVIOLABLE_FLOOR_IDS after reclassification (22→21)");
 });
 
 // ── T1: staged ssh-key → temp → curl IS caught (structural) ─────────────────

@@ -643,7 +643,10 @@ function decide(input = {}) {
           return _f27cReceipt;
         }
 
-        // No TTY: fail closed to block with a distinct decisionSource.
+        // No TTY: fail closed to hard block regardless of lattice demotability.
+        // F27 is now demotable by consent:interactive, so enforcementFor would
+        // normally return "consent-required". Explicitly force "block" here
+        // because the consent path is unreachable without a controlling TTY.
         return buildEarlyBlock(
           "secret-egress-consent-no-tty",
           enriched,
@@ -651,10 +654,11 @@ function decide(input = {}) {
           input,
           `blocked (no-tty): ${_f27.coaching}`,
           {
-            floorFired:     _F27.name,
-            decisionSource: "secret-egress-consent-no-tty",
-            ambientTouch:   _ambientTouch,
-            coaching:       _f27.coaching,
+            floorFired:       _F27.name,
+            decisionSource:   "secret-egress-consent-no-tty",
+            ambientTouch:     _ambientTouch,
+            coaching:         _f27.coaching,
+            enforcementAction: "block",
           }
         );
       }
