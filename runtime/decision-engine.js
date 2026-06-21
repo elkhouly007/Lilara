@@ -563,9 +563,102 @@ function decide(input = {}) {
   //
   // SCOPE LIMIT: single-call only. Staged/cross-call exfil (secret → temp-
   // file in call A, egressed in call B) is the F23/ADR-037 deferred seam.
+  //
+  // F27-CONSENT inert gate (PR-A, LILARA_F27_CONSENT=1):
+  // When the flag is on, the floor routes to consent-required/escalate so
+  // the human can approve or deny the specific credential egress interactively
+  // (the destination host is named in the receipt for informed approval).
+  // The LATTICE entry is UNCHANGED (demotableBy:[] stays inviolable); this is
+  // an engine-level flag-gated branch that bypasses the buildEarlyBlock
+  // hard-stop for this floor only — not a demotion via the lattice path.
+  // When no controlling TTY is available (CI, piped, headless), fail closed
+  // to block with decisionSource:"secret-egress-consent-no-tty" (distinct
+  // from the normal inviolable-block decisionSource "secret-egress-external-
+  // denied") so the harness can diagnose the no-tty case without ambiguity.
+  // INERT WHEN OFF: when LILARA_F27_CONSENT is unset or "0", the consent
+  // branch is completely unreachable and the existing inviolable hard-stop
+  // runs unchanged — byte-identical replay of all existing corpus entries.
   try {
     const _f27 = _evalSecretEgressFloor(enriched);
     if (_f27.fired) {
+      if (process.env.LILARA_F27_CONSENT === "1") {
+        // TTY detection: process.stdout.isTTY is a boolean property (no I/O).
+        // __LILARA_CONSENT_TEST_NO_TTY=1 is the test sentinel from
+        // runtime/consent/transport.js — shared so both the transport and
+        // the engine agree on "headless" in automated test environments.
+        const _f27cTTY = process.env.__LILARA_CONSENT_TEST_NO_TTY === "1"
+          ? false
+          : Boolean(process.stdout.isTTY || process.stderr.isTTY);
+
+        if (_f27cTTY) {
+          // Consent-required escalate. buildEarlyBlock always emits
+          // action:"block" and enforcementFor("block",F27.name)="block"
+          // (inviolable tier), so the escalate receipt is built inline —
+          // same shape as the kill-switch inline receipt at line ~222.
+          // Journal + notify are best-effort (same invariant as
+          // buildEarlyBlock's try/catch around append).
+          const _f27cReceipt = {
+            action: "escalate",
+            enforcementAction: "consent-required",
+            floorFired: _F27.name,
+            riskScore: 10,
+            riskLevel: "critical",
+            reasonCodes: ["secret-egress-consent-required"],
+            confidence: 1,
+            decisionSource: "secret-egress-consent-required",
+            policyKey: "secret-egress-consent-required",
+            explanation: `consent-required: ${_f27.coaching}`,
+            pendingSuggestion: null,
+            promotionGuidance: null,
+            promotionState: null,
+            promotionLifecycleSummary: null,
+            workflowRoute: null,
+            actionPlan: null,
+            trajectoryNudge: null,
+            envelope: enriched.envelope || null,
+            envelopeVerification: null,
+            networkEgress: null,
+            context: {},
+            coaching: _f27.coaching,
+            f27Consent: { host: _f27.host, credentialClass: _f27.credentialClass },
+          };
+          if (!_dryRun) {
+            try {
+              append({
+                kind: "runtime-decision",
+                action: "escalate",
+                riskLevel: "critical",
+                riskScore: 10,
+                reasonCodes: ["secret-egress-consent-required"],
+                tool: input.tool || "",
+                branch: input.branch || "",
+                targetPath: input.targetPath || "",
+                notes: "secret-egress-consent-required:f27-consent-gate",
+                floorFired: _F27.name,
+              });
+              recordDecision({ action: "escalate", riskLevel: "critical", reasonCodes: ["secret-egress-consent-required"] });
+            } catch { /* journal is best-effort */ }
+            try { _fireNotifyHook(_f27cReceipt, contract, "secret-egress-consent-required"); } catch { /* */ }
+          }
+          return _f27cReceipt;
+        }
+
+        // No TTY: fail closed to block with a distinct decisionSource.
+        return buildEarlyBlock(
+          "secret-egress-consent-no-tty",
+          enriched,
+          discovered,
+          input,
+          `blocked (no-tty): ${_f27.coaching}`,
+          {
+            floorFired:     _F27.name,
+            decisionSource: "secret-egress-consent-no-tty",
+            ambientTouch:   _ambientTouch,
+            coaching:       _f27.coaching,
+          }
+        );
+      }
+
       return buildEarlyBlock(
         "secret-egress-external-denied",
         enriched,
