@@ -96,9 +96,9 @@ for TE in 0 1; do
           [ -f "$corpus" ] || continue
           rel="${corpus#$root/}"
           case "$(basename -- "$corpus")" in
-            secret-egress-consent.jsonl)
+            secret-egress-consent*.jsonl)
               if [ "$F27" = "0" ]; then
-                printf '  skip    %s | %s | consent corpus scoped to LILARA_F27_CONSENT=1\n' "$LABEL" "$rel"
+                printf '  skip    %s | %s | consent corpus family scoped to LILARA_F27_CONSENT=1\n' "$LABEL" "$rel"
                 continue
               fi
               ;;
