@@ -2,14 +2,15 @@
 # check-replay-posture-matrix.sh — SCOPE §19 #14 (LOCKED 2026-06-13)
 # posture-matrix replay gate.
 #
-# §19 #14 pins the three posture flags that decide() reads from ambient env
-# (LILARA_TAINT_EGRESS, LILARA_DELETE_COORD, LILARA_KILL_CHAIN_ENFORCE) and
-# requires a posture-matrix replay: the shipped corpus must be replayed under
-# EVERY combination of those flags, and the canonical baseline posture (all
-# flags off) MUST be zero-drift. The other 7 combinations may show legitimate
-# drift (e.g. DELETE_COORD=1 engages the F29 floor, which changes
-# require-tests → require-review for destructive rm patterns); that drift is
-# the posture surface being exposed, not a regression.
+# §19 #14 pins the four posture flags that decide() reads from ambient env
+# (LILARA_TAINT_EGRESS, LILARA_DELETE_COORD, LILARA_KILL_CHAIN_ENFORCE,
+# LILARA_F27_CONSENT) and requires a posture-matrix replay: the shipped corpus
+# must be replayed under EVERY combination of those flags, and the canonical
+# baseline posture (all flags off) MUST be zero-drift. The other 15 combinations
+# may show legitimate drift (e.g. DELETE_COORD=1 engages the F29 floor, which
+# changes require-tests → require-review for destructive rm patterns; and
+# LILARA_F27_CONSENT=1 shifts the F27 secret-egress surface to consent-required);
+# that drift is the posture surface being exposed, not a regression.
 #
 # This gate is two-faced:
 #
@@ -20,7 +21,7 @@
 #      default posture, the corpus is silently invalidated. The check exits
 #      NON-ZERO on any drift in this combination.
 #
-#   2. POSTURE SURFACE (the other 7 combinations): the script replays and
+#   2. POSTURE SURFACE (the other 15 combinations): the script replays and
 #      REPORTS the per-entry drift per combination so a reviewer can see the
 #      posture surface (which floors engage when which flags are on, and
 #      which corpus entries flip). Drift in these combinations is NOT a
@@ -33,9 +34,9 @@
 # requires zero-drift everywhere. That is the §19 #14 long-term ask; P3.3
 # is the surface-detection scaffold.
 #
-# The 8 combinations (2^3):
-#   000 — canonical baseline (all off) — MUST be zero-drift
-#   001, 010, 011, 100, 101, 110, 111 — posture surface (drift reported, not failed)
+# The 16 combinations (2^4):
+#   0000 — canonical baseline (all off) — MUST be zero-drift
+#   0001..1111 — posture surface (drift reported, not failed)
 #
 # For each combination, every shipped corpus file is replayed via
 # scripts/replay-decisions.js. The script sets LILARA_REPLAY_RESPECT_POSTURE=1
@@ -79,57 +80,68 @@ printf '[check-replay-posture-matrix]\n'
 CANONICAL_DRIFT=0
 TOTAL_RUNS=0
 TOTAL_ENTRIES=0
-COMBINATIONS=8
-BASELINE_LABEL="TE=0 DC=0 KC=0"
+COMBINATIONS=16
+BASELINE_LABEL="TE=0 DC=0 KC=0 F27=0"
 
 for TE in 0 1; do
   for DC in 0 1; do
     for KC in 0 1; do
-      LABEL="TE=${TE} DC=${DC} KC=${KC}"
-      IS_CANONICAL=0
-      if [ "$TE" = "0" ] && [ "$DC" = "0" ] && [ "$KC" = "0" ]; then
-        IS_CANONICAL=1
-      fi
-      for corpus in "$CORPUS_DIR"/*.jsonl; do
-        [ -f "$corpus" ] || continue
-        rel="${corpus#$root/}"
-        # Capture the inner rc first (before the || true on the next line eats it).
-        out="$(LILARA_REPLAY_RESPECT_POSTURE=1 \
-               LILARA_TAINT_EGRESS="$TE" \
-               LILARA_DELETE_COORD="$DC" \
-               LILARA_KILL_CHAIN_ENFORCE="$KC" \
-               node scripts/replay-decisions.js --corpus "$corpus" 2>&1)"
-        rc=$?
-        : "${rc:=0}"  # normalize unset to 0
-        TOTAL_RUNS=$((TOTAL_RUNS + 1))
-        # Extract the entry count from the "N entries OK" line if present.
-        # A drift line says "N/M entries" — use the M (total) for the matrix tally.
-        entries="$(echo "$out" | grep -oE '[0-9]+ entries OK' | head -1 | grep -oE '^[0-9]+' | head -1)"
-        total_replayed="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/[0-9]+ entries' | head -1 | grep -oE '[0-9]+ entries' | grep -oE '^[0-9]+' | head -1)"
-        # For drift lines, total_replayed is set; for clean lines, entries is set.
-        if [ -n "$total_replayed" ]; then
-          TOTAL_ENTRIES=$((TOTAL_ENTRIES + total_replayed))
-        else
-          TOTAL_ENTRIES=$((TOTAL_ENTRIES + ${entries:-0}))
+      for F27 in 0 1; do
+        LABEL="TE=${TE} DC=${DC} KC=${KC} F27=${F27}"
+        IS_CANONICAL=0
+        if [ "$TE" = "0" ] && [ "$DC" = "0" ] && [ "$KC" = "0" ] && [ "$F27" = "0" ]; then
+          IS_CANONICAL=1
         fi
-        if [ "$rc" -ne 0 ]; then
-          if [ "$IS_CANONICAL" -eq 1 ]; then
-            printf '  REGRESSION  %s | %s\n' "$LABEL" "$rel" >&2
-            echo "$out" | sed 's/^/    /' >&2
-            CANONICAL_DRIFT=1
+        for corpus in "$CORPUS_DIR"/*.jsonl; do
+          [ -f "$corpus" ] || continue
+          rel="${corpus#$root/}"
+          case "$(basename -- "$corpus")" in
+            secret-egress-consent.jsonl)
+              if [ "$F27" = "0" ]; then
+                printf '  skip    %s | %s | consent corpus scoped to LILARA_F27_CONSENT=1\n' "$LABEL" "$rel"
+                continue
+              fi
+              ;;
+          esac
+          # Capture the inner rc first (before the || true on the next line eats it).
+          out="$(LILARA_REPLAY_RESPECT_POSTURE=1 \
+                 LILARA_TAINT_EGRESS="$TE" \
+                 LILARA_DELETE_COORD="$DC" \
+                 LILARA_KILL_CHAIN_ENFORCE="$KC" \
+                 LILARA_F27_CONSENT="$F27" \
+                 node scripts/replay-decisions.js --corpus "$corpus" 2>&1)"
+          rc=$?
+          : "${rc:=0}"  # normalize unset to 0
+          TOTAL_RUNS=$((TOTAL_RUNS + 1))
+          # Extract the entry count from the "N entries OK" line if present.
+          # A drift line says "N/M entries" — use the M (total) for the matrix tally.
+          entries="$(echo "$out" | grep -oE '[0-9]+ entries OK' | head -1 | grep -oE '^[0-9]+' | head -1)"
+          total_replayed="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/[0-9]+ entries' | head -1 | grep -oE '[0-9]+ entries' | grep -oE '^[0-9]+' | head -1)"
+          # For drift lines, total_replayed is set; for clean lines, entries is set.
+          if [ -n "$total_replayed" ]; then
+            TOTAL_ENTRIES=$((TOTAL_ENTRIES + total_replayed))
           else
-            # Non-canonical combination: report drift as posture surface, do not fail.
-            drift_count="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/' | head -1 | grep -oE '[0-9]+' | head -1)"
-            drift_count="${drift_count:-?}"
-            printf '  surface  %s | %s | %s entries drifted (legitimate posture surface)\n' "$LABEL" "$rel" "$drift_count"
+            TOTAL_ENTRIES=$((TOTAL_ENTRIES + ${entries:-0}))
           fi
-        else
-          if [ "$IS_CANONICAL" -eq 1 ]; then
-            printf '  ok      [CANONICAL]  %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+          if [ "$rc" -ne 0 ]; then
+            if [ "$IS_CANONICAL" -eq 1 ]; then
+              printf '  REGRESSION  %s | %s\n' "$LABEL" "$rel" >&2
+              echo "$out" | sed 's/^/    /' >&2
+              CANONICAL_DRIFT=1
+            else
+              # Non-canonical combination: report drift as posture surface, do not fail.
+              drift_count="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/' | head -1 | grep -oE '[0-9]+' | head -1)"
+              drift_count="${drift_count:-?}"
+              printf '  surface  %s | %s | %s entries drifted (legitimate posture surface)\n' "$LABEL" "$rel" "$drift_count"
+            fi
           else
-            printf '  ok      %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+            if [ "$IS_CANONICAL" -eq 1 ]; then
+              printf '  ok      [CANONICAL]  %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+            else
+              printf '  ok      %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+            fi
           fi
-        fi
+        done
       done
     done
   done

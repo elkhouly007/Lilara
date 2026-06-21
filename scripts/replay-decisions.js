@@ -92,6 +92,11 @@ if (!process.env.LILARA_REPLAY_RESPECT_POSTURE) {
   process.env.LILARA_TAINT_EGRESS = "0";
   process.env.LILARA_DELETE_COORD = "0";
   process.env.LILARA_KILL_CHAIN_ENFORCE = "0";
+  // PR-A (F27 inert gate): pin consent flag off so the shipped corpus stays
+  // byte-identical under default posture. The posture-matrix gate (check-replay-
+  // posture-matrix.sh) sets LILARA_REPLAY_RESPECT_POSTURE=1 to opt out of this
+  // pin and verify the F27_CONSENT posture surface across all 16 combinations.
+  process.env.LILARA_F27_CONSENT = "0";
 }
 delete process.env.LILARA_KILL_SWITCH;
 delete process.env.LILARA_CONTRACT_REQUIRED;
