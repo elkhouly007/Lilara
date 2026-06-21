@@ -43,10 +43,23 @@
 # to opt replay-decisions.js out of its default posture pin (so the matrix
 # flags take effect), then exports the three flags for that combination.
 #
+# CONSENT FLAG-ON CANONICAL (PR-B): the consent-family corpora
+# (secret-egress-consent*.jsonl) record the FLAG-ON interactive consent path
+# (escalate / secret-egress-consent-required) and are scoped OUT of the all-off
+# canonical baseline (replaying them at LILARA_F27_CONSENT=0 is a guaranteed,
+# meaningless drift). They have their OWN canonical baseline: F27=1 with all
+# other posture flags off, plus an emulated controlling TTY
+# (LILARA_REPLAY_FORCE_TTY=1, harness-only — the engine is unchanged). That
+# combination MUST be zero-drift; drift there is a real regression in the F27
+# consent gate, not a posture surface. This is the genuine flag-on coverage that
+# the all-off baseline cannot provide for these corpora.
+#
 # Exit codes:
-#   0 — canonical baseline (all-off) is zero-drift; other combinations may
+#   0 — canonical baseline (all-off) is zero-drift AND the consent family is
+#       zero-drift at its flag-on canonical posture; other combinations may
 #       have reported drift but the gate is satisfied for this PR
-#   1 — canonical baseline (all-off) has drift — REGRESSION, must be fixed
+#   1 — canonical baseline (all-off) has drift, OR the consent family drifts at
+#       its flag-on canonical posture — REGRESSION, must be fixed
 #   2 — fatal (node missing, corpus dir missing, etc.)
 
 set -u
@@ -78,6 +91,7 @@ fi
 printf '[check-replay-posture-matrix]\n'
 
 CANONICAL_DRIFT=0
+CONSENT_FLAGON_DRIFT=0
 TOTAL_RUNS=0
 TOTAL_ENTRIES=0
 COMBINATIONS=16
@@ -95,16 +109,37 @@ for TE in 0 1; do
         for corpus in "$CORPUS_DIR"/*.jsonl; do
           [ -f "$corpus" ] || continue
           rel="${corpus#$root/}"
+          FORCE_TTY=0
+          IS_CONSENT_CANONICAL=0
           case "$(basename -- "$corpus")" in
             secret-egress-consent*.jsonl)
               if [ "$F27" = "0" ]; then
+                # Flag-off: the consent family records the FLAG-ON behavior, so
+                # replaying it at LILARA_F27_CONSENT=0 is a guaranteed, meaningless
+                # drift (escalate→block, consent-required→external-denied). Scope
+                # it out here exactly as check-replay-corpus.sh does; the F27=1
+                # combinations below are where it is genuinely exercised.
                 printf '  skip    %s | %s | consent corpus family scoped to LILARA_F27_CONSENT=1\n' "$LABEL" "$rel"
                 continue
+              fi
+              # Flag-on: the consent family records the INTERACTIVE consent path
+              # (escalate / secret-egress-consent-required), which the engine only
+              # takes with a controlling TTY. Emulate the TTY (harness-only; the
+              # engine is unchanged) so the recorded flag-on outputs are reproduced
+              # instead of failing closed to a headless no-tty block.
+              FORCE_TTY=1
+              # The corpus generator pins ONLY LILARA_F27_CONSENT=1 (TE/DC/KC off).
+              # That posture — F27=1 with all other flags off, plus the emulated
+              # TTY — is the consent family's CANONICAL baseline and MUST be
+              # zero-drift (genuine flag-on coverage, not a tolerated surface).
+              if [ "$TE" = "0" ] && [ "$DC" = "0" ] && [ "$KC" = "0" ]; then
+                IS_CONSENT_CANONICAL=1
               fi
               ;;
           esac
           # Capture the inner rc first (before the || true on the next line eats it).
           out="$(LILARA_REPLAY_RESPECT_POSTURE=1 \
+                 LILARA_REPLAY_FORCE_TTY="$FORCE_TTY" \
                  LILARA_TAINT_EGRESS="$TE" \
                  LILARA_DELETE_COORD="$DC" \
                  LILARA_KILL_CHAIN_ENFORCE="$KC" \
@@ -128,6 +163,14 @@ for TE in 0 1; do
               printf '  REGRESSION  %s | %s\n' "$LABEL" "$rel" >&2
               echo "$out" | sed 's/^/    /' >&2
               CANONICAL_DRIFT=1
+            elif [ "$IS_CONSENT_CANONICAL" -eq 1 ]; then
+              # Consent family at its flag-on canonical posture MUST be zero-drift.
+              # Drift here means the engine no longer reproduces the recorded
+              # interactive consent outputs under LILARA_F27_CONSENT=1 — a real
+              # regression in the F27 consent gate, not a posture surface.
+              printf '  REGRESSION  %s | %s (consent flag-on canonical)\n' "$LABEL" "$rel" >&2
+              echo "$out" | sed 's/^/    /' >&2
+              CONSENT_FLAGON_DRIFT=1
             else
               # Non-canonical combination: report drift as posture surface, do not fail.
               drift_count="$(echo "$out" | grep -oE 'DRIFT in [0-9]+/' | head -1 | grep -oE '[0-9]+' | head -1)"
@@ -137,6 +180,8 @@ for TE in 0 1; do
           else
             if [ "$IS_CANONICAL" -eq 1 ]; then
               printf '  ok      [CANONICAL]  %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
+            elif [ "$IS_CONSENT_CANONICAL" -eq 1 ]; then
+              printf '  ok      [CONSENT-CANONICAL]  %s | %s | %s entries (flag-on genuine coverage)\n' "$LABEL" "$rel" "$entries"
             else
               printf '  ok      %s | %s | %s entries\n' "$LABEL" "$rel" "$entries"
             fi
@@ -158,6 +203,16 @@ if [ "$CANONICAL_DRIFT" -ne 0 ]; then
   printf 'posture — the corpus has been silently invalidated.\n' >&2
   exit 1
 fi
+if [ "$CONSENT_FLAGON_DRIFT" -ne 0 ]; then
+  printf '\ncheck-replay-posture-matrix: FAILED\n' >&2
+  printf 'The consent corpus family MUST be zero-drift at its flag-on canonical\n' >&2
+  printf 'posture (LILARA_F27_CONSENT=1, all other flags off, interactive TTY).\n' >&2
+  printf 'Drift there is a regression in the F27 consent gate — the recorded\n' >&2
+  printf 'escalate / secret-egress-consent-required outputs are no longer\n' >&2
+  printf 'reproduced. This is genuine flag-on coverage, not a posture surface.\n' >&2
+  exit 1
+fi
 printf 'check-replay-posture-matrix: PASS\n'
-printf '  (canonical baseline is zero-drift; other combinations reported as posture surface)\n'
+printf '  (canonical baseline is zero-drift; consent family is zero-drift at its\n'
+printf '   flag-on canonical posture; other combinations reported as posture surface)\n'
 exit 0

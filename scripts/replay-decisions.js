@@ -111,6 +111,23 @@ delete process.env.LILARA_F4_DEMOTE_TOKEN;
 // the canonical IR, so irHash stays byte-stable.
 process.env.LILARA_BRANCH_OVERRIDE = "replay/isolated-context";
 
+// PR-B (F27 consent calibration): the consent-family corpora
+// (secret-egress-consent*.jsonl) record the INTERACTIVE consent path
+// (escalate / secret-egress-consent-required), which the engine only takes
+// when a controlling TTY is present (decision-engine.js reads
+// process.stdout.isTTY || process.stderr.isTTY). CI/replay is headless, so the
+// engine would fail closed to a no-tty block and the recorded flag-on outputs
+// could never be reproduced. LILARA_REPLAY_FORCE_TTY=1 opts into TTY emulation
+// so the posture-matrix gate can replay the flag-on corpus byte-identically —
+// mirroring the corpus generator
+// (tests/fixtures/replay-corpus/build-secret-egress-consent-adversarial.js).
+// Harness-only: the decision engine is UNCHANGED; this only sets the same
+// isTTY booleans a real interactive terminal would present.
+if (process.env.LILARA_REPLAY_FORCE_TTY === "1") {
+  Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
+  Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+}
+
 const { decide } = require(path.join(root, "runtime", "decision-engine"));
 const { build: buildIr } = require(path.join(root, "runtime", "action-ir"));
 const { resetCache } = require(path.join(root, "runtime", "session-context"));
