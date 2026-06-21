@@ -10,7 +10,7 @@
     "HX1": {
       "max_fp_pct": 5.0,
       "max_fn_pct": 0.0,
-      "rationale": "FN=0 is the only acceptable floor for personal-data-egress; FP≤5% permits the conservative 'block on shape' rule to over-fire while the threshold is being calibrated. Hard-block of the canonical pattern must be 0/0 — if any HX1 dangerous entry is misclassified as 'allow' that is a security-layer finding, not a budget issue (see ADR-051)."
+      "rationale": "FN=0 is the only acceptable floor for personal-data-egress; FP≤5% permits the conservative 'block on shape' rule to over-fire while the threshold is being calibrated. Under the F27 consent posture, consent-required is counted as 'caught' for HX1 calibration reporting. Hard-block of the canonical pattern must be 0/0 — if any HX1 dangerous entry is misclassified as 'allow' that is a security-layer finding, not a budget issue (see ADR-051)."
     },
     "HX2": {
       "max_fp_pct": 10.0,
