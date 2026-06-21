@@ -34,6 +34,20 @@ failed=0
 for corpus in "$CORPUS_DIR"/*.jsonl; do
   [ -f "$corpus" ] || continue
   rel="${corpus#$root/}"
+  # PR-A (F27 inert gate): the consent corpus records the FLAG-ON behavior
+  # (escalate / secret-egress-consent-required under LILARA_F27_CONSENT=1).
+  # This gate replays at the CANONICAL default posture, where replay-decisions.js
+  # pins LILARA_F27_CONSENT=0 and the engine correctly produces the inviolable
+  # block / secret-egress-external-denied. Replaying a flag-on corpus at flag-off
+  # posture would be a guaranteed (and meaningless) drift, so scope it out here —
+  # exactly as check-replay-posture-matrix.sh skips it for the F27=0 combinations.
+  # The posture-matrix gate is what exercises this corpus under F27=1.
+  case "$(basename -- "$corpus")" in
+    secret-egress-consent.jsonl)
+      printf '[check-replay-corpus] skip %s — consent corpus scoped to LILARA_F27_CONSENT=1 (see check-replay-posture-matrix.sh)\n' "$rel"
+      continue
+      ;;
+  esac
   if node scripts/replay-decisions.js --corpus "$corpus"; then
     :
   else
