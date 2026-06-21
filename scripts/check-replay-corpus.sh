@@ -47,6 +47,7 @@ for corpus in "$CORPUS_DIR"/*.jsonl; do
   case "$(basename -- "$corpus")" in
     secret-egress-consent*.jsonl)
       printf '[check-replay-corpus] skip %s — consent corpus family scoped to LILARA_F27_CONSENT=1 (see check-replay-posture-matrix.sh)\n' "$rel"
+>>>>>>> 65f7781 (fix(replay): scope consent-adversarial corpus to F27=1 in both replay gates)
       continue
       ;;
   esac
