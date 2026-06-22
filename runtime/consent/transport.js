@@ -47,6 +47,32 @@ function isOneShot(floorFired) {
 }
 
 // ---------------------------------------------------------------------------
+// F.6 secret/API-key egress consent line (CONTRACT.md §Level 3, RED-LINES.md §2.2).
+// The two secret-egress floors (F27 secret-egress-external, F28 taint-egress-
+// consent) render a full-width, un-boxed F.6 line ABOVE the consent box naming
+// the external destination. f6PromptLine() emits the byte-exact canonical ASCII
+// form (capital A, tight "secret/API key" slash, ASCII HYPHEN-MINUS before
+// "approve?") — unified across runtime, tests, CONTRACT.md, and RED-LINES.md.
+// ---------------------------------------------------------------------------
+const SECRET_EGRESS_FLOORS = new Set(["secret-egress-external", "taint-egress-consent"]);
+
+// A "nameable" destination for the F.6 line. The taint-egress floor emits the
+// LITERAL sentinel string 'unknown' as host when no destination could be parsed
+// (floor-taint-egress.js:181, via the provenance-graph.js:263 bare-curl @file
+// fallback that returns host:null). 'unknown' is the ABSENCE of a destination,
+// not a destination — treating it as nameable would render
+// "...about to be sent to unknown - approve?" and let an operator approve a
+// blind egress. Scoped to the F27/F28 secret-egress F.6 derivation ONLY; it does
+// NOT reinterpret ordinary host strings on any other consent path.
+function isNameableHost(h) {
+  return h != null && h !== "" && h !== "unknown";
+}
+
+function f6PromptLine(host) {
+  return `A secret/API key is about to be sent to ${host} - approve?`;
+}
+
+// ---------------------------------------------------------------------------
 // buildConsentPrompt — derive the human-facing prompt from REAL decision fields.
 // MUST NOT include any agent-controlled fields verbatim as approval signals.
 // ---------------------------------------------------------------------------
@@ -69,6 +95,25 @@ function buildConsentPrompt(decision, extra = {}) {
   const taintedFilePathHash = decision.taintEgress?.taintedFilePathHash || null;
   const credClass   = decision.taintEgress?.credClass || null;
 
+  // ── F.6 secret/API-key egress wiring (ADR-036 F27 + ADR-037 F28) ──────────
+  // The external destination shown in the F.6 line. Sourced ONLY from REAL
+  // decision fields (never agent self-description): F27 → f27Consent.host;
+  // F28 → taintEgress.host (the engine also mirrors it to networkEgress.hostname).
+  // The 'unknown' sentinel (F28 no-host fallback) is non-nameable → treated like
+  // null so the floor fails closed instead of naming a blind destination.
+  const secretEgressFloor = SECRET_EGRESS_FLOORS.has(floorFired);
+  const secretEgressHost =
+    [decision.f27Consent?.host,
+     decision.taintEgress?.host,
+     decision.networkEgress?.hostname].find(isNameableHost) || null;
+  const secretEgressCredClass =
+    decision.f27Consent?.credentialClass ||
+    decision.taintEgress?.credClass || null;
+  // Fail-closed: a secret-egress floor fired but no destination can be named.
+  // The F.6 line MUST NOT render; the caller (pretool-gate.js) downgrades the
+  // receipt from consent-required to a hard block. Testable via this flag.
+  const noDestination = secretEgressFloor && !secretEgressHost;
+
   return {
     floorCode,
     floorFired,
@@ -83,6 +128,11 @@ function buildConsentPrompt(decision, extra = {}) {
     taintedFile,
     taintedFilePathHash,
     credClass,
+    // F.6 secret-egress wiring (additive; falsy/absent-effect on all other floors):
+    secretEgressFloor,
+    secretEgressHost,
+    secretEgressCredClass,
+    noDestination,
   };
 }
 
@@ -90,12 +140,20 @@ function buildConsentPrompt(decision, extra = {}) {
 // buildPromptText — human-readable text rendered to the TTY.
 // ---------------------------------------------------------------------------
 function buildPromptText(prompt) {
-  const lines = [
+  const lines = [];
+  // F.6: full-width, UN-BOXED secret/API-key egress line rendered ABOVE the box.
+  // The destination is never truncated and always visible (no 62-char clamp).
+  // Only rendered when a destination is known; the no-destination case is handled
+  // fail-closed by the caller (pretool-gate.js) before this is ever reached.
+  if (prompt.secretEgressFloor && prompt.secretEgressHost) {
+    lines.push("", f6PromptLine(String(prompt.secretEgressHost)));
+  }
+  lines.push(
     "",
     "┌─ Lilara Consent Required ─────────────────────────────────────────────┐",
     `│ Floor:   ${String(prompt.floorCode || prompt.floorFired || "unknown").padEnd(62)}│`,
     `│ Command: ${String(prompt.command || "").slice(0, 62).padEnd(62)}│`,
-  ];
+  );
   if (prompt.hostname) {
     lines.push(`│ Host:    ${String(prompt.hostname).slice(0, 62).padEnd(62)}│`);
   }

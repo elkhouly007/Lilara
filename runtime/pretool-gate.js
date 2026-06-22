@@ -226,6 +226,12 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
   let decision;
   let discovered;
   let envelope = null;
+  // gateIr is referenced AFTER the try/catch (consent + approve-past + snapshot
+  // handling at lines ~413+), so it must be function-scoped — a `const` inside
+  // the try below would be out of scope there and throw ReferenceError the moment
+  // any consent-required decision reaches the consent gate (incl. the F.6
+  // fail-closed guard). Declared here; assigned inside the try.
+  let gateIr = null;
   try {
     discovered = discover({ targetPath, branch: String(rawInput?.branch || "").trim() });
     if (envelopeReporting) {
@@ -247,7 +253,7 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
     // one synthesized here from the same flat fields decide() reads. The IR
     // is additive: floors still read flat fields; decide() only journals
     // irHash (gated behind LILARA_IR_JOURNAL=1).
-    const gateIr = ir || buildIr(rawInput, {
+    gateIr = ir || buildIr(rawInput, {
       harness:        String(harness || ""),
       tool:           String(tool || "Bash"),
       command:        cmd,
@@ -414,6 +420,21 @@ function runPreToolGate({ harness, tool, command, cwd, rawInput, sessionRisk = 0
           ? gateIr.fileTargets.map((t) => (t && t.path) || t).filter(Boolean)
           : [],
       });
+      // ── F.6 fail-closed: secret-egress floor fired but no destination ──────
+      // When a secret-egress floor (F27/F28) fires but no external destination
+      // can be named, the F.6 consent line cannot be rendered honestly. Per
+      // CONTRACT.md §Level 3 we FAIL CLOSED: do NOT present a consent prompt
+      // (which would let an operator approve a blind egress); downgrade the
+      // receipt from consent-required to a hard block. Scoped to secret-egress
+      // floors only — no effect on any other consent floor.
+      if (promptObj.noDestination) {
+        const primaryCode = Array.isArray(decision.reasonCodes) && decision.reasonCodes[0] ? ` [${decision.reasonCodes[0]}]` : "";
+        emit(`[Lilara] Runtime decision: ${decision.action} (risk=${decision.riskLevel}:${decision.riskScore}, source=${decision.decisionSource})${primaryCode}`);
+        emit(`[Lilara] Explanation: ${decision.explanation}`);
+        emit("[Lilara] BLOCKED — secret/API-key egress with no nameable destination (fail-closed).");
+        return { exitCode: 2, stderrLines, logAction: "BLOCK", logHitName: hit?.name || secretHit?.name || null };
+      }
+
       const { decision: consentDecision, grantScopes } = tr.requestConsent(promptObj, { mode: _CONSENT_MODE });
 
       if (consentDecision === "approve") {

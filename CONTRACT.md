@@ -68,7 +68,7 @@ In-contract actions run silently and are remembered.
 - **Egress that contains a secret / API key / credential.**
 
 **Behavior:** a **high-friction resolvable** — distinct from ordinary egress. Lilara **stops and tells the user clearly**:
-*"a secret / API key is about to be sent to <destination> — approve?"*
+*"A secret/API key is about to be sent to <destination> - approve?"*
 - **Never passes silently** — even to an otherwise-approved destination, a secret gets an explicit prompt the **first
   time** for that destination.
 - **Never an absolute block** — the user can always approve. On manual approval it proceeds **and the decision is
