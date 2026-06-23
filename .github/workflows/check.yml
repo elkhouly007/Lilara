@@ -199,6 +199,15 @@ jobs:
       - name: Kill-switch (all 13 hooks)
         run: bash scripts/check-kill-switch.sh
 
+      - name: Consent gate (consent-floor + grant-store + transport + adversarial + f6-prompt-wiring + structural invariants)
+        # Wires the previously-dormant scripts/check-consent-gate.sh into CI.
+        # Runs the 7 consent tests + 3 structural invariants on every push and PR.
+        # Tests: consent-floor, consent-grant-store, consent-early-review-fix,
+        # consent-enforce-compat, consent-transport, consent-adversarial,
+        # consent-f6-prompt-wiring. Invariants: floor-consent.js FS-write purity,
+        # transport.js no-process.stdin, D-CONSENT lattice entry present.
+        run: bash scripts/check-consent-gate.sh
+
       - name: Pressure tests (structural check)
         run: bash scripts/check-pressure-tests.sh
 

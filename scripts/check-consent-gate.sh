@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-consent-gate.sh — CI gate for the 0.2.0 scope-based consent gate.
 #
-# Runs the 6 consent test files and checks two structural invariants:
+# Runs the 7 consent test files and checks two structural invariants:
 #   1. runtime/floor-consent.js makes no FS writes (pure evaluator).
 #   2. runtime/consent/transport.js has no reference to the stdin file descriptor.
 #
@@ -35,6 +35,7 @@ run_test "consent-early-review-fix" tests/runtime/consent-early-review-fix.test.
 run_test "consent-enforce-compat"  tests/runtime/consent-enforce-compat.test.js
 run_test "consent-transport"       tests/runtime/consent-transport.test.js
 run_test "consent-adversarial"     tests/runtime/consent-adversarial.test.js
+run_test "consent-f6-prompt-wiring" tests/runtime/consent-f6-prompt-wiring.test.js
 
 echo ""
 echo "=== structural invariants ==="
