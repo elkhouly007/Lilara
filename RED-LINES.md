@@ -47,8 +47,8 @@ Data is local by default and leaves only to destinations the user approved.
 - **Sending ordinary data to an unapproved destination is a resolvable block (Level 2):** hold that egress action, warn
   the user to approve/reject, **continue the rest of the task**, and on approval add + remember the destination.
 - **Sending a secret / API key / credential is mandatory explicit manual approval (Level 3):** even to an
-  otherwise-approved destination, the first time for that destination Lilara stops and asks clearly — *"a secret/API key
-  is about to be sent to <destination> — approve?"* It **never passes silently** (protects against an injected agent
+  otherwise-approved destination, the first time for that destination Lilara stops and asks clearly —
+  *"A secret/API key is about to be sent to <destination> - approve?"* It **never passes silently** (protects against an injected agent
   quietly exfiltrating keys) but is **never an absolute block** (the user can always approve — a legitimate deploy is not
   broken). Remembered per-destination on approval. **F27 is reclassified from an absolute secret-egress block to this
   model** (intended direction; finalize in the encoding sprint).
