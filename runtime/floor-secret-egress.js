@@ -30,6 +30,12 @@ const {
   extractTargets: _extractTargets,
   isLoopback: _isLoopback,
 } = require("./network-egress");
+// ADR-036: mutation-immune demotability gate. decision-lattice.js is a leaf
+// module (it requires only crypto + canonical-json), so this adds no circular
+// dependency. Used to gate the F.7 grant-sharing suppression behind F27's REAL
+// inviolability state — while F27 is tier:"inviolable", canDemote returns false
+// and the grant suppression below is structurally unreachable.
+const { canDemote } = require("./decision-lattice");
 
 // ── Credential-path patterns (narrow — key/credential class only) ─────────
 //
@@ -58,6 +64,48 @@ const CRED_PATH_PATTERNS = Object.freeze([
 function _commandHasCredPath(cmd) {
   const s = String(cmd || "").replace(/\\/g, "/");
   return CRED_PATH_PATTERNS.some((re) => re.test(s));
+}
+
+// ---------------------------------------------------------------------------
+// F.7 grant-sharing — F27-specific grant suppression (scopes.secretEgress).
+//
+// Mirrors floor-taint-egress.js:_grantCoversF28. Recognizes ONLY the shared
+// per-(credentialClass, host) shape `grant.scopes.secretEgress` (the F.7
+// cross-floor shape that _deriveGrantScopes emits for BOTH F27 and F28
+// approvals). Strict-equal match on (credentialClass, host). Pure, no I/O,
+// fail-safe (never suppress on any error).
+//
+// INERT today — but NOT because consentGrant is absent: decide() DOES inject
+// it onto the F27 path (the original input.consentGrant survives into `enriched`
+// via the explicit/Object.fromEntries spread at decision-engine.js:293-304 and
+// is handed to _evalSecretEgressFloor at ~:582). The real reason this predicate
+// is unreachable is the `canDemote("F27","consent:interactive")` gate at the
+// CALL SITE (line 205): canDemote short-circuits to false via
+// _INVIOLABLE_AT_LOAD.has("F27") (decision-lattice.js:747) BEFORE this predicate
+// is consulted, so the && never evaluates _grantCoversF27.
+// Empirically reproduced: on the broken #191 @ 2cc8b57 (no gate) this predicate
+// WAS reached live — a matching grant returned action:allow / floorFired:null,
+// bypassing the F27 hard-stop while F27 was still inviolable. On #192
+// (feat/f7-grant-sharing-fix-2026-06-23 @ 79c928e65d) the gate blocks that path:
+// action:block, floorFired:secret-egress-external.
+// DO NOT remove the gate; without it, this predicate runs live on the F27 path
+// while F27 is inviolable, suppressing the hard-stop. The gate's
+// _INVIOLABLE_AT_LOAD.has("F27") early-return is the load-bearing reason this
+// predicate is currently unreachable. It becomes LIVE after PR-C reclassifies
+// F27 to demotable (demotableBy:["consent:interactive"]) — at which point the
+// gate naturally opens. The unit test exercises the predicate directly,
+// regardless of when decide() consults it.
+// ---------------------------------------------------------------------------
+function _grantCoversF27(grant, credentialClass, host) {
+  if (!grant || !credentialClass || !host) return false;
+  try {
+    const entries = grant.scopes?.secretEgress;
+    if (!Array.isArray(entries) || entries.length === 0) return false;
+    for (const e of entries) {
+      if (e && e.credentialClass === credentialClass && e.host === host) return true;
+    }
+  } catch { /* fail-safe: don't suppress on any error */ }
+  return false;
 }
 
 // Checks IR fileTargets: a read of a credential path is a signal regardless of
@@ -156,6 +204,25 @@ function evalSecretEgressFloor(input) {
 
     // ── Both signals present — fire F27. ─────────────────────────────────────
     const host = externalHosts[0];
+
+    // F.7 grant-sharing — the shared per-(credentialClass, host) scope minted
+    // by _deriveGrantScopes is recognized by F27 ONLY when F27 is actually
+    // demotable. The gate is the mutation-immune canDemote() check from
+    // runtime/decision-lattice.js, which reads the frozen-at-load LATTICE
+    // (and is hardened against in-process tier mutation by _INVIOLABLE_AT_LOAD).
+    // While F27 is tier:"inviolable" (today, pre-PR-C), canDemote() returns
+    // false and this branch is STRUCTURALLY UNREACHABLE — a matching grant
+    // cannot suppress the F27 block. After PR-C reclassifies F27 to demotable
+    // with demotableBy:["consent:interactive"], the gate naturally opens and
+    // F.7 grant-sharing goes live for F27.
+    //
+    // Owner-ruled seam: gate at the floor (the point of the check), tied to
+    // the real inviolability state. NOT via an upstream strip in decide().
+    if (canDemote("F27", "consent:interactive") &&
+        input.consentGrant && _grantCoversF27(input.consentGrant, credClass, host)) {
+      return { fired: false };
+    }
+
     const coaching =
       `blocked: something tried to send your ${credClass} to an external host` +
       ` (${host}). This looks like credential exfiltration and cannot be` +
