@@ -60,6 +60,32 @@ function _commandHasCredPath(cmd) {
   return CRED_PATH_PATTERNS.some((re) => re.test(s));
 }
 
+// ---------------------------------------------------------------------------
+// F.7 grant-sharing — F27-specific grant suppression (scopes.secretEgress).
+//
+// Mirrors floor-taint-egress.js:_grantCoversF28. Recognizes ONLY the shared
+// per-(credentialClass, host) shape `grant.scopes.secretEgress` (the F.7
+// cross-floor shape that _deriveGrantScopes emits for BOTH F27 and F28
+// approvals). Strict-equal match on (credentialClass, host). Pure, no I/O,
+// fail-safe (never suppress on any error).
+//
+// INERT today: F27 is inviolable in the lattice, so decide() injects no
+// consentGrant on the F27 path and this predicate is never reached live.
+// It becomes LIVE after PR-C reclassifies F27 to demotable. The unit test
+// exercises the predicate directly, regardless of when decide() consults it.
+// ---------------------------------------------------------------------------
+function _grantCoversF27(grant, credentialClass, host) {
+  if (!grant || !credentialClass || !host) return false;
+  try {
+    const entries = grant.scopes?.secretEgress;
+    if (!Array.isArray(entries) || entries.length === 0) return false;
+    for (const e of entries) {
+      if (e && e.credentialClass === credentialClass && e.host === host) return true;
+    }
+  } catch { /* fail-safe: don't suppress on any error */ }
+  return false;
+}
+
 // Checks IR fileTargets: a read of a credential path is a signal regardless of
 // declared intent. Writes are covered by F16/F24; we care about reads whose
 // content may feed an exfil (e.g. Read of ~/.ssh/id_rsa followed by an egress).
@@ -156,6 +182,15 @@ function evalSecretEgressFloor(input) {
 
     // ── Both signals present — fire F27. ─────────────────────────────────────
     const host = externalHosts[0];
+
+    // F.7 grant-sharing — an approval minted for this (credentialClass, host)
+    // via the shared secret-egress scope suppresses the F27 fire. INERT today
+    // (F27 is inviolable; decide() injects no consentGrant on the F27 path) —
+    // becomes LIVE after PR-C reclassifies F27 to demotable. Pure predicate.
+    if (input.consentGrant && _grantCoversF27(input.consentGrant, credClass, host)) {
+      return { fired: false };
+    }
+
     const coaching =
       `blocked: something tried to send your ${credClass} to an external host` +
       ` (${host}). This looks like credential exfiltration and cannot be` +
