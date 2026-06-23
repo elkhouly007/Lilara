@@ -75,10 +75,26 @@ function _commandHasCredPath(cmd) {
 // approvals). Strict-equal match on (credentialClass, host). Pure, no I/O,
 // fail-safe (never suppress on any error).
 //
-// INERT today: F27 is inviolable in the lattice, so decide() injects no
-// consentGrant on the F27 path and this predicate is never reached live.
-// It becomes LIVE after PR-C reclassifies F27 to demotable. The unit test
-// exercises the predicate directly, regardless of when decide() consults it.
+// INERT today — but NOT because consentGrant is absent: decide() DOES inject
+// it onto the F27 path (the original input.consentGrant survives into `enriched`
+// via the explicit/Object.fromEntries spread at decision-engine.js:293-304 and
+// is handed to _evalSecretEgressFloor at ~:582). The real reason this predicate
+// is unreachable is the `canDemote("F27","consent:interactive")` gate at the
+// CALL SITE (line 205): canDemote short-circuits to false via
+// _INVIOLABLE_AT_LOAD.has("F27") (decision-lattice.js:747) BEFORE this predicate
+// is consulted, so the && never evaluates _grantCoversF27.
+// Empirically reproduced: on the broken #191 @ 2cc8b57 (no gate) this predicate
+// WAS reached live — a matching grant returned action:allow / floorFired:null,
+// bypassing the F27 hard-stop while F27 was still inviolable. On #192
+// (feat/f7-grant-sharing-fix-2026-06-23 @ 79c928e65d) the gate blocks that path:
+// action:block, floorFired:secret-egress-external.
+// DO NOT remove the gate; without it, this predicate runs live on the F27 path
+// while F27 is inviolable, suppressing the hard-stop. The gate's
+// _INVIOLABLE_AT_LOAD.has("F27") early-return is the load-bearing reason this
+// predicate is currently unreachable. It becomes LIVE after PR-C reclassifies
+// F27 to demotable (demotableBy:["consent:interactive"]) — at which point the
+// gate naturally opens. The unit test exercises the predicate directly,
+// regardless of when decide() consults it.
 // ---------------------------------------------------------------------------
 function _grantCoversF27(grant, credentialClass, host) {
   if (!grant || !credentialClass || !host) return false;
