@@ -117,8 +117,17 @@ test("grant-suppression requires consentGrant on input — not env vars or stdin
   }
 });
 
-test("grant-suppression with a matching consentGrant silently allows an in-scope non-gated action", () => {
-  // Inject a grant that covers everything (empty scopes → non-gated commands allowed)
+test("in-scope non-gated action with grant present resolves to allow at baseline (grant is inert)", () => {
+  // Intent (a): grants are scoped to the F27/F28 secret-egress path. On a
+  // non-protected branch a non-gated low-risk command is allowed by the
+  // baseline risk engine — NOT by the grant. The grant is present but inert:
+  // floorFired stays null and decisionSource stays "risk-engine".
+  //
+  // `branch` is set EXPLICITLY to a non-protected value so the result does not
+  // depend on the ambient git HEAD (decide() auto-discovers branch from
+  // process.cwd()'s .git/HEAD; on a protected branch like "master" the
+  // protected-branch +3 bonus would route instead of allow). The explicit
+  // branch makes this assertion hermetic across all checkouts/OSes.
   const grant = {
     id: "test-grant",
     projectScope: null,          // skip project-scope check
@@ -134,13 +143,49 @@ test("grant-suppression with a matching consentGrant silently allows an in-scope
     command: "echo hello",     // non-gated, low-risk command
     payloadClass: "A",
     dryRun: true,
+    branch: "test/non-protected",   // explicit non-protected branch (hermetic)
     consentGrant: grant,
     now: new Date("2026-06-04T12:00:00.000Z").getTime(),
   });
-  // A low-risk, non-gated command with a permissive grant should allow
-  // (it may already be allow without the grant, which is also acceptable)
+  // Baseline allows (score 1 → low → allow). The grant did NOT participate.
   assert.strictEqual(r.action, "allow",
-    "in-scope non-gated command with grant must be allowed");
+    "non-protected branch, non-gated low-risk command → baseline allow");
+  assert.strictEqual(r.floorFired, null,
+    "no consent floor fires for a non-secret-egress action; grant is inert outside F27/F28");
+  assert.strictEqual(r.decisionSource, "risk-engine",
+    "decisionSource must remain 'risk-engine' — the baseline allowed, not the grant");
+});
+
+test("matching consentGrant + protected branch + non-gated action → action=route, grant is inert (intent a)", () => {
+  // Documents INTENT (a): grants are scoped to the F27/F28 secret-egress path.
+  // Outside F27/F28 firing, a matching consentGrant does NOT override baseline
+  // risk. On a protected branch, an in-scope non-gated action still routes via
+  // the medium-risk baseline path (decision-engine.js:1279-1281), even when a
+  // permissive grant is supplied. This locks the protected-branch-vs-grant
+  // interaction as INTENTIONAL design, not a bug.
+  const grant = {
+    id: "test-grant", projectScope: null, sessionId: null, scopes: {},
+    grantedAt: "2026-06-04T00:00:00.000Z",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+    grantedVia: "consent:interactive", floorCodes: [],
+  };
+  const r = decide({
+    tool: "Bash",
+    command: "echo hello",
+    payloadClass: "A",
+    dryRun: true,
+    branch: "master",   // explicit protected branch (bypasses ambient discovery)
+    consentGrant: grant,
+    now: new Date("2026-06-04T12:00:00.000Z").getTime(),
+  });
+  // On master, the medium-risk baseline fires (protected-branch +3 → score 4 →
+  // medium → route). The grant is inert on this path.
+  assert.strictEqual(r.action, "route",
+    "protected-branch + non-gated + grant present → medium path, NOT demoted by grant");
+  assert.strictEqual(r.floorFired, null,
+    "no consent floor fires for non-secret-egress action; grant is inert outside F27/F28");
+  assert.strictEqual(r.decisionSource, "risk-engine",
+    "decisionSource must remain 'risk-engine' — grant did not participate");
 });
 
 // ── Cleanup & summary ─────────────────────────────────────────────────────
