@@ -341,7 +341,29 @@ function _deriveGrantScopes(prompt) {
     }];
   }
 
+  // F.7 grant-sharing — shared per-(credentialClass, host) scope recognized by
+  // BOTH F27 (secret-egress-external) AND F28 (taint-egress-consent). Emitted
+  // for every secret-egress approval where the destination and credential class
+  // are both named. Additive: F28's bespoke scopes.taintEgress (above) is
+  // preserved. This is the shape that lets an F27-minted approval be recognized
+  // by F28 and vice-versa (EXECUTION-PLAN F.7 / decision F.7). Inert for
+  // non-secret-egress floors (secretEgressHost/CredClass absent there).
+  if (prompt.secretEgressHost && prompt.secretEgressCredClass) {
+    scopes.secretEgress = [{
+      credentialClass: String(prompt.secretEgressCredClass),
+      host:            String(prompt.secretEgressHost),
+    }];
+  }
+
   return scopes;
 }
 
-module.exports = { requestConsent, buildConsentPrompt, buildPromptText, isOneShot };
+module.exports = {
+  requestConsent,
+  buildConsentPrompt,
+  buildPromptText,
+  isOneShot,
+  // F.7: exported (public alias) so the grant-sharing test can exercise the
+  // shape emitter directly. Internal name keeps the underscore prefix.
+  deriveGrantScopes: _deriveGrantScopes,
+};

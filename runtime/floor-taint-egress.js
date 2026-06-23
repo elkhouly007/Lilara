@@ -54,13 +54,29 @@ const MIN_SHARED_COUNT  = 3;
 // Bespoke grant check — F28-specific suppression (scopes.taintEgress).
 // Returns true when the injected grant covers the exact (host, filePathHash).
 // ---------------------------------------------------------------------------
-function _grantCoversF28(grant, host, filePathHash) {
-  if (!grant || !host || !filePathHash) return false;
+function _grantCoversF28(grant, host, filePathHash, credentialClass = null) {
+  if (!grant) return false;
   try {
-    const entries = grant.scopes?.taintEgress;
-    if (!Array.isArray(entries) || entries.length === 0) return false;
-    for (const e of entries) {
-      if (e && e.host === host && e.filePathHash === filePathHash) return true;
+    // Existing bespoke shape — match exact (host, filePathHash).
+    if (host && filePathHash) {
+      const entries = grant.scopes?.taintEgress;
+      if (Array.isArray(entries)) {
+        for (const e of entries) {
+          if (e && e.host === host && e.filePathHash === filePathHash) return true;
+        }
+      }
+    }
+    // F.7 grant-sharing — shared per-(credentialClass, host) shape. Lets an
+    // F27-minted approval (scopes.secretEgress) cover the same (credentialClass,
+    // host) on the F28 cross-call path (and vice-versa). Additive; the bespoke
+    // taintEgress check above is unchanged.
+    if (host && credentialClass) {
+      const se = grant.scopes?.secretEgress;
+      if (Array.isArray(se)) {
+        for (const e of se) {
+          if (e && e.host === host && e.credentialClass === credentialClass) return true;
+        }
+      }
     }
   } catch { /* fail-safe: don't suppress on any error */ }
   return false;
@@ -171,13 +187,15 @@ function evalTaintEgressFloor(input) {
         const hitSource = node.pathHash       && ph === node.pathHash;
 
         if (hitTarget || hitSource) {
+          const nodeCredClass = node.credClass === true ? (node.sourceClass || "credential") : "credential";
           // Bespoke grant suppression — same (file, host) already approved?
-          if (_grantCoversF28(input.consentGrant, host || "unknown", ph)) {
+          // F.7: also covered by a shared (credentialClass, host) secretEgress grant.
+          if (_grantCoversF28(input.consentGrant, host || "unknown", ph, nodeCredClass)) {
             return { fired: false };
           }
           return {
             fired:              true,
-            credClass:          node.credClass === true ? (node.sourceClass || "credential") : "credential",
+            credClass:          nodeCredClass,
             host:               host || "unknown",
             taintedFilePath:    ref,
             taintedFilePathHash: ph,
@@ -203,12 +221,14 @@ function evalTaintEgressFloor(input) {
           // For content-overlap we don't have a concrete file ref — use null path.
           // Bespoke grant suppression: key on (host, nodePathHash).
           const nodePh = node.pathHash || node.targetPathHash || null;
-          if (_grantCoversF28(input.consentGrant, host || "unknown", nodePh)) {
+          const nodeCredClass = node.sourceClass || "credential";
+          // F.7: bespoke (host, nodePathHash) OR shared (credentialClass, host).
+          if (_grantCoversF28(input.consentGrant, host || "unknown", nodePh, nodeCredClass)) {
             return { fired: false };
           }
           return {
             fired:               true,
-            credClass:           node.sourceClass || "credential",
+            credClass:           nodeCredClass,
             host:                host || "unknown",
             taintedFilePath:     null,
             taintedFilePathHash: nodePh,
