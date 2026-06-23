@@ -30,6 +30,12 @@ const {
   extractTargets: _extractTargets,
   isLoopback: _isLoopback,
 } = require("./network-egress");
+// ADR-036: mutation-immune demotability gate. decision-lattice.js is a leaf
+// module (it requires only crypto + canonical-json), so this adds no circular
+// dependency. Used to gate the F.7 grant-sharing suppression behind F27's REAL
+// inviolability state — while F27 is tier:"inviolable", canDemote returns false
+// and the grant suppression below is structurally unreachable.
+const { canDemote } = require("./decision-lattice");
 
 // ── Credential-path patterns (narrow — key/credential class only) ─────────
 //
@@ -183,11 +189,21 @@ function evalSecretEgressFloor(input) {
     // ── Both signals present — fire F27. ─────────────────────────────────────
     const host = externalHosts[0];
 
-    // F.7 grant-sharing — an approval minted for this (credentialClass, host)
-    // via the shared secret-egress scope suppresses the F27 fire. INERT today
-    // (F27 is inviolable; decide() injects no consentGrant on the F27 path) —
-    // becomes LIVE after PR-C reclassifies F27 to demotable. Pure predicate.
-    if (input.consentGrant && _grantCoversF27(input.consentGrant, credClass, host)) {
+    // F.7 grant-sharing — the shared per-(credentialClass, host) scope minted
+    // by _deriveGrantScopes is recognized by F27 ONLY when F27 is actually
+    // demotable. The gate is the mutation-immune canDemote() check from
+    // runtime/decision-lattice.js, which reads the frozen-at-load LATTICE
+    // (and is hardened against in-process tier mutation by _INVIOLABLE_AT_LOAD).
+    // While F27 is tier:"inviolable" (today, pre-PR-C), canDemote() returns
+    // false and this branch is STRUCTURALLY UNREACHABLE — a matching grant
+    // cannot suppress the F27 block. After PR-C reclassifies F27 to demotable
+    // with demotableBy:["consent:interactive"], the gate naturally opens and
+    // F.7 grant-sharing goes live for F27.
+    //
+    // Owner-ruled seam: gate at the floor (the point of the check), tied to
+    // the real inviolability state. NOT via an upstream strip in decide().
+    if (canDemote("F27", "consent:interactive") &&
+        input.consentGrant && _grantCoversF27(input.consentGrant, credClass, host)) {
       return { fired: false };
     }
 

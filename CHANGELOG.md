@@ -8,6 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### [SECURITY-LAYER][INERT] F.7 grant-sharing fix — floor-level gate tied to F27's real inviolability state (closes the pre-PR-C bypass both reviewers reproduced)
+
+- **fix(f7-grant-sharing): gate F27 grant-suppression behind canDemote("F27","consent:interactive")** — the F.7 grant check inside `runtime/floor-secret-egress.js:evalSecretEgressFloor` is now STRUCTURALLY UNREACHABLE while F27 is `tier:"inviolable"` (today, pre-PR-C). A matching `secretEgress` grant on the F27 path can no longer suppress the inviolable hard-stop. After PR-C reclassifies F27 to demotable, the gate naturally opens and F.7 grant-sharing goes live for F27. F28 side unchanged (F28 is already demotable, `_grantCoversF28` is additive and backward-compatible). NEW decide()-level inertness test (the bypass-closed regression lock) plus a simulated-demotable test for the F.7 path-once-live. No `LILARA_F27_CONSENT` flip. No lattice / inviolable-set / baseline change. No `[LATTICE-BASELINE-REBASELINE]` marker.
+
 ### [SECURITY-LAYER][INERT] F.7 grant-sharing F27 ↔ F28 runtime path + test
 
 - **feat(f7-grant-sharing): per-(credentialClass, host) grant shared across F27 + F28** — NEW shared `scopes.secretEgress:[{credentialClass, host}]` emitted by `runtime/consent/transport.js:_deriveGrantScopes` for both F27 (secret-egress-external) and F28 (taint-egress-consent) approvals (additive — F28's existing `scopes.taintEgress` shape is preserved). NEW `_grantCoversF27` in `runtime/floor-secret-egress.js` recognizes the shared shape (F27 predicate now checks `input.consentGrant`; INERT today because F27 is inviolable, LIVE after PR-C). EXTENDED `_grantCoversF28` in `runtime/floor-taint-egress.js` to also recognize `scopes.secretEgress` so an F27-minted approval covers F28 on the same `(credentialClass, host)` (and vice-versa). NEW `tests/runtime/floor-f27-f28-grant-sharing.test.js` (≥9 cases) proves cross-floor recognition in all 4 directions. No decision-engine / decision-lattice / pretool-gate change. No `LILARA_F27_CONSENT` default flip. No lattice touch (no `[LATTICE-BASELINE-REBASELINE]` marker).
