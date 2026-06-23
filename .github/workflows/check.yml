@@ -38,7 +38,17 @@ jobs:
           node-version: "20"
 
       - name: Status summary
-        run: bash scripts/status-summary.sh
+        run: |
+          # Capture the status-summary output once on the warm cache so the
+          # late-running check-status-artifact step can reuse it without
+          # re-invoking all 26 sub-scripts (the recursive call hung 5+ min
+          # on cold-cache Windows runners — proven on the master cf331ba
+          # push run). Also write the artifact metadata with the captured
+          # summary path so drift detection still works.
+          mkdir -p artifacts/status
+          bash scripts/status-summary.sh | tee artifacts/status/status-summary.txt
+          ARG_STATUS_SUMMARY_FILE="$GITHUB_WORKSPACE/artifacts/status/status-summary.txt" \
+            bash scripts/generate-status-artifact.sh artifacts/status
 
       - name: Version / changelog sync check
         run: bash scripts/check-version.sh --check-changelog
