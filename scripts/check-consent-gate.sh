@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # check-consent-gate.sh — CI gate for the 0.2.0 scope-based consent gate.
 #
-# Runs the 7 consent test files and checks two structural invariants:
+# Runs the 8 consent test files and checks three structural invariants:
 #   1. runtime/floor-consent.js makes no FS writes (pure evaluator).
 #   2. runtime/consent/transport.js has no reference to the stdin file descriptor.
+#   3. D-CONSENT lattice entry exists at rung 18.25; assertOrdered() passes.
 #
 # Exit: 0 = all pass; 1 = any failure.
 set -euo pipefail
@@ -29,13 +30,14 @@ run_test() {
 
 echo "=== consent-gate tests ==="
 
-run_test "consent-floor"           tests/runtime/consent-floor.test.js
-run_test "consent-grant-store"     tests/runtime/consent-grant-store.test.js
+run_test "consent-floor"            tests/runtime/consent-floor.test.js
+run_test "consent-grant-store"      tests/runtime/consent-grant-store.test.js
 run_test "consent-early-review-fix" tests/runtime/consent-early-review-fix.test.js
-run_test "consent-enforce-compat"  tests/runtime/consent-enforce-compat.test.js
-run_test "consent-transport"       tests/runtime/consent-transport.test.js
-run_test "consent-adversarial"     tests/runtime/consent-adversarial.test.js
+run_test "consent-enforce-compat"   tests/runtime/consent-enforce-compat.test.js
+run_test "consent-transport"        tests/runtime/consent-transport.test.js
+run_test "consent-adversarial"      tests/runtime/consent-adversarial.test.js
 run_test "consent-f6-prompt-wiring" tests/runtime/consent-f6-prompt-wiring.test.js
+run_test "floor-f27-consent-transport" tests/runtime/floor-f27-consent-transport.test.js
 
 echo ""
 echo "=== structural invariants ==="
