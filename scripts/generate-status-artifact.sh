@@ -11,31 +11,46 @@ mkdir -p "$out_dir"
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 version="$(tr -d '[:space:]' < "$root/VERSION" 2>/dev/null || echo unknown)"
 
-# Capture path (pre-captured by the workflow tee'd stdout into $out_dir, or by
-# the optional ARG_STATUS_SUMMARY_FILE env override). We do NOT cp the file
-# into the artifact — the captured file IS the artifact body, the workflow
-# already wrote it to the correct location. Just record the source in metadata.
+# Capture path resolution. The script supports two invocation paths in
+# the workflow:
+#   (A) Status summary step passes ARG_STATUS_SUMMARY_FILE (the absolute
+#       path to artifacts/status/status-summary.txt) AND calls this script
+#       with $out_dir = artifacts/status. The captured file IS already
+#       inside $out_dir — do not copy, it would collide.
+#   (B) Check status artifact step calls this script with $out_dir = a
+#       mktemp -d workdir (no env var). It needs a captured file from
+#       somewhere — /tmp/status-summary-capture.txt is the universal
+#       fallback populated by the Status summary step's tee.
 #
-# Previous approach (cp captured → ${out_dir}/status-summary.txt) collided
-# whenever the captured path was inside ${out_dir}: cp's "are the same file"
-# guard exits 1 and the step fails (proven on PR #195 CI runs #28065417666
-# ubuntu, #28065391540 push, plus the windows recovery). This rewrite trusts
-# the workflow's capture path and lets it stand as the artifact.
+# For (A): trust the captured file as the artifact body. Metadata's
+# `path=` points at the captured file directly. check-status-artifact.sh
+# is updated to follow the metadata's path= field rather than assume
+# the body is at $out_dir/status-summary.txt.
 #
-# Fallback: if neither ARG_STATUS_SUMMARY_FILE nor the legacy /tmp capture
-# path is set, we still must produce a body. The recursive run is the worst
-# option (hangs 5+ min on cold-cache Windows — proven on master cf331ba run
-# 2026-06-23 between 21:20:43 and 21:25:46) so refuse to do it here. Fail
-# loud instead: the workflow MUST capture stdout before invoking this
-# script. A pre-flight check verifies the body file exists, so a missing
-# capture surfaces a clear "no capture file" error rather than a silent
-# 5-min hang.
+# For (B): the captured file is OUTSIDE the workdir, so write it into
+# $out_dir via `cat` (NOT `cp` — `cp` is fine when source != dest, but
+# `cat` is the simplest form that always works regardless of path
+# relationship, and it avoids any future same-file-collision risk).
+#
+# Why we do NOT recurse into status-summary.sh here: check-status-artifact.sh
+# runs late in the workflow, AFTER the outer status-summary.sh step has
+# already invoked every sub-script once. The recursive call would re-invoke
+# all 26 sub-scripts serially, paying the cold-cache cost a second time
+# and adding 5+ min to the windows run (proven on master cf331ba run
+# 2026-06-23 between 21:20:43 and 21:25:46).
+#
+# Pre-flight: if neither capture path is set, the workflow did not run
+# the Status summary step before this script was invoked. Fail loud.
 if [ -n "${ARG_STATUS_SUMMARY_FILE:-}" ] && [ -f "${ARG_STATUS_SUMMARY_FILE}" ]; then
   summary_source="captured:${ARG_STATUS_SUMMARY_FILE}"
   summary_body="${ARG_STATUS_SUMMARY_FILE}"
+  # Path (A) above — captured file is inside $out_dir, no copy needed.
 elif [ -f "/tmp/status-summary-capture.txt" ]; then
   summary_source="captured:/tmp/status-summary-capture.txt"
-  summary_body="/tmp/status-summary-capture.txt"
+  summary_body="$out_dir/status-summary.txt"
+  mkdir -p "$out_dir"
+  cat "/tmp/status-summary-capture.txt" > "$summary_body"
+  # Path (B) above — body is now in $out_dir; metadata points at it.
 else
   printf 'error: status-summary.sh not pre-captured and no /tmp fallback exists\n' >&2
   printf 'error: the workflow must capture status-summary stdout via tee before invoking generate-status-artifact.sh\n' >&2
