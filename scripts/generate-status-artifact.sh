@@ -11,33 +11,41 @@ mkdir -p "$out_dir"
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 version="$(tr -d '[:space:]' < "$root/VERSION" 2>/dev/null || echo unknown)"
 
-# Why we no longer recurse into status-summary.sh here:
-# check-status-artifact.sh runs late in the workflow, AFTER the outer status-summary.sh
-# step (#41) has already invoked every sub-script once and the per-step CI steps above
-# have warmed the FS cache. On cold-cache Windows the recursive call below would
-# re-invoke all 26 sub-scripts serially — paying the cold-cache cost a second time and
-# adding minutes to the windows run (proven on the master cf331ba push run: the
-# 5-min gap between 21:20:43 check-status-artifact and 21:25:46 check-fixture-count
-# IS this recursion). The artifact only needs the summary's output bytes plus the
-# metadata; both can be sourced without re-executing the sub-scripts.
+# Capture path (pre-captured by the workflow tee'd stdout into $out_dir, or by
+# the optional ARG_STATUS_SUMMARY_FILE env override). We do NOT cp the file
+# into the artifact — the captured file IS the artifact body, the workflow
+# already wrote it to the correct location. Just record the source in metadata.
 #
-# Acceptance order:
-#   (1) ARG_STATUS_SUMMARY_FILE is set (workflow passed in the captured stdout from
-#       step #41), copy it as the artifact body.
-#   (2) /tmp/status-summary-capture.txt exists from a sibling workflow (rare; covers
-#       scripts that invoke generate-status-artifact.sh outside the workflow).
-#   (3) Fallback — must re-invoke. Logged as a warning so it shows up in CI output.
+# Previous approach (cp captured → ${out_dir}/status-summary.txt) collided
+# whenever the captured path was inside ${out_dir}: cp's "are the same file"
+# guard exits 1 and the step fails (proven on PR #195 CI runs #28065417666
+# ubuntu, #28065391540 push, plus the windows recovery). This rewrite trusts
+# the workflow's capture path and lets it stand as the artifact.
+#
+# Fallback: if neither ARG_STATUS_SUMMARY_FILE nor the legacy /tmp capture
+# path is set, we still must produce a body. The recursive run is the worst
+# option (hangs 5+ min on cold-cache Windows — proven on master cf331ba run
+# 2026-06-23 between 21:20:43 and 21:25:46) so refuse to do it here. Fail
+# loud instead: the workflow MUST capture stdout before invoking this
+# script. A pre-flight check verifies the body file exists, so a missing
+# capture surfaces a clear "no capture file" error rather than a silent
+# 5-min hang.
 if [ -n "${ARG_STATUS_SUMMARY_FILE:-}" ] && [ -f "${ARG_STATUS_SUMMARY_FILE}" ]; then
-  cp "${ARG_STATUS_SUMMARY_FILE}" "${summary_file}"
   summary_source="captured:${ARG_STATUS_SUMMARY_FILE}"
+  summary_body="${ARG_STATUS_SUMMARY_FILE}"
 elif [ -f "/tmp/status-summary-capture.txt" ]; then
-  cp "/tmp/status-summary-capture.txt" "${summary_file}"
   summary_source="captured:/tmp/status-summary-capture.txt"
+  summary_body="/tmp/status-summary-capture.txt"
 else
-  printf 'warning: status-summary.sh not pre-captured; falling back to recursive run (will hang on cold-cache Windows)\n' >&2
-  ARG_SKIP_STATUS_ARTIFACT_CHECK=1 bash "$root/scripts/status-summary.sh" > "${summary_file}"
-  summary_source="recursive-run"
+  printf 'error: status-summary.sh not pre-captured and no /tmp fallback exists\n' >&2
+  printf 'error: the workflow must capture status-summary stdout via tee before invoking generate-status-artifact.sh\n' >&2
+  exit 1
 fi
+
+# Pre-flight: the artifact body must exist at the path the metadata will
+# advertise. If the workflow passed a captured path but the file vanished
+# (rare; e.g. concurrent cleanup), surface a clear error.
+[ -f "${summary_body}" ] || { printf 'error: capture file missing: %s\n' "${summary_body}" >&2; exit 1; }
 
 # Count repo contents from filesystem (used by check-status-artifact.sh for drift detection)
 agents_count="$(find "$root/agents" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
@@ -53,7 +61,7 @@ version=${version}
 generated_at=${generated_at}
 source=scripts/status-summary.sh
 summary_source=${summary_source}
-path=${summary_file}
+path=${summary_body}
 agents=${agents_count}
 rules=${rules_count}
 skills=${skills_count}
