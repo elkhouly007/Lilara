@@ -52,10 +52,13 @@ jobs:
           #      canonical artifact body location (used by the Status
           #      summary step's own call to generate-status-artifact.sh
           #      via ARG_STATUS_SUMMARY_FILE).
-          #   2. /tmp/status-summary-capture.txt — the universal fallback
-          #      used by the LATER Check status artifact step's call to
+          #   2. /tmp/status-summary-capture.txt — consumed by the LATER
+          #      Check status artifact step's call to
           #      generate-status-artifact.sh, which does not pass
-          #      ARG_STATUS_SUMMARY_FILE. Without this, that step
+          #      ARG_STATUS_SUMMARY_FILE. That step now passes this path
+          #      explicitly via ARG_STATUS_SUMMARY_CAPTURE (Path B's explicit
+          #      contract, mirroring Path A); the hardcoded /tmp path remains
+          #      a backwards-compat fallback. Without this capture, that step
           #      errors with "status-summary.sh not pre-captured" and
           #      the job fails (proven on PR #195 @ 4555235 — the path
           #      drop-cp fix did not fix the second invocation path).
@@ -141,7 +144,12 @@ jobs:
         run: bash scripts/check-status-docs.sh
 
       - name: Check status artifact
-        run: bash scripts/check-status-artifact.sh
+        # Pass the capture path explicitly via ARG_STATUS_SUMMARY_CAPTURE so
+        # Path B has the same explicit contract as Path A's ARG_STATUS_SUMMARY_FILE
+        # (the hardcoded /tmp default remains a backwards-compat fallback inside
+        # generate-status-artifact.sh). check-status-artifact.sh inherits this
+        # env var and forwards it to its internal generate-status-artifact.sh call.
+        run: ARG_STATUS_SUMMARY_CAPTURE=/tmp/status-summary-capture.txt bash scripts/check-status-artifact.sh
 
       - name: Check fixture count
         run: bash scripts/check-fixture-count.sh

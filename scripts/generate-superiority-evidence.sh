@@ -31,8 +31,18 @@ done
 # Count reviewed capability packs (modules/*/registry.json)
 capability_packs="$(find "$root/modules" -maxdepth 2 -name 'registry.json' | wc -l | tr -d ' ')"
 
-# Count verification layers in status-summary.sh (lines where ./scripts/ appears after optional leading whitespace)
-verification_layers="$(grep -cE '^\s*\./scripts/' "$status_script" || true)"
+# Count verification layers in status-summary.sh: one per line that invokes a
+# ./scripts/ verification. PR #195's de-mask reshaped each invocation from a
+# line-leading `./scripts/foo.sh && ... || ...` into a `run_check "name"
+# ./scripts/foo.sh` wrapper (plus one inline `if ./scripts/audit-examples.sh`
+# guard), so ./scripts/ is no longer line-leading. The old `^\s*\./scripts/`
+# anchor therefore matched 0 post-demask; this `(^|\s)\./scripts/` anchor counts
+# ./scripts/ at any command/argument boundary instead. The de-mask was a pure
+# reshape (no layer added or removed), so the faithful count is unchanged at 24:
+# 23 run_check invocations + 1 inline audit-examples guard. (A regex keyed to
+# `run_check\s+\S+` would undercount — two labels are quoted multi-word strings,
+# e.g. "integration smoke", so \S+ cannot span them.)
+verification_layers="$(grep -cE '(^|\s)\./scripts/' "$status_script" || true)"
 
 cat <<EOF
 # Superiority Evidence

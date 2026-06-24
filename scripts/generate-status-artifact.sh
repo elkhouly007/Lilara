@@ -11,6 +11,11 @@ mkdir -p "$out_dir"
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 version="$(tr -d '[:space:]' < "$root/VERSION" 2>/dev/null || echo unknown)"
 
+# Environment variables (both name an absolute path to a pre-captured
+# status-summary body; both are optional):
+#   ARG_STATUS_SUMMARY_FILE    — Path (A) capture, already inside $out_dir.
+#   ARG_STATUS_SUMMARY_CAPTURE — Path (B) capture, OUTSIDE $out_dir; copied in.
+#
 # Capture path resolution. The script supports two invocation paths in
 # the workflow:
 #   (A) Status summary step passes ARG_STATUS_SUMMARY_FILE (the absolute
@@ -18,14 +23,19 @@ version="$(tr -d '[:space:]' < "$root/VERSION" 2>/dev/null || echo unknown)"
 #       with $out_dir = artifacts/status. The captured file IS already
 #       inside $out_dir — do not copy, it would collide.
 #   (B) Check status artifact step calls this script with $out_dir = a
-#       mktemp -d workdir (no env var). It needs a captured file from
-#       somewhere — /tmp/status-summary-capture.txt is the universal
-#       fallback populated by the Status summary step's tee.
+#       mktemp -d workdir. It needs a captured file from somewhere. It
+#       prefers ARG_STATUS_SUMMARY_CAPTURE (an explicit absolute path,
+#       mirroring Path A's ARG_STATUS_SUMMARY_FILE contract) and falls
+#       back to the hardcoded /tmp/status-summary-capture.txt default for
+#       backwards compat during the transition window — both are populated
+#       by the Status summary step's tee.
 #
 # For (A): trust the captured file as the artifact body. Metadata's
 # `path=` points at the captured file directly. check-status-artifact.sh
-# is updated to follow the metadata's path= field rather than assume
-# the body is at $out_dir/status-summary.txt.
+# follows the metadata's path= field (it greps `^path=` and validates the
+# file exists) rather than assuming the body is at
+# $out_dir/status-summary.txt — verified by de-mask PR (2026-06-24); the
+# path= contract was introduced by #195.
 #
 # For (B): the captured file is OUTSIDE the workdir, so write it into
 # $out_dir via `cat` (NOT `cp` — `cp` is fine when source != dest, but
@@ -45,14 +55,22 @@ if [ -n "${ARG_STATUS_SUMMARY_FILE:-}" ] && [ -f "${ARG_STATUS_SUMMARY_FILE}" ];
   summary_source="captured:${ARG_STATUS_SUMMARY_FILE}"
   summary_body="${ARG_STATUS_SUMMARY_FILE}"
   # Path (A) above — captured file is inside $out_dir, no copy needed.
+elif [ -n "${ARG_STATUS_SUMMARY_CAPTURE:-}" ] && [ -f "${ARG_STATUS_SUMMARY_CAPTURE}" ]; then
+  summary_source="captured:${ARG_STATUS_SUMMARY_CAPTURE}"
+  summary_body="$out_dir/status-summary.txt"
+  mkdir -p "$out_dir"
+  cat "${ARG_STATUS_SUMMARY_CAPTURE}" > "$summary_body"
+  # Path (B) above — explicit capture path via env var; body copied into
+  # $out_dir; metadata points at it.
 elif [ -f "/tmp/status-summary-capture.txt" ]; then
   summary_source="captured:/tmp/status-summary-capture.txt"
   summary_body="$out_dir/status-summary.txt"
   mkdir -p "$out_dir"
   cat "/tmp/status-summary-capture.txt" > "$summary_body"
-  # Path (B) above — body is now in $out_dir; metadata points at it.
+  # Path (B) fallback — hardcoded /tmp default; backwards-compat during the
+  # transition window for callers not yet passing ARG_STATUS_SUMMARY_CAPTURE.
 else
-  printf 'error: status-summary.sh not pre-captured and no /tmp fallback exists\n' >&2
+  printf 'error: status-summary.sh not pre-captured (no ARG_STATUS_SUMMARY_FILE, no ARG_STATUS_SUMMARY_CAPTURE, no /tmp fallback)\n' >&2
   printf 'error: the workflow must capture status-summary stdout via tee before invoking generate-status-artifact.sh\n' >&2
   exit 1
 fi
