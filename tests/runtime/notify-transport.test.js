@@ -276,9 +276,19 @@ async function run() {
       if (k.startsWith(path.join(ROOT, "runtime") + path.sep)) delete require.cache[k];
     }
     const { decide } = require(path.join(ROOT, "runtime/decision-engine"));
+    // Warm the engine first — the very first decide() after a require.cache wipe
+    // pays the cold module-load + JIT cost (~476ms on cold Windows CI runners).
+    // The fire-and-forget guarantee is about HOT-path latency, so measure the
+    // SECOND (warm) call, matching the sibling e2e test's warm-up pattern below.
+    const c0 = Date.now();
+    decide({ command: "echo warm", targetPath: "src/x.ts", tool: "Bash", sessionRisk: 0 });
+    const coldMs = Date.now() - c0;
     const t0 = Date.now();
     const result = decide({ command: "npm test", targetPath: "src/app.ts", tool: "Bash", sessionRisk: 0 });
     const dt = Date.now() - t0;
+    // Emit the cold-vs-warm comparison so the CI log shows the cold-cache cost is
+    // amortized by the warm-up rather than being a real hot-path slowdown.
+    console.log(`cold=${coldMs}ms warm=${dt}ms`);
     assert.ok(dt < 200, `decide() took ${dt}ms — hook may not be fire-and-forget`);
     assert.ok(!("notifyAttempted" in result), `notifyAttempted leaked when notifications disabled: ${JSON.stringify(result.notifyAttempted)}`);
   });

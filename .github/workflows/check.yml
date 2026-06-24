@@ -38,7 +38,33 @@ jobs:
           node-version: "20"
 
       - name: Status summary
-        run: bash scripts/status-summary.sh
+        run: |
+          # Capture the status-summary output once on the warm cache so the
+          # late-running check-status-artifact step can reuse it without
+          # re-invoking all 26 sub-scripts (the recursive call hung 5+ min
+          # on cold-cache Windows runners — proven on the master cf331ba
+          # push run). Also write the artifact metadata with the captured
+          # summary path so drift detection still works.
+          #
+          # Two output locations are written so a single capture serves
+          # BOTH invocation paths of generate-status-artifact.sh:
+          #   1. artifacts/status/status-summary.txt — the workflow's
+          #      canonical artifact body location (used by the Status
+          #      summary step's own call to generate-status-artifact.sh
+          #      via ARG_STATUS_SUMMARY_FILE).
+          #   2. /tmp/status-summary-capture.txt — the universal fallback
+          #      used by the LATER Check status artifact step's call to
+          #      generate-status-artifact.sh, which does not pass
+          #      ARG_STATUS_SUMMARY_FILE. Without this, that step
+          #      errors with "status-summary.sh not pre-captured" and
+          #      the job fails (proven on PR #195 @ 4555235 — the path
+          #      drop-cp fix did not fix the second invocation path).
+          mkdir -p artifacts/status
+          bash scripts/status-summary.sh \
+            | tee artifacts/status/status-summary.txt \
+                  /tmp/status-summary-capture.txt
+          ARG_STATUS_SUMMARY_FILE="$GITHUB_WORKSPACE/artifacts/status/status-summary.txt" \
+            bash scripts/generate-status-artifact.sh artifacts/status
 
       - name: Version / changelog sync check
         run: bash scripts/check-version.sh --check-changelog
