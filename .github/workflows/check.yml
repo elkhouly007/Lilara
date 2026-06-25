@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Run fixtures (classify + hooks + redact)
+        run: bash scripts/run-fixtures.sh
+
       - name: Status summary
         run: |
           # Capture the status-summary output once on the warm cache so the
@@ -102,9 +105,6 @@ jobs:
 
       - name: Hook integrity check
         run: bash scripts/verify-hooks-integrity.sh
-
-      - name: Run fixtures (classify + hooks + redact)
-        run: bash scripts/run-fixtures.sh
 
       - name: Contract migration v2→v3 gate
         run: bash scripts/check-migrate-v2-v3.sh
