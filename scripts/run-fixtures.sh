@@ -56,12 +56,130 @@ fail=0
 _LILARA_TMP_PATHS=()
 _track_tmp() { _LILARA_TMP_PATHS+=("$1"); }
 _cleanup_all_tmp() {
+  # Probe-gated (LILARA_FIXTURES_PROBE=1): emit the instrumentation summary
+  # BEFORE sweeping temps so it surfaces even on a `set -e` early exit. Strict
+  # no-op when the probe env var is unset (the guard evaluates false and the
+  # function below is never even defined).
+  if [ "${LILARA_FIXTURES_PROBE:-0}" = "1" ]; then
+    _lilara_probe_summary
+  fi
   local _p
   for _p in "${_LILARA_TMP_PATHS[@]:-}"; do
-    [ -n "${_p:-}" ] && rm -rf "$_p"
+    # `command rm` bypasses the probe-gated rm wrapper so the cleanup sweep
+    # neither re-logs nor recurses. `command rm` is byte-identical to plain
+    # `rm` whenever the wrapper is absent (i.e. probe unset).
+    [ -n "${_p:-}" ] && command rm -rf "$_p"
   done
 }
 trap _cleanup_all_tmp EXIT
+
+# ── probe-gated instrumentation (Component B) ─────────────────────────────────
+# Activated ONLY when LILARA_FIXTURES_PROBE=1. When the var is unset (normal CI,
+# normal local runs) NONE of the wrapper functions below are defined, so every
+# mktemp / rm / node call site resolves to the real binary exactly as before —
+# a STRICT NO-OP with zero output, zero behavior change, zero overhead.
+#
+# Purpose: the Windows fixtures flake is intermittent and only reproduces in the
+# loaded status-summary in-context path, where run-fixtures.sh stderr is eaten
+# by the run_check `>/dev/null 2>&1` redirect. These wrappers count every
+# mktemp/rm/node outcome and, on EBUSY/EPERM/ENOENT-style failures, append a
+# durable line to $LILARA_PROBE_OUT (a file the CI loop can `cat` — surviving the
+# stderr suppression). A final summary is emitted from the EXIT trap.
+if [ "${LILARA_FIXTURES_PROBE:-0}" = "1" ]; then
+  # Internal machine-readable counter log (real mktemp; never wrapped).
+  LILARA_PROBE_LOG="$(command mktemp)"
+  _track_tmp "$LILARA_PROBE_LOG"
+
+  # Emit a summary line to stderr and, if set, to the durable external out-file.
+  _lilara_probe_summary() {
+    set +e
+    local _log="${LILARA_PROBE_LOG:-}"
+    local _mk_ok=0 _mk_fail=0 _rm_ok=0 _rm_fail=0 _nd_ok=0 _nd_fail=0 _first="<none>"
+    if [ -n "$_log" ] && [ -f "$_log" ]; then
+      _mk_ok=$(grep -c '^MKTEMP_OK'   "$_log" 2>/dev/null)
+      _mk_fail=$(grep -c '^MKTEMP_FAIL' "$_log" 2>/dev/null)
+      _rm_ok=$(grep -c '^RM_OK'       "$_log" 2>/dev/null)
+      _rm_fail=$(grep -c '^RM_FAIL'   "$_log" 2>/dev/null)
+      _nd_ok=$(grep -c '^NODE_OK'     "$_log" 2>/dev/null)
+      _nd_fail=$(grep -c '^NODE_FAIL' "$_log" 2>/dev/null)
+      # Prefer the unambiguous filesystem-flake signal (mktemp/rm EBUSY/EPERM)
+      # for first-failure. NODE_FAIL is noisy: the suite legitimately exercises
+      # many non-zero node exits (block-exit fixtures expect rc=2, assertion
+      # fixtures expect rc=1), so a raw NODE_FAIL would mask a real fs failure.
+      _first=$(grep -m1 -E '^MKTEMP_FAIL |^RM_FAIL ' "$_log" 2>/dev/null)
+      [ -n "$_first" ] || _first=$(grep -m1 '^NODE_FAIL ' "$_log" 2>/dev/null)
+      [ -n "$_first" ] || _first="<none>"
+    fi
+    local _line
+    for _line in \
+      "FIXTURES PROBE SUMMARY" \
+      "PROBE: mktemp ok=$_mk_ok fail=$_mk_fail" \
+      "PROBE: rm ok=$_rm_ok fail=$_rm_fail" \
+      "PROBE: node ok=$_nd_ok fail=$_nd_fail (node fail is noisy: many fixtures expect non-zero exit; see first-failure for fs signal)" \
+      "PROBE: first-failure: $_first"; do
+      printf '%s\n' "$_line" >&2
+      if [ -n "${LILARA_PROBE_OUT:-}" ]; then
+        printf '%s\n' "$_line" >> "$LILARA_PROBE_OUT" 2>/dev/null || true
+      fi
+    done
+  }
+
+  # mktemp wrapper — counts every temp creation; logs failures with $LINENO-less
+  # but argument-tagged context (mktemp has no caller line, but the arg set +
+  # ordering in the log pins which site). Preserves exit code + stdout (the path)
+  # so the caller's `x="$(mktemp -d)"` and `set -e` semantics are unchanged.
+  mktemp() {
+    local _rc=0 _out=""
+    _out="$(command mktemp "$@")" || _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      printf 'MKTEMP_FAIL rc=%s args=[%s]\n' "$_rc" "$*" >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+      if [ -n "${LILARA_PROBE_OUT:-}" ]; then
+        printf 'PROBE: mktemp FAILED rc=%s args=[%s]\n' "$_rc" "$*" >> "$LILARA_PROBE_OUT" 2>/dev/null || true
+      fi
+    else
+      printf 'MKTEMP_OK\n' >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+    fi
+    if [ -n "$_out" ]; then printf '%s\n' "$_out"; fi
+    return "$_rc"
+  }
+
+  # rm wrapper — counts every removal; logs EBUSY/EPERM-style failures (the prime
+  # Windows suspect: rmdir of a dir a node subprocess still has open). Preserves
+  # exit code so `set -e` fires identically to today on a hard rm failure.
+  rm() {
+    local _rc=0
+    command rm "$@" || _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      printf 'RM_FAIL rc=%s args=[%s]\n' "$_rc" "$*" >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+      if [ -n "${LILARA_PROBE_OUT:-}" ]; then
+        printf 'PROBE: rm FAILED rc=%s args=[%s]\n' "$_rc" "$*" >> "$LILARA_PROBE_OUT" 2>/dev/null || true
+      fi
+    else
+      printf 'RM_OK\n' >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+    fi
+    return "$_rc"
+  }
+
+  # node wrapper — counts every subprocess; logs non-zero exits (which is how an
+  # in-node mktempSync/rmSync EBUSY surfaces: the node process throws and exits
+  # non-zero). Writes ONLY to the log/out files — NEVER to stdout/stderr — so a
+  # `$(node ... 2>&1)` capture at a call site is never polluted. command node
+  # inherits the call-site fds, so observable stdout/stderr is byte-identical.
+  node() {
+    local _rc=0
+    command node "$@" || _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      printf 'NODE_FAIL rc=%s arg=[%s]\n' "$_rc" "${1:-}" >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+      if [ -n "${LILARA_PROBE_OUT:-}" ]; then
+        printf 'PROBE: node FAILED rc=%s arg=[%s]\n' "$_rc" "${1:-}" >> "$LILARA_PROBE_OUT" 2>/dev/null || true
+      fi
+    else
+      printf 'NODE_OK\n' >> "${LILARA_PROBE_LOG:-/dev/null}" 2>/dev/null || true
+    fi
+    return "$_rc"
+  }
+fi
+# ── end probe-gated instrumentation ───────────────────────────────────────────
 
 hooks_tmp_state="$(mktemp -d)"
 _track_tmp "$hooks_tmp_state"
