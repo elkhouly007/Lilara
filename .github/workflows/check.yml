@@ -62,10 +62,21 @@ jobs:
           #      errors with "status-summary.sh not pre-captured" and
           #      the job fails (proven on PR #195 @ 4555235 — the path
           #      drop-cp fix did not fix the second invocation path).
+          #
+          # ARG_SKIP_STATUS_ARTIFACT_CHECK=1 rationale:
+          # The inner status-artifact check is self-referential — it runs
+          # before status-summary prints the [Parity Snapshot] section it
+          # validates, so it can never pass. The authoritative gate is the
+          # dedicated Check status artifact step, which runs
+          # check-status-artifact.sh on the COMPLETE capture.
+          # ARG_SKIP_STATUS_ARTIFACT_CHECK=1 skips only this
+          # structurally-impossible inner check; all other sub-checks remain
+          # honestly gated.
           mkdir -p artifacts/status
-          bash scripts/status-summary.sh \
-            | tee artifacts/status/status-summary.txt \
-                  /tmp/status-summary-capture.txt
+          ARG_SKIP_STATUS_ARTIFACT_CHECK=1 \
+            bash scripts/status-summary.sh \
+              | tee artifacts/status/status-summary.txt \
+                    /tmp/status-summary-capture.txt
           ARG_STATUS_SUMMARY_FILE="$GITHUB_WORKSPACE/artifacts/status/status-summary.txt" \
             bash scripts/generate-status-artifact.sh artifacts/status
 
