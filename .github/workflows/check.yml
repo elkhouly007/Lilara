@@ -40,6 +40,58 @@ jobs:
       - name: Run fixtures (classify + hooks + redact)
         run: bash scripts/run-fixtures.sh
 
+      - name: Probe fixtures (windows-only — loop to force-capture intermittent flake)
+        # CAPTURE-ONLY probe, NOT a fix. The fixtures sub-check of
+        # status-summary.sh fails intermittently on windows but its stderr is
+        # swallowed (>/dev/null 2>&1). The prior probe commit reordered this
+        # job so "Run fixtures" runs first, but on 5dc9349 all 6 jobs came
+        # back green and the flake did NOT fire. This step extends the probe:
+        # it loops run-fixtures.sh 10 times with FULL visible output and, on
+        # any iteration failure, prints the exact failing fixture + the full
+        # stderr (un-swallowed) and fails the step so the failure lands in the
+        # CI log. Do NOT "fix" run-fixtures.sh / status-summary.sh from this —
+        # the point is to SEE the failure.
+        if: runner.os == 'Windows'
+        run: |
+          set -u
+          ITER=10
+          PASS=0
+          FAIL=0
+          LAST_FAILING=""
+          LAST_ERR=""
+          for i in $(seq 1 $ITER); do
+            echo "=== Probe iteration $i / $ITER ==="
+            ec=0
+            out=$(bash scripts/run-fixtures.sh 2>&1) || ec=$?
+            if [ "$ec" -eq 0 ]; then
+              PASS=$((PASS+1))
+              echo "--- iteration $i passed (tail) ---"
+              echo "$out" | tail -3
+            else
+              FAIL=$((FAIL+1))
+              echo "ITERATION $i FAILED (exit=$ec)"
+              echo "--- iteration $i full output ---"
+              echo "$out"
+              echo "--- iteration $i FAIL summary ---"
+              echo "$out" | grep -E "^FAIL|^  FAIL|^Results:" | head -20
+              LAST_FAILING=$(echo "$out" | grep -E "^FAIL|^  FAIL" | head -1)
+              LAST_ERR="$out"
+            fi
+          done
+          echo ""
+          echo "=== PROBE SUMMARY ==="
+          echo "total iterations: $ITER"
+          echo "passed:           $PASS"
+          echo "failed:           $FAIL"
+          echo "first/last failing fixture: $LAST_FAILING"
+          echo ""
+          if [ "$FAIL" -gt 0 ]; then
+            echo "=== LAST FAILED ITERATION FULL STDERR ==="
+            echo "$LAST_ERR"
+            exit 1
+          fi
+          exit 0
+
       - name: Status summary
         run: |
           # Capture the status-summary output once on the warm cache so the
