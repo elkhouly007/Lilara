@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -eu
+# pipefail so a sub-script's own internal `set -e` + `| pipe` failure
+# propagates to the run_check below rather than being masked by the pipe's
+# last command. Scoped to THIS wrapper only (do NOT add to the sub-scripts).
+set -o pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
@@ -24,40 +28,74 @@ check_file() {
   if [ -f "$1" ]; then pass "$2"; else fail "$2"; fi
 }
 
+# Fail-flag accumulator for the [Verification] sub-script checks. De-masks the
+# old `... && printf ok || printf FAILED` pattern that always exited 0 (Pitfall
+# 53, surfaced by PR #195). `fail` the integer variable and `fail()` the
+# function above live in separate bash namespaces, so they coexist safely:
+# check_file still calls the function; run_check + `exit "$fail"` use the var.
+declare -i fail=0
+
+# run_check NAME CMD [ARGS...] — runs CMD silently; prints "NAME: ok" on success
+# or "NAME: FAILED" to stderr and trips the fail flag on failure. stdout/stderr
+# of the sub-script are suppressed so the summary stays terse; the fail flag is
+# the propagation mechanism (the user sees only the summary, exit code reflects
+# reality).
+run_check() {
+  local name="$1"; shift
+  if "$@" >/dev/null 2>&1; then
+    printf '%s\n' "  $name: ok"
+  else
+    printf '%s\n' "  $name: FAILED" >&2
+    fail=1
+  fi
+}
+
 version="$(cat "$(dirname -- "$0")/../VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
 printf '%s\n' "Agent Runtime Guard Status Summary  (v${version})"
 printf '%s\n' "==========================================="
 
 printf '%s\n' ""
 printf '%s\n' "[Verification]"
-./scripts/audit-local.sh >/dev/null 2>&1 && printf '%s\n' "  audit: ok" || printf '%s\n' "  audit: FAILED"
-./scripts/check-registries.sh >/dev/null 2>&1 && printf '%s\n' "  registries: ok" || printf '%s\n' "  registries: FAILED"
-./scripts/smoke-test.sh >/dev/null 2>&1 && printf '%s\n' "  smoke: ok" || printf '%s\n' "  smoke: FAILED"
-./scripts/check-scenarios.sh >/dev/null 2>&1 && printf '%s\n' "  scenarios: ok" || printf '%s\n' "  scenarios: FAILED"
-./scripts/check-integration-smoke.sh >/dev/null 2>&1 && printf '%s\n' "  integration smoke: ok" || printf '%s\n' "  integration smoke: FAILED"
-./scripts/test-payload-protection.sh >/dev/null 2>&1 && printf '%s\n' "  payload protection: ok" || printf '%s\n' "  payload protection: FAILED"
-./scripts/run-fixtures.sh >/dev/null 2>&1 && printf '%s\n' "  fixtures: ok" || printf '%s\n' "  fixtures: FAILED"
-./scripts/audit-examples.sh >/dev/null 2>&1 && printf '%s\n' "  audit-examples: ok" || printf '%s\n' "  audit-examples: prose matches found (review manually)"
-./scripts/check-installation.sh >/dev/null 2>&1 && printf '%s\n' "  installation: ok" || printf '%s\n' "  installation: FAILED"
-./scripts/check-config-integration.sh >/dev/null 2>&1 && printf '%s\n' "  config-integration: ok" || printf '%s\n' "  config-integration: FAILED"
-./scripts/check-runtime-core.sh >/dev/null 2>&1 && printf '%s\n' "  runtime-core: ok" || printf '%s\n' "  runtime-core: FAILED"
-./scripts/check-runtime-cli.sh >/dev/null 2>&1 && printf '%s\n' "  runtime-cli: ok" || printf '%s\n' "  runtime-cli: FAILED"
-./scripts/check-hook-edge-cases.sh >/dev/null 2>&1 && printf '%s\n' "  hook-edge-cases: ok" || printf '%s\n' "  hook-edge-cases: FAILED"
-./scripts/check-apply-status.sh >/dev/null 2>&1 && printf '%s\n' "  apply-status: ok" || printf '%s\n' "  apply-status: FAILED"
-./scripts/check-executables.sh >/dev/null 2>&1 && printf '%s\n' "  executables: ok" || printf '%s\n' "  executables: FAILED"
-./scripts/check-setup-wizard.sh >/dev/null 2>&1 && printf '%s\n' "  setup-wizard: ok" || printf '%s\n' "  setup-wizard: FAILED"
-./scripts/check-wiring-docs.sh >/dev/null 2>&1 && printf '%s\n' "  wiring-docs: ok" || printf '%s\n' "  wiring-docs: FAILED"
-./scripts/check-superiority-evidence.sh >/dev/null 2>&1 && printf '%s\n' "  superiority-evidence: ok" || printf '%s\n' "  superiority-evidence: FAILED"
-./scripts/check-status-docs.sh >/dev/null 2>&1 && printf '%s\n' "  status-docs: ok" || printf '%s\n' "  status-docs: FAILED"
-./scripts/check-fixture-count.sh >/dev/null 2>&1 && printf '%s\n' "  fixture-count: ok" || printf '%s\n' "  fixture-count: FAILED"
-./scripts/check-harness-support.sh >/dev/null 2>&1 && printf '%s\n' "  harness-support: ok" || printf '%s\n' "  harness-support: FAILED"
+run_check "audit" ./scripts/audit-local.sh
+run_check "registries" ./scripts/check-registries.sh
+run_check "smoke" ./scripts/smoke-test.sh
+run_check "scenarios" ./scripts/check-scenarios.sh
+run_check "integration smoke" ./scripts/check-integration-smoke.sh
+run_check "payload protection" ./scripts/test-payload-protection.sh
+run_check "fixtures" ./scripts/run-fixtures.sh
+# audit-examples keeps its intentional non-standard message (a failing run is a
+# manual-review signal). We still propagate the failure to the fail flag so the
+# de-masked exit code reflects it — matching the workflow's own "Audit examples"
+# step, which exits 1 on this condition.
+if ./scripts/audit-examples.sh >/dev/null 2>&1; then
+  printf '%s\n' "  audit-examples: ok"
+else
+  printf '%s\n' "  audit-examples: prose matches found (review manually)" >&2
+  fail=1
+fi
+run_check "installation" ./scripts/check-installation.sh
+run_check "config-integration" ./scripts/check-config-integration.sh
+run_check "runtime-core" ./scripts/check-runtime-core.sh
+run_check "runtime-cli" ./scripts/check-runtime-cli.sh
+run_check "hook-edge-cases" ./scripts/check-hook-edge-cases.sh
+run_check "apply-status" ./scripts/check-apply-status.sh
+run_check "executables" ./scripts/check-executables.sh
+run_check "setup-wizard" ./scripts/check-setup-wizard.sh
+run_check "wiring-docs" ./scripts/check-wiring-docs.sh
+run_check "superiority-evidence" ./scripts/check-superiority-evidence.sh
+run_check "status-docs" ./scripts/check-status-docs.sh
+run_check "fixture-count" ./scripts/check-fixture-count.sh
+run_check "harness-support" ./scripts/check-harness-support.sh
+# The workflow sets ARG_SKIP_STATUS_ARTIFACT_CHECK=1 to intentionally skip this
+# sub-check (the check-status-artifact step runs it separately). A skip is NOT a
+# failure — do not call run_check / do not trip the fail flag here.
 if [ "${ARG_SKIP_STATUS_ARTIFACT_CHECK:-0}" = "1" ]; then
   printf '%s\n' "  status-artifact: skipped"
 else
-  ./scripts/check-status-artifact.sh >/dev/null 2>&1 && printf '%s\n' "  status-artifact: ok" || printf '%s\n' "  status-artifact: FAILED"
+  run_check "status-artifact" ./scripts/check-status-artifact.sh
 fi
-./scripts/policy-lint.sh >/dev/null 2>&1 && printf '%s\n' "  policy-lint: ok" || printf '%s\n' "  policy-lint: FAILED"
-./scripts/detect-sensitive-data.sh scripts/status-summary.sh >/dev/null 2>&1 && printf '%s\n' "  data-detector: ok" || printf '%s\n' "  data-detector: FAILED"
+run_check "policy-lint" ./scripts/policy-lint.sh
+run_check "data-detector" ./scripts/detect-sensitive-data.sh scripts/status-summary.sh
 
 printf '%s\n' ""
 printf '%s\n' "[Parity Snapshot]"
@@ -276,3 +314,8 @@ done
 if [ "$hook_placeholder_found" -eq 0 ]; then
   printf '%s\n' "  hook paths: ok (no /ABS_PATH/ placeholders found)"
 fi
+
+# De-masked exit: surface any [Verification] sub-check failure as a non-zero
+# exit instead of the old always-exit-0 behavior. The [Hook Wiring] block above
+# stays a soft WARNING (it does not trip the fail flag) — behavior preserved.
+exit "$fail"
