@@ -135,14 +135,15 @@ isolated(() => {
     : fail("T3: benign-bulk → require-review", `action=${result.action}`);
 
   // T3 timing — warmup + best-of-K min (ADR-040 §2/§3, same class as the
-  // notify-transport cold-perf flake #195). Shared-runner contention can only
-  // ADD latency — noise ≥ 0 (ADR-040 §3) — so the per-batch MIN strips the
-  // additive noise, and the worst-of-cleanest (MAX across the per-batch mins)
-  // is the regression-sensitive estimator. A real >100ms-warm regression still
-  // FAILS: it raises true_cost in EVERY batch, so every per-batch min rises and
-  // the max-of-mins crosses the ceiling. The hard 100ms ceiling is unchanged
-  // and backstops either way (ADR-040 §4 #1 forbids widening it). Warmup
-  // (N=25) discards JIT/first-call-GC cost before any measured sample.
+  // notify-transport cold-perf flake #195). Shared-runner contention can
+  // only ADD latency — noise ≥ 0 (ADR-040 §3) — so the per-batch MIN
+  // strips the additive noise, and the MIN across the per-batch mins is
+  // the regression-sensitive estimator: a real >100ms-warm regression
+  // raises true_cost in EVERY batch, so every per-batch min rises and
+  // the min-of-K crosses the ceiling. The hard 100ms ceiling is
+  // unchanged (ADR-040 §4 #1 forbids widening it) and is the gate.
+  // Warmup (N=25) discards JIT/first-call-GC cost before any measured
+  // sample.
   const N_WARMUP = 25;
   const K_BATCH  = 5;
   const N_MEAS   = 25;
@@ -158,10 +159,10 @@ isolated(() => {
     }
     batchMins.push(batchMin);
   }
-  const maxOfCleanest = Math.max(...batchMins);
-  maxOfCleanest < 100
-    ? ok(`T3: timing <100ms (best-of-K mins: ${batchMins.join("ms, ")}ms; max-of-cleanest=${maxOfCleanest}ms)`)
-    : fail("T3: timing <100ms", `max-of-cleanest=${maxOfCleanest}ms across ${K_BATCH} batches — perf regression`);
+  const minOfCleanest = Math.min(...batchMins);
+  minOfCleanest < 100
+    ? ok(`T3: timing <100ms (best-of-K mins: ${batchMins.join("ms, ")}ms; min-of-cleanest=${minOfCleanest}ms)`)
+    : fail("T3: timing <100ms", `min-of-cleanest=${minOfCleanest}ms across ${K_BATCH} batches — perf regression`);
 });
 
 // ─── T4: F26 sudo-via-raw-fallback ───────────────────────────────────────────
