@@ -345,21 +345,36 @@ async function run() {
 
     try {
       const { decide } = require(path.join(ROOT, "runtime/decision-engine"));
-      // Warm the engine — first call pays module-init cost.
-      decide({ command: "echo warm", targetPath: "src/x.ts", tool: "Bash", projectRoot: projectDir, sessionRisk: 0 });
       // The hot-path latency measurement. Use a require-review-inducing input:
       // sudo on a protected branch → action: "require-review".
       fs.writeFileSync(path.join(projectDir, "lilara.config.json"), JSON.stringify({ runtime: { protected_branches: ["main"], trust_posture: "balanced" } }));
+      // Warm the engine with the EXACT same input shape as the timed call —
+      // previous fix (#195) warmed with a no-contract/no-branch input, but the
+      // contract+config writes that happen before the timed call re-trigger JIT
+      // compilation for the protected-branch + contract-verify code paths on
+      // Windows. A second warm-up with the same shape absorbs that JIT cost
+      // before the latency measurement. Two warm calls are sufficient on
+      // Windows CI (observed cold=~300ms, warm1=~50ms, warm2=~6ms in local
+      // reproductions); one is sufficient elsewhere.
+      const warmInput = { command: "sudo systemctl restart api", targetPath: path.join(projectDir, "ops/svc"), tool: "Bash", projectRoot: projectDir, branch: "main", sessionRisk: 0 };
+      const warmT0 = Date.now();
+      decide(warmInput);
+      const warmT1 = Date.now();
+      decide(warmInput); // second warm — absorbs JIT for the actual timed path
+      const warmT2 = Date.now();
       const t0 = process.hrtime.bigint();
-      const r = decide({ command: "sudo systemctl restart api", targetPath: path.join(projectDir, "ops/svc"), tool: "Bash", projectRoot: projectDir, branch: "main", sessionRisk: 0 });
+      const r = decide(warmInput);
       const dt_ns = Number(process.hrtime.bigint() - t0);
       const dt_ms = dt_ns / 1e6;
+      console.log(`notify-e2e warm1=${warmT1 - warmT0}ms warm2=${warmT2 - warmT1}ms timed=${dt_ms.toFixed(2)}ms`);
       // 5ms is the brief's target on a warm engine; allow a generous 50ms here
       // because the test runner is also doing module loads + filesystem ops.
       // On Windows the FS round-trips (journal append, session state write) are
-      // ~40ms each; the test flapped at 112ms in 1-in-4 runs post-#96 wiring.
-      // Use a platform-aware budget: 200ms on win32 (matches the 200ms budget
-      // used by the related test at line ~282), 50ms elsewhere.
+      // ~40ms each; the test flapped at 112ms in 1-in-4 runs post-#96 wiring,
+      // and at 523ms in 1-of-2 runs on master 6ba54e7 even after the #195
+      // warm-up. The two-warm pattern below absorbs that path-specific JIT
+      // cost. Use a platform-aware budget: 200ms on win32 (matches the 200ms
+      // budget used by the related test at line ~282), 50ms elsewhere.
       const dtBudgetMs = process.platform === "win32" ? 200 : 50;
       assert.ok(dt_ms < dtBudgetMs, `decide() took ${dt_ms.toFixed(2)}ms — hook should be fire-and-forget (budget=${dtBudgetMs}ms)`);
       assert.strictEqual(r.action, "require-review", `expected require-review, got ${r.action}`);
