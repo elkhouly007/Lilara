@@ -575,6 +575,17 @@ const LATTICE = Object.freeze([
     notes: "ADR-016: PostToolUse pattern scan for prompt-injection payloads in Read/WebFetch/WebSearch/Fetch/mcp/Browser results. Detection-only warn floor; enforcement via F10 taint correlation on next PreToolUse.",
   }),
   Object.freeze({
+    id: "F30",
+    rung: 18.75,
+    name: "tamper-floor",
+    action: "block",
+    source: "tamper-floor",
+    tier: "inviolable",
+    demotableBy: [],
+    predicateRef: "runtime/floor-tamper.js:evaluateFloor",
+    notes: "F30 (ADR-050): runtime tamper floor over installed guard footprint (~/.lilara via state-paths.js). Tier inviolable; legitimate updates route through installer/upgrade path as operator-on-host, OUTSIDE agent session (SCOPE §21 host-trust boundary). §19 #6 precondition satisfied on master.",
+  }),
+  Object.freeze({
     id: "D-LEARNED-ALLOW",
     rung: 19,
     name: "learned-allow",

@@ -55,6 +55,7 @@ const _F26 = getEntry("F26");         // mcp-registration-write
 const _F27 = getEntry("F27");         // secret-egress-external (ADR-036)
 const _F28 = getEntry("F28");         // taint-egress-consent (ADR-037)
 const _F29 = getEntry("F29");         // destructive-delete-coord (ADR-038)
+const _F30 = require("./floor-tamper"); // F30 tamper-floor (ADR-050)
 const _CA  = getEntry("D-CONTRACT-ALLOW");  // contract-allow (sources[0/1])
 const _LA  = getEntry("D-LEARNED-ALLOW");   // learned-allow
 const _AAO = getEntry("D-AUTO-ALLOW-ONCE"); // auto-allow-once
@@ -868,6 +869,26 @@ function decide(input = {}) {
       const _f28r = _evalTaintEgressFloor(input);
       if (_f28r && _f28r.fired) _f28Detail = _f28r;
     } catch { /* F28 must never throw out of decide() — fail open */ }
+  }
+
+  // F30 (ADR-050): runtime tamper floor — rung 18.75, tier inviolable.
+  // Path-set anchored on state-paths.js resolved dirs. No demotableBy.
+  // Pure predicate: evaluates targetPath against installed guard footprint.
+  try {
+    const _f30r = _F30.evaluateFloor(input);
+    if (_f30r && _f30r.fired) {
+      return buildEarlyBlock(
+        "tamper-floor", enriched, discovered, input,
+        _f30r.reason || "blocked by tamper floor",
+        { floorFired: _F30.name, decisionSource: _F30.source, ambientTouch: _ambientTouch }
+      );
+    }
+  } catch {
+    return buildEarlyReview(
+      "tamper-floor-eval-failed", enriched, discovered, input,
+      "tamper-floor evaluation threw unexpectedly; routing to review",
+      { floorFired: _F30.name, decisionSource: _F30.source, ambientTouch: _ambientTouch }
+    );
   }
 
   // F16 (ADR-009 PR-B): ambient-authority floor — rung 17.5, after F15 (envelope)

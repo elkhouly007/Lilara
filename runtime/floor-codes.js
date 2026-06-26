@@ -106,6 +106,13 @@ const FLOOR_CODES = Object.freeze({
   // approve-past with recoverability snapshot. Active only when LILARA_DELETE_COORD=1.
   "destructive-delete-coord":             "F29_DESTRUCTIVE_DELETE_COORD",
   "f29-consent-demoted":                  "F29_DESTRUCTIVE_DELETE_COORD",
+  // ── F30 tamper-floor (ADR-050) ────────────────────────────────────────────────
+  // INVIOlABLE block. In-session write to the installed guard footprint
+  // (~/.lilara via state-paths.js). No demotableBy; tier=inviolable.
+  // Legitimate updates route through the installer/upgrade path as
+  // operator-on-host OUTSIDE the agent session (SCOPE §21 host-trust boundary).
+  "tamper-floor":                         "F30_TAMPER_FLOOR",
+  "tamper-floor-eval-failed":             "F30_TAMPER_FLOOR",
 });
 
 function floorCodeFor(reasonCode) {

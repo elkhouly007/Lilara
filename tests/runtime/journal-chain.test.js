@@ -21,9 +21,15 @@ const fs     = require("node:fs");
 const os     = require("node:os");
 const path   = require("node:path");
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "horus-journal-chain-"));
-process.env.LILARA_STATE_DIR = tmp;
-process.env.HOME            = tmp;
+// PR-F root-cause fix: keep HOME and LILARA_STATE_DIR in SEPARATE tmp dirs.
+// Previously HOME=LILARA_STATE_DIR=$tmp collapsed both into the same dir.
+// The chain files live in LILARA_STATE_DIR (where they belong); HOME points
+// elsewhere so any future test addition passing `cwd: tmp` cannot silently
+// land inside F30's protected footprint and mask the floor under test.
+const tmpState = fs.mkdtempSync(path.join(os.tmpdir(), "horus-journal-chain-st-"));
+const tmpHome  = fs.mkdtempSync(path.join(os.tmpdir(), "horus-journal-chain-home-"));
+process.env.LILARA_STATE_DIR = tmpState;
+process.env.HOME            = tmpHome;
 
 const journal = require(path.join(__dirname, "..", "..", "runtime", "journal-chain"));
 
@@ -31,7 +37,7 @@ let passed = 0;
 let failed = 0;
 function test(name, fn) {
   // Each test runs against a fresh chain + key file.
-  const file = path.join(tmp, "chain-" + Math.random().toString(36).slice(2) + ".jsonl");
+  const file = path.join(tmpState, "chain-" + Math.random().toString(36).slice(2) + ".jsonl");
   try {
     fn(file);
     passed += 1;

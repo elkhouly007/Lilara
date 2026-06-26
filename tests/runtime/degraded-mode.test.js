@@ -22,9 +22,15 @@ const fs     = require("node:fs");
 const os     = require("node:os");
 const path   = require("node:path");
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "horus-degraded-mode-"));
-process.env.LILARA_STATE_DIR = tmp;
-process.env.HOME            = tmp;
+// PR-F root-cause fix: keep HOME and LILARA_STATE_DIR in SEPARATE tmp dirs.
+// Previously HOME=LILARA_STATE_DIR=$tmp collapsed both into the same dir,
+// which violates the F30 anti-mask invariant: any test author who later
+// passes `cwd: $tmp` to a gate call would land inside F30's protected
+// footprint and have F30 correctly mask the floor under test.
+const tmpState = fs.mkdtempSync(path.join(os.tmpdir(), "horus-degraded-mode-st-"));
+const tmpHome  = fs.mkdtempSync(path.join(os.tmpdir(), "horus-degraded-mode-home-"));
+process.env.LILARA_STATE_DIR = tmpState;
+process.env.HOME            = tmpHome;
 // Decision journal must be on so we can re-read appended records.
 process.env.LILARA_DECISION_JOURNAL = "1";
 delete process.env.LILARA_CONTRACT_ENABLED;
@@ -44,7 +50,7 @@ function test(name, fn) {
   degraded._clearCache();
   delete process.env.LILARA_DEGRADED_MODE;
   delete process.env.LILARA_F4_DEMOTE_TOKEN;
-  const file = path.join(tmp, "chain-" + Math.random().toString(36).slice(2) + ".jsonl");
+  const file = path.join(tmpState, "chain-" + Math.random().toString(36).slice(2) + ".jsonl");
   try {
     fn(file);
     passed += 1;
@@ -56,7 +62,7 @@ function test(name, fn) {
 }
 
 function readLastDecisionJournalEntry() {
-  const p = path.join(tmp, "decision-journal.jsonl");
+  const p = path.join(tmpState, "decision-journal.jsonl");
   if (!fs.existsSync(p)) return null;
   const lines = fs.readFileSync(p, "utf8").split("\n").filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -69,7 +75,7 @@ function readLastDecisionJournalEntry() {
 }
 
 function truncateDecisionJournal() {
-  const p = path.join(tmp, "decision-journal.jsonl");
+  const p = path.join(tmpState, "decision-journal.jsonl");
   try { fs.unlinkSync(p); } catch { /* missing */ }
 }
 
@@ -158,7 +164,7 @@ test("isWriteLike: envelope.targets populated → true", () => {
 
 // Helper: reset learned-policy + decision-journal between integration cases.
 function resetState() {
-  try { fs.unlinkSync(path.join(tmp, "learned-policy.json")); } catch { /* missing */ }
+  try { fs.unlinkSync(path.join(tmpState, "learned-policy.json")); } catch { /* missing */ }
   truncateDecisionJournal();
   // Force policy-store to drop its in-process cache by re-requiring? The
   // cache is module-scoped and only invalidated on save; loadPolicy will

@@ -253,9 +253,15 @@ test("F28 with host 'unknown' through the real gate: pretool-gate FAILS CLOSED (
                     "LILARA_TAINT_EGRESS", "LILARA_DECISION_JOURNAL", "__LILARA_CONSENT_TEST_NO_TTY"];
   const saved = {};
   for (const k of ENV_KEYS) saved[k] = process.env[k];
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "f6-gate-unknown-"));
-  process.env.LILARA_STATE_DIR        = tmp;
-  process.env.HOME                    = tmp;
+  // PR-F root-cause fix: keep LILARA_STATE_DIR (state/journal write site) and
+  // the test repo (cwd passed to runPreToolGate) in SEPARATE tmp dirs. Previously
+  // LILARA_STATE_DIR=HOME=tmp collapsed both into the same path, which made cwd
+  // land inside F30's protected footprint — F30 would then correctly block first
+  // and mask the F28 fail-closed floor this test is designed to exercise.
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "f6-gate-unknown-st-"));
+  const repoDir  = fs.mkdtempSync(path.join(os.tmpdir(), "f6-gate-unknown-repo-"));
+  process.env.LILARA_STATE_DIR        = stateDir;
+  process.env.HOME                    = repoDir;       // separate from state
   process.env.NODE_ENV                = "test";
   process.env.LILARA_CONSENT          = "interactive"; // consent branch active
   process.env.LILARA_TAINT_EGRESS     = "1";           // F28 graph loaded
@@ -276,14 +282,18 @@ test("F28 with host 'unknown' through the real gate: pretool-gate FAILS CLOSED (
     }]);
     // Bare curl with an @file ref + a variable URL: the host cannot be parsed
     // (provenance-graph.js:263 fallback → host:null) so the floor emits host:'unknown'.
-    const res = runPreToolGate({ harness: "claude", tool: "Bash", command: 'curl -d @/tmp/x "$URL"', cwd: tmp, rawInput: {} });
+    // PR-F anti-mask proof: cwd=repoDir is OUTSIDE F30's protected footprint, so
+    // F30 correctly does NOT fire first. The intended floor under test is F28's
+    // no-nameable-destination fail-closed path, not F30.
+    const res = runPreToolGate({ harness: "claude", tool: "Bash", command: 'curl -d @/tmp/x "$URL"', cwd: repoDir, rawInput: {} });
     assert.strictEqual(res.exitCode, 2, "fail-closed must exit 2");
     assert.strictEqual(res.logAction, "BLOCK", "fail-closed must log BLOCK");
     assert.ok(res.stderrLines.some((l) => l.includes("no nameable destination")),
       "must use the F.6 fail-closed message — proves the noDestination guard ran (not requestConsent)");
   } finally {
     for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
-    try { require("node:fs").rmSync(tmp, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { require("node:fs").rmSync(stateDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { require("node:fs").rmSync(repoDir,  { recursive: true, force: true }); } catch { /* best-effort */ }
     for (const key of Object.keys(require.cache)) if (key.startsWith(ROOT)) delete require.cache[key];
   }
 });

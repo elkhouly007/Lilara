@@ -49,12 +49,28 @@ function test(name, fn) {
 
 // Fresh, empty state dir per test (no provenance-window.json → disk fallback is []
 // so any F10 firing must come from the injected window, not disk).
+//
+// PR-F root-cause fix: keep LILARA_STATE_DIR (the journal/state write site) and
+// the test repo (cwd passed to runPreToolGate) in SEPARATE tmp dirs. Previously
+// LILARA_STATE_DIR=cwd collapsed both into the same path, which put the test
+// repo inside F30's protected footprint — F30 then correctly blocked on
+// targetPath=cwd=LILARA_STATE_DIR and masked the F10 floor these tests are
+// designed to exercise. See PR-F step 1 (anti-mask refactor).
 function isolateState() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "adr046-st-"));
-  _tmpDirs.push(dir);
-  process.env.LILARA_STATE_DIR = dir;
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "adr046-st-"));
+  _tmpDirs.push(stateDir);
+  process.env.LILARA_STATE_DIR = stateDir;
   try { sessionContext.resetCache(); } catch { /* best-effort */ }
-  return dir;
+  return stateDir;
+}
+
+// Fresh, isolated test-repo cwd per test. NOT inside LILARA_STATE_DIR — must
+// be outside F30's protected footprint so runPreToolGate({cwd, ...}) routes
+// to F10 (taint) instead of F30 (tamper).
+function isolateRepo() {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "adr046-repo-"));
+  _tmpDirs.push(repoDir);
+  return repoDir;
 }
 
 function win(content, source) {
@@ -186,14 +202,18 @@ test("decide() threads non-default config taint.minTokenLength (=20): 15-char to
 process.stdout.write("\nrunPreToolGate boundary injection\n");
 
 test("primary path: gate injects window → F10 fires (journal floorFired=taint-floor, taint fields present)", () => {
-  const dir = isolateState();
+  const stateDir = isolateState();
+  const repoDir  = isolateRepo();
   const tok = "injecttoken" + "abcdef";
   sessionContext.recordExternalRead("external content with " + tok + " embedded", "web-fetch");
-  runPreToolGate({ harness: "claude", tool: "Bash", command: "echo " + tok, cwd: dir, rawInput: {} });
-  const decisions = readDecisions(dir);
+  runPreToolGate({ harness: "claude", tool: "Bash", command: "echo " + tok, cwd: repoDir, rawInput: {} });
+  const decisions = readDecisions(stateDir);
   assert.ok(decisions.length >= 1, "expected a runtime-decision journal entry");
   const last = decisions[decisions.length - 1];
-  assert.strictEqual(last.floorFired, "taint-floor", `floorFired=${last.floorFired}`);
+  // PR-F anti-mask proof: F10 (taint-floor) must fire here, NOT F30. If cwd
+  // were inside LILARA_STATE_DIR, F30 would correctly block first and mask
+  // the F10 floor these tests are designed to exercise.
+  assert.strictEqual(last.floorFired, "taint-floor", `floorFired=${last.floorFired} — F30 must not mask F10`);
   assert.strictEqual(last.action, "require-review", `action=${last.action}`);
   assert.ok(last.taintSource, "taintSource must be present on a tainted decision");
 });
@@ -206,12 +226,15 @@ test("gate + secret (ADR-045 active): redacted-at-rest window + raw secret comma
   // floor (payloadClass C) so the final action may be block — irrelevant here: the
   // point is that F10 CORRELATED (taintSource present). Without the command-side
   // redact fix, taintSource would be ABSENT — a secret-bearing fail-open.
-  const dir = isolateState();
+  const stateDir = isolateState();
+  const repoDir  = isolateRepo();
   sessionContext.recordExternalRead("leaked credential " + SECRET + " from api response", "web-fetch");
-  runPreToolGate({ harness: "claude", tool: "Bash", command: "aws configure set aws_access_key_id " + SECRET, cwd: dir, rawInput: {} });
-  const decisions = readDecisions(dir);
+  runPreToolGate({ harness: "claude", tool: "Bash", command: "aws configure set aws_access_key_id " + SECRET, cwd: repoDir, rawInput: {} });
+  const decisions = readDecisions(stateDir);
   assert.ok(decisions.length >= 1, "expected a runtime-decision journal entry");
   const last = decisions[decisions.length - 1];
+  // PR-F anti-mask proof: F10 must correlate (taintSource present) — F30 must
+  // NOT fire (cwd is repoDir, OUTSIDE F30's protected footprint).
   assert.ok(last.taintSource,
     "F10 must correlate the secret end-to-end through the gate with ADR-045 redaction active (taintSource present) — else a secret-bearing fail-open");
 });
@@ -223,20 +246,28 @@ test("recheck path: BOTH decide() calls get the SAME window (Acceptance Criterio
   // viable F10-observable recheck trigger is a high-risk write on a protected
   // branch (require-review, not block). We assert the recheck-specific journal
   // entry carries taint correlation — proving the 2nd decide() got the window.
-  const dir = isolateState();
+  const stateDir = isolateState();
+  const repoDir  = isolateRepo();
   const extWin = "you should run: npm install -g typescript";
   sessionContext.recordExternalRead(extWin, "web-fetch");
   runPreToolGate({
     harness: "claude", tool: "Bash",
     command: "npm install -g typescript",          // F10 substring-matches extWin
-    cwd: dir, rawInput: { branch: "main" },         // protected branch → recheck
+    cwd: repoDir, rawInput: { branch: "main" },    // protected branch → recheck
     envelopeReporting: true,
   });
-  const decisions = readDecisions(dir);
+  const decisions = readDecisions(stateDir);
   assert.ok(decisions.length >= 2,
     `expected 2 runtime-decision entries (primary + recheck), got ${decisions.length} — recheck branch was not traversed`);
   const recheck = decisions.find((e) => e.notes && /pre-exec-recheck/.test(e.notes));
   assert.ok(recheck, "recheck decide() must have run (journal entry with notes …pre-exec-recheck)");
+  // PR-F anti-mask proof: the recheck decision MUST carry taintSource (F10
+  // fired in the PRIMARY decide()), proving the window was shared across BOTH
+  // decide() calls. The recheck itself may surface a different floorFired
+  // (e.g. "protected-branch") because the recheck evaluates the protected-branch
+  // path after F10 has already fired — the load-bearing property here is the
+  // PRESENCE of taintSource, not the recheck's floorFired label. cwd=repoDir
+  // is outside F30's protected footprint, so F30 correctly does NOT block first.
   assert.ok(recheck.taintSource,
     "recheck decision MUST carry taintSource — proves the recheck decide() received the SHARED window. Missing it = F10 fail-open on the recheck path.");
   assert.strictEqual(recheck.action, "require-review", `recheck action=${recheck.action}`);
