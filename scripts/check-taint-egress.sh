@@ -5,7 +5,7 @@
 #   1. F28 lattice entry exists at rung 18.65, tier demotable, demotableBy consent.
 #   2. enforcementFor("escalate","taint-egress-consent") === "consent-required".
 #   3. canDemote("F28","consent:interactive") === true.
-#   4. F27 remains inviolable (canDemote false — regression guard).
+#   4. F27 demotable by consent:interactive (PR-C reclassification — formerly inviolable).
 #   5. evalTaintEgressFloor returns fired:false on null/empty provenanceGraph
 #      (the byte-identical feature-off inertness guarantee).
 #   6. evalTaintEgressFloor fires (structural arm) for the canonical ssh→temp→curl shape.
@@ -58,11 +58,11 @@ if (ef !== 'consent-required')
 if (!canDemote('F28', 'consent:interactive'))
   errors.push('canDemote(F28, consent:interactive) must be true');
 
-if (canDemote('F27', 'consent:interactive'))
-  errors.push('F27 must remain inviolable (regression guard)');
+if (!canDemote('F27', 'consent:interactive'))
+  errors.push('F27 must be demotable by consent:interactive (PR-C reclassification)');
 
 if (errors.length) { console.error('FAIL: ' + errors.join('; ')); process.exit(1); }
-" && pass "lattice: F28 rung/tier/demotableBy/action + enforcementFor + canDemote + F27-regression" \
+" && pass "lattice: F28 rung/tier/demotableBy/action + enforcementFor + canDemote + F27-reclassification" \
  || { fail "lattice checks failed"; FAILED=1; }
 
 # ── 5: Inertness (null/empty graph) ───────────────────────────────────────────

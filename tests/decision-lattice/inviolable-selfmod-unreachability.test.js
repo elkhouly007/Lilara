@@ -101,7 +101,11 @@ function runDecide(input) {
   }
 }
 
-test("injected consentGrant does not demote F27 (1412 path cannot win)", () => {
+test("injected consentGrant cannot SILENTLY allow F27 secret egress (1412 path)", () => {
+  // PR-C: F27 is demotable by LEGITIMATE interactive consent, but a self-
+  // injected consentGrant object smuggled through the decide() 1412 path must
+  // NEVER silently allow credential egress. The floor still fires; the outcome
+  // is a hard block (headless) and is never "allow". Protection preserved.
   const grant = {
     id: "selfmod-test-grant",
     projectScope: "test:selfmod",
@@ -123,11 +127,11 @@ test("injected consentGrant does not demote F27 (1412 path cannot win)", () => {
     now: new Date("2026-06-04T12:00:00Z").getTime(),
   });
   assert.strictEqual(result.action, "block",
-    `F27 must remain block even with injected consentGrant; got ${result.action}`);
+    `F27 must not be silently allowed by an injected consentGrant; got ${result.action}`);
   assert.strictEqual(result.floorFired, "secret-egress-external",
-    `F27 must be the floor; got ${result.floorFired}`);
-  assert.strictEqual(result.enforcementAction, "block",
-    `enforcementAction must be block; got ${result.enforcementAction}`);
+    `F27 must still be the floor (grant cannot bypass it); got ${result.floorFired}`);
+  assert.notStrictEqual(result.enforcementAction, "allow",
+    `F27 must NEVER silently allow via injected grant; got enforcementAction=${result.enforcementAction}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -145,16 +149,20 @@ test("hash changes when an inviolable entry's demotableBy is mutated", () => {
   const { canonicalJson } = require(path.join(ROOT, "runtime/canonical-json"));
   const { LATTICE, LATTICE_VERSION } = require(path.join(ROOT, "runtime/decision-lattice"));
 
-  const f27 = LATTICE.find((e) => e.id === "F27");
-  assert.ok(f27, "F27 must exist in LATTICE");
+  // F3 (critical-risk) is a still-inviolable floor (demotableBy:[]) post-PR-C;
+  // F27 was used here pre-PR-C but is now legitimately demotable, so tampering
+  // F27 would no longer diverge from its real value. Tamper an actually-
+  // inviolable floor so the hash-sensitivity protection still bites.
+  const f3 = LATTICE.find((e) => e.id === "F3");
+  assert.ok(f3, "F3 must exist in LATTICE");
 
-  // Simulate the tampered projection (F27's demotableBy widened).
+  // Simulate the tampered projection (an inviolable floor's demotableBy widened).
   const tamperedFloors = LATTICE.map((e) => ({
     id:          e.id,
     rung:        e.rung,
     action:      e.action,
-    demotableBy: e.id === "F27"
-      ? ["consent:interactive"] // tampered — widened
+    demotableBy: e.id === "F3"
+      ? ["consent:interactive"] // tampered — widened on an inviolable floor
       : Array.isArray(e.demotableBy) ? e.demotableBy.slice().sort() : [],
     tier:        e.tier || (Array.isArray(e.demotableBy) && e.demotableBy.length === 0 ? "inviolable" : "demotable"),
   }));
@@ -167,13 +175,16 @@ test("hash changes when an inviolable entry's demotableBy is mutated", () => {
 });
 
 test("assertOrdered throws when tier:inviolable has non-empty demotableBy", () => {
-  // Simulate an attacker adding F27 entry with widened demotableBy.
+  // Simulate an attacker adding an inviolable entry with widened demotableBy.
+  // (Anchored on F27 pre-PR-C; F27 is now legitimately demotable, so this uses
+  // F3 — a still-inviolable floor — to keep the tier/demotableBy contradiction
+  // meaningful. The structural guarantee under test is unchanged.)
   const tamperedTable = [{
-    id: "F27",
-    rung: 15.5,
-    name: "secret-egress-external",
+    id: "F3",
+    rung: 8,
+    name: "critical-risk",
     action: "block",
-    source: "secret-egress-external-denied",
+    source: "risk-engine",
     tier: "inviolable",
     demotableBy: ["consent:interactive"], // tampered
     predicateRef: "tampered",

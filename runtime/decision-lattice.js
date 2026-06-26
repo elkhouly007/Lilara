@@ -259,14 +259,11 @@ const LATTICE = Object.freeze([
   Object.freeze({
     id: "F27",
     rung: 15.5,
-    // F27 (ADR-036 0.2.0 Task 3): secret-egress-external inviolable hard-stop.
+    // F27 (PR-C reclassification): secret-egress-external reclassified from
+    // inviolable to demotable tier (22→21 inviolable set). Demotable by
+    // consent:interactive with explicit operator sign-off. See RECORD-F27-REC.md.
     // Rung 15.5 is intentional and remains strictly increasing per assertOrdered():
-    // F14b (15) < F27 (15.5) < F18 (16). Evaluated as a Phase-A early-block
-    // BEFORE F18, F4, and the consent grant-suppression block so no consent
-    // grant or operator token can demote it.
-    //
-    // INVIOLABLE: demotableBy:[] — contract allowDomains intentionally ignored;
-    // credential material may not leave to ANY external host under this floor.
+    // F14b (15) < F27 (15.5) < F18 (16).
     //
     // SCOPE LIMIT: single-call only. Staged/cross-call exfil (secret to temp
     // file in call A, egressed in call B) is the F23/ADR-037 seam.
@@ -275,12 +272,12 @@ const LATTICE = Object.freeze([
     // (URL-scheme + bare curl/wget). Channels it cannot parse (scp/rsync) won't
     // trip F27 — same fail-direction as F18.
     name: "secret-egress-external",
-    action: "block",
+    action: "escalate",
     source: "secret-egress-external-denied",
-    tier: "inviolable",
-    demotableBy: [],
+    tier: "demotable",
+    demotableBy: ["consent:interactive"],
     predicateRef: "runtime/floor-secret-egress.js:evalSecretEgressFloor",
-    notes: "ADR-036: single-call credential/key-class material to external host. Non-demotable. See scope limits and coverage bounds in ADR-036 §Scope Limit.",
+    notes: "PR-C reclassification: F27 demoted from inviolable to demotable tier (RECORD-F27-REC.md). Demotable by consent:interactive with explicit operator sign-off. Scope limit and coverage bound semantics from ADR-036 §Scope Limit remain unchanged.",
   }),
   Object.freeze({
     id: "F18",
