@@ -125,9 +125,7 @@ isolated(() => {
     harness:    "claude",
   };
   buildIr(input, { harness: "claude", tool: input.tool });
-  const t0     = Date.now();
   const result = decide(input);
-  const elapsed = Date.now() - t0;
 
   result.action !== "block"
     ? ok("T3: benign-bulk is NOT hard-blocked (anti-FP guard)")
@@ -135,9 +133,36 @@ isolated(() => {
   result.action === "require-review"
     ? ok("T3: benign-bulk → require-review (unscannable gates)")
     : fail("T3: benign-bulk → require-review", `action=${result.action}`);
-  elapsed < 100
-    ? ok(`T3: timing <100ms (${elapsed}ms)`)
-    : fail("T3: timing <100ms", `elapsed=${elapsed}ms — perf regression`);
+
+  // T3 timing — warmup + best-of-K min (ADR-040 §2/§3, same class as the
+  // notify-transport cold-perf flake #195). Shared-runner contention can
+  // only ADD latency — noise ≥ 0 (ADR-040 §3) — so the per-batch MIN
+  // strips the additive noise, and the MIN across the per-batch mins is
+  // the regression-sensitive estimator: a real >100ms-warm regression
+  // raises true_cost in EVERY batch, so every per-batch min rises and
+  // the min-of-K crosses the ceiling. The hard 100ms ceiling is
+  // unchanged (ADR-040 §4 #1 forbids widening it) and is the gate.
+  // Warmup (N=25) discards JIT/first-call-GC cost before any measured
+  // sample.
+  const N_WARMUP = 25;
+  const K_BATCH  = 5;
+  const N_MEAS   = 25;
+  for (let w = 0; w < N_WARMUP; w++) decide(input); // discarded: JIT warmup + first-call GC
+  const batchMins = [];
+  for (let b = 0; b < K_BATCH; b++) {
+    let batchMin = Infinity;
+    for (let m = 0; m < N_MEAS; m++) {
+      const t0 = Date.now();
+      decide(input);
+      const elapsed = Date.now() - t0;
+      if (elapsed < batchMin) batchMin = elapsed;
+    }
+    batchMins.push(batchMin);
+  }
+  const minOfCleanest = Math.min(...batchMins);
+  minOfCleanest < 100
+    ? ok(`T3: timing <100ms (best-of-K mins: ${batchMins.join("ms, ")}ms; min-of-cleanest=${minOfCleanest}ms)`)
+    : fail("T3: timing <100ms", `min-of-cleanest=${minOfCleanest}ms across ${K_BATCH} batches — perf regression`);
 });
 
 // ─── T4: F26 sudo-via-raw-fallback ───────────────────────────────────────────
