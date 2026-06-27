@@ -21,13 +21,20 @@ printf '[check-runtime-core]\n'
 pass 'runtime core files present'
 
 tmp_home="$(mktemp -d)"
+tmp_state="$(mktemp -d)"
+# PR-F root-cause fix: keep HOME and LILARA_STATE_DIR in SEPARATE tmp dirs so
+# HOME-rooted test repos (sample-repo, tests-shape-repo, source-shape-repo,
+# shape-repo, f15-envelope-repo, ...) don't land inside F30's protected
+# footprint. Previously HOME=LILARA_STATE_DIR=$tmp_home collapsed both into
+# the same dir, which made F30 correctly block writes to test repos before
+# the protected-branch floor (F8) could fire.
 # session_resume_dir is defined later (line ~626); include it here so the trap
 # cleans it on exit even if the node test fails before the inline rm -rf runs.
 # ${session_resume_dir:-} safely expands to nothing when the variable is unset.
-cleanup() { rm -rf "$tmp_home" "${session_resume_dir:-}"; }
+cleanup() { rm -rf "$tmp_home" "$tmp_state" "${session_resume_dir:-}"; }
 trap cleanup EXIT
 
-HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE' "$root" || exit 1
+HOME="$tmp_home" LILARA_STATE_DIR="$tmp_state" node - <<'NODE' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const fs = require('fs');
@@ -51,7 +58,9 @@ const _testStateDirRaw = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-runtime-test
 const _realpathFn = typeof fs.realpathSync.native === 'function' ? fs.realpathSync.native : fs.realpathSync;
 const _testStateDir = (function() { try { return _realpathFn(_testStateDirRaw); } catch { return _testStateDirRaw; } })();
 process.env.LILARA_STATE_DIR = _testStateDir;
-process.env.HOME = _testStateDir;
+// PR-F root-cause fix: don't override HOME inside the JS — the shell already
+// set HOME=$tmp_home, and collapsing HOME into _testStateDir puts HOME-rooted
+// test repos inside F30's protected footprint. Leave HOME as the shell set it.
 process.env.LILARA_DECISION_JOURNAL = '0'; // suppress journal file writes during tests
 process.on('exit', () => { try { fs.rmSync(_testStateDir, { recursive: true, force: true }); } catch { /* best-effort */ } });
 const { score } = require(path.join(root, 'runtime/risk-score.js'));
@@ -597,7 +606,7 @@ pass 'runtime scoring, learned policy, suggestions, and session behavior'
 # Isolation: NODE2 intentionally reuses $tmp_home (already mktemp-unique, EXIT-trapped).
 # classifyPathSensitivity is a pure function — no file I/O, no policy-store writes —
 # so sharing the suite-level state dir is safe and correct; no separate mkdtempSync needed.
-HOME="$tmp_home" LILARA_STATE_DIR="$tmp_home" node - <<'NODE2' "$root" || exit 1
+HOME="$tmp_home" LILARA_STATE_DIR="$tmp_state" node - <<'NODE2' "$root" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const { classifyPathSensitivity } = require(path.join(root, 'claude/hooks/hook-utils.js'));

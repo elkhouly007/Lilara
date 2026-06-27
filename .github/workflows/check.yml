@@ -210,6 +210,9 @@ jobs:
       - name: Delete coordination gate (ADR-038 F29)
         run: bash scripts/check-delete-coord.sh
 
+      - name: Tamper floor gate (ADR-050 F30)
+        run: bash scripts/check-f30-tamper-floor.sh
+
       - name: Cross-harness equivalence
         run: bash scripts/check-cross-harness-equivalence.sh
 
