@@ -2,8 +2,18 @@
 set -eu
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-workdir="$(mktemp -d)"
-cleanup() { rm -rf "$workdir"; }
+# PR-F root-cause fix: keep LILARA_STATE_DIR (the guard state write site)
+# and the fixture/sample repos in SEPARATE tmp dirs. Previously
+# LILARA_STATE_DIR=$workdir collapsed both into the same dir, which put
+# $sample_repo inside F30's protected footprint — F30 then correctly
+# blocked on targetPath=$sample_repo/<anything> and masked the
+# project-aware runtime decisions this script is designed to exercise.
+# See PR-F step 1 (anti-mask refactor) — this is the same pattern
+# already applied to tests/runtime/{degraded-mode,journal-chain,taint-
+# window-injection,consent-f6-prompt-wiring}.test.js.
+state_dir="$(mktemp -d)"
+fixtures_dir="$(mktemp -d)"
+cleanup() { rm -rf "$state_dir" "$fixtures_dir"; }
 trap cleanup EXIT
 
 pass() { printf '  ok      %s\n' "$1"; }
@@ -13,15 +23,15 @@ check_missing() { [ ! -e "$1" ] || fail "$2"; }
 
 printf '[check-config-integration]\n'
 
-sample_repo="$workdir/sample-repo"
+sample_repo="$fixtures_dir/sample-repo"
 mkdir -p "$sample_repo/src" "$sample_repo/server" "$sample_repo/.claude"
 printf 'console.log("x")\n' > "$sample_repo/src/app.ts"
 printf 'package main\nfunc main() {}\n' > "$sample_repo/server/main.go"
 
 # 1. generate-config to stdout and file
-bash "$root/scripts/generate-config.sh" "$sample_repo" > "$workdir/generated.stdout.json"
-grep -Fq '"typescript"' "$workdir/generated.stdout.json" || fail 'generate-config stdout includes typescript'
-grep -Fq '"golang"' "$workdir/generated.stdout.json" || fail 'generate-config stdout includes golang'
+bash "$root/scripts/generate-config.sh" "$sample_repo" > "$fixtures_dir/generated.stdout.json"
+grep -Fq '"typescript"' "$fixtures_dir/generated.stdout.json" || fail 'generate-config stdout includes typescript'
+grep -Fq '"golang"' "$fixtures_dir/generated.stdout.json" || fail 'generate-config stdout includes golang'
 pass 'generate-config stdout'
 
 bash "$root/scripts/generate-config.sh" "$sample_repo" --output "$sample_repo/lilara.config.json" >/dev/null
@@ -32,7 +42,7 @@ grep -Fq '"trust_posture": "balanced"' "$sample_repo/lilara.config.json" || fail
 pass 'generate-config file output'
 
 # 2. install-local consumes lilara.config.json automatically
-install_target="$workdir/config-install"
+install_target="$fixtures_dir/config-install"
 mkdir -p "$install_target"
 cp "$sample_repo/lilara.config.json" "$install_target/lilara.config.json"
 bash "$root/scripts/install-local.sh" "$install_target" >/dev/null
@@ -42,7 +52,9 @@ check_missing "$install_target/rules/python/coding-style.md" 'config-driven inst
 pass 'install-local consumes lilara.config.json languages'
 
 # 3. wire-hooks --check detects stale placeholder in a controlled HOME
-fake_home="$workdir/home"
+# fake_home lives inside fixtures_dir (NOT state_dir) so the placeholder
+# resolution path does not land in F30's protected footprint.
+fake_home="$fixtures_dir/home"
 mkdir -p "$fake_home/.claude"
 cat > "$fake_home/.claude/settings.json" <<'EOF'
 {
@@ -78,7 +90,7 @@ cat > "$sample_repo/lilara.config.json" <<'EOF'
   }
 }
 EOF
-LILARA_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
+LILARA_STATE_DIR="$state_dir" node - <<'NODE' "$root" "$sample_repo" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const repo = require('path').resolve(process.argv[3]);
@@ -111,7 +123,7 @@ cat > "$sample_repo/lilara.config.json" <<'EOF'
   }
 }
 EOF
-LILARA_STATE_DIR="$workdir" node - <<'NODE' "$root" "$sample_repo" || exit 1
+LILARA_STATE_DIR="$state_dir" node - <<'NODE' "$root" "$sample_repo" || exit 1
 const path = require('path');
 const root = process.argv[2];
 const repo = require('path').resolve(process.argv[3]);
